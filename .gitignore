@@ -1,22 +1,19 @@
-# IDE
-.idea/
-.vscode/
-*.iml
+# Secrets
+connector-secrets.txt
 
-# OS
+# Docker volumes and data
+.env
+*.log
+
+# OS files
 .DS_Store
 Thumbs.db
 
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 
-# Java (якщо будуть Workers)
-target/
-*.class
-*.jar
-
-# Node.js (якщо будуть Workers)
+# Node (if workers use it)
 node_modules/
-dist/
-
-# Environment
-.env
-*.log
