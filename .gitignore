@@ -7,8 +7,6 @@
 .DS_Store
 Thumbs.db
 
-# Claude Code
-.claude/
 
 # Java (якщо будуть Workers)
 target/
