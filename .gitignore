@@ -3,6 +3,13 @@ connector-secrets.txt
 .env
 .identity/
 
+# Infrastructure configs (environment-specific)
+docker-compose*.yaml
+.connectors/
+.console/
+.optimize/
+.orchestration/
+
 # Logs
 *.log
 
