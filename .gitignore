@@ -1,8 +1,9 @@
-# Secrets
+# Secrets and credentials
 connector-secrets.txt
-
-# Docker volumes and data
 .env
+.identity/
+
+# Logs
 *.log
 
 # OS files
