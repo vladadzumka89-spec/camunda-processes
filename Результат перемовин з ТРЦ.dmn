@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions
+  xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+  xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+  xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+  id="Definitions_nego_result"
+  name="Результат перемовин з ТРЦ"
+  namespace="http://camunda.org/schema/1.0/dmn">
+
+  <!--
+    Вхід:  x_studio_camunda_nego_outcome (string)
+           Можливі значення:
+             "pay"            — домовилися, платимо рахунок як є
+             "discount"       — отримали знижку, платимо зі зниженою сумою
+             "reissue"        — рахунок будуть перевиставляти
+             "break_contract" — розриваємо договір
+
+    Вихід: nego_action (string)
+             "pay"            — оплатити рахунок
+             "reissue"        — чекати новий рахунок
+             "break_contract" — запустити підпроцес розірвання договору
+  -->
+
+  <decision id="nego-result" name="Результат перемовин з ТРЦ">
+    <decisionTable id="decisionTable_nego_result" hitPolicy="FIRST">
+
+      <input id="input_nego_outcome" label="Результат перемовин">
+        <inputExpression id="inputExpr_nego_outcome" typeRef="string">
+          <text>x_studio_camunda_nego_outcome</text>
+        </inputExpression>
+        <inputValues id="inputValues_nego_outcome">
+          <text>"pay","discount","reissue","break_contract"</text>
+        </inputValues>
+      </input>
+
+      <output id="output_nego_action"
+              label="Дія"
+              name="nego_action"
+              typeRef="string">
+        <outputValues id="outputValues_nego_action">
+          <text>"pay","reissue","break_contract"</text>
+        </outputValues>
+      </output>
+
+      <!-- Правило 1: Домовилися — платимо рахунок як є -->
+      <rule id="rule_pay">
+        <description>Домовилися — платимо рахунок</description>
+        <inputEntry id="inputEntry_pay">
+          <text>"pay"</text>
+        </inputEntry>
+        <outputEntry id="outputEntry_pay">
+          <text>"pay"</text>
+        </outputEntry>
+      </rule>
+
+      <!-- Правило 2: Знижка — платимо зі зниженою сумою -->
+      <rule id="rule_discount">
+        <description>Знижка отримана — платимо з оновленою сумою</description>
+        <inputEntry id="inputEntry_discount">
+          <text>"discount"</text>
+        </inputEntry>
+        <outputEntry id="outputEntry_discount">
+          <text>"pay"</text>
+        </outputEntry>
+      </rule>
+
+      <!-- Правило 3: Рахунок перевиставлять — чекаємо новий -->
+      <rule id="rule_reissue">
+        <description>Рахунок буде перевиставлено — очікуємо новий рахунок</description>
+        <inputEntry id="inputEntry_reissue">
+          <text>"reissue"</text>
+        </inputEntry>
+        <outputEntry id="outputEntry_reissue">
+          <text>"reissue"</text>
+        </outputEntry>
+      </rule>
+
+      <!-- Правило 4: Розриваємо договір -->
+      <rule id="rule_break">
+        <description>Переговини не дали результату — розриваємо договір</description>
+        <inputEntry id="inputEntry_break">
+          <text>"break_contract"</text>
+        </inputEntry>
+        <outputEntry id="outputEntry_break">
+          <text>"break_contract"</text>
+        </outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_nego_result">
+      <dmndi:DMNShape id="DMNShape_nego_result" dmnElementRef="nego-result">
+        <dc:Bounds x="150" y="150" width="200" height="80" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+
+</definitions>

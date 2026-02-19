@@ -80,7 +80,6 @@
         <bpmn:flowNodeRef>GW_yulia_decision</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_no_pay</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>CA_nego_self</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_after_nego</bpmn:flowNodeRef>
       </bpmn:lane>
 
       <!-- Даша = Менеджер з оренди: переговини з ТРЦ + ескалація оплати -->
@@ -242,22 +241,20 @@
       <bpmn:outgoing>Flow_nego_self_to_gw</bpmn:outgoing>
     </bpmn:callActivity>
 
-    <bpmn:exclusiveGateway id="GW_after_nego" name="Результат переговин?" default="Flow_nego_pay">
+    <!-- Визначити результат перемовин (DMN) — Система -->
+    <bpmn:businessRuleTask id="Task_dmn_record" name="Визначити результат перемовин">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="nego-result" resultVariable="nego_action" />
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_nego_self_to_gw</bpmn:incoming>
-      <bpmn:outgoing>Flow_nego_pay</bpmn:outgoing>
-      <bpmn:outgoing>Flow_nego_reissue</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-
-    <!-- Запис в ДМН (рахунок перевиставляють) — Погоджувач -->
-    <bpmn:task id="Task_dmn_record" name="Запис в ДМН">
-      <bpmn:incoming>Flow_nego_reissue</bpmn:incoming>
       <bpmn:outgoing>Flow_dmn_to_gw</bpmn:outgoing>
-    </bpmn:task>
+    </bpmn:businessRuleTask>
 
-    <bpmn:exclusiveGateway id="GW_dmn_decision" name="Розриваємо договір?">
+    <bpmn:exclusiveGateway id="GW_dmn_decision" name="Результат перемовин?" default="Flow_dmn_pay">
       <bpmn:incoming>Flow_dmn_to_gw</bpmn:incoming>
-      <bpmn:outgoing>Flow_dmn_break</bpmn:outgoing>
+      <bpmn:outgoing>Flow_dmn_pay</bpmn:outgoing>
       <bpmn:outgoing>Flow_dmn_wait</bpmn:outgoing>
+      <bpmn:outgoing>Flow_dmn_break</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
     <bpmn:callActivity id="CA_break_contract" name="Розриваємо договір">
@@ -330,7 +327,7 @@
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_timer_to_pay</bpmn:incoming>
       <bpmn:incoming>Flow_contract_yes</bpmn:incoming>
-      <bpmn:incoming>Flow_nego_pay</bpmn:incoming>
+      <bpmn:incoming>Flow_dmn_pay</bpmn:incoming>
       <bpmn:incoming>Flow_yulia_yes</bpmn:incoming>
       <bpmn:incoming>Flow_dasha_to_pay</bpmn:incoming>
       <bpmn:outgoing>Flow_pay_to_service</bpmn:outgoing>
@@ -381,16 +378,15 @@
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_nego_who = "yulia"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_nego_manual_end"        sourceRef="Task_nego_manual"       targetRef="End_nego_manual" />
-    <bpmn:sequenceFlow id="Flow_nego_self_to_gw"        sourceRef="CA_nego_self"           targetRef="GW_after_nego" />
-    <bpmn:sequenceFlow id="Flow_nego_pay"               sourceRef="GW_after_nego"          targetRef="Task_pay" name="Платимо" />
-    <bpmn:sequenceFlow id="Flow_nego_reissue"           sourceRef="GW_after_nego"          targetRef="Task_dmn_record" name="Рахунок перевиставлять">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_reissue = true</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_nego_self_to_gw"        sourceRef="CA_nego_self"           targetRef="Task_dmn_record" />
     <bpmn:sequenceFlow id="Flow_dmn_to_gw"             sourceRef="Task_dmn_record"        targetRef="GW_dmn_decision" />
-    <bpmn:sequenceFlow id="Flow_dmn_break"             sourceRef="GW_dmn_decision"        targetRef="CA_break_contract" name="так">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_break_contract = true</bpmn:conditionExpression>
+    <bpmn:sequenceFlow id="Flow_dmn_pay"               sourceRef="GW_dmn_decision"        targetRef="Task_pay" name="Платимо" />
+    <bpmn:sequenceFlow id="Flow_dmn_wait"              sourceRef="GW_dmn_decision"        targetRef="End_wait_new" name="Перевипуск рахунку">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= nego_action = "reissue"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="Flow_dmn_wait"              sourceRef="GW_dmn_decision"        targetRef="End_wait_new" name="Чекаємо новий рахунок" />
+    <bpmn:sequenceFlow id="Flow_dmn_break"             sourceRef="GW_dmn_decision"        targetRef="CA_break_contract" name="Розриваємо договір">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= nego_action = "break_contract"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_break_to_end"          sourceRef="CA_break_contract"      targetRef="End_break_contract" />
     <bpmn:sequenceFlow id="Flow_yulia_to_gw"           sourceRef="Task_yulia"             targetRef="GW_yulia_decision" />
     <bpmn:sequenceFlow id="Flow_yulia_timer_to_dasha"  sourceRef="Timer_yulia_deadline"   targetRef="Task_dasha" />
@@ -652,13 +648,6 @@
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
-      <bpmndi:BPMNShape id="GW_after_nego_di" bpmnElement="GW_after_nego" isMarkerVisible="true">
-        <dc:Bounds x="1680" y="580" width="50" height="50" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1660" y="553" width="90" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-
       <!-- User Task: Даша — ескалація оплати -->
       <bpmndi:BPMNShape id="Task_dasha_di" bpmnElement="Task_dasha">
         <dc:Bounds x="1340" y="825" width="100" height="80" />
@@ -838,30 +827,12 @@
         <di:waypoint x="1615" y="740" />
       </bpmndi:BPMNEdge>
 
-      <!-- CA_nego_self → GW_after_nego -->
+      <!-- CA_nego_self → Task_dmn_record (Юля → Погоджувач, через DMN) -->
       <bpmndi:BPMNEdge id="Flow_nego_self_to_gw_di" bpmnElement="Flow_nego_self_to_gw">
         <di:waypoint x="1620" y="605" />
-        <di:waypoint x="1680" y="605" />
-      </bpmndi:BPMNEdge>
-
-      <!-- GW_after_nego → Task_pay (Платимо, Юля → Бухгалтер) -->
-      <bpmndi:BPMNEdge id="Flow_nego_pay_di" bpmnElement="Flow_nego_pay">
-        <di:waypoint x="1705" y="580" />
-        <di:waypoint x="1705" y="135" />
-        <di:waypoint x="1730" y="135" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1713" y="355" width="46" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNEdge>
-
-      <!-- GW_after_nego → Task_dmn_record (Перевиставлять, Юля → Погоджувач) -->
-      <bpmndi:BPMNEdge id="Flow_nego_reissue_di" bpmnElement="Flow_nego_reissue">
-        <di:waypoint x="1730" y="605" />
-        <di:waypoint x="1780" y="605" />
-        <di:waypoint x="1780" y="485" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1735" y="537" width="83" height="27" />
-        </bpmndi:BPMNLabel>
+        <di:waypoint x="1675" y="605" />
+        <di:waypoint x="1675" y="445" />
+        <di:waypoint x="1730" y="445" />
       </bpmndi:BPMNEdge>
 
       <!-- Task_dmn_record → GW_dmn_decision -->
@@ -870,23 +841,32 @@
         <di:waypoint x="1880" y="445" />
       </bpmndi:BPMNEdge>
 
-      <!-- GW_dmn_decision → CA_break_contract (так) -->
-      <bpmndi:BPMNEdge id="Flow_dmn_break_di" bpmnElement="Flow_dmn_break">
+      <!-- GW_dmn_decision → Task_pay (default: Платимо, Погоджувач → Бухгалтер) -->
+      <bpmndi:BPMNEdge id="Flow_dmn_pay_di" bpmnElement="Flow_dmn_pay">
         <di:waypoint x="1905" y="420" />
-        <di:waypoint x="1905" y="415" />
-        <di:waypoint x="1980" y="415" />
+        <di:waypoint x="1905" y="135" />
+        <di:waypoint x="1830" y="135" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1932" y="397" width="16" height="14" />
+          <dc:Bounds x="1913" y="275" width="46" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
 
-      <!-- GW_dmn_decision → End_wait_new -->
+      <!-- GW_dmn_decision → End_wait_new (Перевипуск рахунку) -->
       <bpmndi:BPMNEdge id="Flow_dmn_wait_di" bpmnElement="Flow_dmn_wait">
         <di:waypoint x="1905" y="470" />
         <di:waypoint x="1905" y="505" />
         <di:waypoint x="1992" y="505" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1910" y="484" width="78" height="27" />
+          <dc:Bounds x="1910" y="484" width="88" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_dmn_decision → CA_break_contract (Розриваємо договір) -->
+      <bpmndi:BPMNEdge id="Flow_dmn_break_di" bpmnElement="Flow_dmn_break">
+        <di:waypoint x="1930" y="445" />
+        <di:waypoint x="1980" y="445" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1933" y="427" width="84" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
 
