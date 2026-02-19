@@ -58,6 +58,7 @@
         <bpmn:flowNodeRef>Timer_payday</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>GW_timer_decision</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_service_receipt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_dmn_nego_who</bpmn:flowNodeRef>
       </bpmn:lane>
 
       <bpmn:lane id="Lane_Pogodjuvach" name="Погоджувач">
@@ -212,8 +213,17 @@
     <!-- БЛОК 6: ПЕРЕГОВИНИ (Даша = Менеджер з оренди)              -->
     <!-- ========================================================== -->
 
-    <bpmn:exclusiveGateway id="GW_who_nego" name="Хто веде переговини?">
+    <!-- Система: DMN визначає виконавця переговин (nego-who → decision-1goz4yx) -->
+    <bpmn:businessRuleTask id="Task_dmn_nego_who" name="Визначити виконавця переговин">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="nego-who" resultVariable="x_studio_camunda_nego_who" />
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_contract_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_dmn_nego_who_to_gw</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <bpmn:exclusiveGateway id="GW_who_nego" name="Хто веде переговини?">
+      <bpmn:incoming>Flow_dmn_nego_who_to_gw</bpmn:incoming>
       <bpmn:outgoing>Flow_nego_dasha</bpmn:outgoing>
       <bpmn:outgoing>Flow_nego_self</bpmn:outgoing>
     </bpmn:exclusiveGateway>
@@ -370,7 +380,8 @@
     <bpmn:sequenceFlow id="Flow_contract_yes"           sourceRef="GW_contract_result"     targetRef="Task_pay" name="так">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_contract_approved = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="Flow_contract_no"            sourceRef="GW_contract_result"     targetRef="GW_who_nego" name="ні" />
+    <bpmn:sequenceFlow id="Flow_contract_no"            sourceRef="GW_contract_result"     targetRef="Task_dmn_nego_who" name="ні" />
+    <bpmn:sequenceFlow id="Flow_dmn_nego_who_to_gw"     sourceRef="Task_dmn_nego_who"      targetRef="GW_who_nego" />
     <bpmn:sequenceFlow id="Flow_nego_dasha"             sourceRef="GW_who_nego"            targetRef="Task_nego_manual" name="Веде переговини Даша">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_nego_who = "dasha"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
@@ -528,6 +539,12 @@
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
+      <!-- DMN: Визначити виконавця переговин (Lane_Systema, між GW_contract_result та GW_who_nego) -->
+      <bpmndi:BPMNShape id="Task_dmn_nego_who_di" bpmnElement="Task_dmn_nego_who">
+        <dc:Bounds x="1310" y="250" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
       <!-- ================================================== -->
       <!-- SHAPES: Погоджувач (y center ≈ 445)                -->
       <!-- ================================================== -->
@@ -557,9 +574,9 @@
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="GW_who_nego_di" bpmnElement="GW_who_nego" isMarkerVisible="true">
-        <dc:Bounds x="1360" y="420" width="50" height="50" />
+        <dc:Bounds x="1460" y="420" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1340" y="393" width="90" height="27" />
+          <dc:Bounds x="1440" y="393" width="90" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
@@ -644,7 +661,7 @@
 
       <!-- Call Activity: Перемовини з ТРЦ (Юля веде переговини) -->
       <bpmndi:BPMNShape id="CA_nego_self_di" bpmnElement="CA_nego_self">
-        <dc:Bounds x="1520" y="565" width="100" height="80" />
+        <dc:Bounds x="1570" y="565" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
@@ -791,33 +808,39 @@
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
 
-      <!-- GW_contract_result → GW_who_nego (ні) -->
+      <!-- GW_contract_result → Task_dmn_nego_who (ні, вгору до Системи) -->
       <bpmndi:BPMNEdge id="Flow_contract_no_di" bpmnElement="Flow_contract_no">
         <di:waypoint x="1295" y="445" />
-        <di:waypoint x="1360" y="445" />
+        <di:waypoint x="1295" y="290" />
+        <di:waypoint x="1310" y="290" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1320" y="427" width="9" height="14" />
+          <dc:Bounds x="1298" y="360" width="9" height="14" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Task_dmn_nego_who → GW_who_nego (вниз до Погоджувача) -->
+      <bpmndi:BPMNEdge id="Flow_dmn_nego_who_to_gw_di" bpmnElement="Flow_dmn_nego_who_to_gw">
+        <di:waypoint x="1410" y="290" />
+        <di:waypoint x="1485" y="290" />
+        <di:waypoint x="1485" y="420" />
       </bpmndi:BPMNEdge>
 
       <!-- GW_who_nego → Task_nego_manual (Погоджувач → Даша) -->
       <bpmndi:BPMNEdge id="Flow_nego_dasha_di" bpmnElement="Flow_nego_dasha">
-        <di:waypoint x="1385" y="470" />
-        <di:waypoint x="1385" y="740" />
-        <di:waypoint x="1460" y="740" />
+        <di:waypoint x="1485" y="470" />
+        <di:waypoint x="1485" y="700" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1390" y="597" width="85" height="27" />
+          <dc:Bounds x="1490" y="577" width="85" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
 
       <!-- GW_who_nego → CA_nego_self (Погоджувач → Юля) -->
       <bpmndi:BPMNEdge id="Flow_nego_self_di" bpmnElement="Flow_nego_self">
-        <di:waypoint x="1410" y="445" />
-        <di:waypoint x="1460" y="445" />
-        <di:waypoint x="1460" y="605" />
-        <di:waypoint x="1520" y="605" />
+        <di:waypoint x="1510" y="445" />
+        <di:waypoint x="1570" y="445" />
+        <di:waypoint x="1570" y="565" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1462" y="517" width="85" height="27" />
+          <dc:Bounds x="1518" y="457" width="85" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
 
@@ -829,9 +852,9 @@
 
       <!-- CA_nego_self → Task_dmn_record (Юля → Погоджувач, через DMN) -->
       <bpmndi:BPMNEdge id="Flow_nego_self_to_gw_di" bpmnElement="Flow_nego_self_to_gw">
-        <di:waypoint x="1620" y="605" />
-        <di:waypoint x="1675" y="605" />
-        <di:waypoint x="1675" y="445" />
+        <di:waypoint x="1670" y="605" />
+        <di:waypoint x="1700" y="605" />
+        <di:waypoint x="1700" y="445" />
         <di:waypoint x="1730" y="445" />
       </bpmndi:BPMNEdge>
 
