@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions
+  xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+  xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+  xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+  xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
+  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+  id="Definitions_drd_orenda"
+  name="Оплата рахунків - DRD"
+  namespace="http://camunda.org/schema/1.0/dmn"
+  exporter="Camunda Web Modeler"
+  exporterVersion="e787c33"
+  modeler:executionPlatform="Camunda Cloud"
+  modeler:executionPlatformVersion="8.8.0">
+
+  <!--
+    DRD — Decision Requirements Diagram
+    ====================================
+
+    Ланцюжок рішень:
+      [Визначення погоджувача рахунку] ──► [Визначення виконавця переговин]
+
+    Автономне рішення:
+      [Результат перемовин з ТРЦ]
+
+    Використання в BPMN:
+      - Task_autofill         → decisionId="decision-1goz4yx" → resultVariable="docData"
+      - Task_dmn_record       → decisionId="nego-result"      → resultVariable="nego_action"
+  -->
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       РІШЕННЯ 1: Визначення погоджувача рахунку
+       Вхід:  тип рахунку + сума
+       Вихід: approver_role → передається в nego-who як вхідний параметр
+       ═══════════════════════════════════════════════════════════════════ -->
+  <decision id="decision-1goz4yx" name="Визначення погоджувача рахунку">
+    <decisionTable id="decisionTable_approver" hitPolicy="FIRST">
+
+      <input id="input_invoice_type" label="Тип рахунку">
+        <inputExpression id="inputExpr_invoice_type" typeRef="string">
+          <text>x_studio_camunda_invoice_type</text>
+        </inputExpression>
+        <inputValues id="inputValues_invoice_type">
+          <text>"rent","utilities","other"</text>
+        </inputValues>
+      </input>
+
+      <input id="input_invoice_amount" label="Сума рахунку (грн)">
+        <inputExpression id="inputExpr_invoice_amount" typeRef="double">
+          <text>x_studio_camunda_invoice_amount</text>
+        </inputExpression>
+      </input>
+
+      <output id="output_approver_role"
+              label="Роль погоджувача"
+              name="approver_role"
+              typeRef="string">
+        <outputValues id="outputValues_approver_role">
+          <text>"manager","director","accountant"</text>
+        </outputValues>
+      </output>
+
+      <!-- Оренда, велика сума (> 50 000 грн) — директор -->
+      <rule id="rule_rent_large">
+        <description>Оренда понад 50 000 грн — погоджує директор</description>
+        <inputEntry id="ie_rent_large_type"><text>"rent"</text></inputEntry>
+        <inputEntry id="ie_rent_large_amount"><text>&gt; 50000</text></inputEntry>
+        <outputEntry id="oe_rent_large"><text>"director"</text></outputEntry>
+      </rule>
+
+      <!-- Оренда, невелика сума (≤ 50 000 грн) — менеджер -->
+      <rule id="rule_rent_small">
+        <description>Оренда до 50 000 грн — погоджує менеджер</description>
+        <inputEntry id="ie_rent_small_type"><text>"rent"</text></inputEntry>
+        <inputEntry id="ie_rent_small_amount"><text>&lt;= 50000</text></inputEntry>
+        <outputEntry id="oe_rent_small"><text>"manager"</text></outputEntry>
+      </rule>
+
+      <!-- Комунальні платежі — бухгалтер -->
+      <rule id="rule_utilities">
+        <description>Комунальні платежі — погоджує бухгалтер</description>
+        <inputEntry id="ie_utilities_type"><text>"utilities"</text></inputEntry>
+        <inputEntry id="ie_utilities_amount"><text></text></inputEntry>
+        <outputEntry id="oe_utilities"><text>"accountant"</text></outputEntry>
+      </rule>
+
+      <!-- За замовчуванням — менеджер -->
+      <rule id="rule_default">
+        <description>Інший тип рахунку — погоджує менеджер</description>
+        <inputEntry id="ie_default_type"><text></text></inputEntry>
+        <inputEntry id="ie_default_amount"><text></text></inputEntry>
+        <outputEntry id="oe_default"><text>"manager"</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       РІШЕННЯ 2: Визначення виконавця переговин
+       Вхід:  approver_role (з рішення 1 через InformationRequirement)
+       Вихід: x_studio_camunda_nego_who → "yulia" або "dasha"
+              (використовується у GW_who_nego у BPMN)
+       ═══════════════════════════════════════════════════════════════════ -->
+  <decision id="nego-who" name="Визначення виконавця переговин">
+
+    <informationRequirement id="ir_approver_to_nego_who">
+      <requiredDecision href="#decision-1goz4yx" />
+    </informationRequirement>
+
+    <decisionTable id="decisionTable_nego_who" hitPolicy="FIRST">
+
+      <input id="input_approver_role_in" label="Роль погоджувача">
+        <inputExpression id="inputExpr_approver_role_in" typeRef="string">
+          <text>approver_role</text>
+        </inputExpression>
+        <inputValues id="inputValues_approver_role_in">
+          <text>"manager","director","accountant"</text>
+        </inputValues>
+      </input>
+
+      <output id="output_nego_who"
+              label="Виконавець переговин"
+              name="x_studio_camunda_nego_who"
+              typeRef="string">
+        <outputValues id="outputValues_nego_who">
+          <text>"yulia","dasha"</text>
+        </outputValues>
+      </output>
+
+      <!-- Директорський рівень → переговини веде Юля -->
+      <rule id="rule_nego_director">
+        <description>Директор погоджував — Юля веде переговини</description>
+        <inputEntry id="ie_nego_director"><text>"director"</text></inputEntry>
+        <outputEntry id="oe_nego_director"><text>"yulia"</text></outputEntry>
+      </rule>
+
+      <!-- Менеджерський рівень → переговини веде Даша -->
+      <rule id="rule_nego_manager">
+        <description>Менеджер погоджував — Даша веде переговини</description>
+        <inputEntry id="ie_nego_manager"><text>"manager"</text></inputEntry>
+        <outputEntry id="oe_nego_manager"><text>"dasha"</text></outputEntry>
+      </rule>
+
+      <!-- Бухгалтерський рівень → Юля -->
+      <rule id="rule_nego_accountant">
+        <description>Бухгалтер погоджував — Юля веде переговини</description>
+        <inputEntry id="ie_nego_accountant"><text>"accountant"</text></inputEntry>
+        <outputEntry id="oe_nego_accountant"><text>"yulia"</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       РІШЕННЯ 3: Результат перемовин з ТРЦ  (автономне)
+       Вхід:  x_studio_camunda_nego_outcome
+       Вихід: nego_action → "pay" | "reissue" | "break_contract"
+       ═══════════════════════════════════════════════════════════════════ -->
+  <decision id="nego-result" name="Результат перемовин з ТРЦ">
+    <decisionTable id="decisionTable_nego_result" hitPolicy="FIRST">
+
+      <input id="input_nego_outcome" label="Результат перемовин">
+        <inputExpression id="inputExpr_nego_outcome" typeRef="string">
+          <text>x_studio_camunda_nego_outcome</text>
+        </inputExpression>
+        <inputValues id="inputValues_nego_outcome">
+          <text>"pay","discount","reissue","break_contract"</text>
+        </inputValues>
+      </input>
+
+      <output id="output_nego_action"
+              label="Дія"
+              name="nego_action"
+              typeRef="string">
+        <outputValues id="outputValues_nego_action">
+          <text>"pay","reissue","break_contract"</text>
+        </outputValues>
+      </output>
+
+      <!-- Домовилися — платимо рахунок як є -->
+      <rule id="rule_pay">
+        <description>Домовилися — платимо рахунок</description>
+        <inputEntry id="inputEntry_pay"><text>"pay"</text></inputEntry>
+        <outputEntry id="outputEntry_pay"><text>"pay"</text></outputEntry>
+      </rule>
+
+      <!-- Знижка — платимо зі зниженою сумою -->
+      <rule id="rule_discount">
+        <description>Знижка отримана — платимо з оновленою сумою</description>
+        <inputEntry id="inputEntry_discount"><text>"discount"</text></inputEntry>
+        <outputEntry id="outputEntry_discount"><text>"pay"</text></outputEntry>
+      </rule>
+
+      <!-- Рахунок перевиставлять — чекаємо новий -->
+      <rule id="rule_reissue">
+        <description>Рахунок буде перевиставлено — очікуємо новий рахунок</description>
+        <inputEntry id="inputEntry_reissue"><text>"reissue"</text></inputEntry>
+        <outputEntry id="outputEntry_reissue"><text>"reissue"</text></outputEntry>
+      </rule>
+
+      <!-- Розриваємо договір -->
+      <rule id="rule_break">
+        <description>Переговини не дали результату — розриваємо договір</description>
+        <inputEntry id="inputEntry_break"><text>"break_contract"</text></inputEntry>
+        <outputEntry id="outputEntry_break"><text>"break_contract"</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       DMNDI — візуальне розташування діаграми DRD
+       ═══════════════════════════════════════════════════════════════════ -->
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_drd">
+
+      <!-- Рішення 1 (зверху ліворуч) -->
+      <dmndi:DMNShape id="DMNShape_approver" dmnElementRef="decision-1goz4yx">
+        <dc:Bounds x="150" y="80" width="200" height="80" />
+      </dmndi:DMNShape>
+
+      <!-- Рішення 2 (під рішенням 1) -->
+      <dmndi:DMNShape id="DMNShape_nego_who" dmnElementRef="nego-who">
+        <dc:Bounds x="150" y="260" width="200" height="80" />
+      </dmndi:DMNShape>
+
+      <!-- Рішення 3 (праворуч, автономне) -->
+      <dmndi:DMNShape id="DMNShape_nego_result" dmnElementRef="nego-result">
+        <dc:Bounds x="460" y="170" width="200" height="80" />
+      </dmndi:DMNShape>
+
+      <!-- Стрілка: Рішення 1 → Рішення 2 (InformationRequirement) -->
+      <dmndi:DMNEdge id="DMNEdge_ir_approver_to_nego_who" dmnElementRef="ir_approver_to_nego_who">
+        <di:waypoint x="250" y="160" />
+        <di:waypoint x="250" y="260" />
+      </dmndi:DMNEdge>
+
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+
+</definitions>
