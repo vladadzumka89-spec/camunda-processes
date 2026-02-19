@@ -9,6 +9,8 @@ docker-compose*.yaml
 .console/
 .optimize/
 .orchestration/
+worker/
+tests/
 
 # Logs
 *.log
