@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:process id="Process_0et2gc9" name="Надання доступів для адміністратора" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_0qm8wy6</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_0qm8wy6" sourceRef="StartEvent_1" targetRef="Gateway_045w5an" />
+    <bpmn:parallelGateway id="Gateway_045w5an">
+      <bpmn:incoming>Flow_0qm8wy6</bpmn:incoming>
+      <bpmn:outgoing>Flow_1xolo2z</bpmn:outgoing>
+      <bpmn:outgoing>Flow_00oks2x</bpmn:outgoing>
+      <bpmn:outgoing>Flow_02nicmt</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1600us0</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1wq4r75</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:sequenceFlow id="Flow_1xolo2z" sourceRef="Gateway_045w5an" targetRef="Activity_0vsfezp" />
+    <bpmn:sequenceFlow id="Flow_00oks2x" sourceRef="Gateway_045w5an" targetRef="Activity_143h30f" />
+    <bpmn:sequenceFlow id="Flow_02nicmt" sourceRef="Gateway_045w5an" targetRef="Activity_1mquwfd" />
+    <bpmn:sequenceFlow id="Flow_1600us0" sourceRef="Gateway_045w5an" targetRef="Activity_1o6meit" />
+    <bpmn:sequenceFlow id="Flow_1wq4r75" sourceRef="Gateway_045w5an" targetRef="Activity_0pssvez" />
+    <bpmn:endEvent id="Event_001ose2">
+      <bpmn:incoming>Flow_0703nrw</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Gateway_13x6wj3">
+      <bpmn:incoming>Flow_1n7ojn2</bpmn:incoming>
+      <bpmn:incoming>Flow_1c0l46o</bpmn:incoming>
+      <bpmn:incoming>Flow_0srjj0y</bpmn:incoming>
+      <bpmn:incoming>Flow_1bpjh1p</bpmn:incoming>
+      <bpmn:incoming>Flow_06rrhf9</bpmn:incoming>
+      <bpmn:outgoing>Flow_0703nrw</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_1n7ojn2" sourceRef="Activity_1mquwfd" targetRef="Gateway_13x6wj3" />
+    <bpmn:sequenceFlow id="Flow_1c0l46o" sourceRef="Activity_143h30f" targetRef="Gateway_13x6wj3" />
+    <bpmn:sequenceFlow id="Flow_0srjj0y" sourceRef="Activity_0vsfezp" targetRef="Gateway_13x6wj3" />
+    <bpmn:sequenceFlow id="Flow_1bpjh1p" sourceRef="Activity_1o6meit" targetRef="Gateway_13x6wj3" />
+    <bpmn:sequenceFlow id="Flow_06rrhf9" sourceRef="Activity_0pssvez" targetRef="Gateway_13x6wj3" />
+    <bpmn:sequenceFlow id="Flow_0703nrw" sourceRef="Gateway_13x6wj3" targetRef="Event_001ose2" />
+    <bpmn:userTask id="Activity_0pssvez" name="Надати доступ до камер">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1wq4r75</bpmn:incoming>
+      <bpmn:outgoing>Flow_06rrhf9</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1o6meit" name="Налаштувати відповідального працівника за прийом посилок на НП">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1600us0</bpmn:incoming>
+      <bpmn:outgoing>Flow_1bpjh1p</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_0vsfezp" name="Налаштувати сповіщення по прострочці задач резервування товарів">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1xolo2z</bpmn:incoming>
+      <bpmn:outgoing>Flow_0srjj0y</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Activity_143h30f" name="Заповнити керівника у підрозділі">
+      <bpmn:incoming>Flow_00oks2x</bpmn:incoming>
+      <bpmn:outgoing>Flow_1c0l46o</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_1mquwfd" name="Заповнити відповідального у складі магазину">
+      <bpmn:incoming>Flow_02nicmt</bpmn:incoming>
+      <bpmn:outgoing>Flow_1n7ojn2</bpmn:outgoing>
+    </bpmn:serviceTask>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_0et2gc9">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="122" y="252" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0sdokc4_di" bpmnElement="Gateway_045w5an">
+        <dc:Bounds x="205" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_001ose2_di" bpmnElement="Event_001ose2">
+        <dc:Bounds x="552" y="252" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_13x6wj3_di" bpmnElement="Gateway_13x6wj3" isMarkerVisible="true">
+        <dc:Bounds x="455" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1gyzcm7_di" bpmnElement="Activity_0pssvez">
+        <dc:Bounds x="320" y="430" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1jxiqa1_di" bpmnElement="Activity_1o6meit">
+        <dc:Bounds x="320" y="330" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0sfux6v_di" bpmnElement="Activity_0vsfezp">
+        <dc:Bounds x="320" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0jzoswy_di" bpmnElement="Activity_143h30f">
+        <dc:Bounds x="320" y="130" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1esvrdu_di" bpmnElement="Activity_1mquwfd">
+        <dc:Bounds x="320" y="30" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0qm8wy6_di" bpmnElement="Flow_0qm8wy6">
+        <di:waypoint x="158" y="270" />
+        <di:waypoint x="205" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1xolo2z_di" bpmnElement="Flow_1xolo2z">
+        <di:waypoint x="255" y="270" />
+        <di:waypoint x="320" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_00oks2x_di" bpmnElement="Flow_00oks2x">
+        <di:waypoint x="230" y="245" />
+        <di:waypoint x="230" y="170" />
+        <di:waypoint x="320" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_02nicmt_di" bpmnElement="Flow_02nicmt">
+        <di:waypoint x="230" y="245" />
+        <di:waypoint x="230" y="70" />
+        <di:waypoint x="320" y="70" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1600us0_di" bpmnElement="Flow_1600us0">
+        <di:waypoint x="230" y="295" />
+        <di:waypoint x="230" y="390" />
+        <di:waypoint x="320" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1wq4r75_di" bpmnElement="Flow_1wq4r75">
+        <di:waypoint x="230" y="295" />
+        <di:waypoint x="230" y="470" />
+        <di:waypoint x="320" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1n7ojn2_di" bpmnElement="Flow_1n7ojn2">
+        <di:waypoint x="420" y="70" />
+        <di:waypoint x="480" y="70" />
+        <di:waypoint x="480" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1c0l46o_di" bpmnElement="Flow_1c0l46o">
+        <di:waypoint x="420" y="170" />
+        <di:waypoint x="480" y="170" />
+        <di:waypoint x="480" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0srjj0y_di" bpmnElement="Flow_0srjj0y">
+        <di:waypoint x="420" y="270" />
+        <di:waypoint x="455" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1bpjh1p_di" bpmnElement="Flow_1bpjh1p">
+        <di:waypoint x="420" y="370" />
+        <di:waypoint x="480" y="370" />
+        <di:waypoint x="480" y="295" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_06rrhf9_di" bpmnElement="Flow_06rrhf9">
+        <di:waypoint x="420" y="470" />
+        <di:waypoint x="480" y="470" />
+        <di:waypoint x="480" y="295" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0703nrw_di" bpmnElement="Flow_0703nrw">
+        <di:waypoint x="505" y="270" />
+        <di:waypoint x="552" y="270" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
