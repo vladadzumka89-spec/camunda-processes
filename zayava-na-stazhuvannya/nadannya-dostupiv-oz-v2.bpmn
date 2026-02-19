@@ -1,0 +1,619 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:process id="Process_0h8z3ny" name="Надання доступів та ОЗ" isExecutable="true">
+    <bpmn:extensionElements><zeebe:versionTag value="2.0" /></bpmn:extensionElements>
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_to_odoo_xor</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:exclusiveGateway id="Gateway_odoo_xor" default="Flow_odoo_default">
+      <bpmn:incoming>Flow_to_odoo_xor</bpmn:incoming>
+      <bpmn:outgoing>Flow_odoo_default</bpmn:outgoing>
+      <bpmn:outgoing>Flow_odoo_skip</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Activity_create_main_task" name="Створити головне завдання">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Надання доступів та ОЗ&quot;, create_process: true, _model: &quot;project.project&quot;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_odoo_default</bpmn:incoming>
+      <bpmn:outgoing>Flow_create_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_odoo_merge">
+      <bpmn:incoming>Flow_odoo_skip</bpmn:incoming>
+      <bpmn:incoming>Flow_create_to_merge</bpmn:incoming>
+      <bpmn:outgoing>Flow_merge_to_process</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_merge_to_process" sourceRef="Gateway_odoo_merge" targetRef="Gateway_0tkdon6" />
+    <bpmn:userTask id="Activity_1qzyyoj" name="Створити користувача в Passbolt">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Створити користувача в Passbolt&quot;, description: &quot;Створіть обліковий запис в Passbolt&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0lah2nk</bpmn:incoming>
+      <bpmn:outgoing>Flow_1lafgyv</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_0qai6qv" name="Надати Адмін доступи на сайті">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Надати Адмін доступи на сайті&quot;, description: &quot;Надайте адміністративні доступи&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1ui5p6c</bpmn:incoming>
+      <bpmn:outgoing>Flow_0j3rzr9</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1ux9sob" name="Видати співробітнику ОЗ">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Видати співробітнику ОЗ&quot;, description: &quot;Видайте основні засоби працівнику&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1d3ct82</bpmn:incoming>
+      <bpmn:outgoing>Flow_0oqosxj</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_0hlwyxn" name="Надати доступ до електронних ключів">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Надати доступ до електронних ключів&quot;, description: &quot;Надайте доступ до електронних ключів&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0hfc3y4</bpmn:incoming>
+      <bpmn:outgoing>Flow_12h7vmu</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_0cqoubb" name="Допомогти налаштувати Passbolt">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Допомогти налаштувати Passbolt&quot;, description: &quot;Допоможіть працівнику налаштувати Passbolt&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1lafgyv</bpmn:incoming>
+      <bpmn:outgoing>Flow_0yk6gnc</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_0bzvot4" name="Доступи створені, ОЗ видано">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Доступи створені, ОЗ видано&quot;, description: &quot;Підтвердіть створення доступів та видачу ОЗ&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1y5v2z1</bpmn:incoming>
+      <bpmn:outgoing>Flow_1r681yk</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Activity_0j2pm4k" name="Створити склад в ЄРП">
+      <bpmn:incoming>Flow_07sxp4q</bpmn:incoming>
+      <bpmn:outgoing>Flow_0ne7wti</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:parallelGateway id="Gateway_0tkdon6">
+      <bpmn:incoming>Flow_merge_to_process</bpmn:incoming>
+      <bpmn:outgoing>Flow_07sxp4q</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0lah2nk</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1ui5p6c</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1d3ct82</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0hfc3y4</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:inclusiveGateway id="Gateway_0m8i0n3">
+      <bpmn:incoming>Flow_0ne7wti</bpmn:incoming>
+      <bpmn:incoming>Flow_0yk6gnc</bpmn:incoming>
+      <bpmn:incoming>Flow_0j3rzr9</bpmn:incoming>
+      <bpmn:incoming>Flow_0oqosxj</bpmn:incoming>
+      <bpmn:incoming>Flow_12h7vmu</bpmn:incoming>
+      <bpmn:outgoing>Flow_1y5v2z1</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:endEvent id="Event_19el0tz">
+      <bpmn:incoming>Flow_1r681yk</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:textAnnotation id="TextAnnotation_0czmbvj">
+      <bpmn:text>Назва задачі в різна підрозділів</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_0khm6de" associationDirection="None" sourceRef="Activity_0bzvot4" targetRef="TextAnnotation_0czmbvj" />
+    <bpmn:boundaryEvent id="BE_rem_Activity_1qzyyoj" name="Нагадування" cancelActivity="false" attachedToRef="Activity_1qzyyoj">
+      <bpmn:outgoing>Flow_rem_Activity_1qzyyoj</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_rem_Activity_1qzyyoj">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT24H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="ST_rem_Activity_1qzyyoj" name="Надіслати нагадування">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_Activity_1qzyyoj</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_rem_Activity_1qzyyoj" sourceRef="BE_rem_Activity_1qzyyoj" targetRef="ST_rem_Activity_1qzyyoj" />
+    <bpmn:boundaryEvent id="BE_ded_Activity_1qzyyoj" name="Дедлайн" attachedToRef="Activity_1qzyyoj">
+      <bpmn:outgoing>Flow_ded_Activity_1qzyyoj</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_ded_Activity_1qzyyoj">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:userTask id="UT_esc_Activity_1qzyyoj" name="Ескалація: Створити користувача в Passbolt">
+      <bpmn:extensionElements><zeebe:userTask /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_Activity_1qzyyoj</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_end_Activity_1qzyyoj</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EE_esc_Activity_1qzyyoj">
+      <bpmn:incoming>Flow_esc_end_Activity_1qzyyoj</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ded_Activity_1qzyyoj" sourceRef="BE_ded_Activity_1qzyyoj" targetRef="UT_esc_Activity_1qzyyoj" />
+    <bpmn:sequenceFlow id="Flow_esc_end_Activity_1qzyyoj" sourceRef="UT_esc_Activity_1qzyyoj" targetRef="EE_esc_Activity_1qzyyoj" />
+    <bpmn:boundaryEvent id="BE_rem_Activity_0qai6qv" name="Нагадування" cancelActivity="false" attachedToRef="Activity_0qai6qv">
+      <bpmn:outgoing>Flow_rem_Activity_0qai6qv</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_rem_Activity_0qai6qv">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT24H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="ST_rem_Activity_0qai6qv" name="Надіслати нагадування">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_Activity_0qai6qv</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_rem_Activity_0qai6qv" sourceRef="BE_rem_Activity_0qai6qv" targetRef="ST_rem_Activity_0qai6qv" />
+    <bpmn:boundaryEvent id="BE_ded_Activity_0qai6qv" name="Дедлайн" attachedToRef="Activity_0qai6qv">
+      <bpmn:outgoing>Flow_ded_Activity_0qai6qv</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_ded_Activity_0qai6qv">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:userTask id="UT_esc_Activity_0qai6qv" name="Ескалація: Надати Адмін доступи на сайті">
+      <bpmn:extensionElements><zeebe:userTask /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_Activity_0qai6qv</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_end_Activity_0qai6qv</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EE_esc_Activity_0qai6qv">
+      <bpmn:incoming>Flow_esc_end_Activity_0qai6qv</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ded_Activity_0qai6qv" sourceRef="BE_ded_Activity_0qai6qv" targetRef="UT_esc_Activity_0qai6qv" />
+    <bpmn:sequenceFlow id="Flow_esc_end_Activity_0qai6qv" sourceRef="UT_esc_Activity_0qai6qv" targetRef="EE_esc_Activity_0qai6qv" />
+    <bpmn:boundaryEvent id="BE_rem_Activity_1ux9sob" name="Нагадування" cancelActivity="false" attachedToRef="Activity_1ux9sob">
+      <bpmn:outgoing>Flow_rem_Activity_1ux9sob</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_rem_Activity_1ux9sob">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT24H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="ST_rem_Activity_1ux9sob" name="Надіслати нагадування">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_Activity_1ux9sob</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_rem_Activity_1ux9sob" sourceRef="BE_rem_Activity_1ux9sob" targetRef="ST_rem_Activity_1ux9sob" />
+    <bpmn:boundaryEvent id="BE_ded_Activity_1ux9sob" name="Дедлайн" attachedToRef="Activity_1ux9sob">
+      <bpmn:outgoing>Flow_ded_Activity_1ux9sob</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_ded_Activity_1ux9sob">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:userTask id="UT_esc_Activity_1ux9sob" name="Ескалація: Видати співробітнику ОЗ">
+      <bpmn:extensionElements><zeebe:userTask /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_Activity_1ux9sob</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_end_Activity_1ux9sob</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EE_esc_Activity_1ux9sob">
+      <bpmn:incoming>Flow_esc_end_Activity_1ux9sob</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ded_Activity_1ux9sob" sourceRef="BE_ded_Activity_1ux9sob" targetRef="UT_esc_Activity_1ux9sob" />
+    <bpmn:sequenceFlow id="Flow_esc_end_Activity_1ux9sob" sourceRef="UT_esc_Activity_1ux9sob" targetRef="EE_esc_Activity_1ux9sob" />
+    <bpmn:boundaryEvent id="BE_rem_Activity_0hlwyxn" name="Нагадування" cancelActivity="false" attachedToRef="Activity_0hlwyxn">
+      <bpmn:outgoing>Flow_rem_Activity_0hlwyxn</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_rem_Activity_0hlwyxn">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT24H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="ST_rem_Activity_0hlwyxn" name="Надіслати нагадування">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_Activity_0hlwyxn</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_rem_Activity_0hlwyxn" sourceRef="BE_rem_Activity_0hlwyxn" targetRef="ST_rem_Activity_0hlwyxn" />
+    <bpmn:boundaryEvent id="BE_ded_Activity_0hlwyxn" name="Дедлайн" attachedToRef="Activity_0hlwyxn">
+      <bpmn:outgoing>Flow_ded_Activity_0hlwyxn</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_ded_Activity_0hlwyxn">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:userTask id="UT_esc_Activity_0hlwyxn" name="Ескалація: Надати доступ до електронних ключів">
+      <bpmn:extensionElements><zeebe:userTask /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_Activity_0hlwyxn</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_end_Activity_0hlwyxn</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EE_esc_Activity_0hlwyxn">
+      <bpmn:incoming>Flow_esc_end_Activity_0hlwyxn</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ded_Activity_0hlwyxn" sourceRef="BE_ded_Activity_0hlwyxn" targetRef="UT_esc_Activity_0hlwyxn" />
+    <bpmn:sequenceFlow id="Flow_esc_end_Activity_0hlwyxn" sourceRef="UT_esc_Activity_0hlwyxn" targetRef="EE_esc_Activity_0hlwyxn" />
+    <bpmn:boundaryEvent id="BE_rem_Activity_0cqoubb" name="Нагадування" cancelActivity="false" attachedToRef="Activity_0cqoubb">
+      <bpmn:outgoing>Flow_rem_Activity_0cqoubb</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_rem_Activity_0cqoubb">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT24H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="ST_rem_Activity_0cqoubb" name="Надіслати нагадування">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_Activity_0cqoubb</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_rem_Activity_0cqoubb" sourceRef="BE_rem_Activity_0cqoubb" targetRef="ST_rem_Activity_0cqoubb" />
+    <bpmn:boundaryEvent id="BE_ded_Activity_0cqoubb" name="Дедлайн" attachedToRef="Activity_0cqoubb">
+      <bpmn:outgoing>Flow_ded_Activity_0cqoubb</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_ded_Activity_0cqoubb">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:userTask id="UT_esc_Activity_0cqoubb" name="Ескалація: Допомогти налаштувати Passbolt">
+      <bpmn:extensionElements><zeebe:userTask /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_Activity_0cqoubb</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_end_Activity_0cqoubb</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EE_esc_Activity_0cqoubb">
+      <bpmn:incoming>Flow_esc_end_Activity_0cqoubb</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ded_Activity_0cqoubb" sourceRef="BE_ded_Activity_0cqoubb" targetRef="UT_esc_Activity_0cqoubb" />
+    <bpmn:sequenceFlow id="Flow_esc_end_Activity_0cqoubb" sourceRef="UT_esc_Activity_0cqoubb" targetRef="EE_esc_Activity_0cqoubb" />
+    <bpmn:boundaryEvent id="BE_rem_Activity_0bzvot4" name="Нагадування" cancelActivity="false" attachedToRef="Activity_0bzvot4">
+      <bpmn:outgoing>Flow_rem_Activity_0bzvot4</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_rem_Activity_0bzvot4">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT24H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="ST_rem_Activity_0bzvot4" name="Надіслати нагадування">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_Activity_0bzvot4</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_rem_Activity_0bzvot4" sourceRef="BE_rem_Activity_0bzvot4" targetRef="ST_rem_Activity_0bzvot4" />
+    <bpmn:boundaryEvent id="BE_ded_Activity_0bzvot4" name="Дедлайн" attachedToRef="Activity_0bzvot4">
+      <bpmn:outgoing>Flow_ded_Activity_0bzvot4</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_ded_Activity_0bzvot4">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:userTask id="UT_esc_Activity_0bzvot4" name="Ескалація: Доступи створені, ОЗ видано">
+      <bpmn:extensionElements><zeebe:userTask /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_Activity_0bzvot4</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_end_Activity_0bzvot4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EE_esc_Activity_0bzvot4">
+      <bpmn:incoming>Flow_esc_end_Activity_0bzvot4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ded_Activity_0bzvot4" sourceRef="BE_ded_Activity_0bzvot4" targetRef="UT_esc_Activity_0bzvot4" />
+    <bpmn:sequenceFlow id="Flow_esc_end_Activity_0bzvot4" sourceRef="UT_esc_Activity_0bzvot4" targetRef="EE_esc_Activity_0bzvot4" />
+    <bpmn:sequenceFlow id="Flow_to_odoo_xor" sourceRef="StartEvent_1" targetRef="Gateway_odoo_xor" />
+    <bpmn:sequenceFlow id="Flow_odoo_default" sourceRef="Gateway_odoo_xor" targetRef="Activity_create_main_task" />
+    <bpmn:sequenceFlow id="Flow_odoo_skip" sourceRef="Gateway_odoo_xor" targetRef="Gateway_odoo_merge">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_create_to_merge" sourceRef="Activity_create_main_task" targetRef="Gateway_odoo_merge" />
+    <bpmn:sequenceFlow id="Flow_07sxp4q" sourceRef="Gateway_0tkdon6" targetRef="Activity_0j2pm4k" />
+    <bpmn:sequenceFlow id="Flow_0lah2nk" sourceRef="Gateway_0tkdon6" targetRef="Activity_1qzyyoj" />
+    <bpmn:sequenceFlow id="Flow_1ui5p6c" sourceRef="Gateway_0tkdon6" targetRef="Activity_0qai6qv" />
+    <bpmn:sequenceFlow id="Flow_1d3ct82" sourceRef="Gateway_0tkdon6" targetRef="Activity_1ux9sob" />
+    <bpmn:sequenceFlow id="Flow_0hfc3y4" sourceRef="Gateway_0tkdon6" targetRef="Activity_0hlwyxn" />
+    <bpmn:sequenceFlow id="Flow_1lafgyv" sourceRef="Activity_1qzyyoj" targetRef="Activity_0cqoubb" />
+    <bpmn:sequenceFlow id="Flow_0ne7wti" sourceRef="Activity_0j2pm4k" targetRef="Gateway_0m8i0n3" />
+    <bpmn:sequenceFlow id="Flow_0yk6gnc" sourceRef="Activity_0cqoubb" targetRef="Gateway_0m8i0n3" />
+    <bpmn:sequenceFlow id="Flow_0j3rzr9" sourceRef="Activity_0qai6qv" targetRef="Gateway_0m8i0n3" />
+    <bpmn:sequenceFlow id="Flow_0oqosxj" sourceRef="Activity_1ux9sob" targetRef="Gateway_0m8i0n3" />
+    <bpmn:sequenceFlow id="Flow_12h7vmu" sourceRef="Activity_0hlwyxn" targetRef="Gateway_0m8i0n3" />
+    <bpmn:sequenceFlow id="Flow_1y5v2z1" sourceRef="Gateway_0m8i0n3" targetRef="Activity_0bzvot4" />
+    <bpmn:sequenceFlow id="Flow_1r681yk" sourceRef="Activity_0bzvot4" targetRef="Event_19el0tz" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_0h8z3ny">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="52" y="252" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_odoo_xor_di" bpmnElement="Gateway_odoo_xor" isMarkerVisible="true">
+        <dc:Bounds x="125" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_create_main_task_di" bpmnElement="Activity_create_main_task">
+        <dc:Bounds x="200" y="140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_odoo_merge_di" bpmnElement="Gateway_odoo_merge" isMarkerVisible="true">
+        <dc:Bounds x="335" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0tkdon6_di" bpmnElement="Gateway_0tkdon6">
+        <dc:Bounds x="425" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0j2pm4k_di" bpmnElement="Activity_0j2pm4k">
+        <dc:Bounds x="540" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1qzyyoj_di" bpmnElement="Activity_1qzyyoj">
+        <dc:Bounds x="540" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0cqoubb_di" bpmnElement="Activity_0cqoubb">
+        <dc:Bounds x="680" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0qai6qv_di" bpmnElement="Activity_0qai6qv">
+        <dc:Bounds x="540" y="370" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1ux9sob_di" bpmnElement="Activity_1ux9sob">
+        <dc:Bounds x="540" y="500" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0hlwyxn_di" bpmnElement="Activity_0hlwyxn">
+        <dc:Bounds x="540" y="620" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0bzvot4_di" bpmnElement="Activity_0bzvot4">
+        <dc:Bounds x="930" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0m8i0n3_di" bpmnElement="Gateway_0m8i0n3">
+        <dc:Bounds x="835" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_19el0tz_di" bpmnElement="Event_19el0tz">
+        <dc:Bounds x="1092" y="252" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0czmbvj_di" bpmnElement="TextAnnotation_0czmbvj">
+        <dc:Bounds x="1030" y="150" width="100" height="55" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_rem_Activity_1qzyyoj_di" bpmnElement="BE_rem_Activity_1qzyyoj">
+        <dc:Bounds x="555" y="292" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_rem_Activity_1qzyyoj_di" bpmnElement="ST_rem_Activity_1qzyyoj">
+        <dc:Bounds x="530" y="350" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_Activity_1qzyyoj_di" bpmnElement="BE_ded_Activity_1qzyyoj">
+        <dc:Bounds x="595" y="292" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_esc_Activity_1qzyyoj_di" bpmnElement="UT_esc_Activity_1qzyyoj">
+        <dc:Bounds x="570" y="460" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EE_esc_Activity_1qzyyoj_di" bpmnElement="EE_esc_Activity_1qzyyoj">
+        <dc:Bounds x="602" y="570" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_rem_Activity_1qzyyoj_di" bpmnElement="Flow_rem_Activity_1qzyyoj">
+        <di:waypoint x="573" y="328" />
+        <di:waypoint x="580" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ded_Activity_1qzyyoj_di" bpmnElement="Flow_ded_Activity_1qzyyoj">
+        <di:waypoint x="613" y="328" />
+        <di:waypoint x="620" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_end_Activity_1qzyyoj_di" bpmnElement="Flow_esc_end_Activity_1qzyyoj">
+        <di:waypoint x="620" y="540" />
+        <di:waypoint x="620" y="570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="BE_rem_Activity_0qai6qv_di" bpmnElement="BE_rem_Activity_0qai6qv">
+        <dc:Bounds x="555" y="432" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_rem_Activity_0qai6qv_di" bpmnElement="ST_rem_Activity_0qai6qv">
+        <dc:Bounds x="530" y="490" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_Activity_0qai6qv_di" bpmnElement="BE_ded_Activity_0qai6qv">
+        <dc:Bounds x="595" y="432" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_esc_Activity_0qai6qv_di" bpmnElement="UT_esc_Activity_0qai6qv">
+        <dc:Bounds x="570" y="600" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EE_esc_Activity_0qai6qv_di" bpmnElement="EE_esc_Activity_0qai6qv">
+        <dc:Bounds x="602" y="710" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_rem_Activity_0qai6qv_di" bpmnElement="Flow_rem_Activity_0qai6qv">
+        <di:waypoint x="573" y="468" />
+        <di:waypoint x="580" y="530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ded_Activity_0qai6qv_di" bpmnElement="Flow_ded_Activity_0qai6qv">
+        <di:waypoint x="613" y="468" />
+        <di:waypoint x="620" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_end_Activity_0qai6qv_di" bpmnElement="Flow_esc_end_Activity_0qai6qv">
+        <di:waypoint x="620" y="680" />
+        <di:waypoint x="620" y="710" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="BE_rem_Activity_1ux9sob_di" bpmnElement="BE_rem_Activity_1ux9sob">
+        <dc:Bounds x="555" y="562" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_rem_Activity_1ux9sob_di" bpmnElement="ST_rem_Activity_1ux9sob">
+        <dc:Bounds x="530" y="620" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_Activity_1ux9sob_di" bpmnElement="BE_ded_Activity_1ux9sob">
+        <dc:Bounds x="595" y="562" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_esc_Activity_1ux9sob_di" bpmnElement="UT_esc_Activity_1ux9sob">
+        <dc:Bounds x="570" y="730" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EE_esc_Activity_1ux9sob_di" bpmnElement="EE_esc_Activity_1ux9sob">
+        <dc:Bounds x="602" y="840" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_rem_Activity_1ux9sob_di" bpmnElement="Flow_rem_Activity_1ux9sob">
+        <di:waypoint x="573" y="598" />
+        <di:waypoint x="580" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ded_Activity_1ux9sob_di" bpmnElement="Flow_ded_Activity_1ux9sob">
+        <di:waypoint x="613" y="598" />
+        <di:waypoint x="620" y="770" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_end_Activity_1ux9sob_di" bpmnElement="Flow_esc_end_Activity_1ux9sob">
+        <di:waypoint x="620" y="810" />
+        <di:waypoint x="620" y="840" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="BE_rem_Activity_0hlwyxn_di" bpmnElement="BE_rem_Activity_0hlwyxn">
+        <dc:Bounds x="555" y="682" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_rem_Activity_0hlwyxn_di" bpmnElement="ST_rem_Activity_0hlwyxn">
+        <dc:Bounds x="530" y="740" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_Activity_0hlwyxn_di" bpmnElement="BE_ded_Activity_0hlwyxn">
+        <dc:Bounds x="595" y="682" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_esc_Activity_0hlwyxn_di" bpmnElement="UT_esc_Activity_0hlwyxn">
+        <dc:Bounds x="570" y="850" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EE_esc_Activity_0hlwyxn_di" bpmnElement="EE_esc_Activity_0hlwyxn">
+        <dc:Bounds x="602" y="960" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_rem_Activity_0hlwyxn_di" bpmnElement="Flow_rem_Activity_0hlwyxn">
+        <di:waypoint x="573" y="718" />
+        <di:waypoint x="580" y="780" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ded_Activity_0hlwyxn_di" bpmnElement="Flow_ded_Activity_0hlwyxn">
+        <di:waypoint x="613" y="718" />
+        <di:waypoint x="620" y="890" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_end_Activity_0hlwyxn_di" bpmnElement="Flow_esc_end_Activity_0hlwyxn">
+        <di:waypoint x="620" y="930" />
+        <di:waypoint x="620" y="960" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="BE_rem_Activity_0cqoubb_di" bpmnElement="BE_rem_Activity_0cqoubb">
+        <dc:Bounds x="695" y="292" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_rem_Activity_0cqoubb_di" bpmnElement="ST_rem_Activity_0cqoubb">
+        <dc:Bounds x="670" y="350" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_Activity_0cqoubb_di" bpmnElement="BE_ded_Activity_0cqoubb">
+        <dc:Bounds x="735" y="292" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_esc_Activity_0cqoubb_di" bpmnElement="UT_esc_Activity_0cqoubb">
+        <dc:Bounds x="710" y="460" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EE_esc_Activity_0cqoubb_di" bpmnElement="EE_esc_Activity_0cqoubb">
+        <dc:Bounds x="742" y="570" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_rem_Activity_0cqoubb_di" bpmnElement="Flow_rem_Activity_0cqoubb">
+        <di:waypoint x="713" y="328" />
+        <di:waypoint x="720" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ded_Activity_0cqoubb_di" bpmnElement="Flow_ded_Activity_0cqoubb">
+        <di:waypoint x="753" y="328" />
+        <di:waypoint x="760" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_end_Activity_0cqoubb_di" bpmnElement="Flow_esc_end_Activity_0cqoubb">
+        <di:waypoint x="760" y="540" />
+        <di:waypoint x="760" y="570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="BE_rem_Activity_0bzvot4_di" bpmnElement="BE_rem_Activity_0bzvot4">
+        <dc:Bounds x="945" y="292" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_rem_Activity_0bzvot4_di" bpmnElement="ST_rem_Activity_0bzvot4">
+        <dc:Bounds x="920" y="350" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_Activity_0bzvot4_di" bpmnElement="BE_ded_Activity_0bzvot4">
+        <dc:Bounds x="985" y="292" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_esc_Activity_0bzvot4_di" bpmnElement="UT_esc_Activity_0bzvot4">
+        <dc:Bounds x="960" y="460" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EE_esc_Activity_0bzvot4_di" bpmnElement="EE_esc_Activity_0bzvot4">
+        <dc:Bounds x="992" y="570" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_rem_Activity_0bzvot4_di" bpmnElement="Flow_rem_Activity_0bzvot4">
+        <di:waypoint x="963" y="328" />
+        <di:waypoint x="970" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ded_Activity_0bzvot4_di" bpmnElement="Flow_ded_Activity_0bzvot4">
+        <di:waypoint x="1003" y="328" />
+        <di:waypoint x="1010" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_end_Activity_0bzvot4_di" bpmnElement="Flow_esc_end_Activity_0bzvot4">
+        <di:waypoint x="1010" y="540" />
+        <di:waypoint x="1010" y="570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_odoo_xor_di" bpmnElement="Flow_to_odoo_xor">
+        <di:waypoint x="88" y="270" />
+        <di:waypoint x="125" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_odoo_default_di" bpmnElement="Flow_odoo_default">
+        <di:waypoint x="150" y="245" />
+        <di:waypoint x="250" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_odoo_skip_di" bpmnElement="Flow_odoo_skip">
+        <di:waypoint x="175" y="270" />
+        <di:waypoint x="335" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_create_to_merge_di" bpmnElement="Flow_create_to_merge">
+        <di:waypoint x="300" y="180" />
+        <di:waypoint x="360" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_merge_to_process_di" bpmnElement="Flow_merge_to_process">
+        <di:waypoint x="385" y="270" />
+        <di:waypoint x="425" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_07sxp4q_di" bpmnElement="Flow_07sxp4q">
+        <di:waypoint x="450" y="245" />
+        <di:waypoint x="540" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0lah2nk_di" bpmnElement="Flow_0lah2nk">
+        <di:waypoint x="475" y="270" />
+        <di:waypoint x="540" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ui5p6c_di" bpmnElement="Flow_1ui5p6c">
+        <di:waypoint x="450" y="295" />
+        <di:waypoint x="540" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1d3ct82_di" bpmnElement="Flow_1d3ct82">
+        <di:waypoint x="450" y="295" />
+        <di:waypoint x="540" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0hfc3y4_di" bpmnElement="Flow_0hfc3y4">
+        <di:waypoint x="450" y="295" />
+        <di:waypoint x="540" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1lafgyv_di" bpmnElement="Flow_1lafgyv">
+        <di:waypoint x="640" y="270" />
+        <di:waypoint x="680" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0ne7wti_di" bpmnElement="Flow_0ne7wti">
+        <di:waypoint x="640" y="120" />
+        <di:waypoint x="860" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0yk6gnc_di" bpmnElement="Flow_0yk6gnc">
+        <di:waypoint x="780" y="270" />
+        <di:waypoint x="835" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0j3rzr9_di" bpmnElement="Flow_0j3rzr9">
+        <di:waypoint x="640" y="410" />
+        <di:waypoint x="860" y="295" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0oqosxj_di" bpmnElement="Flow_0oqosxj">
+        <di:waypoint x="640" y="540" />
+        <di:waypoint x="860" y="295" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_12h7vmu_di" bpmnElement="Flow_12h7vmu">
+        <di:waypoint x="640" y="660" />
+        <di:waypoint x="860" y="295" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1y5v2z1_di" bpmnElement="Flow_1y5v2z1">
+        <di:waypoint x="885" y="270" />
+        <di:waypoint x="930" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1r681yk_di" bpmnElement="Flow_1r681yk">
+        <di:waypoint x="1030" y="270" />
+        <di:waypoint x="1092" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_0khm6de_di" bpmnElement="Association_0khm6de">
+        <di:waypoint x="1018" y="230" />
+        <di:waypoint x="1042" y="205" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
