@@ -1,0 +1,329 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions
+  xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+  xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+  xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+  xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
+  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+  id="Definitions_invoice_standardization"
+  name="Стандартизація рахунків - DRD"
+  namespace="http://camunda.org/schema/1.0/dmn"
+  exporter="Camunda Web Modeler"
+  exporterVersion="e787c33"
+  modeler:executionPlatform="Camunda Cloud"
+  modeler:executionPlatformVersion="8.8.0">
+
+  <!--
+    DRD — Decision Requirements Diagram
+    =====================================
+    Ланцюжок рішень:
+
+      [file-format-converter]  ──►  [invoice-routing]
+      Формат → метод конвертації     Тип → пріоритет + відповідальний + дедлайн
+
+    Використання в BPMN:
+      - ST_detect_format   → decisionId="file-format-converter"  → resultVariable="formatData"
+      - ST_dmn_routing     → decisionId="invoice-routing"        → resultVariable="routingData"
+        (Camunda автоматично запускає file-format-converter перед invoice-routing)
+
+    Вхідні змінні процесу:
+      - file_extension          — розширення файлу (pdf, xlsx, csv, ...)
+      - converter_type          — з file-format-converter (передається автоматично)
+      - processing_priority     — з file-format-converter (передається автоматично)
+
+    ⚠️  Замініть accountant_group_id=12 на реальний ID групи бухгалтерів в Odoo
+  -->
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       РІШЕННЯ 1: Визначення методу конвертації за форматом файлу
+       Вхід:  file_extension — розширення файлу (рядок)
+       Вихід: needs_conversion   — чи потрібна конвертація (boolean)
+              converter_type     — тип конвертора ("local_pdf" | "local_excel" |
+                                   "local_csv" | "local_xml" | "local_ocr" | "none")
+              processing_priority — пріоритет обробки ("high" | "normal" | "low")
+       ═══════════════════════════════════════════════════════════════════ -->
+  <decision id="file-format-converter" name="Визначення методу конвертації">
+    <decisionTable id="dt_file_format" hitPolicy="FIRST">
+
+      <input id="in_file_ext" label="Розширення файлу">
+        <inputExpression id="ie_file_ext" typeRef="string">
+          <text>file_extension</text>
+        </inputExpression>
+        <inputValues id="iv_file_ext">
+          <text>"pdf","xlsx","xls","csv","xml","docx","doc","jpg","jpeg","png","tif","tiff","json"</text>
+        </inputValues>
+      </input>
+
+      <output id="out_needs_conv"
+              label="Потрібна конвертація"
+              name="needs_conversion"
+              typeRef="boolean" />
+
+      <output id="out_conv_type"
+              label="Метод конвертації"
+              name="converter_type"
+              typeRef="string">
+        <outputValues id="ov_conv_type">
+          <text>"local_pdf","local_excel","local_csv","local_xml","local_ocr","none"</text>
+        </outputValues>
+      </output>
+
+      <output id="out_priority"
+              label="Пріоритет обробки"
+              name="processing_priority"
+              typeRef="string">
+        <outputValues id="ov_priority">
+          <text>"high","normal","low"</text>
+        </outputValues>
+      </output>
+
+      <!-- ── PDF ──────────────────────────────────────────────────────── -->
+      <rule id="r_pdf">
+        <description>PDF рахунок — локальна конвертація через pdfplumber/camelot</description>
+        <inputEntry id="ie_pdf"><text>"pdf"</text></inputEntry>
+        <outputEntry id="oe_pdf_conv"><text>true</text></outputEntry>
+        <outputEntry id="oe_pdf_type"><text>"local_pdf"</text></outputEntry>
+        <outputEntry id="oe_pdf_prio"><text>"normal"</text></outputEntry>
+      </rule>
+
+      <!-- ── Excel нові формати ─────────────────────────────────────── -->
+      <rule id="r_xlsx">
+        <description>Excel рахунок (.xlsx) — опрацювання через openpyxl</description>
+        <inputEntry id="ie_xlsx"><text>"xlsx"</text></inputEntry>
+        <outputEntry id="oe_xlsx_conv"><text>true</text></outputEntry>
+        <outputEntry id="oe_xlsx_type"><text>"local_excel"</text></outputEntry>
+        <outputEntry id="oe_xlsx_prio"><text>"normal"</text></outputEntry>
+      </rule>
+
+      <!-- ── Excel старий формат ───────────────────────────────────── -->
+      <rule id="r_xls">
+        <description>Excel рахунок (.xls) — конвертація через xlrd</description>
+        <inputEntry id="ie_xls"><text>"xls"</text></inputEntry>
+        <outputEntry id="oe_xls_conv"><text>true</text></outputEntry>
+        <outputEntry id="oe_xls_type"><text>"local_excel"</text></outputEntry>
+        <outputEntry id="oe_xls_prio"><text>"normal"</text></outputEntry>
+      </rule>
+
+      <!-- ── CSV ───────────────────────────────────────────────────── -->
+      <rule id="r_csv">
+        <description>CSV файл — проста нормалізація роздільника та кодування</description>
+        <inputEntry id="ie_csv"><text>"csv"</text></inputEntry>
+        <outputEntry id="oe_csv_conv"><text>true</text></outputEntry>
+        <outputEntry id="oe_csv_type"><text>"local_csv"</text></outputEntry>
+        <outputEntry id="oe_csv_prio"><text>"low"</text></outputEntry>
+      </rule>
+
+      <!-- ── XML / EDI ─────────────────────────────────────────────── -->
+      <rule id="r_xml">
+        <description>XML рахунок — парсинг структури (UXML, EDI-XML)</description>
+        <inputEntry id="ie_xml"><text>"xml"</text></inputEntry>
+        <outputEntry id="oe_xml_conv"><text>true</text></outputEntry>
+        <outputEntry id="oe_xml_type"><text>"local_xml"</text></outputEntry>
+        <outputEntry id="oe_xml_prio"><text>"normal"</text></outputEntry>
+      </rule>
+
+      <!-- ── Word (.docx) ──────────────────────────────────────────── -->
+      <rule id="r_docx">
+        <description>Word документ — конвертація через python-docx → PDF → витяг</description>
+        <inputEntry id="ie_docx"><text>"docx"</text></inputEntry>
+        <outputEntry id="oe_docx_conv"><text>true</text></outputEntry>
+        <outputEntry id="oe_docx_type"><text>"local_pdf"</text></outputEntry>
+        <outputEntry id="oe_docx_prio"><text>"low"</text></outputEntry>
+      </rule>
+
+      <!-- ── Word (.doc) ───────────────────────────────────────────── -->
+      <rule id="r_doc">
+        <description>Word (старий .doc) — конвертація через LibreOffice headless</description>
+        <inputEntry id="ie_doc"><text>"doc"</text></inputEntry>
+        <outputEntry id="oe_doc_conv"><text>true</text></outputEntry>
+        <outputEntry id="oe_doc_type"><text>"local_pdf"</text></outputEntry>
+        <outputEntry id="oe_doc_prio"><text>"low"</text></outputEntry>
+      </rule>
+
+      <!-- ── Зображення JPG/JPEG ────────────────────────────────────── -->
+      <rule id="r_jpg">
+        <description>Зображення JPG — OCR (tesseract/EasyOCR), потрібна ручна перевірка</description>
+        <inputEntry id="ie_jpg"><text>"jpg","jpeg"</text></inputEntry>
+        <outputEntry id="oe_jpg_conv"><text>true</text></outputEntry>
+        <outputEntry id="oe_jpg_type"><text>"local_ocr"</text></outputEntry>
+        <outputEntry id="oe_jpg_prio"><text>"high"</text></outputEntry>
+      </rule>
+
+      <!-- ── Зображення PNG ─────────────────────────────────────────── -->
+      <rule id="r_png">
+        <description>Зображення PNG — OCR, висока ймовірність помилок розпізнавання</description>
+        <inputEntry id="ie_png"><text>"png"</text></inputEntry>
+        <outputEntry id="oe_png_conv"><text>true</text></outputEntry>
+        <outputEntry id="oe_png_type"><text>"local_ocr"</text></outputEntry>
+        <outputEntry id="oe_png_prio"><text>"high"</text></outputEntry>
+      </rule>
+
+      <!-- ── Зображення TIFF ────────────────────────────────────────── -->
+      <rule id="r_tif">
+        <description>Сканований TIFF — OCR, часто скановані папери низької якості</description>
+        <inputEntry id="ie_tif"><text>"tif","tiff"</text></inputEntry>
+        <outputEntry id="oe_tif_conv"><text>true</text></outputEntry>
+        <outputEntry id="oe_tif_type"><text>"local_ocr"</text></outputEntry>
+        <outputEntry id="oe_tif_prio"><text>"high"</text></outputEntry>
+      </rule>
+
+      <!-- ── JSON (вже структурований) ────────────────────────────── -->
+      <rule id="r_json">
+        <description>JSON — API формат, конвертація не потрібна, тільки валідація схеми</description>
+        <inputEntry id="ie_json"><text>"json"</text></inputEntry>
+        <outputEntry id="oe_json_conv"><text>false</text></outputEntry>
+        <outputEntry id="oe_json_type"><text>"none"</text></outputEntry>
+        <outputEntry id="oe_json_prio"><text>"low"</text></outputEntry>
+      </rule>
+
+      <!-- ── Невідомий формат ───────────────────────────────────────── -->
+      <rule id="r_default">
+        <description>Невідомий формат — спроба через local_pdf, потребує ручної перевірки</description>
+        <inputEntry id="ie_default"><text></text></inputEntry>
+        <outputEntry id="oe_def_conv"><text>true</text></outputEntry>
+        <outputEntry id="oe_def_type"><text>"local_pdf"</text></outputEntry>
+        <outputEntry id="oe_def_prio"><text>"high"</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       РІШЕННЯ 2: Маршрутизація та пріоритет рахунку
+       Вхід:  converter_type      — з file-format-converter (через InformationRequirement)
+              processing_priority — з file-format-converter (через InformationRequirement)
+       Вихід: invoice_priority          — "urgent" | "normal" | "low"
+              processing_deadline_days  — кількість днів для обробки
+              accountant_group_id       — ID групи бухгалтерів в Odoo (замініть на реальний!)
+       ═══════════════════════════════════════════════════════════════════ -->
+  <decision id="invoice-routing" name="Маршрутизація рахунку">
+
+    <informationRequirement id="ir_format_to_routing">
+      <requiredDecision href="#file-format-converter" />
+    </informationRequirement>
+
+    <decisionTable id="dt_routing" hitPolicy="FIRST">
+
+      <input id="in_conv_type" label="Метод конвертації">
+        <inputExpression id="ie_conv_type_in" typeRef="string">
+          <text>converter_type</text>
+        </inputExpression>
+        <inputValues id="iv_conv_type_in">
+          <text>"local_pdf","local_excel","local_csv","local_xml","local_ocr","none"</text>
+        </inputValues>
+      </input>
+
+      <input id="in_proc_prio" label="Пріоритет обробки">
+        <inputExpression id="ie_proc_prio_in" typeRef="string">
+          <text>processing_priority</text>
+        </inputExpression>
+        <inputValues id="iv_proc_prio_in">
+          <text>"high","normal","low"</text>
+        </inputValues>
+      </input>
+
+      <output id="out_inv_priority"
+              label="Пріоритет рахунку"
+              name="invoice_priority"
+              typeRef="string">
+        <outputValues id="ov_inv_priority">
+          <text>"urgent","normal","low"</text>
+        </outputValues>
+      </output>
+
+      <output id="out_deadline"
+              label="Дедлайн обробки (днів)"
+              name="processing_deadline_days"
+              typeRef="integer" />
+
+      <output id="out_group_id"
+              label="ID групи бухгалтерів (Odoo)"
+              name="accountant_group_id"
+              typeRef="integer" />
+
+      <!-- OCR + high → терміново (зображення потребують ручної перевірки) -->
+      <rule id="rr_ocr_high">
+        <description>OCR зображення → терміново, 1 день (висока ймовірність помилок)</description>
+        <inputEntry id="ire_ocr_h"><text>"local_ocr"</text></inputEntry>
+        <inputEntry id="ire_ocr_h_prio"><text>"high"</text></inputEntry>
+        <outputEntry id="ore_ocr_h_prio"><text>"urgent"</text></outputEntry>
+        <outputEntry id="ore_ocr_h_days"><text>1</text></outputEntry>
+        <outputEntry id="ore_ocr_h_group"><text>12</text></outputEntry>
+      </rule>
+
+      <!-- OCR будь-який → терміново -->
+      <rule id="rr_ocr_any">
+        <description>Будь-яке зображення (OCR) → терміново, 1 день</description>
+        <inputEntry id="ire_ocr_a"><text>"local_ocr"</text></inputEntry>
+        <inputEntry id="ire_ocr_a_prio"><text></text></inputEntry>
+        <outputEntry id="ore_ocr_a_prio"><text>"urgent"</text></outputEntry>
+        <outputEntry id="ore_ocr_a_days"><text>1</text></outputEntry>
+        <outputEntry id="ore_ocr_a_group"><text>12</text></outputEntry>
+      </rule>
+
+      <!-- Будь-який high (невідомий формат) → терміново -->
+      <rule id="rr_any_high">
+        <description>Невідомий або проблемний формат → терміново, 1 день</description>
+        <inputEntry id="ire_any_h"><text></text></inputEntry>
+        <inputEntry id="ire_any_h_prio"><text>"high"</text></inputEntry>
+        <outputEntry id="ore_any_h_prio"><text>"urgent"</text></outputEntry>
+        <outputEntry id="ore_any_h_days"><text>1</text></outputEntry>
+        <outputEntry id="ore_any_h_group"><text>12</text></outputEntry>
+      </rule>
+
+      <!-- JSON (вже структурований) → низький пріоритет -->
+      <rule id="rr_json_low">
+        <description>JSON API формат → низький пріоритет, 7 днів</description>
+        <inputEntry id="ire_json_l"><text>"none"</text></inputEntry>
+        <inputEntry id="ire_json_l_prio"><text></text></inputEntry>
+        <outputEntry id="ore_json_l_prio"><text>"low"</text></outputEntry>
+        <outputEntry id="ore_json_l_days"><text>7</text></outputEntry>
+        <outputEntry id="ore_json_l_group"><text>12</text></outputEntry>
+      </rule>
+
+      <!-- CSV → низький пріоритет -->
+      <rule id="rr_csv_any">
+        <description>CSV файл → низький пріоритет, 5 днів</description>
+        <inputEntry id="ire_csv_a"><text>"local_csv"</text></inputEntry>
+        <inputEntry id="ire_csv_a_prio"><text></text></inputEntry>
+        <outputEntry id="ore_csv_a_prio"><text>"low"</text></outputEntry>
+        <outputEntry id="ore_csv_a_days"><text>5</text></outputEntry>
+        <outputEntry id="ore_csv_a_group"><text>12</text></outputEntry>
+      </rule>
+
+      <!-- За замовчуванням — normal, 3 дні -->
+      <rule id="rr_default">
+        <description>Стандартна обробка (PDF/Excel/Word/XML) → 3 дні</description>
+        <inputEntry id="ire_def"><text></text></inputEntry>
+        <inputEntry id="ire_def_prio"><text></text></inputEntry>
+        <outputEntry id="ore_def_prio"><text>"normal"</text></outputEntry>
+        <outputEntry id="ore_def_days"><text>3</text></outputEntry>
+        <outputEntry id="ore_def_group"><text>12</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       DMNDI — візуальне розташування DRD
+       ═══════════════════════════════════════════════════════════════════ -->
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_invoice_std">
+
+      <dmndi:DMNShape id="DMNShape_format" dmnElementRef="file-format-converter">
+        <dc:Bounds x="150" y="80" width="200" height="80" />
+      </dmndi:DMNShape>
+
+      <dmndi:DMNShape id="DMNShape_routing" dmnElementRef="invoice-routing">
+        <dc:Bounds x="150" y="260" width="200" height="80" />
+      </dmndi:DMNShape>
+
+      <dmndi:DMNEdge id="DMNEdge_format_to_routing" dmnElementRef="ir_format_to_routing">
+        <di:waypoint x="250" y="160" />
+        <di:waypoint x="250" y="260" />
+      </dmndi:DMNEdge>
+
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+
+</definitions>
