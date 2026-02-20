@@ -1,0 +1,45 @@
+{
+  "components": [
+    {
+      "text": "# Перевірка Production\n\n**PR:** [#{{pr_number}} — {{pr_title}}]({{pr_url}})\n\n**Production URL:** [o.tut.ua](https://o.tut.ua)",
+      "type": "text",
+      "id": "Field_info"
+    },
+    {
+      "text": "### Що перевірити\n\n- Сайт працює (https://o.tut.ua)\n- Фіча задеплоєна коректно\n- Немає регресій\n- Кеш браузерів оновився (tut_core автоочистка)",
+      "type": "text",
+      "id": "Field_checklist"
+    },
+    {
+      "text": "---",
+      "type": "text",
+      "id": "Field_separator"
+    },
+    {
+      "key": "prod_approved",
+      "label": "Production працює коректно",
+      "type": "checkbox",
+      "id": "Field_approved",
+      "defaultValue": false
+    },
+    {
+      "key": "rollback_reason",
+      "label": "Причина rollback",
+      "type": "textarea",
+      "id": "Field_reason",
+      "conditional": {
+        "hide": "=prod_approved"
+      },
+      "validate": {
+        "minLength": 5
+      }
+    }
+  ],
+  "type": "default",
+  "id": "verify-prod-form",
+  "schemaVersion": 16,
+  "exporter": {
+    "name": "Claude Code",
+    "version": "1.0"
+  }
+}

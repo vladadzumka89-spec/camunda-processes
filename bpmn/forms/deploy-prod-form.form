@@ -1,0 +1,36 @@
+{
+  "components": [
+    {
+      "text": "# Deploy на Production\n\n**PR:** [#{{pr_number}} — {{pr_title}}]({{pr_url}})\n\n**Модулі для оновлення:** `{{staging_modules}}`",
+      "type": "text",
+      "id": "Field_info"
+    },
+    {
+      "text": "---\n\n### Інструкція\n\n**1. Бекап БД:**\n```\ndocker exec odoo19-db pgbackrest --stanza=main backup --type=full\n```\n\n**2. Git pull:**\n```\ncd /opt/odoo-enterprise && git pull origin main\n```\n\n**3. Docker build (якщо потрібно):**\n```\ndocker compose build web\n```\n\n**4. Module update:**\n```\ndocker exec odoo19 odoo-bin -d odoo19 -u {{staging_modules}} --stop-after-init --no-http\n```\n\n**5. Restart:**\n```\ndocker compose restart web\n```",
+      "type": "text",
+      "id": "Field_instructions"
+    },
+    {
+      "text": "---",
+      "type": "text",
+      "id": "Field_separator"
+    },
+    {
+      "key": "deploy_completed",
+      "label": "Production deploy виконано",
+      "type": "checkbox",
+      "id": "Field_completed",
+      "defaultValue": false,
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "type": "default",
+  "id": "deploy-prod-form",
+  "schemaVersion": 16,
+  "exporter": {
+    "name": "Claude Code",
+    "version": "1.0"
+  }
+}

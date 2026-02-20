@@ -1,6 +1,8 @@
 # Secrets and credentials
 connector-secrets.txt
 .env
+.env.camunda
+.env.camunda.template
 .identity/
 
 # Infrastructure configs (environment-specific)
@@ -24,6 +26,9 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Python
+__pycache__/
 
 # Node (if workers use it)
 node_modules/

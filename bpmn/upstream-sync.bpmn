@@ -1,0 +1,560 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_sync"
+                  targetNamespace="http://tut.ua/bpmn/upstream-sync"
+                  exporter="Claude Code"
+                  exporterVersion="1.0">
+
+  <!-- ═══════════════════════════════════════════════════════════
+       UPSTREAM SYNC — Синхронізація з Odoo upstream
+
+       Старт: ручний тригер або таймер
+       Фініш: draft PR створено → техспец перевіряє → mark ready
+              → feature-to-production стартує автоматично через webhook
+
+       Якщо impact analysis знаходить конфлікти з custom модулями (tut_*),
+       процес зупиняється на user task для техспеціаліста.
+
+       Job worker types:
+         fetch-runbot, clone-upstream, sync-modules,
+         impact-analysis, audit-analysis, git-commit-push,
+         github-create-pr, github-pr-ready
+       ═══════════════════════════════════════════════════════════ -->
+
+  <!-- Message for Odoo task completion webhook -->
+  <bpmn:message id="Message_odoo_task_done" name="msg_odoo_task_done">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=odoo_task_id" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+
+  <bpmn:process id="upstream-sync" name="Upstream Sync" isExecutable="true">
+
+    <!-- ── START ─────────────────────────────────────────────── -->
+    <bpmn:startEvent id="evt_start" name="Запуск синхронізації">
+      <bpmn:documentation>Ручний тригер або таймер.
+Variables: upstream_branch (default: "19.0"), dry_run (default: false), modules (default: "" = full sync)</bpmn:documentation>
+      <bpmn:outgoing>f01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ── FETCH CURRENT VERSIONS ────────────────────────────── -->
+    <bpmn:serviceTask id="task_current_version" name="Прочитати поточні версії">
+      <bpmn:documentation>Читає src/community/odoo/release.py через SSH.
+Витягує repos_heads, version, community_sha, enterprise_sha.
+Output: current_community_sha, current_enterprise_sha, current_version</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="fetch-current-version" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f01</bpmn:incoming>
+      <bpmn:outgoing>f02</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── FETCH RUNBOT ──────────────────────────────────────── -->
+    <bpmn:serviceTask id="task_fetch_runbot" name="Запит до Runbot API">
+      <bpmn:documentation>GET https://runbot.odoo.com/runbot/json/last_batches_infos
+Парсить JSON, витягує community та enterprise SHA для обраної гілки.
+Output: runbot_community_sha, runbot_enterprise_sha</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="fetch-runbot" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f02</bpmn:incoming>
+      <bpmn:outgoing>f03</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── UPDATE NEEDED? ────────────────────────────────────── -->
+    <bpmn:exclusiveGateway id="gw_update_needed" name="Оновлення потрібне?" default="f_needed">
+      <bpmn:incoming>f03</bpmn:incoming>
+      <bpmn:outgoing>f_not_needed</bpmn:outgoing>
+      <bpmn:outgoing>f_needed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="evt_end_no_update" name="Вже актуальне">
+      <bpmn:incoming>f_not_needed</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── CLONE UPSTREAM ────────────────────────────────────── -->
+    <bpmn:serviceTask id="task_clone_upstream" name="Clone upstream repos">
+      <bpmn:documentation>Shallow clone odoo/odoo та odoo/enterprise на точні SHA від Runbot.
+Потребує DEPLOY_PAT для enterprise (приватний репо).
+Output: community_date, enterprise_date, enterprise_count</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="clone-upstream" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_needed</bpmn:incoming>
+      <bpmn:outgoing>f04</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── SYNC MODULES ──────────────────────────────────────── -->
+    <bpmn:serviceTask id="task_sync_modules" name="Синхронізувати модулі">
+      <bpmn:documentation>Два режими:
+— Selective: rsync вказаних enterprise модулів
+— Full: повна заміна community + per-module rsync enterprise
+  + оновлення community-копій в enterprise
+  + видалення застарілих enterprise модулів (крім tut_*)
+
+Output: sync_mode, synced_enterprise, new_modules, removed_modules</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="sync-modules" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f04</bpmn:incoming>
+      <bpmn:outgoing>f05</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── DIFF REPORT ───────────────────────────────────────── -->
+    <bpmn:serviceTask id="task_diff_report" name="Генерувати diff звіт">
+      <bpmn:documentation>git add -N, перевіряє зміни community/enterprise.
+Генерує per-module статистику (файли додані/змінені/видалені).
+Output: has_changes, changed_modules, community_files, enterprise_files</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="diff-report" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f05</bpmn:incoming>
+      <bpmn:outgoing>f06</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── HAS CHANGES? ──────────────────────────────────────── -->
+    <bpmn:exclusiveGateway id="gw_has_changes" name="Є зміни?" default="f_changes_yes">
+      <bpmn:incoming>f06</bpmn:incoming>
+      <bpmn:outgoing>f_changes_no</bpmn:outgoing>
+      <bpmn:outgoing>f_changes_yes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="evt_end_no_changes" name="Без змін">
+      <bpmn:incoming>f_changes_no</bpmn:incoming>
+      <bpmn:incoming>f_dry_run</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── IMPACT ANALYSIS (dependency-based) ─────────────────── -->
+    <bpmn:serviceTask id="task_impact" name="Аналіз впливу (залежності)">
+      <bpmn:documentation>Для кожного custom модуля в src/custom/:
+— Читає __manifest__.py depends
+— Порівнює з переліком змінених upstream модулів
+— Визначає потенційно зачеплені модулі
+Output: affected_custom_count, impact_table</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="impact-analysis" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_changes_yes</bpmn:incoming>
+      <bpmn:outgoing>f07</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── AUDIT ANALYSIS (deep static — Python/JS/XML) ──────── -->
+    <bpmn:serviceTask id="task_audit" name="Глибокий аналіз конфліктів">
+      <bpmn:documentation>Статичний аналіз коду custom модулів:
+— Python: _inherit method overrides vs змінені base моделі, super() перевірка
+— JS: patch() targets vs змінені base компоненти
+— XML: inherit_id + xpath vs змінені base views
+Output: audit_conflicts, audit_critical, audit_warning, audit_report</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="audit-analysis" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f07</bpmn:incoming>
+      <bpmn:outgoing>f07a</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── CONFLICTS FOUND? ────────────────────────────────── -->
+    <bpmn:exclusiveGateway id="gw_conflicts" name="Конфлікти з custom модулями?" default="f_no_conflicts">
+      <bpmn:incoming>f07a</bpmn:incoming>
+      <bpmn:outgoing>f_has_conflicts</bpmn:outgoing>
+      <bpmn:outgoing>f_no_conflicts</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ── NOTIFY: RESOLVE CONFLICTS → Odoo task ────────────── -->
+    <bpmn:serviceTask id="task_notify_conflicts" name="Створити задачу: виправити конфлікти">
+      <bpmn:documentation>Створює задачу в Odoo проекті CI/CD Pipeline.
+Техспеціаліст отримує задачу з деталями конфліктів.
+Після виправлення закриває задачу → процес продовжується.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="create-odoo-task" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;resolve_conflicts&quot;" target="odoo_task_type" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_has_conflicts</bpmn:incoming>
+      <bpmn:outgoing>f_notify_to_wait_conflicts</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── WAIT: Odoo task closed ────────────────────────────── -->
+    <bpmn:intermediateCatchEvent id="wait_conflicts_resolved" name="Чекаємо закриття задачі">
+      <bpmn:incoming>f_notify_to_wait_conflicts</bpmn:incoming>
+      <bpmn:outgoing>f_after_resolve</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_conflicts_resolved" messageRef="Message_odoo_task_done" />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- ── DRY RUN CHECK ─────────────────────────────────────── -->
+    <bpmn:exclusiveGateway id="gw_dry_run" name="Dry run?" default="f_not_dry">
+      <bpmn:incoming>f_no_conflicts</bpmn:incoming>
+      <bpmn:incoming>f_after_resolve</bpmn:incoming>
+      <bpmn:outgoing>f_dry_run</bpmn:outgoing>
+      <bpmn:outgoing>f_not_dry</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ── CREATE BRANCH & COMMIT ────────────────────────────── -->
+    <bpmn:serviceTask id="task_commit" name="Створити гілку та коміт">
+      <bpmn:documentation>git checkout -b sync/upstream-TIMESTAMP
+git add src/community src/enterprise
+git commit (github-actions[bot])
+git push origin sync/upstream-TIMESTAMP
+Output: sync_branch</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="git-commit-push" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_not_dry</bpmn:incoming>
+      <bpmn:outgoing>f08</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── CREATE DRAFT PR ───────────────────────────────────── -->
+    <bpmn:serviceTask id="task_create_pr" name="Створити draft PR">
+      <bpmn:documentation>gh pr create --draft --base staging
+Body: version table, module changes, impact analysis, test instructions.
+Output: pr_url, pr_number</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-create-pr" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f08</bpmn:incoming>
+      <bpmn:outgoing>f09</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── NOTIFY: REVIEW SYNC → Odoo task ──────────────────── -->
+    <bpmn:serviceTask id="task_notify_review" name="Створити задачу: перевірити sync">
+      <bpmn:documentation>Створює задачу в Odoo для перевірки draft PR.
+Техспеціаліст перевіряє PR і закриває задачу → процес продовжується
+і автоматично позначає PR як Ready.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="create-odoo-task" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;review_sync&quot;" target="odoo_task_type" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f09</bpmn:incoming>
+      <bpmn:outgoing>f_notify_to_wait_review</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── WAIT: Odoo task closed ────────────────────────────── -->
+    <bpmn:intermediateCatchEvent id="wait_review_done" name="Чекаємо закриття задачі">
+      <bpmn:incoming>f_notify_to_wait_review</bpmn:incoming>
+      <bpmn:outgoing>f10</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_review_done" messageRef="Message_odoo_task_done" />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- ── MARK PR READY ─────────────────────────────────────── -->
+    <bpmn:serviceTask id="task_mark_ready" name="Позначити PR як Ready">
+      <bpmn:documentation>gh pr ready PR_NUMBER
+Конвертує draft PR в ready-for-review.
+GitHub webhook → запускає feature-to-production.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-pr-ready" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f10</bpmn:incoming>
+      <bpmn:outgoing>f11</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── END ───────────────────────────────────────────────── -->
+    <bpmn:endEvent id="evt_end_success" name="Sync завершено, PR ready">
+      <bpmn:incoming>f11</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ═══════════════════ SEQUENCE FLOWS ═══════════════════ -->
+
+    <bpmn:sequenceFlow id="f01" sourceRef="evt_start" targetRef="task_current_version" />
+    <bpmn:sequenceFlow id="f02" sourceRef="task_current_version" targetRef="task_fetch_runbot" />
+    <bpmn:sequenceFlow id="f03" sourceRef="task_fetch_runbot" targetRef="gw_update_needed" />
+
+    <bpmn:sequenceFlow id="f_not_needed" name="Вже актуальне" sourceRef="gw_update_needed" targetRef="evt_end_no_update">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=current_community_sha = runbot_community_sha and current_enterprise_sha = runbot_enterprise_sha</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_needed" name="Потрібне" sourceRef="gw_update_needed" targetRef="task_clone_upstream" />
+
+    <bpmn:sequenceFlow id="f04" sourceRef="task_clone_upstream" targetRef="task_sync_modules" />
+    <bpmn:sequenceFlow id="f05" sourceRef="task_sync_modules" targetRef="task_diff_report" />
+    <bpmn:sequenceFlow id="f06" sourceRef="task_diff_report" targetRef="gw_has_changes" />
+
+    <bpmn:sequenceFlow id="f_changes_no" name="Без змін" sourceRef="gw_has_changes" targetRef="evt_end_no_changes">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=has_changes = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_changes_yes" sourceRef="gw_has_changes" targetRef="task_impact" />
+
+    <bpmn:sequenceFlow id="f07" sourceRef="task_impact" targetRef="task_audit" />
+    <bpmn:sequenceFlow id="f07a" sourceRef="task_audit" targetRef="gw_conflicts" />
+
+    <bpmn:sequenceFlow id="f_has_conflicts" name="Є конфлікти" sourceRef="gw_conflicts" targetRef="task_notify_conflicts">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=affected_custom_count > 0 or audit_critical > 0</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_no_conflicts" name="Без конфліктів" sourceRef="gw_conflicts" targetRef="gw_dry_run" />
+    <bpmn:sequenceFlow id="f_notify_to_wait_conflicts" sourceRef="task_notify_conflicts" targetRef="wait_conflicts_resolved" />
+    <bpmn:sequenceFlow id="f_after_resolve" sourceRef="wait_conflicts_resolved" targetRef="gw_dry_run" />
+
+    <bpmn:sequenceFlow id="f_dry_run" name="Dry run" sourceRef="gw_dry_run" targetRef="evt_end_no_changes">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=dry_run = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_not_dry" sourceRef="gw_dry_run" targetRef="task_commit" />
+
+    <bpmn:sequenceFlow id="f08" sourceRef="task_commit" targetRef="task_create_pr" />
+    <bpmn:sequenceFlow id="f09" sourceRef="task_create_pr" targetRef="task_notify_review" />
+    <bpmn:sequenceFlow id="f_notify_to_wait_review" sourceRef="task_notify_review" targetRef="wait_review_done" />
+    <bpmn:sequenceFlow id="f10" sourceRef="wait_review_done" targetRef="task_mark_ready" />
+    <bpmn:sequenceFlow id="f11" sourceRef="task_mark_ready" targetRef="evt_end_success" />
+
+  </bpmn:process>
+
+  <!-- ═══════════════════ DIAGRAM ═══════════════════
+       Linear horizontal layout at y=200.
+       Two exit branches below (no update, no changes/dry run).
+       Diagram: ~3400x360
+  ═══════════════════════════════════════════════════ -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_sync">
+    <bpmndi:BPMNPlane id="BPMNPlane_sync" bpmnElement="upstream-sync">
+
+      <!-- Start -->
+      <bpmndi:BPMNShape id="evt_start_di" bpmnElement="evt_start">
+        <dc:Bounds x="82" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Current Version -->
+      <bpmndi:BPMNShape id="task_current_version_di" bpmnElement="task_current_version">
+        <dc:Bounds x="170" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Fetch Runbot -->
+      <bpmndi:BPMNShape id="task_fetch_runbot_di" bpmnElement="task_fetch_runbot">
+        <dc:Bounds x="390" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- GW Update Needed -->
+      <bpmndi:BPMNShape id="gw_update_needed_di" bpmnElement="gw_update_needed" isMarkerVisible="true">
+        <dc:Bounds x="610" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- End No Update -->
+      <bpmndi:BPMNShape id="evt_end_no_update_di" bpmnElement="evt_end_no_update">
+        <dc:Bounds x="617" y="302" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Clone Upstream -->
+      <bpmndi:BPMNShape id="task_clone_upstream_di" bpmnElement="task_clone_upstream">
+        <dc:Bounds x="720" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Sync Modules -->
+      <bpmndi:BPMNShape id="task_sync_modules_di" bpmnElement="task_sync_modules">
+        <dc:Bounds x="940" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Diff Report -->
+      <bpmndi:BPMNShape id="task_diff_report_di" bpmnElement="task_diff_report">
+        <dc:Bounds x="1160" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- GW Has Changes -->
+      <bpmndi:BPMNShape id="gw_has_changes_di" bpmnElement="gw_has_changes" isMarkerVisible="true">
+        <dc:Bounds x="1380" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- End No Changes (shared with dry run) -->
+      <bpmndi:BPMNShape id="evt_end_no_changes_di" bpmnElement="evt_end_no_changes">
+        <dc:Bounds x="1500" y="302" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Impact Analysis (dependency-based) -->
+      <bpmndi:BPMNShape id="task_impact_di" bpmnElement="task_impact">
+        <dc:Bounds x="1490" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Audit Analysis (deep static) -->
+      <bpmndi:BPMNShape id="task_audit_di" bpmnElement="task_audit">
+        <dc:Bounds x="1710" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- GW Conflicts -->
+      <bpmndi:BPMNShape id="gw_conflicts_di" bpmnElement="gw_conflicts" isMarkerVisible="true">
+        <dc:Bounds x="1930" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- Notify: Resolve Conflicts (service task) -->
+      <bpmndi:BPMNShape id="task_notify_conflicts_di" bpmnElement="task_notify_conflicts">
+        <dc:Bounds x="2020" y="40" width="150" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Wait: Conflicts resolved (message catch event) -->
+      <bpmndi:BPMNShape id="wait_conflicts_resolved_di" bpmnElement="wait_conflicts_resolved">
+        <dc:Bounds x="2202" y="62" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- GW Dry Run -->
+      <bpmndi:BPMNShape id="gw_dry_run_di" bpmnElement="gw_dry_run" isMarkerVisible="true">
+        <dc:Bounds x="2330" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- Commit -->
+      <bpmndi:BPMNShape id="task_commit_di" bpmnElement="task_commit">
+        <dc:Bounds x="2440" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Create Draft PR -->
+      <bpmndi:BPMNShape id="task_create_pr_di" bpmnElement="task_create_pr">
+        <dc:Bounds x="2660" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Notify: Review Sync (service task) -->
+      <bpmndi:BPMNShape id="task_notify_review_di" bpmnElement="task_notify_review">
+        <dc:Bounds x="2870" y="160" width="150" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Wait: Review done (message catch event) -->
+      <bpmndi:BPMNShape id="wait_review_done_di" bpmnElement="wait_review_done">
+        <dc:Bounds x="3052" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Mark PR Ready -->
+      <bpmndi:BPMNShape id="task_mark_ready_di" bpmnElement="task_mark_ready">
+        <dc:Bounds x="3140" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- End Success -->
+      <bpmndi:BPMNShape id="evt_end_success_di" bpmnElement="evt_end_success">
+        <dc:Bounds x="3362" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- ═══ EDGES ═══ -->
+
+      <bpmndi:BPMNEdge id="f01_di" bpmnElement="f01">
+        <di:waypoint x="118" y="200" />
+        <di:waypoint x="170" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f02_di" bpmnElement="f02">
+        <di:waypoint x="330" y="200" />
+        <di:waypoint x="390" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f03_di" bpmnElement="f03">
+        <di:waypoint x="550" y="200" />
+        <di:waypoint x="610" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Not needed → End -->
+      <bpmndi:BPMNEdge id="f_not_needed_di" bpmnElement="f_not_needed">
+        <di:waypoint x="635" y="225" />
+        <di:waypoint x="635" y="302" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Needed → Clone -->
+      <bpmndi:BPMNEdge id="f_needed_di" bpmnElement="f_needed">
+        <di:waypoint x="660" y="200" />
+        <di:waypoint x="720" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f04_di" bpmnElement="f04">
+        <di:waypoint x="880" y="200" />
+        <di:waypoint x="940" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f05_di" bpmnElement="f05">
+        <di:waypoint x="1100" y="200" />
+        <di:waypoint x="1160" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f06_di" bpmnElement="f06">
+        <di:waypoint x="1320" y="200" />
+        <di:waypoint x="1380" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <!-- No changes → End -->
+      <bpmndi:BPMNEdge id="f_changes_no_di" bpmnElement="f_changes_no">
+        <di:waypoint x="1405" y="225" />
+        <di:waypoint x="1405" y="320" />
+        <di:waypoint x="1500" y="320" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Has changes → Impact -->
+      <bpmndi:BPMNEdge id="f_changes_yes_di" bpmnElement="f_changes_yes">
+        <di:waypoint x="1430" y="200" />
+        <di:waypoint x="1490" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Impact → Audit -->
+      <bpmndi:BPMNEdge id="f07_di" bpmnElement="f07">
+        <di:waypoint x="1650" y="200" />
+        <di:waypoint x="1710" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Audit → GW Conflicts -->
+      <bpmndi:BPMNEdge id="f07a_di" bpmnElement="f07a">
+        <di:waypoint x="1870" y="200" />
+        <di:waypoint x="1930" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Conflicts → Notify Resolve (up) -->
+      <bpmndi:BPMNEdge id="f_has_conflicts_di" bpmnElement="f_has_conflicts">
+        <di:waypoint x="1955" y="175" />
+        <di:waypoint x="1955" y="80" />
+        <di:waypoint x="2020" y="80" />
+      </bpmndi:BPMNEdge>
+
+      <!-- No conflicts → GW Dry Run (straight) -->
+      <bpmndi:BPMNEdge id="f_no_conflicts_di" bpmnElement="f_no_conflicts">
+        <di:waypoint x="1980" y="200" />
+        <di:waypoint x="2330" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Notify Conflicts → Wait -->
+      <bpmndi:BPMNEdge id="f_notify_to_wait_conflicts_di" bpmnElement="f_notify_to_wait_conflicts">
+        <di:waypoint x="2170" y="80" />
+        <di:waypoint x="2202" y="80" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Wait Conflicts → GW Dry Run (down) -->
+      <bpmndi:BPMNEdge id="f_after_resolve_di" bpmnElement="f_after_resolve">
+        <di:waypoint x="2238" y="80" />
+        <di:waypoint x="2355" y="80" />
+        <di:waypoint x="2355" y="175" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Dry run → End -->
+      <bpmndi:BPMNEdge id="f_dry_run_di" bpmnElement="f_dry_run">
+        <di:waypoint x="2355" y="225" />
+        <di:waypoint x="2355" y="320" />
+        <di:waypoint x="1536" y="320" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Not dry → Commit -->
+      <bpmndi:BPMNEdge id="f_not_dry_di" bpmnElement="f_not_dry">
+        <di:waypoint x="2380" y="200" />
+        <di:waypoint x="2440" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f08_di" bpmnElement="f08">
+        <di:waypoint x="2600" y="200" />
+        <di:waypoint x="2660" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f09_di" bpmnElement="f09">
+        <di:waypoint x="2820" y="200" />
+        <di:waypoint x="2870" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Notify Review → Wait -->
+      <bpmndi:BPMNEdge id="f_notify_to_wait_review_di" bpmnElement="f_notify_to_wait_review">
+        <di:waypoint x="3020" y="200" />
+        <di:waypoint x="3052" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f10_di" bpmnElement="f10">
+        <di:waypoint x="3088" y="200" />
+        <di:waypoint x="3140" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f11_di" bpmnElement="f11">
+        <di:waypoint x="3300" y="200" />
+        <di:waypoint x="3362" y="200" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>

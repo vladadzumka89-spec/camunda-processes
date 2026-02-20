@@ -1,0 +1,36 @@
+{
+  "components": [
+    {
+      "text": "# Merge PR в main\n\n**PR:** [#{{pr_number}} — {{pr_title}}]({{pr_url}})",
+      "type": "text",
+      "id": "Field_info"
+    },
+    {
+      "text": "### Production PR\n\n**URL:** [#{{main_pr_number}}]({{main_pr_url}})\n\nПерегляньте PR та виконайте merge в main через GitHub.",
+      "type": "text",
+      "id": "Field_main_pr"
+    },
+    {
+      "text": "---\n\n### Staging результати\n\n**Модулі:** {{staging_modules}}\n\n**Clickbot:** {{clickbot_report}}",
+      "type": "text",
+      "id": "Field_staging_results"
+    },
+    {
+      "key": "merge_confirmed",
+      "label": "PR замержено в main",
+      "type": "checkbox",
+      "id": "Field_confirmed",
+      "defaultValue": false,
+      "validate": {
+        "required": true
+      }
+    }
+  ],
+  "type": "default",
+  "id": "merge-main-form",
+  "schemaVersion": 16,
+  "exporter": {
+    "name": "Claude Code",
+    "version": "1.0"
+  }
+}

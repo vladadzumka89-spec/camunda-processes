@@ -1,0 +1,50 @@
+{
+  "components": [
+    {
+      "text": "# Перевірка staging\n\n**PR:** [#{{pr_number}} — {{pr_title}}]({{pr_url}})\n\n**Автор:** {{pr_author}}",
+      "type": "text",
+      "id": "Field_info"
+    },
+    {
+      "text": "---\n\n### Staging\n\n**URL:** [odoo.dev.dobrom.com](https://odoo.dev.dobrom.com:2689/odoo)\n\n**Оновлені модулі:** {{staging_modules}}\n\n**Smoke test:** {{staging_smoke}}",
+      "type": "text",
+      "id": "Field_staging"
+    },
+    {
+      "text": "### Clickbot E2E тести\n\n```\n{{clickbot_report}}\n```",
+      "type": "text",
+      "id": "Field_clickbot"
+    },
+    {
+      "text": "---",
+      "type": "text",
+      "id": "Field_separator"
+    },
+    {
+      "key": "staging_approved",
+      "label": "Staging працює коректно, можна випускати в production",
+      "type": "checkbox",
+      "id": "Field_approved",
+      "defaultValue": false
+    },
+    {
+      "key": "rejection_reason",
+      "label": "Причина відхилення",
+      "type": "textarea",
+      "id": "Field_reason",
+      "conditional": {
+        "hide": "=staging_approved"
+      },
+      "validate": {
+        "minLength": 5
+      }
+    }
+  ],
+  "type": "default",
+  "id": "verify-staging-form",
+  "schemaVersion": 16,
+  "exporter": {
+    "name": "Claude Code",
+    "version": "1.0"
+  }
+}

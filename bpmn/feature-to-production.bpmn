@@ -1,0 +1,881 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_feature"
+                  targetNamespace="http://tut.ua/bpmn/feature-pipeline"
+                  exporter="Claude Code"
+                  exporterVersion="1.1">
+
+  <!-- ═══════════════════════════════════════════════════════════
+       FEATURE TO PRODUCTION — Головний пайплайн
+
+       Старт: GitHub webhook (PR створено/оновлено targeting staging)
+       Фініш: Фіча на production або rollback
+
+       Два цикли зворотного зв'язку:
+         1. PR-Agent score < 7 → чекаємо виправлення (7 днів timeout) → повторний review
+         2. Staging відхилено техспецом → rework (7 днів timeout) → повторний цикл
+
+       Викликає deploy-process як call activity (staging та production).
+       Rollback — автоматичний (deploy-process error subprocess + rollback job type).
+
+       Job worker types:
+         pr-agent-review, github-merge, github-create-pr,
+         github-comment, clickbot-test, send-notification
+       ═══════════════════════════════════════════════════════════ -->
+
+  <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
+
+  <!-- Messages for process correlation -->
+  <bpmn:message id="Message_pr_event" name="msg_pr_event" />
+  <bpmn:message id="Message_pr_updated" name="msg_pr_updated">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=string(pr_number)" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+
+  <bpmn:process id="feature-to-production" name="Feature to Production" isExecutable="true">
+
+    <!-- ═══════════════════ PHASE 1: CI ═══════════════════ -->
+
+    <!-- ── START: PR Created ─────────────────────────────── -->
+    <bpmn:startEvent id="msg_start" name="PR створено">
+      <bpmn:documentation>GitHub webhook: pull_request opened/reopened targeting staging.
+Variables: pr_number, pr_url, repository, base_branch, head_branch, pr_title, pr_author</bpmn:documentation>
+      <bpmn:outgoing>f01</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_start" messageRef="Message_pr_event" />
+    </bpmn:startEvent>
+
+    <!-- ── PR-AGENT REVIEW ───────────────────────────────── -->
+    <bpmn:serviceTask id="task_pr_agent" name="PR-Agent Review">
+      <bpmn:documentation>Запускає PR-Agent (Docker/CLI) для автоматичного code review.
+Використовує Grok через OpenRouter API.
+Перевіряє: безпека, архітектура, type hinting, іменування tut_*.
+Output: review_score, review_comment, has_critical_issues</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="pr-agent-review" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f01</bpmn:incoming>
+      <bpmn:incoming>f_wait_update_back</bpmn:incoming>
+      <bpmn:incoming>f_wait_rework_back</bpmn:incoming>
+      <bpmn:outgoing>f02</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── SCORE CHECK ───────────────────────────────────── -->
+    <bpmn:exclusiveGateway id="gw_score" name="Score ≥ 7?" default="f_score_no">
+      <bpmn:incoming>f02</bpmn:incoming>
+      <bpmn:outgoing>f_score_yes</bpmn:outgoing>
+      <bpmn:outgoing>f_score_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Score < 7 path -->
+    <bpmn:serviceTask id="task_cannot_merge" name="Коментар: потребує доопрацювання">
+      <bpmn:documentation>Публікує коментар на PR: "Auto-merge скасовано — score &lt; 7 або є критичні проблеми."</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-comment" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;⚠️ **Auto-merge скасовано** — Score &quot; + string(review_score) + &quot;/10. Перевірте зауваження від PR-Agent вище.&quot;" target="comment_text" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_score_no</bpmn:incoming>
+      <bpmn:outgoing>f_to_wait_update</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Event-based gateway: message або timeout (7 днів) -->
+    <bpmn:eventBasedGateway id="ebg_wait_update" name="Чекаємо...">
+      <bpmn:incoming>f_to_wait_update</bpmn:incoming>
+      <bpmn:outgoing>f_ebg_to_msg_update</bpmn:outgoing>
+      <bpmn:outgoing>f_ebg_to_timer_update</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <bpmn:intermediateCatchEvent id="evt_wait_pr_update" name="PR оновлено">
+      <bpmn:documentation>Очікує push нових комітів в PR (GitHub webhook: pull_request synchronize).
+Кореляція по pr_number.</bpmn:documentation>
+      <bpmn:incoming>f_ebg_to_msg_update</bpmn:incoming>
+      <bpmn:outgoing>f_wait_update_back</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_wait_update" messageRef="Message_pr_updated" />
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:intermediateCatchEvent id="timer_pr_timeout" name="7 днів">
+      <bpmn:incoming>f_ebg_to_timer_update</bpmn:incoming>
+      <bpmn:outgoing>f_pr_timeout_end</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_pr_timeout">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P7D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:endEvent id="evt_end_pr_timeout" name="PR не оновлено (timeout)">
+      <bpmn:incoming>f_pr_timeout_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── AUTO-MERGE ────────────────────────────────────── -->
+    <bpmn:serviceTask id="task_auto_merge" name="Auto-merge PR в staging">
+      <bpmn:documentation>gh pr merge --squash --auto
+Squash merge PR в staging branch.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-merge" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_score_yes</bpmn:incoming>
+      <bpmn:outgoing>f03</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══════════════════ PHASE 2: CD STAGING ═══════════════════ -->
+
+    <!-- ── DEPLOY STAGING (Call Activity) ────────────────── -->
+    <bpmn:callActivity id="call_deploy_staging" name="Deploy to Staging">
+      <bpmn:documentation>Викликає deploy-process з параметрами staging.
+При помилці — boundary error event → повідомлення про fail.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="deploy-process" propagateAllChildVariables="false" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=staging_host" target="server_host" />
+          <zeebe:input source="=staging_ssh_user" target="ssh_user" />
+          <zeebe:input source="=&quot;staging&quot;" target="branch" />
+          <zeebe:input source="=staging_db" target="db_name" />
+          <zeebe:input source="=staging_container" target="container" />
+          <zeebe:input source="=staging_repo_dir" target="repo_dir" />
+          <zeebe:input source="=true" target="run_smoke_test" />
+          <zeebe:output source="=modules_updated" target="staging_modules" />
+          <zeebe:output source="=smoke_passed" target="staging_smoke" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f03</bpmn:incoming>
+      <bpmn:outgoing>f04</bpmn:outgoing>
+    </bpmn:callActivity>
+
+    <!-- Boundary error on deploy staging -->
+    <bpmn:boundaryEvent id="evt_deploy_stg_error" name="Deploy failed" attachedToRef="call_deploy_staging">
+      <bpmn:outgoing>f_deploy_fail</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_deploy_stg" errorRef="Error_deploy_failed" />
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="task_notify_deploy_fail" name="Повідомити: deploy staging failed">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;deploy_failed&quot;" target="notification_type" />
+          <zeebe:input source="=&quot;❌ Deploy PR #&quot; + string(pr_number) + &quot; на staging провалився.&quot;" target="message_body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_deploy_fail</bpmn:incoming>
+      <bpmn:outgoing>f_deploy_fail_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="evt_end_deploy_fail" name="Deploy staging провалився">
+      <bpmn:incoming>f_deploy_fail_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── CLICKBOT TESTS ────────────────────────────────── -->
+    <bpmn:serviceTask id="task_clickbot" name="Clickbot E2E тести">
+      <bpmn:documentation>Запускає clickbot тести в ізольованому Docker середовищі.
+Дампить production БД, відновлює в tmpfs PostgreSQL, запускає browser тести.
+Output: clickbot_passed, clickbot_report</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="clickbot-test" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=staging_host" target="server_host" />
+          <zeebe:input source="=staging_db" target="db_name" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f04</bpmn:incoming>
+      <bpmn:outgoing>f05</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── NOTIFY STAGING READY ──────────────────────────── -->
+    <bpmn:serviceTask id="task_notify_staging" name="Повідомити: staging готовий">
+      <bpmn:documentation>Відправляє нотифікацію техспеціалісту:
+"Фіча задеплоєна на staging, clickbot: passed/failed. Перевірте."
+Канали: Discuss, email, або Telegram.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;staging_ready&quot;" target="notification_type" />
+          <zeebe:input source="=&quot;PR #&quot; + string(pr_number) + &quot; задеплоєно на staging.\nClickbot: &quot; + (if clickbot_passed then &quot;✅ passed&quot; else &quot;❌ failed&quot;) + &quot;\nМодулі: &quot; + (if staging_modules != null then staging_modules else &quot;—&quot;)" target="message_body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f05</bpmn:incoming>
+      <bpmn:outgoing>f06</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══════════════════ PHASE 3: VERIFICATION ═══════════════════ -->
+
+    <!-- ── USER: VERIFY STAGING ──────────────────────────── -->
+    <bpmn:userTask id="user_verify_staging" name="Перевірити staging">
+      <bpmn:documentation>Техспеціаліст перевіряє функціонал на staging:
+— Фіча працює коректно
+— Немає регресій
+— Clickbot результати (якщо failed — перевірити вручну)
+
+Форма: staging URL, PR опис, clickbot звіт.
+Рішення: Approve / Reject (з коментарем)</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition candidateGroups="tech-specialist" />
+        <zeebe:formDefinition formId="verify-staging-form" />
+        <zeebe:taskSchedule dueDate="=now() + duration(&quot;P3D&quot;)" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f06</bpmn:incoming>
+      <bpmn:outgoing>f07</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ── STAGING OK? ───────────────────────────────────── -->
+    <bpmn:exclusiveGateway id="gw_staging_ok" name="Staging OK?" default="f_staging_yes">
+      <bpmn:incoming>f07</bpmn:incoming>
+      <bpmn:outgoing>f_staging_yes</bpmn:outgoing>
+      <bpmn:outgoing>f_staging_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Staging rejected path -->
+    <bpmn:serviceTask id="task_request_rework" name="Запросити доопрацювання">
+      <bpmn:documentation>Публікує коментар на PR з описом проблем від техспеціаліста.
+"Staging відхилено: [причина]. Будь ласка, виправте."</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-comment" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;⚠️ **Staging відхилено**: &quot; + (if rejection_reason != null then rejection_reason else &quot;&quot;) + &quot;\nБудь ласка, виправте та пушніть зміни.&quot;" target="comment_text" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_staging_no</bpmn:incoming>
+      <bpmn:outgoing>f_to_wait_rework</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Event-based gateway: rework push або timeout (7 днів) -->
+    <bpmn:eventBasedGateway id="ebg_wait_rework" name="Чекаємо...">
+      <bpmn:incoming>f_to_wait_rework</bpmn:incoming>
+      <bpmn:outgoing>f_ebg_to_msg_rework</bpmn:outgoing>
+      <bpmn:outgoing>f_ebg_to_timer_rework</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <bpmn:intermediateCatchEvent id="evt_wait_rework" name="Rework push">
+      <bpmn:documentation>Очікує push виправлень в PR.
+Кореляція по pr_number.</bpmn:documentation>
+      <bpmn:incoming>f_ebg_to_msg_rework</bpmn:incoming>
+      <bpmn:outgoing>f_wait_rework_back</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_wait_rework" messageRef="Message_pr_updated" />
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:intermediateCatchEvent id="timer_rework_timeout" name="7 днів">
+      <bpmn:incoming>f_ebg_to_timer_rework</bpmn:incoming>
+      <bpmn:outgoing>f_rework_timeout_end</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_rework_timeout">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P7D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:endEvent id="evt_end_rework_timeout" name="Rework не отримано (timeout)">
+      <bpmn:incoming>f_rework_timeout_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ═══════════════════ PHASE 4: PRODUCTION ═══════════════════ -->
+
+    <!-- ── CREATE PR TO MAIN ─────────────────────────────── -->
+    <bpmn:serviceTask id="task_create_pr_main" name="Створити PR в main">
+      <bpmn:documentation>gh pr create --base main --head BRANCH
+Створює PR з feature-гілки в main.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-create-pr" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=head_branch" target="head_branch" />
+          <zeebe:input source="=&quot;main&quot;" target="base_branch" />
+          <zeebe:input source="=&quot;[production] &quot; + pr_title" target="pr_title" />
+          <zeebe:input source="=repository" target="repository" />
+          <zeebe:output source="=pr_url" target="main_pr_url" />
+          <zeebe:output source="=pr_number" target="main_pr_number" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_staging_yes</bpmn:incoming>
+      <bpmn:outgoing>f08</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── USER: MERGE TO MAIN ───────────────────────────── -->
+    <bpmn:userTask id="user_merge_main" name="Review та merge PR в main">
+      <bpmn:documentation>Техспеціаліст переглядає PR і мержить в main через GitHub.
+PR URL надається у формі.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition candidateGroups="tech-specialist" />
+        <zeebe:formDefinition formId="merge-main-form" />
+        <zeebe:taskSchedule dueDate="=now() + duration(&quot;P3D&quot;)" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f08</bpmn:incoming>
+      <bpmn:outgoing>f09</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ── DEPLOY PRODUCTION (Call Activity) ────────────────── -->
+    <bpmn:callActivity id="call_deploy_prod" name="Deploy to Production">
+      <bpmn:documentation>Викликає deploy-process з параметрами production.
+При помилці — boundary error event → повідомлення про fail.
+Автоматичний rollback відбувається всередині deploy-process (error subprocess).</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="deploy-process" propagateAllChildVariables="false" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=production_host" target="server_host" />
+          <zeebe:input source="=production_ssh_user" target="ssh_user" />
+          <zeebe:input source="=&quot;main&quot;" target="branch" />
+          <zeebe:input source="=production_db" target="db_name" />
+          <zeebe:input source="=production_container" target="container" />
+          <zeebe:input source="=production_repo_dir" target="repo_dir" />
+          <zeebe:input source="=true" target="run_smoke_test" />
+          <zeebe:output source="=modules_updated" target="prod_modules" />
+          <zeebe:output source="=smoke_passed" target="prod_smoke" />
+          <zeebe:output source="=old_commit" target="prod_old_commit" />
+          <zeebe:output source="=new_commit" target="prod_new_commit" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f09</bpmn:incoming>
+      <bpmn:outgoing>f10</bpmn:outgoing>
+    </bpmn:callActivity>
+
+    <!-- Boundary error on deploy production -->
+    <bpmn:boundaryEvent id="evt_deploy_prod_error" name="Deploy failed" attachedToRef="call_deploy_prod">
+      <bpmn:outgoing>f_deploy_prod_fail</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_deploy_prod" errorRef="Error_deploy_failed" />
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="task_notify_prod_fail" name="Повідомити: deploy production failed">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;deploy_failed&quot;" target="notification_type" />
+          <zeebe:input source="=&quot;❌ Deploy на production провалився. Auto-rollback виконано.\nPR #&quot; + string(pr_number)" target="message_body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_deploy_prod_fail</bpmn:incoming>
+      <bpmn:outgoing>f_prod_fail_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="evt_end_prod_fail" name="Deploy production провалився">
+      <bpmn:incoming>f_prod_fail_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── USER: VERIFY PRODUCTION ───────────────────────── -->
+    <bpmn:userTask id="user_verify_prod" name="Перевірити production">
+      <bpmn:documentation>Техспеціаліст заходить на o.tut.ua і перевіряє:
+— Сайт працює
+— Фіча задеплоєна коректно
+— Немає регресій
+— tut_core автоочистка кешу спрацювала (браузери перезавантажились)
+
+Рішення: OK / Rollback (з причиною)</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition candidateGroups="tech-specialist" />
+        <zeebe:formDefinition formId="verify-prod-form" />
+        <zeebe:taskSchedule dueDate="=now() + duration(&quot;P1D&quot;)" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f10</bpmn:incoming>
+      <bpmn:outgoing>f11</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ── PRODUCTION OK? ────────────────────────────────── -->
+    <bpmn:exclusiveGateway id="gw_prod_ok" name="Production OK?" default="f_prod_yes">
+      <bpmn:incoming>f11</bpmn:incoming>
+      <bpmn:outgoing>f_prod_yes</bpmn:outgoing>
+      <bpmn:outgoing>f_prod_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Production failed path — automated rollback -->
+    <bpmn:serviceTask id="task_rollback_prod" name="Rollback production">
+      <bpmn:documentation>Автоматичний rollback: git checkout попереднього коміту + docker compose up --force-recreate.
+Використовує rollback job type з deploy handler.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="rollback" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=production_host" target="server_host" />
+          <zeebe:input source="=prod_old_commit" target="old_commit" />
+          <zeebe:input source="=&quot;main&quot;" target="branch" />
+          <zeebe:input source="=production_repo_dir" target="repo_dir" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_prod_no</bpmn:incoming>
+      <bpmn:outgoing>f_rollback_notify</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="task_notify_rollback" name="Повідомити: rollback виконано">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;rollback&quot;" target="notification_type" />
+          <zeebe:input source="=&quot;⚠️ Production rollback виконано для PR #&quot; + string(pr_number) + &quot;.\nПричина: &quot; + (if rollback_reason != null then rollback_reason else &quot;відхилено техспецом&quot;)" target="message_body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_rollback_notify</bpmn:incoming>
+      <bpmn:outgoing>f_rollback_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="evt_end_rollback" name="Rollback виконано">
+      <bpmn:incoming>f_rollback_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── END SUCCESS ───────────────────────────────────── -->
+    <bpmn:endEvent id="evt_end_success" name="Фіча на production">
+      <bpmn:incoming>f_prod_yes</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ═══════════════════ SEQUENCE FLOWS ═══════════════════ -->
+
+    <!-- Phase 1: CI -->
+    <bpmn:sequenceFlow id="f01" sourceRef="msg_start" targetRef="task_pr_agent" />
+    <bpmn:sequenceFlow id="f02" sourceRef="task_pr_agent" targetRef="gw_score" />
+
+    <!-- Score < 7 loop -->
+    <bpmn:sequenceFlow id="f_score_no" name="&lt; 7" sourceRef="gw_score" targetRef="task_cannot_merge" />
+    <bpmn:sequenceFlow id="f_to_wait_update" sourceRef="task_cannot_merge" targetRef="ebg_wait_update" />
+    <bpmn:sequenceFlow id="f_ebg_to_msg_update" sourceRef="ebg_wait_update" targetRef="evt_wait_pr_update" />
+    <bpmn:sequenceFlow id="f_ebg_to_timer_update" sourceRef="ebg_wait_update" targetRef="timer_pr_timeout" />
+    <bpmn:sequenceFlow id="f_wait_update_back" sourceRef="evt_wait_pr_update" targetRef="task_pr_agent" />
+    <bpmn:sequenceFlow id="f_pr_timeout_end" sourceRef="timer_pr_timeout" targetRef="evt_end_pr_timeout" />
+
+    <!-- Score >= 7 -->
+    <bpmn:sequenceFlow id="f_score_yes" name="≥ 7" sourceRef="gw_score" targetRef="task_auto_merge">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=review_score &gt;= 7 and has_critical_issues = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Phase 2: CD Staging -->
+    <bpmn:sequenceFlow id="f03" sourceRef="task_auto_merge" targetRef="call_deploy_staging" />
+    <bpmn:sequenceFlow id="f04" sourceRef="call_deploy_staging" targetRef="task_clickbot" />
+    <bpmn:sequenceFlow id="f05" sourceRef="task_clickbot" targetRef="task_notify_staging" />
+    <bpmn:sequenceFlow id="f06" sourceRef="task_notify_staging" targetRef="user_verify_staging" />
+
+    <!-- Deploy staging error -->
+    <bpmn:sequenceFlow id="f_deploy_fail" sourceRef="evt_deploy_stg_error" targetRef="task_notify_deploy_fail" />
+    <bpmn:sequenceFlow id="f_deploy_fail_end" sourceRef="task_notify_deploy_fail" targetRef="evt_end_deploy_fail" />
+
+    <!-- Phase 3: Verification -->
+    <bpmn:sequenceFlow id="f07" sourceRef="user_verify_staging" targetRef="gw_staging_ok" />
+
+    <!-- Staging rejected loop -->
+    <bpmn:sequenceFlow id="f_staging_no" name="Проблеми" sourceRef="gw_staging_ok" targetRef="task_request_rework">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=staging_approved = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_to_wait_rework" sourceRef="task_request_rework" targetRef="ebg_wait_rework" />
+    <bpmn:sequenceFlow id="f_ebg_to_msg_rework" sourceRef="ebg_wait_rework" targetRef="evt_wait_rework" />
+    <bpmn:sequenceFlow id="f_ebg_to_timer_rework" sourceRef="ebg_wait_rework" targetRef="timer_rework_timeout" />
+    <bpmn:sequenceFlow id="f_wait_rework_back" sourceRef="evt_wait_rework" targetRef="task_pr_agent" />
+    <bpmn:sequenceFlow id="f_rework_timeout_end" sourceRef="timer_rework_timeout" targetRef="evt_end_rework_timeout" />
+
+    <!-- Staging approved -->
+    <bpmn:sequenceFlow id="f_staging_yes" name="OK" sourceRef="gw_staging_ok" targetRef="task_create_pr_main" />
+
+    <!-- Phase 4: Production -->
+    <bpmn:sequenceFlow id="f08" sourceRef="task_create_pr_main" targetRef="user_merge_main" />
+    <bpmn:sequenceFlow id="f09" sourceRef="user_merge_main" targetRef="call_deploy_prod" />
+    <bpmn:sequenceFlow id="f10" sourceRef="call_deploy_prod" targetRef="user_verify_prod" />
+    <bpmn:sequenceFlow id="f11" sourceRef="user_verify_prod" targetRef="gw_prod_ok" />
+
+    <!-- Deploy production error -->
+    <bpmn:sequenceFlow id="f_deploy_prod_fail" sourceRef="evt_deploy_prod_error" targetRef="task_notify_prod_fail" />
+    <bpmn:sequenceFlow id="f_prod_fail_end" sourceRef="task_notify_prod_fail" targetRef="evt_end_prod_fail" />
+
+    <!-- Production OK -->
+    <bpmn:sequenceFlow id="f_prod_yes" name="OK" sourceRef="gw_prod_ok" targetRef="evt_end_success" />
+
+    <!-- Production failed — automated rollback -->
+    <bpmn:sequenceFlow id="f_prod_no" name="Проблема" sourceRef="gw_prod_ok" targetRef="task_rollback_prod">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=prod_approved = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_rollback_notify" sourceRef="task_rollback_prod" targetRef="task_notify_rollback" />
+    <bpmn:sequenceFlow id="f_rollback_end" sourceRef="task_notify_rollback" targetRef="evt_end_rollback" />
+
+  </bpmn:process>
+
+  <!-- ═══════════════════ DIAGRAM ═══════════════════
+       Layout: main flow at y=350, loops above.
+       Score<7 loop at y=200 with EBG+timer.
+       Staging rejected loop at y=70 with EBG+timer.
+       Timeout end events above loops.
+       Production rollback below at y=480.
+       Diagram: ~2900x560
+  ═══════════════════════════════════════════════════ -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_feature">
+    <bpmndi:BPMNPlane id="BPMNPlane_feature" bpmnElement="feature-to-production">
+
+      <!-- ═══ MAIN FLOW (y=350) ═══ -->
+
+      <!-- Message Start -->
+      <bpmndi:BPMNShape id="msg_start_di" bpmnElement="msg_start">
+        <dc:Bounds x="82" y="332" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- PR-Agent Review -->
+      <bpmndi:BPMNShape id="task_pr_agent_di" bpmnElement="task_pr_agent">
+        <dc:Bounds x="170" y="310" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- GW Score -->
+      <bpmndi:BPMNShape id="gw_score_di" bpmnElement="gw_score" isMarkerVisible="true">
+        <dc:Bounds x="395" y="325" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- Auto-merge -->
+      <bpmndi:BPMNShape id="task_auto_merge_di" bpmnElement="task_auto_merge">
+        <dc:Bounds x="510" y="310" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Deploy Staging (Call Activity) -->
+      <bpmndi:BPMNShape id="call_deploy_staging_di" bpmnElement="call_deploy_staging">
+        <dc:Bounds x="730" y="310" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Boundary Error on Deploy -->
+      <bpmndi:BPMNShape id="evt_deploy_stg_error_di" bpmnElement="evt_deploy_stg_error">
+        <dc:Bounds x="792" y="372" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Clickbot -->
+      <bpmndi:BPMNShape id="task_clickbot_di" bpmnElement="task_clickbot">
+        <dc:Bounds x="950" y="310" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Notify Staging -->
+      <bpmndi:BPMNShape id="task_notify_staging_di" bpmnElement="task_notify_staging">
+        <dc:Bounds x="1170" y="310" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- User: Verify Staging -->
+      <bpmndi:BPMNShape id="user_verify_staging_di" bpmnElement="user_verify_staging">
+        <dc:Bounds x="1390" y="310" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- GW Staging OK -->
+      <bpmndi:BPMNShape id="gw_staging_ok_di" bpmnElement="gw_staging_ok" isMarkerVisible="true">
+        <dc:Bounds x="1615" y="325" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- Create PR to main -->
+      <bpmndi:BPMNShape id="task_create_pr_main_di" bpmnElement="task_create_pr_main">
+        <dc:Bounds x="1730" y="310" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- User: Merge to main -->
+      <bpmndi:BPMNShape id="user_merge_main_di" bpmnElement="user_merge_main">
+        <dc:Bounds x="1950" y="310" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Deploy Production (Call Activity) -->
+      <bpmndi:BPMNShape id="call_deploy_prod_di" bpmnElement="call_deploy_prod">
+        <dc:Bounds x="2170" y="310" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Boundary Error on Deploy Production -->
+      <bpmndi:BPMNShape id="evt_deploy_prod_error_di" bpmnElement="evt_deploy_prod_error">
+        <dc:Bounds x="2232" y="372" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- User: Verify production -->
+      <bpmndi:BPMNShape id="user_verify_prod_di" bpmnElement="user_verify_prod">
+        <dc:Bounds x="2390" y="310" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- GW Production OK -->
+      <bpmndi:BPMNShape id="gw_prod_ok_di" bpmnElement="gw_prod_ok" isMarkerVisible="true">
+        <dc:Bounds x="2615" y="325" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- End Success -->
+      <bpmndi:BPMNShape id="evt_end_success_di" bpmnElement="evt_end_success">
+        <dc:Bounds x="2732" y="332" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- ═══ SCORE < 7 LOOP (y=200) with EBG + Timer ═══ -->
+
+      <!-- Cannot Merge -->
+      <bpmndi:BPMNShape id="task_cannot_merge_di" bpmnElement="task_cannot_merge">
+        <dc:Bounds x="395" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Event-Based Gateway: wait for update -->
+      <bpmndi:BPMNShape id="ebg_wait_update_di" bpmnElement="ebg_wait_update">
+        <dc:Bounds x="313" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- Wait PR Update (message catch) -->
+      <bpmndi:BPMNShape id="evt_wait_pr_update_di" bpmnElement="evt_wait_pr_update">
+        <dc:Bounds x="232" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Timer: PR timeout (7 days) -->
+      <bpmndi:BPMNShape id="timer_pr_timeout_di" bpmnElement="timer_pr_timeout">
+        <dc:Bounds x="320" y="110" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- End: PR timeout -->
+      <bpmndi:BPMNShape id="evt_end_pr_timeout_di" bpmnElement="evt_end_pr_timeout">
+        <dc:Bounds x="390" y="110" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- ═══ STAGING REJECTED LOOP (y=70) with EBG + Timer ═══ -->
+
+      <!-- Request Rework -->
+      <bpmndi:BPMNShape id="task_request_rework_di" bpmnElement="task_request_rework">
+        <dc:Bounds x="1615" y="30" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Event-Based Gateway: wait for rework -->
+      <bpmndi:BPMNShape id="ebg_wait_rework_di" bpmnElement="ebg_wait_rework">
+        <dc:Bounds x="300" y="45" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- Wait Rework Push (message catch) -->
+      <bpmndi:BPMNShape id="evt_wait_rework_di" bpmnElement="evt_wait_rework">
+        <dc:Bounds x="232" y="52" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Timer: Rework timeout (7 days) -->
+      <bpmndi:BPMNShape id="timer_rework_timeout_di" bpmnElement="timer_rework_timeout">
+        <dc:Bounds x="370" y="8" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- End: Rework timeout -->
+      <bpmndi:BPMNShape id="evt_end_rework_timeout_di" bpmnElement="evt_end_rework_timeout">
+        <dc:Bounds x="440" y="8" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- ═══ DEPLOY FAIL PATH (y=480) ═══ -->
+
+      <!-- Notify Deploy Fail -->
+      <bpmndi:BPMNShape id="task_notify_deploy_fail_di" bpmnElement="task_notify_deploy_fail">
+        <dc:Bounds x="750" y="440" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- End Deploy Fail -->
+      <bpmndi:BPMNShape id="evt_end_deploy_fail_di" bpmnElement="evt_end_deploy_fail">
+        <dc:Bounds x="972" y="462" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- ═══ PRODUCTION DEPLOY FAIL (y=440) ═══ -->
+
+      <!-- Notify Deploy Production Fail -->
+      <bpmndi:BPMNShape id="task_notify_prod_fail_di" bpmnElement="task_notify_prod_fail">
+        <dc:Bounds x="2190" y="440" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- End Deploy Production Fail -->
+      <bpmndi:BPMNShape id="evt_end_prod_fail_di" bpmnElement="evt_end_prod_fail">
+        <dc:Bounds x="2412" y="462" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- ═══ PRODUCTION ROLLBACK (y=440) ═══ -->
+
+      <!-- Rollback Production (Service Task) -->
+      <bpmndi:BPMNShape id="task_rollback_prod_di" bpmnElement="task_rollback_prod">
+        <dc:Bounds x="2575" y="440" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Notify Rollback -->
+      <bpmndi:BPMNShape id="task_notify_rollback_di" bpmnElement="task_notify_rollback">
+        <dc:Bounds x="2795" y="440" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- End Rollback -->
+      <bpmndi:BPMNShape id="evt_end_rollback_di" bpmnElement="evt_end_rollback">
+        <dc:Bounds x="3012" y="462" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- ═══════════════════ EDGES ═══════════════════ -->
+
+      <!-- f01: Start → PR-Agent -->
+      <bpmndi:BPMNEdge id="f01_di" bpmnElement="f01">
+        <di:waypoint x="118" y="350" />
+        <di:waypoint x="170" y="350" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f02: PR-Agent → GW Score -->
+      <bpmndi:BPMNEdge id="f02_di" bpmnElement="f02">
+        <di:waypoint x="330" y="350" />
+        <di:waypoint x="395" y="350" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_score_no: GW Score → Cannot Merge (up) -->
+      <bpmndi:BPMNEdge id="f_score_no_di" bpmnElement="f_score_no">
+        <di:waypoint x="420" y="325" />
+        <di:waypoint x="420" y="240" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_to_wait_update: Cannot Merge → EBG (left) -->
+      <bpmndi:BPMNEdge id="f_to_wait_update_di" bpmnElement="f_to_wait_update">
+        <di:waypoint x="395" y="200" />
+        <di:waypoint x="363" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_ebg_to_msg_update: EBG → Message Catch (left) -->
+      <bpmndi:BPMNEdge id="f_ebg_to_msg_update_di" bpmnElement="f_ebg_to_msg_update">
+        <di:waypoint x="313" y="200" />
+        <di:waypoint x="268" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_ebg_to_timer_update: EBG → Timer (up) -->
+      <bpmndi:BPMNEdge id="f_ebg_to_timer_update_di" bpmnElement="f_ebg_to_timer_update">
+        <di:waypoint x="338" y="175" />
+        <di:waypoint x="338" y="146" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_pr_timeout_end: Timer → End (right) -->
+      <bpmndi:BPMNEdge id="f_pr_timeout_end_di" bpmnElement="f_pr_timeout_end">
+        <di:waypoint x="356" y="128" />
+        <di:waypoint x="390" y="128" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_wait_update_back: Wait PR Update → PR-Agent (down) -->
+      <bpmndi:BPMNEdge id="f_wait_update_back_di" bpmnElement="f_wait_update_back">
+        <di:waypoint x="250" y="218" />
+        <di:waypoint x="250" y="310" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_score_yes: GW Score → Auto-merge (right) -->
+      <bpmndi:BPMNEdge id="f_score_yes_di" bpmnElement="f_score_yes">
+        <di:waypoint x="445" y="350" />
+        <di:waypoint x="510" y="350" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f03: Auto-merge → Deploy Staging -->
+      <bpmndi:BPMNEdge id="f03_di" bpmnElement="f03">
+        <di:waypoint x="670" y="350" />
+        <di:waypoint x="730" y="350" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f04: Deploy Staging → Clickbot -->
+      <bpmndi:BPMNEdge id="f04_di" bpmnElement="f04">
+        <di:waypoint x="890" y="350" />
+        <di:waypoint x="950" y="350" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_deploy_fail: Boundary Error → Notify Fail -->
+      <bpmndi:BPMNEdge id="f_deploy_fail_di" bpmnElement="f_deploy_fail">
+        <di:waypoint x="810" y="408" />
+        <di:waypoint x="810" y="440" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_deploy_fail_end: Notify Fail → End Fail -->
+      <bpmndi:BPMNEdge id="f_deploy_fail_end_di" bpmnElement="f_deploy_fail_end">
+        <di:waypoint x="910" y="480" />
+        <di:waypoint x="972" y="480" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f05: Clickbot → Notify Staging -->
+      <bpmndi:BPMNEdge id="f05_di" bpmnElement="f05">
+        <di:waypoint x="1110" y="350" />
+        <di:waypoint x="1170" y="350" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f06: Notify Staging → Verify Staging -->
+      <bpmndi:BPMNEdge id="f06_di" bpmnElement="f06">
+        <di:waypoint x="1330" y="350" />
+        <di:waypoint x="1390" y="350" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f07: Verify Staging → GW Staging OK -->
+      <bpmndi:BPMNEdge id="f07_di" bpmnElement="f07">
+        <di:waypoint x="1550" y="350" />
+        <di:waypoint x="1615" y="350" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_staging_no: GW Staging → Request Rework (up) -->
+      <bpmndi:BPMNEdge id="f_staging_no_di" bpmnElement="f_staging_no">
+        <di:waypoint x="1640" y="325" />
+        <di:waypoint x="1640" y="110" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_to_wait_rework: Request Rework → EBG (left, along y=70) -->
+      <bpmndi:BPMNEdge id="f_to_wait_rework_di" bpmnElement="f_to_wait_rework">
+        <di:waypoint x="1615" y="70" />
+        <di:waypoint x="350" y="70" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_ebg_to_msg_rework: EBG → Message Catch (left) -->
+      <bpmndi:BPMNEdge id="f_ebg_to_msg_rework_di" bpmnElement="f_ebg_to_msg_rework">
+        <di:waypoint x="300" y="70" />
+        <di:waypoint x="268" y="70" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_ebg_to_timer_rework: EBG → Timer (up-right) -->
+      <bpmndi:BPMNEdge id="f_ebg_to_timer_rework_di" bpmnElement="f_ebg_to_timer_rework">
+        <di:waypoint x="325" y="45" />
+        <di:waypoint x="325" y="26" />
+        <di:waypoint x="370" y="26" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_rework_timeout_end: Timer → End (right) -->
+      <bpmndi:BPMNEdge id="f_rework_timeout_end_di" bpmnElement="f_rework_timeout_end">
+        <di:waypoint x="406" y="26" />
+        <di:waypoint x="440" y="26" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_wait_rework_back: Wait Rework → PR-Agent (down) -->
+      <bpmndi:BPMNEdge id="f_wait_rework_back_di" bpmnElement="f_wait_rework_back">
+        <di:waypoint x="250" y="88" />
+        <di:waypoint x="210" y="88" />
+        <di:waypoint x="210" y="310" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_staging_yes: GW Staging → Create PR main (right) -->
+      <bpmndi:BPMNEdge id="f_staging_yes_di" bpmnElement="f_staging_yes">
+        <di:waypoint x="1665" y="350" />
+        <di:waypoint x="1730" y="350" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f08: Create PR → Merge main -->
+      <bpmndi:BPMNEdge id="f08_di" bpmnElement="f08">
+        <di:waypoint x="1890" y="350" />
+        <di:waypoint x="1950" y="350" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f09: Merge main → Deploy prod -->
+      <bpmndi:BPMNEdge id="f09_di" bpmnElement="f09">
+        <di:waypoint x="2110" y="350" />
+        <di:waypoint x="2170" y="350" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f10: Deploy prod → Verify prod -->
+      <bpmndi:BPMNEdge id="f10_di" bpmnElement="f10">
+        <di:waypoint x="2330" y="350" />
+        <di:waypoint x="2390" y="350" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_deploy_prod_fail: Boundary Error → Notify Prod Fail -->
+      <bpmndi:BPMNEdge id="f_deploy_prod_fail_di" bpmnElement="f_deploy_prod_fail">
+        <di:waypoint x="2250" y="408" />
+        <di:waypoint x="2250" y="440" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_prod_fail_end: Notify Prod Fail → End Prod Fail -->
+      <bpmndi:BPMNEdge id="f_prod_fail_end_di" bpmnElement="f_prod_fail_end">
+        <di:waypoint x="2350" y="480" />
+        <di:waypoint x="2412" y="480" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f11: Verify prod → GW Prod OK -->
+      <bpmndi:BPMNEdge id="f11_di" bpmnElement="f11">
+        <di:waypoint x="2550" y="350" />
+        <di:waypoint x="2615" y="350" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_prod_yes: GW Prod → End Success (right) -->
+      <bpmndi:BPMNEdge id="f_prod_yes_di" bpmnElement="f_prod_yes">
+        <di:waypoint x="2665" y="350" />
+        <di:waypoint x="2732" y="350" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_prod_no: GW Prod → Rollback (down) -->
+      <bpmndi:BPMNEdge id="f_prod_no_di" bpmnElement="f_prod_no">
+        <di:waypoint x="2640" y="375" />
+        <di:waypoint x="2640" y="440" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_rollback_notify: Rollback → Notify Rollback -->
+      <bpmndi:BPMNEdge id="f_rollback_notify_di" bpmnElement="f_rollback_notify">
+        <di:waypoint x="2735" y="480" />
+        <di:waypoint x="2795" y="480" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_rollback_end: Notify Rollback → End Rollback -->
+      <bpmndi:BPMNEdge id="f_rollback_end_di" bpmnElement="f_rollback_end">
+        <di:waypoint x="2955" y="480" />
+        <di:waypoint x="3012" y="480" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>
