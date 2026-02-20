@@ -31,7 +31,7 @@
       - converter_type          — з file-format-converter (передається автоматично)
       - processing_priority     — з file-format-converter (передається автоматично)
 
-    ⚠️  Замініть accountant_group_id=12 на реальний ID групи бухгалтерів в Odoo
+    ⚠️  Замініть значення дедлайнів (processing_deadline_days) під реальні вимоги
   -->
 
   <!-- ═══════════════════════════════════════════════════════════════════
@@ -189,14 +189,13 @@
   </decision>
 
   <!-- ═══════════════════════════════════════════════════════════════════
-       РІШЕННЯ 2: Маршрутизація та пріоритет рахунку
+       РІШЕННЯ 2: Пріоритет та дедлайн рахунку
        Вхід:  converter_type      — з file-format-converter (через InformationRequirement)
               processing_priority — з file-format-converter (через InformationRequirement)
-       Вихід: invoice_priority          — "urgent" | "normal" | "low"
-              processing_deadline_days  — кількість днів для обробки
-              accountant_group_id       — ID групи бухгалтерів в Odoo (замініть на реальний!)
+       Вихід: invoice_priority         — "urgent" | "normal" | "low"
+              processing_deadline_days — кількість днів для обробки
        ═══════════════════════════════════════════════════════════════════ -->
-  <decision id="invoice-routing" name="Маршрутизація рахунку">
+  <decision id="invoice-routing" name="Пріоритет та дедлайн рахунку">
 
     <informationRequirement id="ir_format_to_routing">
       <requiredDecision href="#file-format-converter" />
@@ -236,11 +235,6 @@
               name="processing_deadline_days"
               typeRef="integer" />
 
-      <output id="out_group_id"
-              label="ID групи бухгалтерів (Odoo)"
-              name="accountant_group_id"
-              typeRef="integer" />
-
       <!-- OCR + high → терміново (зображення потребують ручної перевірки) -->
       <rule id="rr_ocr_high">
         <description>OCR зображення → терміново, 1 день (висока ймовірність помилок)</description>
@@ -248,7 +242,6 @@
         <inputEntry id="ire_ocr_h_prio"><text>"high"</text></inputEntry>
         <outputEntry id="ore_ocr_h_prio"><text>"urgent"</text></outputEntry>
         <outputEntry id="ore_ocr_h_days"><text>1</text></outputEntry>
-        <outputEntry id="ore_ocr_h_group"><text>12</text></outputEntry>
       </rule>
 
       <!-- OCR будь-який → терміново -->
@@ -258,7 +251,6 @@
         <inputEntry id="ire_ocr_a_prio"><text></text></inputEntry>
         <outputEntry id="ore_ocr_a_prio"><text>"urgent"</text></outputEntry>
         <outputEntry id="ore_ocr_a_days"><text>1</text></outputEntry>
-        <outputEntry id="ore_ocr_a_group"><text>12</text></outputEntry>
       </rule>
 
       <!-- Будь-який high (невідомий формат) → терміново -->
@@ -268,7 +260,6 @@
         <inputEntry id="ire_any_h_prio"><text>"high"</text></inputEntry>
         <outputEntry id="ore_any_h_prio"><text>"urgent"</text></outputEntry>
         <outputEntry id="ore_any_h_days"><text>1</text></outputEntry>
-        <outputEntry id="ore_any_h_group"><text>12</text></outputEntry>
       </rule>
 
       <!-- JSON (вже структурований) → низький пріоритет -->
@@ -278,7 +269,6 @@
         <inputEntry id="ire_json_l_prio"><text></text></inputEntry>
         <outputEntry id="ore_json_l_prio"><text>"low"</text></outputEntry>
         <outputEntry id="ore_json_l_days"><text>7</text></outputEntry>
-        <outputEntry id="ore_json_l_group"><text>12</text></outputEntry>
       </rule>
 
       <!-- CSV → низький пріоритет -->
@@ -288,7 +278,6 @@
         <inputEntry id="ire_csv_a_prio"><text></text></inputEntry>
         <outputEntry id="ore_csv_a_prio"><text>"low"</text></outputEntry>
         <outputEntry id="ore_csv_a_days"><text>5</text></outputEntry>
-        <outputEntry id="ore_csv_a_group"><text>12</text></outputEntry>
       </rule>
 
       <!-- За замовчуванням — normal, 3 дні -->
@@ -298,7 +287,6 @@
         <inputEntry id="ire_def_prio"><text></text></inputEntry>
         <outputEntry id="ore_def_prio"><text>"normal"</text></outputEntry>
         <outputEntry id="ore_def_days"><text>3</text></outputEntry>
-        <outputEntry id="ore_def_group"><text>12</text></outputEntry>
       </rule>
 
     </decisionTable>

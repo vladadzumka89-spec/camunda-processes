@@ -219,7 +219,7 @@
       <bpmn:incoming>Flow_dup_reviewed</bpmn:incoming>
       <bpmn:outgoing>Flow_to_dmn_routing</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:businessRuleTask id="ST_dmn_routing" name="Визначити пріоритет&#10;та відповідального [DMN]">
+    <bpmn:businessRuleTask id="ST_dmn_routing" name="Визначити пріоритет&#10;та дедлайн [DMN]">
       <bpmn:extensionElements>
         <zeebe:calledDecision decisionId="invoice-routing" resultVariable="routingData" />
       </bpmn:extensionElements>
