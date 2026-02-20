@@ -5,7 +5,7 @@
       <zeebe:versionTag value="1.0" />
     </bpmn:extensionElements>
     <bpmn:startEvent id="StartEvent_1" name="Рахунок від постачальника&#10;отримано на пошту">
-      <bpmn:outgoing>Flow_to_odoo_xor</bpmn:outgoing>
+      <bpmn:outgoing>Flow_to_detect_format</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MED_start" messageRef="Message_invoice_received" />
     </bpmn:startEvent>
     <bpmn:exclusiveGateway id="Gateway_odoo_xor" name="Задача вже є в Odoo?" default="Flow_odoo_default">
@@ -13,7 +13,7 @@
       <bpmn:outgoing>Flow_odoo_default</bpmn:outgoing>
       <bpmn:outgoing>Flow_odoo_skip</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="Flow_to_odoo_xor" sourceRef="StartEvent_1" targetRef="Gateway_odoo_xor" />
+    <bpmn:sequenceFlow id="Flow_to_odoo_xor" sourceRef="ST_detect_format" targetRef="Gateway_odoo_xor" />
     <bpmn:sequenceFlow id="Flow_odoo_default" sourceRef="Gateway_odoo_xor" targetRef="ST_create_main" />
     <bpmn:sequenceFlow id="Flow_odoo_skip" name="Задача вже є" sourceRef="Gateway_odoo_xor" targetRef="Merge_odoo">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
@@ -35,22 +35,22 @@
     <bpmn:exclusiveGateway id="Merge_odoo">
       <bpmn:incoming>Flow_create_main_to_merge</bpmn:incoming>
       <bpmn:incoming>Flow_odoo_skip</bpmn:incoming>
-      <bpmn:outgoing>Flow_to_detect_format</bpmn:outgoing>
+      <bpmn:outgoing>Flow_to_needs_conv</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:businessRuleTask id="ST_detect_format" name="Визначити формат файлу&#10;[DMN: file-format-converter]">
       <bpmn:extensionElements>
         <zeebe:calledDecision decisionId="file-format-converter" resultVariable="formatData" />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_to_detect_format</bpmn:incoming>
-      <bpmn:outgoing>Flow_to_needs_conv</bpmn:outgoing>
+      <bpmn:outgoing>Flow_to_odoo_xor</bpmn:outgoing>
     </bpmn:businessRuleTask>
-    <bpmn:sequenceFlow id="Flow_to_detect_format" sourceRef="Merge_odoo" targetRef="ST_detect_format" />
+    <bpmn:sequenceFlow id="Flow_to_detect_format" sourceRef="StartEvent_1" targetRef="ST_detect_format" />
     <bpmn:exclusiveGateway id="XOR_needs_conv" name="Потрібна&#10;конвертація?" default="Flow_yes_conv">
       <bpmn:incoming>Flow_to_needs_conv</bpmn:incoming>
       <bpmn:outgoing>Flow_yes_conv</bpmn:outgoing>
       <bpmn:outgoing>Flow_no_conv</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="Flow_to_needs_conv" sourceRef="ST_detect_format" targetRef="XOR_needs_conv" />
+    <bpmn:sequenceFlow id="Flow_to_needs_conv" sourceRef="Merge_odoo" targetRef="XOR_needs_conv" />
     <bpmn:sequenceFlow id="Flow_yes_conv" name="Потрібна конвертація" sourceRef="XOR_needs_conv" targetRef="ST_convert" />
     <bpmn:sequenceFlow id="Flow_no_conv" name="Вже стандартний формат" sourceRef="XOR_needs_conv" targetRef="Merge_conv">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= formatData.needs_conversion = false</bpmn:conditionExpression>
@@ -298,22 +298,22 @@
           <dc:Bounds x="62" y="382" width="88" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_detect_format_di" bpmnElement="ST_detect_format">
+        <dc:Bounds x="174" y="317" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_odoo_xor_di" bpmnElement="Gateway_odoo_xor" isMarkerVisible="true">
-        <dc:Bounds x="174" y="332" width="50" height="50" />
+        <dc:Bounds x="344" y="332" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="156" y="302" width="86" height="27" />
+          <dc:Bounds x="326" y="302" width="86" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ST_create_main_di" bpmnElement="ST_create_main">
-        <dc:Bounds x="284" y="450" width="100" height="80" />
+        <dc:Bounds x="454" y="450" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Merge_odoo_di" bpmnElement="Merge_odoo" isMarkerVisible="true">
-        <dc:Bounds x="454" y="332" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_detect_format_di" bpmnElement="ST_detect_format">
-        <dc:Bounds x="554" y="317" width="100" height="80" />
-        <bpmndi:BPMNLabel />
+        <dc:Bounds x="624" y="332" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="XOR_needs_conv_di" bpmnElement="XOR_needs_conv" isMarkerVisible="true">
         <dc:Bounds x="724" y="332" width="50" height="50" />
@@ -443,33 +443,33 @@
           <dc:Bounds x="2079" y="387" width="66" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_to_odoo_xor_di" bpmnElement="Flow_to_odoo_xor">
+      <bpmndi:BPMNEdge id="Flow_to_detect_format_di" bpmnElement="Flow_to_detect_format">
         <di:waypoint x="124" y="357" />
         <di:waypoint x="174" y="357" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_odoo_xor_di" bpmnElement="Flow_to_odoo_xor">
+        <di:waypoint x="274" y="357" />
+        <di:waypoint x="344" y="357" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_odoo_default_di" bpmnElement="Flow_odoo_default">
-        <di:waypoint x="199" y="382" />
-        <di:waypoint x="199" y="490" />
-        <di:waypoint x="284" y="490" />
+        <di:waypoint x="369" y="382" />
+        <di:waypoint x="369" y="490" />
+        <di:waypoint x="454" y="490" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_odoo_skip_di" bpmnElement="Flow_odoo_skip">
-        <di:waypoint x="224" y="357" />
-        <di:waypoint x="454" y="357" />
+        <di:waypoint x="394" y="357" />
+        <di:waypoint x="624" y="357" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="300" y="336" width="80" height="14" />
+          <dc:Bounds x="470" y="336" width="80" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_create_main_to_merge_di" bpmnElement="Flow_create_main_to_merge">
-        <di:waypoint x="384" y="490" />
-        <di:waypoint x="479" y="490" />
-        <di:waypoint x="479" y="382" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_to_detect_format_di" bpmnElement="Flow_to_detect_format">
-        <di:waypoint x="504" y="357" />
-        <di:waypoint x="554" y="357" />
+        <di:waypoint x="554" y="490" />
+        <di:waypoint x="649" y="490" />
+        <di:waypoint x="649" y="382" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_to_needs_conv_di" bpmnElement="Flow_to_needs_conv">
-        <di:waypoint x="654" y="357" />
+        <di:waypoint x="674" y="357" />
         <di:waypoint x="724" y="357" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_yes_conv_di" bpmnElement="Flow_yes_conv">
