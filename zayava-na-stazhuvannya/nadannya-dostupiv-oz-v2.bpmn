@@ -16,7 +16,7 @@
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;Надання доступів та ОЗ&quot;, create_process: true, _model: &quot;project.project&quot;, _id: 252}" target="body" />
         </zeebe:ioMapping>
@@ -35,7 +35,7 @@
         <zeebe:userTask />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;Створити користувача в Passbolt&quot;, description: &quot;Створіть обліковий запис в Passbolt&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
@@ -48,7 +48,7 @@
         <zeebe:userTask />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;Надати Адмін доступи на сайті&quot;, description: &quot;Надайте адміністративні доступи&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
@@ -61,7 +61,7 @@
         <zeebe:userTask />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;Видати співробітнику ОЗ&quot;, description: &quot;Видайте основні засоби працівнику&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
@@ -74,7 +74,7 @@
         <zeebe:userTask />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;Надати доступ до електронних ключів&quot;, description: &quot;Надайте доступ до електронних ключів&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
@@ -87,7 +87,7 @@
         <zeebe:userTask />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;Допомогти налаштувати Passbolt&quot;, description: &quot;Допоможіть працівнику налаштувати Passbolt&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
@@ -100,7 +100,7 @@
         <zeebe:userTask />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;Доступи створені, ОЗ видано&quot;, description: &quot;Підтвердіть створення доступів та видачу ОЗ&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>

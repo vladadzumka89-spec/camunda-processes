@@ -30,7 +30,7 @@ Start Event → XOR Gateway
 | Input | Local variable name | Значення |
 |-------|-------------------|----------|
 | method | `method` | `= "POST"` |
-| url | `url` | `= "https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50"` |
+| url | `url` | `= "https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe"` |
 | headers | `headers` | `= {"Content-Type":"application/json"}` |
 | body | `body` | див. нижче |
 
@@ -93,7 +93,7 @@ Start Event → XOR Gateway
 | Input | Local variable name | Значення |
 |-------|-------------------|----------|
 | method | `method` | `= "POST"` |
-| url | `url` | `= "https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50"` |
+| url | `url` | `= "https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe"` |
 | headers | `headers` | `= {"Content-Type":"application/json"}` |
 | body | `body` | див. нижче |
 

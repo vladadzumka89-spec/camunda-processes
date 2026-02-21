@@ -3,7 +3,7 @@
 
 import html
 
-WEBHOOK_URL = "https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50"
+WEBHOOK_URL = "https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe"
 Q = "&quot;"  # XML entity for double quote
 
 

@@ -85,7 +85,7 @@
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&#34;" target="url" />
           <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
           <zeebe:input source="={name: &#34;Заява на стажування&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 252}" target="body" />
         </zeebe:ioMapping>

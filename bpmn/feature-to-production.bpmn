@@ -31,7 +31,11 @@
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
 
   <!-- Messages for process correlation -->
-  <bpmn:message id="Message_pr_event" name="msg_pr_event" />
+  <bpmn:message id="Message_pr_event" name="msg_pr_event">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=head_branch" />
+    </bpmn:extensionElements>
+  </bpmn:message>
   <bpmn:message id="Message_pr_updated" name="msg_pr_updated">
     <bpmn:extensionElements>
       <zeebe:subscription correlationKey="=string(pr_number)" />
@@ -39,6 +43,41 @@
   </bpmn:message>
 
   <bpmn:process id="feature-to-production" name="Feature to Production" isExecutable="true">
+
+    <!-- ═══════════════════ PHASE 0: /start ═══════════════════ -->
+
+    <!-- ── START: Manual (/start command) ──────────────────── -->
+    <bpmn:startEvent id="start_manual" name="Фіча розпочата (/start)">
+      <bpmn:documentation>Розробник запускає /start в Claude Code CLI.
+Camunda REST API створює інстанс процесу з task_name, task_description, head_branch.</bpmn:documentation>
+      <bpmn:outgoing>f_manual_to_odoo</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ── Service Task: Створити задачу в Odoo ────────────── -->
+    <bpmn:serviceTask id="task_create_odoo" name="Створити задачу в Odoo">
+      <bpmn:documentation>POST на Odoo webhook — створює батьківську задачу (project.project).
+Body: {name: task_name, description: task_description, create_process: true, _model: "project.project", _id: 252}</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: task_name, description: task_description, create_process: true, _model: &quot;project.project&quot;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_manual_to_odoo</bpmn:incoming>
+      <bpmn:outgoing>f_odoo_to_wait</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── Intermediate Catch: чекаємо PR ──────────────────── -->
+    <bpmn:intermediateCatchEvent id="catch_pr_created" name="Чекаємо PR">
+      <bpmn:documentation>Чекає msg_pr_event з correlation key = head_branch.
+Коли PR створено на цю гілку — продовжує flow.</bpmn:documentation>
+      <bpmn:incoming>f_odoo_to_wait</bpmn:incoming>
+      <bpmn:outgoing>f_catch_to_review</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_catch_pr" messageRef="Message_pr_event" />
+    </bpmn:intermediateCatchEvent>
 
     <!-- ═══════════════════ PHASE 1: CI ═══════════════════ -->
 
@@ -60,6 +99,7 @@ Output: review_score, review_comment, has_critical_issues</bpmn:documentation>
         <zeebe:taskDefinition type="pr-agent-review" retries="2" />
       </bpmn:extensionElements>
       <bpmn:incoming>f01</bpmn:incoming>
+      <bpmn:incoming>f_catch_to_review</bpmn:incoming>
       <bpmn:incoming>f_wait_update_back</bpmn:incoming>
       <bpmn:incoming>f_wait_rework_back</bpmn:incoming>
       <bpmn:outgoing>f02</bpmn:outgoing>
@@ -415,6 +455,11 @@ PR URL надається у формі.</bpmn:documentation>
 
     <!-- ═══════════════════ SEQUENCE FLOWS ═══════════════════ -->
 
+    <!-- Phase 0: /start -->
+    <bpmn:sequenceFlow id="f_manual_to_odoo" sourceRef="start_manual" targetRef="task_create_odoo" />
+    <bpmn:sequenceFlow id="f_odoo_to_wait" sourceRef="task_create_odoo" targetRef="catch_pr_created" />
+    <bpmn:sequenceFlow id="f_catch_to_review" sourceRef="catch_pr_created" targetRef="task_pr_agent" />
+
     <!-- Phase 1: CI -->
     <bpmn:sequenceFlow id="f01" sourceRef="msg_start" targetRef="task_pr_agent" />
     <bpmn:sequenceFlow id="f02" sourceRef="task_pr_agent" targetRef="gw_score" />
@@ -490,6 +535,23 @@ PR URL надається у формі.</bpmn:documentation>
   ═══════════════════════════════════════════════════ -->
   <bpmndi:BPMNDiagram id="BPMNDiagram_feature">
     <bpmndi:BPMNPlane id="BPMNPlane_feature" bpmnElement="feature-to-production">
+
+      <!-- ═══ PHASE 0: /start (y=550) ═══ -->
+
+      <!-- None Start: manual -->
+      <bpmndi:BPMNShape id="start_manual_di" bpmnElement="start_manual">
+        <dc:Bounds x="82" y="532" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Service Task: Створити задачу в Odoo -->
+      <bpmndi:BPMNShape id="task_create_odoo_di" bpmnElement="task_create_odoo">
+        <dc:Bounds x="170" y="510" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Intermediate Catch: чекаємо PR -->
+      <bpmndi:BPMNShape id="catch_pr_created_di" bpmnElement="catch_pr_created">
+        <dc:Bounds x="395" y="532" width="36" height="36" />
+      </bpmndi:BPMNShape>
 
       <!-- ═══ MAIN FLOW (y=350) ═══ -->
 
@@ -674,6 +736,28 @@ PR URL надається у формі.</bpmn:documentation>
       </bpmndi:BPMNShape>
 
       <!-- ═══════════════════ EDGES ═══════════════════ -->
+
+      <!-- Phase 0: /start edges -->
+
+      <!-- f_manual_to_odoo: None Start → Створити задачу в Odoo -->
+      <bpmndi:BPMNEdge id="f_manual_to_odoo_di" bpmnElement="f_manual_to_odoo">
+        <di:waypoint x="118" y="550" />
+        <di:waypoint x="170" y="550" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_odoo_to_wait: Створити задачу → Чекаємо PR -->
+      <bpmndi:BPMNEdge id="f_odoo_to_wait_di" bpmnElement="f_odoo_to_wait">
+        <di:waypoint x="330" y="550" />
+        <di:waypoint x="395" y="550" />
+      </bpmndi:BPMNEdge>
+
+      <!-- f_catch_to_review: Чекаємо PR → PR-Agent (up to main flow) -->
+      <bpmndi:BPMNEdge id="f_catch_to_review_di" bpmnElement="f_catch_to_review">
+        <di:waypoint x="413" y="532" />
+        <di:waypoint x="413" y="470" />
+        <di:waypoint x="250" y="470" />
+        <di:waypoint x="250" y="390" />
+      </bpmndi:BPMNEdge>
 
       <!-- f01: Start → PR-Agent -->
       <bpmndi:BPMNEdge id="f01_di" bpmnElement="f01">

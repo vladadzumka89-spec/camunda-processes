@@ -16,7 +16,7 @@
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;Надання доступів для адміністратора&quot;, create_process: true, _model: &quot;project.project&quot;, _id: 252}" target="body" />
         </zeebe:ioMapping>
@@ -35,7 +35,7 @@
         <zeebe:userTask />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;Налаштувати сповіщення по прострочці задач резервування товарів&quot;, description: &quot;Налаштуйте сповіщення для контролю задач резервування&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
@@ -48,7 +48,7 @@
         <zeebe:userTask />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;Налаштувати відповідального працівника за прийом посилок на НП&quot;, description: &quot;Призначте відповідального за прийом посилок&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
@@ -61,7 +61,7 @@
         <zeebe:userTask />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;Надати доступ до камер&quot;, description: &quot;Надайте доступ до камер спостереження&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
