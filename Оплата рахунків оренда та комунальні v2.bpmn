@@ -43,6 +43,8 @@
 
       <bpmn:lane id="Lane_Buhgalter" name="Бухгалтер">
         <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_merge</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>GW_intro_split</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_add_file</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_detail</bpmn:flowNodeRef>
@@ -52,6 +54,7 @@
       </bpmn:lane>
 
       <bpmn:lane id="Lane_Systema" name="Система (авто)">
+        <bpmn:flowNodeRef>Task_create_main</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_autofill</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>GW_main_split</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_calendar</bpmn:flowNodeRef>
@@ -97,11 +100,43 @@
     <!-- ========================================================== -->
 
     <bpmn:startEvent id="StartEvent_1" name="Старт">
-      <bpmn:outgoing>Flow_start_to_gw_intro</bpmn:outgoing>
+      <bpmn:outgoing>Flow_start_to_gw_odoo</bpmn:outgoing>
     </bpmn:startEvent>
 
+    <!-- ========================================================== -->
+    <!-- БЛОК 0: ПЕРЕВІРКА ODOO + СТВОРЕННЯ ГОЛОВНОГО ЗАВДАННЯ       -->
+    <!-- Якщо процес запущено з Odoo — головна задача вже існує.     -->
+    <!-- Якщо запущено вручну — створюємо задачу через webhook.      -->
+    <!-- ========================================================== -->
+
+    <bpmn:exclusiveGateway id="GW_odoo_check" name="Задача в Odoo існує?" default="Flow_odoo_no_task">
+      <bpmn:incoming>Flow_start_to_gw_odoo</bpmn:incoming>
+      <bpmn:outgoing>Flow_odoo_no_task</bpmn:outgoing>
+      <bpmn:outgoing>Flow_odoo_has_task</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_create_main" name="Створити головне завдання">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Оплата рахунків оренда та комунальні&quot;, create_process: true, _model: &quot;project.project&quot;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_odoo_no_task</bpmn:incoming>
+      <bpmn:outgoing>Flow_create_main_done</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="GW_odoo_merge">
+      <bpmn:incoming>Flow_odoo_has_task</bpmn:incoming>
+      <bpmn:incoming>Flow_create_main_done</bpmn:incoming>
+      <bpmn:outgoing>Flow_odoo_merge_to_intro</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
     <bpmn:parallelGateway id="GW_intro_split">
-      <bpmn:incoming>Flow_start_to_gw_intro</bpmn:incoming>
+      <bpmn:incoming>Flow_odoo_merge_to_intro</bpmn:incoming>
       <bpmn:outgoing>Flow_split_to_add_file</bpmn:outgoing>
       <bpmn:outgoing>Flow_split_to_detail</bpmn:outgoing>
     </bpmn:parallelGateway>
@@ -110,7 +145,11 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:output target="invoice_file" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Додати файл рахунку&quot;, description: &quot;Завантажте файл рахунку для обробки&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="= x_studio_camunda_invoice_file" target="x_studio_camunda_invoice_file" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_split_to_add_file</bpmn:incoming>
@@ -120,6 +159,15 @@
     <bpmn:userTask id="Task_detail" name="Деталізація рахунку">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Деталізація рахунку&quot;, description: &quot;Введіть реквізити рахунку: контрагент, сума, дата оплати&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="= x_studio_camunda_partner_name" target="x_studio_camunda_partner_name" />
+          <zeebe:output source="= x_studio_camunda_invoice_amount" target="x_studio_camunda_invoice_amount" />
+          <zeebe:output source="= x_studio_camunda_payment_date" target="x_studio_camunda_payment_date" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_split_to_detail</bpmn:incoming>
       <bpmn:outgoing>Flow_detail_to_merge</bpmn:outgoing>
@@ -154,6 +202,15 @@
     </bpmn:parallelGateway>
 
     <bpmn:serviceTask id="Task_calendar" name="Додати суму в платіжний календар">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {action: &quot;add_to_payment_calendar&quot;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_payment_date: x_studio_camunda_payment_date, x_studio_camunda_invoice_type: x_studio_camunda_invoice_type, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_main_to_calendar</bpmn:incoming>
       <bpmn:outgoing>Flow_calendar_to_timer</bpmn:outgoing>
     </bpmn:serviceTask>
@@ -180,6 +237,13 @@
     <bpmn:userTask id="Task_approve" name="Погодити рахунок">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Погодити рахунок від &quot; + x_studio_camunda_partner_name, description: &quot;Погодьте або відхиліть рахунок на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн від &quot; + x_studio_camunda_partner_name, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_approver_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="= x_studio_camunda_approved" target="x_studio_camunda_approved" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_main_to_approve</bpmn:incoming>
       <bpmn:outgoing>Flow_approve_to_gw</bpmn:outgoing>
@@ -198,6 +262,13 @@
     <bpmn:userTask id="Task_approver_contract" name="Погоджувач з договору">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Перевірка договору: &quot; + x_studio_camunda_partner_name, description: &quot;Перевірте відповідність рахунку умовам договору та погодьте або відхиліть&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_approver_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="= x_studio_camunda_contract_approved" target="x_studio_camunda_contract_approved" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_approved_yes</bpmn:incoming>
       <bpmn:outgoing>Flow_contract_to_gw</bpmn:outgoing>
@@ -232,6 +303,13 @@
     <bpmn:userTask id="Task_nego_manual" name="Ведемо перемовини з ТРЦ">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Переговини з &quot; + x_studio_camunda_partner_name, description: &quot;Проведіть переговини щодо умов або зменшення суми рахунку&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="= x_studio_camunda_nego_outcome" target="x_studio_camunda_nego_outcome" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_approved_no</bpmn:incoming>
       <bpmn:incoming>Flow_nego_dasha</bpmn:incoming>
@@ -291,6 +369,13 @@
     <bpmn:userTask id="Task_yulia" name="Юля, ми не домовилися по рахунку — платимо?">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Рішення по рахунку: &quot; + x_studio_camunda_partner_name, description: &quot;Дедлайн наближається. Рахунок на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн. Підтвердьте оплату або відхиліть&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_yulia_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="= x_studio_camunda_pay" target="x_studio_camunda_pay" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_timer_to_yulia</bpmn:incoming>
       <bpmn:outgoing>Flow_yulia_to_gw</bpmn:outgoing>
@@ -322,6 +407,12 @@
     <bpmn:userTask id="Task_dasha" name="Даша, виріши з оплатою рахунку">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Ескалація: оплата рахунку &quot; + x_studio_camunda_partner_name, description: &quot;Юля не прийняла рішення вчасно. Рахунок &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн. Прийміть рішення щодо оплати&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_yulia_timer_to_dasha</bpmn:incoming>
       <bpmn:outgoing>Flow_dasha_to_pay</bpmn:outgoing>
@@ -334,6 +425,12 @@
     <bpmn:userTask id="Task_pay" name="Оплатити рахунок">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Оплатити рахунок: &quot; + x_studio_camunda_partner_name, description: &quot;Виконайте оплату рахунку на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн. Підтвердьте після оплати&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_timer_to_pay</bpmn:incoming>
       <bpmn:incoming>Flow_contract_yes</bpmn:incoming>
@@ -344,6 +441,15 @@
     </bpmn:userTask>
 
     <bpmn:serviceTask id="Task_service_receipt" name="Поступлення послуг на основі рахунку">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {action: &quot;create_service_receipt&quot;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_invoice_type: x_studio_camunda_invoice_type, x_studio_camunda_invoice_file: x_studio_camunda_invoice_file, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_pay_to_service</bpmn:incoming>
       <bpmn:outgoing>Flow_service_to_end</bpmn:outgoing>
     </bpmn:serviceTask>
@@ -356,7 +462,13 @@
     <!-- SEQUENCE FLOWS                                              -->
     <!-- ========================================================== -->
 
-    <bpmn:sequenceFlow id="Flow_start_to_gw_intro"      sourceRef="StartEvent_1"          targetRef="GW_intro_split" />
+    <bpmn:sequenceFlow id="Flow_start_to_gw_odoo"        sourceRef="StartEvent_1"          targetRef="GW_odoo_check" />
+    <bpmn:sequenceFlow id="Flow_odoo_no_task"           sourceRef="GW_odoo_check"         targetRef="Task_create_main" />
+    <bpmn:sequenceFlow id="Flow_odoo_has_task"          sourceRef="GW_odoo_check"         targetRef="GW_odoo_merge" name="Задача існує">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_create_main_done"       sourceRef="Task_create_main"      targetRef="GW_odoo_merge" />
+    <bpmn:sequenceFlow id="Flow_odoo_merge_to_intro"    sourceRef="GW_odoo_merge"         targetRef="GW_intro_split" />
     <bpmn:sequenceFlow id="Flow_split_to_add_file"      sourceRef="GW_intro_split"         targetRef="Task_add_file" />
     <bpmn:sequenceFlow id="Flow_split_to_detail"        sourceRef="GW_intro_split"         targetRef="Task_detail" />
     <bpmn:sequenceFlow id="Flow_add_file_to_merge"      sourceRef="Task_add_file"          targetRef="GW_intro_merge" />
@@ -437,6 +549,19 @@
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
+      <!-- GW_odoo_check (XOR, одразу після StartEvent) -->
+      <bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true">
+        <dc:Bounds x="270" y="110" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="255" y="83" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- GW_odoo_merge (XOR merge, перед GW_intro_split) -->
+      <bpmndi:BPMNShape id="GW_odoo_merge_di" bpmnElement="GW_odoo_merge">
+        <dc:Bounds x="480" y="110" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
       <!-- LANE: Система (y=220, h=140) -->
       <bpmndi:BPMNShape id="Lane_Systema_di" bpmnElement="Lane_Systema" isHorizontal="true">
         <dc:Bounds x="180" y="220" width="2120" height="140" />
@@ -473,21 +598,21 @@
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="GW_intro_split_di" bpmnElement="GW_intro_split">
-        <dc:Bounds x="305" y="110" width="50" height="50" />
+        <dc:Bounds x="555" y="110" width="50" height="50" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="Task_add_file_di" bpmnElement="Task_add_file">
-        <dc:Bounds x="390" y="65" width="100" height="80" />
+        <dc:Bounds x="640" y="65" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="Task_detail_di" bpmnElement="Task_detail">
-        <dc:Bounds x="390" y="152" width="100" height="60" />
+        <dc:Bounds x="640" y="152" width="100" height="60" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="GW_intro_merge_di" bpmnElement="GW_intro_merge">
-        <dc:Bounds x="540" y="110" width="50" height="50" />
+        <dc:Bounds x="790" y="110" width="50" height="50" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="Task_pay_di" bpmnElement="Task_pay">
@@ -536,6 +661,12 @@
 
       <bpmndi:BPMNShape id="Task_service_receipt_di" bpmnElement="Task_service_receipt">
         <dc:Bounds x="1880" y="250" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Task_create_main (Service Task, Lane_Systema, під GW_odoo_check) -->
+      <bpmndi:BPMNShape id="Task_create_main_di" bpmnElement="Task_create_main">
+        <dc:Bounds x="340" y="250" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
@@ -675,45 +806,74 @@
       <!-- EDGES                                               -->
       <!-- ================================================== -->
 
-      <!-- Start → GW_intro_split -->
-      <bpmndi:BPMNEdge id="Flow_start_to_gw_intro_di" bpmnElement="Flow_start_to_gw_intro">
+      <!-- Start → GW_odoo_check -->
+      <bpmndi:BPMNEdge id="Flow_start_to_gw_odoo_di" bpmnElement="Flow_start_to_gw_odoo">
         <di:waypoint x="258" y="135" />
-        <di:waypoint x="305" y="135" />
+        <di:waypoint x="270" y="135" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_odoo_check → Task_create_main (default: немає odoo_task_id) -->
+      <bpmndi:BPMNEdge id="Flow_odoo_no_task_di" bpmnElement="Flow_odoo_no_task">
+        <di:waypoint x="295" y="160" />
+        <di:waypoint x="295" y="290" />
+        <di:waypoint x="340" y="290" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_odoo_check → GW_odoo_merge (задача вже існує в Odoo) -->
+      <bpmndi:BPMNEdge id="Flow_odoo_has_task_di" bpmnElement="Flow_odoo_has_task">
+        <di:waypoint x="320" y="135" />
+        <di:waypoint x="480" y="135" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="360" y="117" width="62" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Task_create_main → GW_odoo_merge -->
+      <bpmndi:BPMNEdge id="Flow_create_main_done_di" bpmnElement="Flow_create_main_done">
+        <di:waypoint x="440" y="290" />
+        <di:waypoint x="505" y="290" />
+        <di:waypoint x="505" y="160" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_odoo_merge → GW_intro_split -->
+      <bpmndi:BPMNEdge id="Flow_odoo_merge_to_intro_di" bpmnElement="Flow_odoo_merge_to_intro">
+        <di:waypoint x="530" y="135" />
+        <di:waypoint x="555" y="135" />
       </bpmndi:BPMNEdge>
 
       <!-- GW_intro_split → Task_add_file (вгору) -->
       <bpmndi:BPMNEdge id="Flow_split_to_add_file_di" bpmnElement="Flow_split_to_add_file">
-        <di:waypoint x="330" y="110" />
-        <di:waypoint x="330" y="105" />
-        <di:waypoint x="390" y="105" />
+        <di:waypoint x="580" y="110" />
+        <di:waypoint x="580" y="105" />
+        <di:waypoint x="640" y="105" />
       </bpmndi:BPMNEdge>
 
       <!-- GW_intro_split → Task_detail (вниз) -->
       <bpmndi:BPMNEdge id="Flow_split_to_detail_di" bpmnElement="Flow_split_to_detail">
-        <di:waypoint x="330" y="160" />
-        <di:waypoint x="330" y="182" />
-        <di:waypoint x="390" y="182" />
+        <di:waypoint x="580" y="160" />
+        <di:waypoint x="580" y="182" />
+        <di:waypoint x="640" y="182" />
       </bpmndi:BPMNEdge>
 
       <!-- Task_add_file → GW_intro_merge -->
       <bpmndi:BPMNEdge id="Flow_add_file_to_merge_di" bpmnElement="Flow_add_file_to_merge">
-        <di:waypoint x="490" y="105" />
-        <di:waypoint x="565" y="105" />
-        <di:waypoint x="565" y="110" />
+        <di:waypoint x="740" y="105" />
+        <di:waypoint x="815" y="105" />
+        <di:waypoint x="815" y="110" />
       </bpmndi:BPMNEdge>
 
       <!-- Task_detail → GW_intro_merge -->
       <bpmndi:BPMNEdge id="Flow_detail_to_merge_di" bpmnElement="Flow_detail_to_merge">
-        <di:waypoint x="490" y="182" />
-        <di:waypoint x="565" y="182" />
-        <di:waypoint x="565" y="160" />
+        <di:waypoint x="740" y="182" />
+        <di:waypoint x="815" y="182" />
+        <di:waypoint x="815" y="160" />
       </bpmndi:BPMNEdge>
 
       <!-- GW_intro_merge → Task_autofill (Бухгалтер → Система) -->
       <bpmndi:BPMNEdge id="Flow_merge_to_autofill_di" bpmnElement="Flow_merge_to_autofill">
-        <di:waypoint x="565" y="160" />
-        <di:waypoint x="565" y="290" />
-        <di:waypoint x="630" y="290" />
+        <di:waypoint x="815" y="160" />
+        <di:waypoint x="815" y="290" />
+        <di:waypoint x="880" y="290" />
       </bpmndi:BPMNEdge>
 
       <!-- Task_autofill → GW_main_split -->
