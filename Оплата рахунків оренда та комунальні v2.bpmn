@@ -16,6 +16,7 @@
         <bpmn:flowNodeRef>Task_add_file</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_detail</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>GW_intro_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CA_tp_reissue</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_pay</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_main</bpmn:flowNodeRef>
       </bpmn:lane>
@@ -23,6 +24,7 @@
         <bpmn:flowNodeRef>Task_create_main</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_autofill</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>GW_main_split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_tp_check</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_calendar</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Timer_payday</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>GW_timer_decision</bpmn:flowNodeRef>
@@ -132,6 +134,18 @@
       <bpmn:outgoing>Flow_main_to_calendar</bpmn:outgoing>
       <bpmn:outgoing>Flow_main_to_approve</bpmn:outgoing>
     </bpmn:parallelGateway>
+    <bpmn:exclusiveGateway id="GW_tp_check" name="Тип ТП або ТП+?" default="Flow_tp_no">
+      <bpmn:incoming>Flow_main_to_calendar</bpmn:incoming>
+      <bpmn:outgoing>Flow_tp_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_tp_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:callActivity id="CA_tp_reissue" name="Перевиставлення оренди (ТП/ТП+)">
+      <bpmn:extensionElements>
+        <zeebe:calledElement propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_tp_yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_tp_done</bpmn:outgoing>
+    </bpmn:callActivity>
     <bpmn:serviceTask id="Task_calendar" name="Додати суму в платіжний календар">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
@@ -142,7 +156,8 @@
           <zeebe:input source="= {action: &#34;add_to_payment_calendar&#34;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_payment_date: x_studio_camunda_payment_date, x_studio_camunda_invoice_type: x_studio_camunda_invoice_type, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_main_to_calendar</bpmn:incoming>
+      <bpmn:incoming>Flow_tp_no</bpmn:incoming>
+      <bpmn:incoming>Flow_tp_done</bpmn:incoming>
       <bpmn:outgoing>Flow_calendar_to_timer</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:intermediateCatchEvent id="Timer_payday" name="Очікуємо дедлайну рахунку">
@@ -345,7 +360,12 @@
     <bpmn:sequenceFlow id="Flow_detail_to_merge" sourceRef="Task_detail" targetRef="GW_intro_merge" />
     <bpmn:sequenceFlow id="Flow_merge_to_autofill" sourceRef="GW_intro_merge" targetRef="Task_autofill" />
     <bpmn:sequenceFlow id="Flow_autofill_to_main_split" sourceRef="Task_autofill" targetRef="GW_main_split" />
-    <bpmn:sequenceFlow id="Flow_main_to_calendar" sourceRef="GW_main_split" targetRef="Task_calendar" />
+    <bpmn:sequenceFlow id="Flow_main_to_calendar" sourceRef="GW_main_split" targetRef="GW_tp_check" />
+    <bpmn:sequenceFlow id="Flow_tp_yes" name="ТП або ТП+" sourceRef="GW_tp_check" targetRef="CA_tp_reissue">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_invoice_type = "ТП" or x_studio_camunda_invoice_type = "ТП+"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_tp_no" sourceRef="GW_tp_check" targetRef="Task_calendar" />
+    <bpmn:sequenceFlow id="Flow_tp_done" sourceRef="CA_tp_reissue" targetRef="Task_calendar" />
     <bpmn:sequenceFlow id="Flow_main_to_approve" sourceRef="GW_main_split" targetRef="Task_approve" />
     <bpmn:sequenceFlow id="Flow_calendar_to_timer" sourceRef="Task_calendar" targetRef="Timer_payday" />
     <bpmn:sequenceFlow id="Flow_timer_to_gw_decision" sourceRef="Timer_payday" targetRef="GW_timer_decision" />
@@ -457,20 +477,30 @@
       <bpmndi:BPMNShape id="GW_main_split_di" bpmnElement="GW_main_split">
         <dc:Bounds x="775" y="265" width="50" height="50" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_tp_check_di" bpmnElement="GW_tp_check" isMarkerVisible="true">
+        <dc:Bounds x="835" y="265" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="808" y="238" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CA_tp_reissue_di" bpmnElement="CA_tp_reissue">
+        <dc:Bounds x="845" y="70" width="120" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_calendar_di" bpmnElement="Task_calendar">
-        <dc:Bounds x="860" y="250" width="100" height="80" />
+        <dc:Bounds x="1010" y="250" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Timer_payday_di" bpmnElement="Timer_payday">
-        <dc:Bounds x="1012" y="272" width="36" height="36" />
+        <dc:Bounds x="1162" y="272" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="950" y="315" width="60" height="40" />
+          <dc:Bounds x="1100" y="315" width="60" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_timer_decision_di" bpmnElement="GW_timer_decision" isMarkerVisible="true">
-        <dc:Bounds x="1095" y="265" width="50" height="50" />
+        <dc:Bounds x="1245" y="265" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1058" y="235" width="90" height="27" />
+          <dc:Bounds x="1208" y="235" width="90" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_approve_di" bpmnElement="Task_approve">
@@ -640,7 +670,25 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_main_to_calendar_di" bpmnElement="Flow_main_to_calendar">
         <di:waypoint x="825" y="290" />
-        <di:waypoint x="860" y="290" />
+        <di:waypoint x="835" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_tp_yes_di" bpmnElement="Flow_tp_yes">
+        <di:waypoint x="860" y="265" />
+        <di:waypoint x="860" y="155" />
+        <di:waypoint x="905" y="155" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="868" y="203" width="60" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_tp_no_di" bpmnElement="Flow_tp_no">
+        <di:waypoint x="885" y="290" />
+        <di:waypoint x="1010" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_tp_done_di" bpmnElement="Flow_tp_done">
+        <di:waypoint x="965" y="110" />
+        <di:waypoint x="990" y="110" />
+        <di:waypoint x="990" y="290" />
+        <di:waypoint x="1010" y="290" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_main_to_approve_di" bpmnElement="Flow_main_to_approve">
         <di:waypoint x="800" y="315" />
@@ -648,25 +696,25 @@
         <di:waypoint x="860" y="445" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_calendar_to_timer_di" bpmnElement="Flow_calendar_to_timer">
-        <di:waypoint x="960" y="290" />
-        <di:waypoint x="1012" y="290" />
+        <di:waypoint x="1110" y="290" />
+        <di:waypoint x="1162" y="290" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_timer_to_gw_decision_di" bpmnElement="Flow_timer_to_gw_decision">
-        <di:waypoint x="1048" y="290" />
-        <di:waypoint x="1095" y="290" />
+        <di:waypoint x="1198" y="290" />
+        <di:waypoint x="1245" y="290" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_timer_to_pay_di" bpmnElement="Flow_timer_to_pay">
-        <di:waypoint x="1120" y="265" />
-        <di:waypoint x="1120" y="135" />
+        <di:waypoint x="1270" y="265" />
+        <di:waypoint x="1270" y="135" />
         <di:waypoint x="1730" y="135" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1360" y="117" width="47" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_timer_to_yulia_di" bpmnElement="Flow_timer_to_yulia">
-        <di:waypoint x="1120" y="315" />
-        <di:waypoint x="1120" y="605" />
-        <di:waypoint x="1190" y="605" />
+        <di:waypoint x="1270" y="315" />
+        <di:waypoint x="1270" y="605" />
+        <di:waypoint x="1290" y="605" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1125" y="455" width="57" height="27" />
         </bpmndi:BPMNLabel>
