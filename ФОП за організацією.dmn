@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions
+  xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+  xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+  xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+  id="Definitions_fop_by_org"
+  name="ФОП за організацією"
+  namespace="http://camunda.org/schema/1.0/dmn"
+  exporter="Camunda Web Modeler"
+  exporterVersion="e787c33"
+  modeler:executionPlatform="Camunda Cloud"
+  modeler:executionPlatformVersion="8.8.0">
+
+  <!--
+    DMN: Визначення ФОПа за організацією (підрозділом)
+    ==================================================
+
+    Використання в BPMN:
+      - Task_dmn_fop → decisionId="fop-by-org" → resultVariable="fopData"
+
+    Вхідна змінна процесу:
+      - x_studio_camunda_organization — назва організації/підрозділу з рахунку
+
+    Результат:
+      - x_studio_camunda_fop_name — назва ФОПа для перевиставлення
+      - x_studio_camunda_fop_id   — ID ФОПа в Odoo
+
+    ⚠️  ЗАПОВНІТЬ ТАБЛИЦЮ реальними назвами організацій та ФОПів!
+  -->
+
+  <decision id="fop-by-org" name="Визначення ФОПа за організацією">
+    <decisionTable id="decisionTable_fop_by_org" hitPolicy="FIRST">
+
+      <input id="input_organization" label="Організація (підрозділ)">
+        <inputExpression id="inputExpr_organization" typeRef="string">
+          <text>x_studio_camunda_organization</text>
+        </inputExpression>
+      </input>
+
+      <output id="output_fop_name"
+              label="Назва ФОПа"
+              name="x_studio_camunda_fop_name"
+              typeRef="string" />
+
+      <output id="output_fop_id"
+              label="ID ФОПа в Odoo"
+              name="x_studio_camunda_fop_id"
+              typeRef="long" />
+
+      <!-- ── Замініть на реальні організації та ФОПів ─────────────────── -->
+
+      <rule id="rule_fop_store_1">
+        <description>Магазин 1 — ФОП Іванов (замініть назву)</description>
+        <inputEntry id="ie_fop_store_1"><text>"Магазин 1"</text></inputEntry>
+        <outputEntry id="oe_fop_name_1"><text>"ФОП Іванов"</text></outputEntry>
+        <outputEntry id="oe_fop_id_1"><text>101</text></outputEntry>
+      </rule>
+
+      <rule id="rule_fop_store_2">
+        <description>Магазин 2 — ФОП Петренко (замініть назву)</description>
+        <inputEntry id="ie_fop_store_2"><text>"Магазин 2"</text></inputEntry>
+        <outputEntry id="oe_fop_name_2"><text>"ФОП Петренко"</text></outputEntry>
+        <outputEntry id="oe_fop_id_2"><text>102</text></outputEntry>
+      </rule>
+
+      <rule id="rule_fop_store_3">
+        <description>Магазин 3 — ФОП Сидоренко (замініть назву)</description>
+        <inputEntry id="ie_fop_store_3"><text>"Магазин 3"</text></inputEntry>
+        <outputEntry id="oe_fop_name_3"><text>"ФОП Сидоренко"</text></outputEntry>
+        <outputEntry id="oe_fop_id_3"><text>103</text></outputEntry>
+      </rule>
+
+      <!-- ── За замовчуванням — основний ФОП ─────────────────────────── -->
+      <rule id="rule_fop_default">
+        <description>Невідома організація — основний ФОП (перевірте вручну)</description>
+        <inputEntry id="ie_fop_default"><text></text></inputEntry>
+        <outputEntry id="oe_fop_name_default"><text>"ФОП Основний"</text></outputEntry>
+        <outputEntry id="oe_fop_id_default"><text>100</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       DMNDI — візуальне розташування
+       ═══════════════════════════════════════════════════════════════════ -->
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_fop">
+      <dmndi:DMNShape id="DMNShape_fop_by_org" dmnElementRef="fop-by-org">
+        <dc:Bounds x="150" y="80" width="200" height="80" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+
+</definitions>
