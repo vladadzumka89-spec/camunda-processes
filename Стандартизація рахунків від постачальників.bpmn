@@ -290,10 +290,6 @@
           <dc:Bounds x="62" y="382" width="88" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_detect_format_di" bpmnElement="ST_detect_format">
-        <dc:Bounds x="174" y="317" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_odoo_xor_di" bpmnElement="Gateway_odoo_xor" isMarkerVisible="true">
         <dc:Bounds x="344" y="332" width="50" height="50" />
         <bpmndi:BPMNLabel>
@@ -306,6 +302,10 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Merge_odoo_di" bpmnElement="Merge_odoo" isMarkerVisible="true">
         <dc:Bounds x="624" y="332" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_detect_format_di" bpmnElement="ST_detect_format">
+        <dc:Bounds x="174" y="317" width="100" height="80" />
+        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="XOR_needs_conv_di" bpmnElement="XOR_needs_conv" isMarkerVisible="true">
         <dc:Bounds x="724" y="332" width="50" height="50" />
@@ -322,6 +322,10 @@
         <bpmndi:BPMNLabel>
           <dc:Bounds x="996" y="302" width="86" height="27" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_manual_fix_di" bpmnElement="UT_manual_fix">
+        <dc:Bounds x="989" y="450" width="100" height="80" />
+        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="UT_esc_manual_di" bpmnElement="UT_esc_manual">
         <dc:Bounds x="804" y="570" width="100" height="80" />
@@ -367,34 +371,29 @@
       <bpmndi:BPMNShape id="Merge_dup_di" bpmnElement="Merge_dup" isMarkerVisible="true">
         <dc:Bounds x="1634" y="332" width="50" height="50" />
       </bpmndi:BPMNShape>
-
-      <bpmndi:BPMNShape id="ST_rem_enter_di" bpmnElement="ST_rem_enter">
-        <dc:Bounds x="2294" y="470" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="End_esc_enter_di" bpmnElement="End_esc_enter">
-        <dc:Bounds x="2216" y="612" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="2190" y="655" width="88" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="End_final_di" bpmnElement="End_final">
-        <dc:Bounds x="2416" y="339" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="2390" y="382" width="88" height="40" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="UT_manual_fix_di" bpmnElement="UT_manual_fix">
-        <dc:Bounds x="989" y="450" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="UT_enter_invoice_di" bpmnElement="UT_enter_invoice">
-        <dc:Bounds x="1950" y="317" width="100" height="80" />
+        <dc:Bounds x="1830" y="317" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="UT_esc_enter_di" bpmnElement="UT_esc_enter">
-        <dc:Bounds x="1932" y="550" width="100" height="80" />
+        <dc:Bounds x="1790" y="530" width="100" height="80" />
         <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_esc_enter_di" bpmnElement="End_esc_enter">
+        <dc:Bounds x="1992" y="552" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1984" y="595" width="52" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_rem_enter_di" bpmnElement="ST_rem_enter">
+        <dc:Bounds x="1980" y="450" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_final_di" bpmnElement="End_final">
+        <dc:Bounds x="2142" y="339" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2128" y="382" width="64" height="53" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BE_ded_review_di" bpmnElement="BE_ded_review">
         <dc:Bounds x="1376" y="512" width="36" height="36" />
@@ -421,21 +420,17 @@
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BE_ded_enter_di" bpmnElement="BE_ded_enter">
-        <dc:Bounds x="1932" y="379" width="36" height="36" />
+        <dc:Bounds x="1812" y="379" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1891" y="417" width="65" height="40" />
+          <dc:Bounds x="1771" y="417" width="65" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BE_rem_enter_di" bpmnElement="BE_rem_enter">
-        <dc:Bounds x="2032" y="379" width="36" height="36" />
+        <dc:Bounds x="1912" y="379" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="2079" y="387" width="66" height="27" />
+          <dc:Bounds x="1959" y="387" width="66" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_to_detect_format_di" bpmnElement="Flow_to_detect_format">
-        <di:waypoint x="124" y="357" />
-        <di:waypoint x="174" y="357" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_to_odoo_xor_di" bpmnElement="Flow_to_odoo_xor">
         <di:waypoint x="274" y="357" />
         <di:waypoint x="344" y="357" />
@@ -456,6 +451,10 @@
         <di:waypoint x="554" y="490" />
         <di:waypoint x="649" y="490" />
         <di:waypoint x="649" y="382" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_detect_format_di" bpmnElement="Flow_to_detect_format">
+        <di:waypoint x="124" y="357" />
+        <di:waypoint x="174" y="357" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_to_needs_conv_di" bpmnElement="Flow_to_needs_conv">
         <di:waypoint x="674" y="357" />
@@ -526,10 +525,9 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_yes_dup_di" bpmnElement="Flow_yes_dup">
         <di:waypoint x="1479" y="382" />
-        <di:waypoint x="1479" y="490" />
-        <di:waypoint x="1494" y="490" />
+        <di:waypoint x="1479" y="450" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1493" y="395" width="54" height="27" />
+          <dc:Bounds x="1493" y="385" width="54" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_dup_reviewed_di" bpmnElement="Flow_dup_reviewed">
@@ -551,27 +549,25 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_to_enter_invoice_di" bpmnElement="Flow_to_enter_invoice">
         <di:waypoint x="1684" y="357" />
-        <di:waypoint x="1950" y="357" />
+        <di:waypoint x="1830" y="357" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_rem_enter_di" bpmnElement="Flow_rem_enter">
-        <di:waypoint x="2050" y="415" />
-        <di:waypoint x="2050" y="510" />
-        <di:waypoint x="2294" y="510" />
+        <di:waypoint x="1930" y="415" />
+        <di:waypoint x="1930" y="490" />
+        <di:waypoint x="1980" y="490" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ded_enter_di" bpmnElement="Flow_ded_enter">
-        <di:waypoint x="1960" y="412" />
-        <di:waypoint x="1960" y="530" />
-        <di:waypoint x="1960" y="550" />
+        <di:waypoint x="1840" y="412" />
+        <di:waypoint x="1840" y="570" />
+        <di:waypoint x="1840" y="530" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_esc_enter_end_di" bpmnElement="Flow_esc_enter_end">
-        <di:waypoint x="2032" y="590" />
-        <di:waypoint x="2113" y="590" />
-        <di:waypoint x="2113" y="630" />
-        <di:waypoint x="2216" y="630" />
+        <di:waypoint x="1890" y="570" />
+        <di:waypoint x="1992" y="570" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_to_end_di" bpmnElement="Flow_to_end">
-        <di:waypoint x="2050" y="357" />
-        <di:waypoint x="2416" y="357" />
+        <di:waypoint x="1930" y="357" />
+        <di:waypoint x="2142" y="357" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
