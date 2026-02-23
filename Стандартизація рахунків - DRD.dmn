@@ -16,22 +16,13 @@
   <!--
     DRD — Decision Requirements Diagram
     =====================================
-    Ланцюжок рішень:
-
-      [file-format-converter]  ──►  [invoice-routing]
-      Формат → метод конвертації     Тип → пріоритет + відповідальний + дедлайн
+    Рішення:
 
     Використання в BPMN:
-      - ST_detect_format   → decisionId="file-format-converter"  → resultVariable="formatData"
-      - ST_dmn_routing     → decisionId="invoice-routing"        → resultVariable="routingData"
-        (Camunda автоматично запускає file-format-converter перед invoice-routing)
+      - ST_detect_format → decisionId="file-format-converter" → resultVariable="formatData"
 
     Вхідні змінні процесу:
-      - file_extension          — розширення файлу (pdf, xlsx, csv, ...)
-      - converter_type          — з file-format-converter (передається автоматично)
-      - processing_priority     — з file-format-converter (передається автоматично)
-
-    ⚠️  Замініть значення дедлайнів (processing_deadline_days) під реальні вимоги
+      - file_extension — розширення файлу (pdf, xlsx, csv, ...)
   -->
 
   <!-- ═══════════════════════════════════════════════════════════════════
@@ -188,109 +179,6 @@
     </decisionTable>
   </decision>
 
-  <!-- ═══════════════════════════════════════════════════════════════════
-       РІШЕННЯ 2: Пріоритет та дедлайн рахунку
-       Вхід:  converter_type      — з file-format-converter (через InformationRequirement)
-              processing_priority — з file-format-converter (через InformationRequirement)
-       Вихід: invoice_priority         — "urgent" | "normal" | "low"
-              processing_deadline_days — кількість днів для обробки
-       ═══════════════════════════════════════════════════════════════════ -->
-  <decision id="invoice-routing" name="Пріоритет та дедлайн рахунку">
-
-    <informationRequirement id="ir_format_to_routing">
-      <requiredDecision href="#file-format-converter" />
-    </informationRequirement>
-
-    <decisionTable id="dt_routing" hitPolicy="FIRST">
-
-      <input id="in_conv_type" label="Метод конвертації">
-        <inputExpression id="ie_conv_type_in" typeRef="string">
-          <text>converter_type</text>
-        </inputExpression>
-        <inputValues id="iv_conv_type_in">
-          <text>"local_pdf","local_excel","local_csv","local_xml","local_ocr","none"</text>
-        </inputValues>
-      </input>
-
-      <input id="in_proc_prio" label="Пріоритет обробки">
-        <inputExpression id="ie_proc_prio_in" typeRef="string">
-          <text>processing_priority</text>
-        </inputExpression>
-        <inputValues id="iv_proc_prio_in">
-          <text>"high","normal","low"</text>
-        </inputValues>
-      </input>
-
-      <output id="out_inv_priority"
-              label="Пріоритет рахунку"
-              name="invoice_priority"
-              typeRef="string">
-        <outputValues id="ov_inv_priority">
-          <text>"urgent","normal","low"</text>
-        </outputValues>
-      </output>
-
-      <output id="out_deadline"
-              label="Дедлайн обробки (днів)"
-              name="processing_deadline_days"
-              typeRef="integer" />
-
-      <!-- OCR + high → терміново (зображення потребують ручної перевірки) -->
-      <rule id="rr_ocr_high">
-        <description>OCR зображення → терміново, 1 день (висока ймовірність помилок)</description>
-        <inputEntry id="ire_ocr_h"><text>"local_ocr"</text></inputEntry>
-        <inputEntry id="ire_ocr_h_prio"><text>"high"</text></inputEntry>
-        <outputEntry id="ore_ocr_h_prio"><text>"urgent"</text></outputEntry>
-        <outputEntry id="ore_ocr_h_days"><text>1</text></outputEntry>
-      </rule>
-
-      <!-- OCR будь-який → терміново -->
-      <rule id="rr_ocr_any">
-        <description>Будь-яке зображення (OCR) → терміново, 1 день</description>
-        <inputEntry id="ire_ocr_a"><text>"local_ocr"</text></inputEntry>
-        <inputEntry id="ire_ocr_a_prio"><text></text></inputEntry>
-        <outputEntry id="ore_ocr_a_prio"><text>"urgent"</text></outputEntry>
-        <outputEntry id="ore_ocr_a_days"><text>1</text></outputEntry>
-      </rule>
-
-      <!-- Будь-який high (невідомий формат) → терміново -->
-      <rule id="rr_any_high">
-        <description>Невідомий або проблемний формат → терміново, 1 день</description>
-        <inputEntry id="ire_any_h"><text></text></inputEntry>
-        <inputEntry id="ire_any_h_prio"><text>"high"</text></inputEntry>
-        <outputEntry id="ore_any_h_prio"><text>"urgent"</text></outputEntry>
-        <outputEntry id="ore_any_h_days"><text>1</text></outputEntry>
-      </rule>
-
-      <!-- JSON (вже структурований) → низький пріоритет -->
-      <rule id="rr_json_low">
-        <description>JSON API формат → низький пріоритет, 7 днів</description>
-        <inputEntry id="ire_json_l"><text>"none"</text></inputEntry>
-        <inputEntry id="ire_json_l_prio"><text></text></inputEntry>
-        <outputEntry id="ore_json_l_prio"><text>"low"</text></outputEntry>
-        <outputEntry id="ore_json_l_days"><text>7</text></outputEntry>
-      </rule>
-
-      <!-- CSV → низький пріоритет -->
-      <rule id="rr_csv_any">
-        <description>CSV файл → низький пріоритет, 5 днів</description>
-        <inputEntry id="ire_csv_a"><text>"local_csv"</text></inputEntry>
-        <inputEntry id="ire_csv_a_prio"><text></text></inputEntry>
-        <outputEntry id="ore_csv_a_prio"><text>"low"</text></outputEntry>
-        <outputEntry id="ore_csv_a_days"><text>5</text></outputEntry>
-      </rule>
-
-      <!-- За замовчуванням — normal, 3 дні -->
-      <rule id="rr_default">
-        <description>Стандартна обробка (PDF/Excel/Word/XML) → 3 дні</description>
-        <inputEntry id="ire_def"><text></text></inputEntry>
-        <inputEntry id="ire_def_prio"><text></text></inputEntry>
-        <outputEntry id="ore_def_prio"><text>"normal"</text></outputEntry>
-        <outputEntry id="ore_def_days"><text>3</text></outputEntry>
-      </rule>
-
-    </decisionTable>
-  </decision>
 
   <!-- ═══════════════════════════════════════════════════════════════════
        DMNDI — візуальне розташування DRD
@@ -302,14 +190,6 @@
         <dc:Bounds x="150" y="80" width="200" height="80" />
       </dmndi:DMNShape>
 
-      <dmndi:DMNShape id="DMNShape_routing" dmnElementRef="invoice-routing">
-        <dc:Bounds x="150" y="260" width="200" height="80" />
-      </dmndi:DMNShape>
-
-      <dmndi:DMNEdge id="DMNEdge_format_to_routing" dmnElementRef="ir_format_to_routing">
-        <di:waypoint x="250" y="160" />
-        <di:waypoint x="250" y="260" />
-      </dmndi:DMNEdge>
 
     </dmndi:DMNDiagram>
   </dmndi:DMNDI>

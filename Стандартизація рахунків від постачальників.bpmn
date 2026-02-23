@@ -217,17 +217,9 @@
     <bpmn:exclusiveGateway id="Merge_dup">
       <bpmn:incoming>Flow_not_dup</bpmn:incoming>
       <bpmn:incoming>Flow_dup_reviewed</bpmn:incoming>
-      <bpmn:outgoing>Flow_to_dmn_routing</bpmn:outgoing>
+      <bpmn:outgoing>Flow_to_enter_invoice</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:businessRuleTask id="ST_dmn_routing" name="Визначити пріоритет&#10;та дедлайн [DMN]">
-      <bpmn:extensionElements>
-        <zeebe:calledDecision decisionId="invoice-routing" resultVariable="routingData" />
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_to_dmn_routing</bpmn:incoming>
-      <bpmn:outgoing>Flow_to_get_accountants</bpmn:outgoing>
-    </bpmn:businessRuleTask>
-    <bpmn:sequenceFlow id="Flow_to_dmn_routing" sourceRef="Merge_dup" targetRef="ST_dmn_routing" />
-    <bpmn:sequenceFlow id="Flow_to_get_accountants" sourceRef="ST_dmn_routing" targetRef="UT_enter_invoice" />
+    <bpmn:sequenceFlow id="Flow_to_enter_invoice" sourceRef="Merge_dup" targetRef="UT_enter_invoice" />
     <bpmn:userTask id="UT_enter_invoice" name="Завести рахунок від постачальника в систему">
       <bpmn:extensionElements>
         <zeebe:userTask />
@@ -235,10 +227,10 @@
           <zeebe:input source="=&#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
           <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Завести рахунок від постачальника: &#34; + sender_name, description: &#34;Постачальник: &#34; + sender_name + &#34;. Рахунок №&#34; + converted_invoice.invoice_number + &#34; на суму &#34; + string(converted_invoice.total_amount) + &#34; &#34; + converted_invoice.currency + &#34;. Стандартизований файл прикріплено. Внесіть рахунок в облікову систему.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, x_studio_camunda_invoice_priority: routingData.invoice_priority, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="={name: &#34;Завести рахунок від постачальника: &#34; + sender_name, description: &#34;Постачальник: &#34; + sender_name + &#34;. Рахунок №&#34; + converted_invoice.invoice_number + &#34; на суму &#34; + string(converted_invoice.total_amount) + &#34; &#34; + converted_invoice.currency + &#34;. Стандартизований файл прикріплено. Внесіть рахунок в облікову систему.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_to_get_accountants</bpmn:incoming>
+      <bpmn:incoming>Flow_to_enter_invoice</bpmn:incoming>
       <bpmn:outgoing>Flow_to_end</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:boundaryEvent id="BE_rem_enter" name="Нагадування&#10;(щодня)" cancelActivity="false" attachedToRef="UT_enter_invoice">
@@ -254,16 +246,16 @@
           <zeebe:input source="=&#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
           <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;⚠️ НАГАДУВАННЯ: Завести рахунок від &#34; + sender_name, description: &#34;Рахунок від &#34; + sender_name + &#34; ще не внесено в систему. Пріоритет: &#34; + routingData.invoice_priority, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="={name: &#34;⚠️ НАГАДУВАННЯ: Завести рахунок від &#34; + sender_name, description: &#34;Рахунок від &#34; + sender_name + &#34; ще не внесено в систему.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_rem_enter</bpmn:incoming>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_rem_enter" sourceRef="BE_rem_enter" targetRef="ST_rem_enter" />
-    <bpmn:boundaryEvent id="BE_ded_enter" name="Дедлайн прострочено&#10;(за DMN)" attachedToRef="UT_enter_invoice">
+    <bpmn:boundaryEvent id="BE_ded_enter" name="Дедлайн прострочено&#10;(3 дні)" attachedToRef="UT_enter_invoice">
       <bpmn:outgoing>Flow_ded_enter</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TED_ded_enter">
-        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">= "P" + string(routingData.processing_deadline_days) + "D"</bpmn:timeDuration>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
       </bpmn:timerEventDefinition>
     </bpmn:boundaryEvent>
     <bpmn:userTask id="UT_esc_enter" name="Ескалація: рахунок не внесено вчасно">
@@ -273,7 +265,7 @@
           <zeebe:input source="=&#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
           <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;🔴 ЕСКАЛАЦІЯ: рахунок від &#34; + sender_name + &#34; не внесено вчасно&#34;, description: &#34;Рахунок №&#34; + converted_invoice.invoice_number + &#34; від &#34; + sender_name + &#34; не внесено протягом &#34; + string(routingData.processing_deadline_days) + &#34; днів. Потрібне втручання керівника.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="={name: &#34;🔴 ЕСКАЛАЦІЯ: рахунок від &#34; + sender_name + &#34; не внесено вчасно&#34;, description: &#34;Рахунок №&#34; + converted_invoice.invoice_number + &#34; від &#34; + sender_name + &#34; не внесено протягом 3 днів. Потрібне втручання керівника.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ded_enter</bpmn:incoming>
@@ -375,10 +367,7 @@
       <bpmndi:BPMNShape id="Merge_dup_di" bpmnElement="Merge_dup" isMarkerVisible="true">
         <dc:Bounds x="1634" y="332" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_dmn_routing_di" bpmnElement="ST_dmn_routing">
-        <dc:Bounds x="1734" y="317" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
+
       <bpmndi:BPMNShape id="ST_rem_enter_di" bpmnElement="ST_rem_enter">
         <dc:Bounds x="2294" y="470" width="100" height="80" />
         <bpmndi:BPMNLabel />
@@ -560,12 +549,8 @@
         <di:waypoint x="1294" y="650" />
         <di:waypoint x="1264" y="712" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_to_dmn_routing_di" bpmnElement="Flow_to_dmn_routing">
+      <bpmndi:BPMNEdge id="Flow_to_enter_invoice_di" bpmnElement="Flow_to_enter_invoice">
         <di:waypoint x="1684" y="357" />
-        <di:waypoint x="1734" y="357" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_to_get_accountants_di" bpmnElement="Flow_to_get_accountants">
-        <di:waypoint x="1834" y="357" />
         <di:waypoint x="1950" y="357" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_rem_enter_di" bpmnElement="Flow_rem_enter">
