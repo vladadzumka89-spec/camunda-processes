@@ -1,0 +1,597 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  id="Definitions_v3"
+  targetNamespace="http://bpmn.io/schema/bpmn"
+  exporter="Camunda Web Modeler"
+  exporterVersion="e787c33"
+  modeler:executionPlatform="Camunda Cloud"
+  modeler:executionPlatformVersion="8.8.0">
+
+  <!-- ============================================================ -->
+  <!-- COLLABORATION (Pool)                                          -->
+  <!-- ============================================================ -->
+  <bpmn:collaboration id="Collab_v3">
+    <bpmn:participant id="Pool_v3" name="Оплата рахунків v3 (оренда, комунальні, інтернет)" processRef="Process_v3" />
+  </bpmn:collaboration>
+
+  <!-- ============================================================ -->
+  <!-- PROCESS                                                       -->
+  <!-- ============================================================ -->
+  <bpmn:process id="Process_v3" name="Оплата рахунків v3" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="3.0" />
+    </bpmn:extensionElements>
+
+    <!-- ========================================================== -->
+    <!-- LANES                                                        -->
+    <!--   Система (авто) — старт, Odoo check, БДУ, DMN, нотифікація, таймер, реалізація -->
+    <!--   Бухгалтер      — перевиставлення рахунку, оплата          -->
+    <!-- ========================================================== -->
+    <bpmn:laneSet id="LaneSet_v3">
+
+      <bpmn:lane id="Lane_Systema" name="Система (авто)">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_create_main</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_enter_db</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_dmn_fop</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_notify_finance</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_month_end</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_accounting</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_main</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_db_error</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_Buhgalter" name="Бухгалтер">
+        <bpmn:flowNodeRef>Task_reissue</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_pay</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- ========================================================== -->
+    <!-- БЛОК 0: СТАРТ + ПЕРЕВІРКА ODOO                              -->
+    <!-- ========================================================== -->
+
+    <bpmn:startEvent id="StartEvent_1" name="Рахунок на пошті&#10;(Вчасно, Фредо,&#10;Пошта рент, бух, гугл)">
+      <bpmn:outgoing>Flow_start_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:exclusiveGateway id="GW_odoo_check" name="Задача в Odoo існує?" default="Flow_odoo_no_task">
+      <bpmn:incoming>Flow_start_to_gw</bpmn:incoming>
+      <bpmn:outgoing>Flow_odoo_no_task</bpmn:outgoing>
+      <bpmn:outgoing>Flow_odoo_has_task</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_create_main" name="Створити головне завдання">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Оплата рахунків v3&quot;, create_process: true, _model: &quot;project.project&quot;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_odoo_no_task</bpmn:incoming>
+      <bpmn:outgoing>Flow_create_main_done</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="GW_odoo_merge">
+      <bpmn:incoming>Flow_odoo_has_task</bpmn:incoming>
+      <bpmn:incoming>Flow_create_main_done</bpmn:incoming>
+      <bpmn:outgoing>Flow_merge_to_db</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ========================================================== -->
+    <!-- БЛОК 1: ЗАВЕСТИ РАХУНОК В БАЗУ (ДО3 / БДУ)                 -->
+    <!-- ========================================================== -->
+
+    <bpmn:serviceTask id="Task_enter_db" name="Завести рахунок в базу">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="do3-feature" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;СтворитиРахунок&quot;" target="featureCode" />
+          <zeebe:input source="= &quot;DO3&quot;" target="database" />
+          <zeebe:input source="= x_studio_camunda_partner_name" target="контрагент" />
+          <zeebe:input source="= x_studio_camunda_invoice_amount" target="сума" />
+          <zeebe:input source="= x_studio_camunda_organization" target="організація" />
+          <zeebe:input source="= x_studio_camunda_invoice_description" target="опис" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_merge_to_db</bpmn:incoming>
+      <bpmn:outgoing>Flow_db_to_dmn</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Error boundary: якщо ДО3 інтеграція збій -->
+    <bpmn:boundaryEvent id="BoundaryError_db" name="Помилка БДУ" attachedToRef="Task_enter_db">
+      <bpmn:outgoing>Flow_db_error</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_db" />
+    </bpmn:boundaryEvent>
+
+    <bpmn:endEvent id="End_db_error" name="Помилка запису в базу">
+      <bpmn:incoming>Flow_db_error</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ========================================================== -->
+    <!-- БЛОК 2: DMN — ВИЗНАЧИТИ ФОПа ЗА ОРГАНІЗАЦІЄЮ               -->
+    <!-- ========================================================== -->
+
+    <bpmn:businessRuleTask id="Task_dmn_fop" name="Визначити ФОПа за організацією">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="fop-by-org" resultVariable="fopData" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_db_to_dmn</bpmn:incoming>
+      <bpmn:outgoing>Flow_dmn_to_reissue</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <!-- ========================================================== -->
+    <!-- БЛОК 3: ПЕРЕВИСТАВИТИ РАХУНОК НА ФОПа (User Task)          -->
+    <!-- Система підставляє дані з DMN, бухгалтер підтверджує        -->
+    <!-- ========================================================== -->
+
+    <bpmn:userTask id="Task_reissue" name="Перевиставити рахунок на ФОПа">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Перевиставити рахунок на &quot; + fopData.x_studio_camunda_fop_name, description: &quot;Перевиставте рахунок від &quot; + x_studio_camunda_partner_name + &quot; на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн на ФОПа: &quot; + fopData.x_studio_camunda_fop_name, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="= x_studio_camunda_reissued" target="x_studio_camunda_reissued" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_dmn_to_reissue</bpmn:incoming>
+      <bpmn:outgoing>Flow_reissue_to_notify</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Boundary: нагадування (non-interrupting, щоденне) -->
+    <bpmn:boundaryEvent id="Timer_reissue_reminder" name="Нагадування" attachedToRef="Task_reissue" cancelActivity="false">
+      <bpmn:outgoing>Flow_reissue_reminder</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_reissue_reminder">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/P1D</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <!-- Boundary: дедлайн (interrupting, 3 дні) -->
+    <bpmn:boundaryEvent id="Timer_reissue_deadline" name="Дедлайн (3 дні)" attachedToRef="Task_reissue">
+      <bpmn:outgoing>Flow_reissue_deadline</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_reissue_deadline">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <!-- ========================================================== -->
+    <!-- БЛОК 4: СКИНУТИ РАХУНОК ФІНАМ (авто-нотифікація)           -->
+    <!-- ========================================================== -->
+
+    <bpmn:serviceTask id="Task_notify_finance" name="Скинути рахунок фінам">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {action: &quot;notify_finance&quot;, name: &quot;Рахунок до оплати: &quot; + x_studio_camunda_partner_name, description: &quot;Рахунок на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн від &quot; + x_studio_camunda_partner_name + &quot; перевиставлений на &quot; + fopData.x_studio_camunda_fop_name, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_fop_name: fopData.x_studio_camunda_fop_name, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_reissue_to_notify</bpmn:incoming>
+      <bpmn:outgoing>Flow_notify_to_pay</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ========================================================== -->
+    <!-- БЛОК 5: ОПЛАТИТИ РАХУНОК (User Task, Бухгалтер)            -->
+    <!-- ========================================================== -->
+
+    <bpmn:userTask id="Task_pay" name="Оплатити рахунок">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Оплатити рахунок: &quot; + x_studio_camunda_partner_name, description: &quot;Оплатіть рахунок на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн. ФОП: &quot; + fopData.x_studio_camunda_fop_name, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_notify_to_pay</bpmn:incoming>
+      <bpmn:outgoing>Flow_pay_to_timer</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Boundary: нагадування (non-interrupting, щоденне) -->
+    <bpmn:boundaryEvent id="Timer_pay_reminder" name="Нагадування" attachedToRef="Task_pay" cancelActivity="false">
+      <bpmn:outgoing>Flow_pay_reminder</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_pay_reminder">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/P1D</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <!-- Boundary: дедлайн (interrupting, 3 дні) -->
+    <bpmn:boundaryEvent id="Timer_pay_deadline" name="Дедлайн (3 дні)" attachedToRef="Task_pay">
+      <bpmn:outgoing>Flow_pay_deadline</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_pay_deadline">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <!-- ========================================================== -->
+    <!-- БЛОК 6: ТАЙМЕР — ОСТАННІЙ ДЕНЬ МІСЯЦЯ                       -->
+    <!-- ========================================================== -->
+
+    <bpmn:intermediateCatchEvent id="Timer_month_end" name="Останній день місяця">
+      <bpmn:incoming>Flow_pay_to_timer</bpmn:incoming>
+      <bpmn:outgoing>Flow_timer_to_accounting</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_month_end">
+        <bpmn:timeDate xsi:type="bpmn:tFormalExpression">= date and time(last day of month(today()), time("23:59:00+02:00"))</bpmn:timeDate>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- ========================================================== -->
+    <!-- БЛОК 7: БУХ РЕАЛІЗАЦІЯ (автоматично)                        -->
+    <!-- ========================================================== -->
+
+    <bpmn:serviceTask id="Task_accounting" name="Провести бух реалізацію&#10;(на основі рахунку)">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {action: &quot;create_service_receipt&quot;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_fop_name: fopData.x_studio_camunda_fop_name, x_studio_camunda_fop_id: fopData.x_studio_camunda_fop_id, x_studio_camunda_organization: x_studio_camunda_organization, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_timer_to_accounting</bpmn:incoming>
+      <bpmn:outgoing>Flow_accounting_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ========================================================== -->
+    <!-- END EVENT                                                    -->
+    <!-- ========================================================== -->
+
+    <bpmn:endEvent id="End_main" name="Рахунок оброблено">
+      <bpmn:incoming>Flow_accounting_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ========================================================== -->
+    <!-- SEQUENCE FLOWS                                              -->
+    <!-- ========================================================== -->
+
+    <!-- Блок 0: Старт + Odoo check -->
+    <bpmn:sequenceFlow id="Flow_start_to_gw"       sourceRef="StartEvent_1"      targetRef="GW_odoo_check" />
+    <bpmn:sequenceFlow id="Flow_odoo_no_task"      sourceRef="GW_odoo_check"     targetRef="Task_create_main" />
+    <bpmn:sequenceFlow id="Flow_odoo_has_task"     sourceRef="GW_odoo_check"     targetRef="GW_odoo_merge" name="Задача існує">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_create_main_done"  sourceRef="Task_create_main"  targetRef="GW_odoo_merge" />
+
+    <!-- Блок 1: БДУ -->
+    <bpmn:sequenceFlow id="Flow_merge_to_db"       sourceRef="GW_odoo_merge"     targetRef="Task_enter_db" />
+    <bpmn:sequenceFlow id="Flow_db_error"          sourceRef="BoundaryError_db"  targetRef="End_db_error" />
+
+    <!-- Блок 2: DMN -->
+    <bpmn:sequenceFlow id="Flow_db_to_dmn"         sourceRef="Task_enter_db"     targetRef="Task_dmn_fop" />
+
+    <!-- Блок 3: Перевиставлення -->
+    <bpmn:sequenceFlow id="Flow_dmn_to_reissue"    sourceRef="Task_dmn_fop"      targetRef="Task_reissue" />
+    <bpmn:sequenceFlow id="Flow_reissue_reminder"  sourceRef="Timer_reissue_reminder" targetRef="Task_reissue" />
+    <bpmn:sequenceFlow id="Flow_reissue_deadline"  sourceRef="Timer_reissue_deadline" targetRef="End_main" />
+
+    <!-- Блок 4: Нотифікація -->
+    <bpmn:sequenceFlow id="Flow_reissue_to_notify" sourceRef="Task_reissue"      targetRef="Task_notify_finance" />
+
+    <!-- Блок 5: Оплата -->
+    <bpmn:sequenceFlow id="Flow_notify_to_pay"     sourceRef="Task_notify_finance" targetRef="Task_pay" />
+    <bpmn:sequenceFlow id="Flow_pay_reminder"      sourceRef="Timer_pay_reminder" targetRef="Task_pay" />
+    <bpmn:sequenceFlow id="Flow_pay_deadline"      sourceRef="Timer_pay_deadline" targetRef="End_main" />
+
+    <!-- Блок 6-7: Таймер + Реалізація -->
+    <bpmn:sequenceFlow id="Flow_pay_to_timer"       sourceRef="Task_pay"          targetRef="Timer_month_end" />
+    <bpmn:sequenceFlow id="Flow_timer_to_accounting" sourceRef="Timer_month_end"  targetRef="Task_accounting" />
+    <bpmn:sequenceFlow id="Flow_accounting_to_end"  sourceRef="Task_accounting"   targetRef="End_main" />
+
+  </bpmn:process>
+
+  <!-- ============================================================ -->
+  <!-- BPMN DIAGRAM (visual layout)                                 -->
+  <!--                                                              -->
+  <!-- Pool: x=150, y=50, w=2000, h=520                            -->
+  <!-- Lanes (top → bottom):                                        -->
+  <!--   Система (авто):  y=50,  h=250  (center y=175)            -->
+  <!--   Бухгалтер:       y=300, h=270  (center y=435)            -->
+  <!-- ============================================================ -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_v3">
+    <bpmndi:BPMNPlane id="BPMNPlane_v3" bpmnElement="Collab_v3">
+
+      <!-- POOL -->
+      <bpmndi:BPMNShape id="Pool_v3_di" bpmnElement="Pool_v3" isHorizontal="true">
+        <dc:Bounds x="150" y="50" width="2000" height="520" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- LANE: Система (y=50, h=250) -->
+      <bpmndi:BPMNShape id="Lane_Systema_di" bpmnElement="Lane_Systema" isHorizontal="true">
+        <dc:Bounds x="180" y="50" width="1970" height="250" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- LANE: Бухгалтер (y=300, h=270) -->
+      <bpmndi:BPMNShape id="Lane_Buhgalter_di" bpmnElement="Lane_Buhgalter" isHorizontal="true">
+        <dc:Bounds x="180" y="300" width="1970" height="270" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- ================================================== -->
+      <!-- SHAPES: Система (center y ≈ 175)                    -->
+      <!-- ================================================== -->
+
+      <!-- Start Event -->
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="222" y="157" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="197" y="196" width="86" height="53" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- GW_odoo_check -->
+      <bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true">
+        <dc:Bounds x="300" y="150" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="280" y="120" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Task_create_main -->
+      <bpmndi:BPMNShape id="Task_create_main_di" bpmnElement="Task_create_main">
+        <dc:Bounds x="390" y="80" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- GW_odoo_merge -->
+      <bpmndi:BPMNShape id="GW_odoo_merge_di" bpmnElement="GW_odoo_merge">
+        <dc:Bounds x="530" y="150" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- Task_enter_db -->
+      <bpmndi:BPMNShape id="Task_enter_db_di" bpmnElement="Task_enter_db">
+        <dc:Bounds x="620" y="135" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- BoundaryError_db -->
+      <bpmndi:BPMNShape id="BoundaryError_db_di" bpmnElement="BoundaryError_db">
+        <dc:Bounds x="702" y="197" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="730" y="220" width="65" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- End_db_error -->
+      <bpmndi:BPMNShape id="End_db_error_di" bpmnElement="End_db_error">
+        <dc:Bounds x="702" y="257" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="678" y="296" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Task_dmn_fop -->
+      <bpmndi:BPMNShape id="Task_dmn_fop_di" bpmnElement="Task_dmn_fop">
+        <dc:Bounds x="770" y="135" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Task_notify_finance -->
+      <bpmndi:BPMNShape id="Task_notify_finance_di" bpmnElement="Task_notify_finance">
+        <dc:Bounds x="1170" y="135" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Timer_month_end -->
+      <bpmndi:BPMNShape id="Timer_month_end_di" bpmnElement="Timer_month_end">
+        <dc:Bounds x="1552" y="157" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1528" y="196" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Task_accounting -->
+      <bpmndi:BPMNShape id="Task_accounting_di" bpmnElement="Task_accounting">
+        <dc:Bounds x="1640" y="135" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- End_main -->
+      <bpmndi:BPMNShape id="End_main_di" bpmnElement="End_main">
+        <dc:Bounds x="1792" y="157" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1770" y="196" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ================================================== -->
+      <!-- SHAPES: Бухгалтер (center y ≈ 435)                  -->
+      <!-- ================================================== -->
+
+      <!-- Task_reissue -->
+      <bpmndi:BPMNShape id="Task_reissue_di" bpmnElement="Task_reissue">
+        <dc:Bounds x="920" y="395" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Timer_reissue_reminder (non-interrupting, bottom-left) -->
+      <bpmndi:BPMNShape id="Timer_reissue_reminder_di" bpmnElement="Timer_reissue_reminder">
+        <dc:Bounds x="922" y="457" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="895" y="496" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Timer_reissue_deadline (interrupting, bottom-right) -->
+      <bpmndi:BPMNShape id="Timer_reissue_deadline_di" bpmnElement="Timer_reissue_deadline">
+        <dc:Bounds x="1002" y="457" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="985" y="496" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Task_pay -->
+      <bpmndi:BPMNShape id="Task_pay_di" bpmnElement="Task_pay">
+        <dc:Bounds x="1320" y="395" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Timer_pay_reminder (non-interrupting, bottom-left) -->
+      <bpmndi:BPMNShape id="Timer_pay_reminder_di" bpmnElement="Timer_pay_reminder">
+        <dc:Bounds x="1322" y="457" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1295" y="496" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Timer_pay_deadline (interrupting, bottom-right) -->
+      <bpmndi:BPMNShape id="Timer_pay_deadline_di" bpmnElement="Timer_pay_deadline">
+        <dc:Bounds x="1402" y="457" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1385" y="496" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ================================================== -->
+      <!-- EDGES                                               -->
+      <!-- ================================================== -->
+
+      <!-- Start → GW_odoo_check -->
+      <bpmndi:BPMNEdge id="Flow_start_to_gw_di" bpmnElement="Flow_start_to_gw">
+        <di:waypoint x="258" y="175" />
+        <di:waypoint x="300" y="175" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_odoo_check → Task_create_main (default, вгору) -->
+      <bpmndi:BPMNEdge id="Flow_odoo_no_task_di" bpmnElement="Flow_odoo_no_task">
+        <di:waypoint x="325" y="150" />
+        <di:waypoint x="325" y="120" />
+        <di:waypoint x="390" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_odoo_check → GW_odoo_merge (задача існує, вправо) -->
+      <bpmndi:BPMNEdge id="Flow_odoo_has_task_di" bpmnElement="Flow_odoo_has_task">
+        <di:waypoint x="350" y="175" />
+        <di:waypoint x="530" y="175" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="400" y="157" width="62" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Task_create_main → GW_odoo_merge -->
+      <bpmndi:BPMNEdge id="Flow_create_main_done_di" bpmnElement="Flow_create_main_done">
+        <di:waypoint x="490" y="120" />
+        <di:waypoint x="555" y="120" />
+        <di:waypoint x="555" y="150" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_odoo_merge → Task_enter_db -->
+      <bpmndi:BPMNEdge id="Flow_merge_to_db_di" bpmnElement="Flow_merge_to_db">
+        <di:waypoint x="580" y="175" />
+        <di:waypoint x="620" y="175" />
+      </bpmndi:BPMNEdge>
+
+      <!-- BoundaryError_db → End_db_error -->
+      <bpmndi:BPMNEdge id="Flow_db_error_di" bpmnElement="Flow_db_error">
+        <di:waypoint x="720" y="233" />
+        <di:waypoint x="720" y="257" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Task_enter_db → Task_dmn_fop -->
+      <bpmndi:BPMNEdge id="Flow_db_to_dmn_di" bpmnElement="Flow_db_to_dmn">
+        <di:waypoint x="720" y="175" />
+        <di:waypoint x="770" y="175" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Task_dmn_fop → Task_reissue (Система → Бухгалтер) -->
+      <bpmndi:BPMNEdge id="Flow_dmn_to_reissue_di" bpmnElement="Flow_dmn_to_reissue">
+        <di:waypoint x="870" y="175" />
+        <di:waypoint x="895" y="175" />
+        <di:waypoint x="895" y="435" />
+        <di:waypoint x="920" y="435" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Timer_reissue_reminder → Task_reissue (loop back) -->
+      <bpmndi:BPMNEdge id="Flow_reissue_reminder_di" bpmnElement="Flow_reissue_reminder">
+        <di:waypoint x="940" y="493" />
+        <di:waypoint x="940" y="520" />
+        <di:waypoint x="900" y="520" />
+        <di:waypoint x="900" y="435" />
+        <di:waypoint x="920" y="435" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Timer_reissue_deadline → End_main (ескалація, вгору до кінця) -->
+      <bpmndi:BPMNEdge id="Flow_reissue_deadline_di" bpmnElement="Flow_reissue_deadline">
+        <di:waypoint x="1020" y="493" />
+        <di:waypoint x="1020" y="540" />
+        <di:waypoint x="1810" y="540" />
+        <di:waypoint x="1810" y="193" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Task_reissue → Task_notify_finance (Бухгалтер → Система) -->
+      <bpmndi:BPMNEdge id="Flow_reissue_to_notify_di" bpmnElement="Flow_reissue_to_notify">
+        <di:waypoint x="1020" y="435" />
+        <di:waypoint x="1095" y="435" />
+        <di:waypoint x="1095" y="175" />
+        <di:waypoint x="1170" y="175" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Task_notify_finance → Task_pay (Система → Бухгалтер) -->
+      <bpmndi:BPMNEdge id="Flow_notify_to_pay_di" bpmnElement="Flow_notify_to_pay">
+        <di:waypoint x="1270" y="175" />
+        <di:waypoint x="1295" y="175" />
+        <di:waypoint x="1295" y="435" />
+        <di:waypoint x="1320" y="435" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Timer_pay_reminder → Task_pay (loop back) -->
+      <bpmndi:BPMNEdge id="Flow_pay_reminder_di" bpmnElement="Flow_pay_reminder">
+        <di:waypoint x="1340" y="493" />
+        <di:waypoint x="1340" y="520" />
+        <di:waypoint x="1300" y="520" />
+        <di:waypoint x="1300" y="435" />
+        <di:waypoint x="1320" y="435" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Timer_pay_deadline → End_main -->
+      <bpmndi:BPMNEdge id="Flow_pay_deadline_di" bpmnElement="Flow_pay_deadline">
+        <di:waypoint x="1420" y="493" />
+        <di:waypoint x="1420" y="540" />
+        <di:waypoint x="1820" y="540" />
+        <di:waypoint x="1820" y="193" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Task_pay → Timer_month_end (Бухгалтер → Система) -->
+      <bpmndi:BPMNEdge id="Flow_pay_to_timer_di" bpmnElement="Flow_pay_to_timer">
+        <di:waypoint x="1420" y="435" />
+        <di:waypoint x="1486" y="435" />
+        <di:waypoint x="1486" y="175" />
+        <di:waypoint x="1552" y="175" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Timer_month_end → Task_accounting -->
+      <bpmndi:BPMNEdge id="Flow_timer_to_accounting_di" bpmnElement="Flow_timer_to_accounting">
+        <di:waypoint x="1588" y="175" />
+        <di:waypoint x="1640" y="175" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Task_accounting → End_main -->
+      <bpmndi:BPMNEdge id="Flow_accounting_to_end_di" bpmnElement="Flow_accounting_to_end">
+        <di:waypoint x="1740" y="175" />
+        <di:waypoint x="1792" y="175" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>
