@@ -583,14 +583,14 @@
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_employee_arrived = false</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_reject_to_end" sourceRef="Activity_recruit_reject" targetRef="Event_reject_end" />
-    <bpmn:userTask id="Activity_wait_5d" name="Очікуємо виходу працівника">
+    <bpmn:userTask id="Activity_wait_5d" name="Очікуємо рішення працівника">
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
           <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Очікуємо виходу працівника&#34;, description: &#34;Працівник має вийти на стажування. Натисніть Готово щоб пропустити очікування.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="={name: &#34;Очікуємо рішення працівника&#34;, description: &#34;Працівник приймає рішення. Натисніть Готово щоб пропустити очікування.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_gz_to_wait</bpmn:incoming>
