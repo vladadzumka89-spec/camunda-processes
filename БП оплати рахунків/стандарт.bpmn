@@ -16,6 +16,8 @@
         <bpmn:flowNodeRef>Merge_odoo</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>ST_auto_fill</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>XOR_recognized</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_notify_created</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_notify_unrecognized</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_responsible" name="Відповідальний за обробку рахунків">
         <bpmn:flowNodeRef>UT_verify</bpmn:flowNodeRef>
@@ -25,13 +27,11 @@
       </bpmn:lane>
     </bpmn:laneSet>
 
-    <!-- Start: file received via email -->
     <bpmn:startEvent id="StartEvent_1" name="Рахунок від постачальника&#10;отримано на пошту">
       <bpmn:outgoing>Flow_to_detect_format</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MED_start" messageRef="Message_invoice_received" />
     </bpmn:startEvent>
 
-    <!-- DMN: determine supplier rules (format, template, converter type) -->
     <bpmn:businessRuleTask id="ST_detect_format" name="Визначити правила постачальника&#10;[DMN: supplier-invoice-rules]">
       <bpmn:extensionElements>
         <zeebe:calledDecision decisionId="supplier-invoice-rules" resultVariable="supplierData" />
@@ -42,7 +42,6 @@
 
     <bpmn:sequenceFlow id="Flow_to_detect_format" sourceRef="StartEvent_1" targetRef="ST_detect_format" />
 
-    <!-- Standard Odoo task check (per CLAUDE.md) -->
     <bpmn:exclusiveGateway id="Gateway_odoo_xor" name="Задача вже є в Odoo?" default="Flow_odoo_default">
       <bpmn:incoming>Flow_to_odoo_xor</bpmn:incoming>
       <bpmn:outgoing>Flow_odoo_default</bpmn:outgoing>
@@ -78,7 +77,7 @@
       <bpmn:outgoing>Flow_to_auto_fill</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <!-- Auto-filler: processes file automatically, creates invoice in Odoo if recognized -->
+    <!-- Auto-filler: processes file and creates invoice in Odoo if recognized -->
     <bpmn:serviceTask id="ST_auto_fill" name="Автоматично обробити рахунок&#10;(автозаповнювач)">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="invoice-auto-filler" />
@@ -107,15 +106,43 @@
 
     <bpmn:sequenceFlow id="Flow_to_xor_recognized" sourceRef="ST_auto_fill" targetRef="XOR_recognized" />
 
-    <!-- YES: invoice created — one notification via Odoo task, user verifies -->
-    <bpmn:sequenceFlow id="Flow_recognized" name="Так, розпізнано" sourceRef="XOR_recognized" targetRef="UT_verify">
+    <bpmn:sequenceFlow id="Flow_recognized" name="Так, розпізнано" sourceRef="XOR_recognized" targetRef="ST_notify_created">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= invoice_recognized = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
-    <!-- NO: not recognized — one notification via Odoo task, user converts manually -->
-    <bpmn:sequenceFlow id="Flow_not_recognized" name="Не розпізнано" sourceRef="XOR_recognized" targetRef="UT_convert" />
+    <bpmn:sequenceFlow id="Flow_not_recognized" name="Не розпізнано" sourceRef="XOR_recognized" targetRef="ST_notify_unrecognized" />
 
-    <!-- User Task: verify the auto-created invoice (one notification on task creation) -->
+    <!-- Notification: invoice created in system — sent once -->
+    <bpmn:serviceTask id="ST_notify_created" name="Надіслати сповіщення:&#10;рахунок завантажено в програму">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Перевірити рахунок від &#34; + sender_name, description: &#34;Рахунок від постачальника &#34; + sender_name + &#34; автоматично завантажено в програму (Odoo ID: &#34; + string(odoo_invoice_id) + &#34;). Перевірте правильність заповнення.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_recognized</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_verify</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Notification: document not recognized — sent once -->
+    <bpmn:serviceTask id="ST_notify_unrecognized" name="Надіслати сповіщення:&#10;документ не розпізнано">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Обробити рахунок через конвертор: &#34; + file_name, description: &#34;Рахунок від &#34; + sender_name + &#34; (&#34; + supplierData.supplier_name + &#34;) не вдалось автоматично розпізнати. Формат файлу: &#34; + file_extension + &#34;. Обробіть файл через конвертор і внесіть дані вручну.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_not_recognized</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_convert</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- User Task: verify the invoice -->
     <bpmn:userTask id="UT_verify" name="Перевірити правильність&#10;рахунку в системі">
       <bpmn:extensionElements>
         <zeebe:userTask />
@@ -123,14 +150,14 @@
           <zeebe:input source="=&#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
           <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Перевірити рахунок: &#34; + sender_name, description: &#34;Рахунок від постачальника &#34; + sender_name + &#34; автоматично оброблено та створено в системі (Odoo ID: &#34; + string(odoo_invoice_id) + &#34;). Будь ласка, перевірте правильність усіх полів та підтвердіть.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="={name: &#34;Перевірити рахунок: &#34; + sender_name, description: &#34;Підтвердіть правильність рахунку від &#34; + sender_name + &#34; (Odoo ID: &#34; + string(odoo_invoice_id) + &#34;).&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_recognized</bpmn:incoming>
+      <bpmn:incoming>Flow_to_verify</bpmn:incoming>
       <bpmn:outgoing>Flow_verified</bpmn:outgoing>
     </bpmn:userTask>
 
-    <!-- User Task: process through converter (one notification on task creation) -->
+    <!-- User Task: process through converter -->
     <bpmn:userTask id="UT_convert" name="Обробити рахунок&#10;через конвертор">
       <bpmn:extensionElements>
         <zeebe:userTask />
@@ -138,10 +165,10 @@
           <zeebe:input source="=&#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
           <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Обробити через конвертор: &#34; + file_name, description: &#34;Рахунок від &#34; + sender_name + &#34; (&#34; + supplierData.supplier_name + &#34;) не вдалось автоматично розпізнати. Формат файлу: &#34; + file_extension + &#34;. Обробіть файл через конвертор і внесіть дані вручну.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="={name: &#34;Конвертувати рахунок: &#34; + file_name, description: &#34;Обробіть файл через конвертор і внесіть дані вручну. Постачальник: &#34; + sender_name + &#34;. Формат: &#34; + file_extension, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_not_recognized</bpmn:incoming>
+      <bpmn:incoming>Flow_to_convert</bpmn:incoming>
       <bpmn:outgoing>Flow_convert_done</bpmn:outgoing>
     </bpmn:userTask>
 
@@ -153,6 +180,8 @@
       <bpmn:incoming>Flow_convert_done</bpmn:incoming>
     </bpmn:endEvent>
 
+    <bpmn:sequenceFlow id="Flow_to_verify" sourceRef="ST_notify_created" targetRef="UT_verify" />
+    <bpmn:sequenceFlow id="Flow_to_convert" sourceRef="ST_notify_unrecognized" targetRef="UT_convert" />
     <bpmn:sequenceFlow id="Flow_verified" sourceRef="UT_verify" targetRef="End_final" />
     <bpmn:sequenceFlow id="Flow_convert_done" sourceRef="UT_convert" targetRef="End_converted" />
 
@@ -161,15 +190,16 @@
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_1">
       <bpmndi:BPMNShape id="Participant_1_di" bpmnElement="Participant_1" isHorizontal="true">
-        <dc:Bounds x="0" y="0" width="1350" height="460" />
+        <dc:Bounds x="0" y="0" width="1500" height="460" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_system_di" bpmnElement="Lane_system" isHorizontal="true">
-        <dc:Bounds x="30" y="0" width="1320" height="240" />
+        <dc:Bounds x="30" y="0" width="1470" height="240" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_responsible_di" bpmnElement="Lane_responsible" isHorizontal="true">
-        <dc:Bounds x="30" y="240" width="1320" height="220" />
+        <dc:Bounds x="30" y="240" width="1470" height="220" />
       </bpmndi:BPMNShape>
 
+      <!-- System lane -->
       <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
         <dc:Bounds x="80" y="102" width="36" height="36" />
         <bpmndi:BPMNLabel>
@@ -203,28 +233,39 @@
           <dc:Bounds x="812" y="58" width="86" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <!-- Notification tasks in system lane -->
+      <bpmndi:BPMNShape id="ST_notify_created_di" bpmnElement="ST_notify_created">
+        <dc:Bounds x="950" y="80" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_notify_unrecognized_di" bpmnElement="ST_notify_unrecognized">
+        <dc:Bounds x="950" y="155" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
 
+      <!-- Responsible lane -->
       <bpmndi:BPMNShape id="UT_verify_di" bpmnElement="UT_verify">
-        <dc:Bounds x="1000" y="275" width="100" height="80" />
+        <dc:Bounds x="1130" y="270" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_final_di" bpmnElement="End_final">
-        <dc:Bounds x="1182" y="297" width="36" height="36" />
+        <dc:Bounds x="1312" y="292" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1158" y="340" width="84" height="40" />
+          <dc:Bounds x="1288" y="335" width="84" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="UT_convert_di" bpmnElement="UT_convert">
-        <dc:Bounds x="1000" y="370" width="100" height="80" />
+        <dc:Bounds x="1130" y="365" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_converted_di" bpmnElement="End_converted">
-        <dc:Bounds x="1182" y="392" width="36" height="36" />
+        <dc:Bounds x="1312" y="387" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1158" y="435" width="84" height="40" />
+          <dc:Bounds x="1288" y="430" width="84" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
+      <!-- Edges -->
       <bpmndi:BPMNEdge id="Flow_to_detect_format_di" bpmnElement="Flow_to_detect_format">
         <di:waypoint x="116" y="120" />
         <di:waypoint x="178" y="120" />
@@ -258,29 +299,42 @@
         <di:waypoint x="760" y="120" />
         <di:waypoint x="830" y="120" />
       </bpmndi:BPMNEdge>
+      <!-- XOR → ST_notify_created (yes, top path) -->
       <bpmndi:BPMNEdge id="Flow_recognized_di" bpmnElement="Flow_recognized">
         <di:waypoint x="880" y="120" />
-        <di:waypoint x="1050" y="120" />
-        <di:waypoint x="1050" y="275" />
+        <di:waypoint x="950" y="120" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="906" y="100" width="74" height="14" />
+          <dc:Bounds x="886" y="100" width="58" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
+      <!-- XOR → ST_notify_unrecognized (no, bottom path) -->
       <bpmndi:BPMNEdge id="Flow_not_recognized_di" bpmnElement="Flow_not_recognized">
         <di:waypoint x="855" y="145" />
-        <di:waypoint x="855" y="410" />
-        <di:waypoint x="1000" y="410" />
+        <di:waypoint x="855" y="195" />
+        <di:waypoint x="950" y="195" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="858" y="270" width="63" height="27" />
+          <dc:Bounds x="858" y="163" width="63" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
+      <!-- ST_notify_created → UT_verify (crosses into responsible lane) -->
+      <bpmndi:BPMNEdge id="Flow_to_verify_di" bpmnElement="Flow_to_verify">
+        <di:waypoint x="1050" y="120" />
+        <di:waypoint x="1180" y="120" />
+        <di:waypoint x="1180" y="270" />
+      </bpmndi:BPMNEdge>
+      <!-- ST_notify_unrecognized → UT_convert (crosses into responsible lane) -->
+      <bpmndi:BPMNEdge id="Flow_to_convert_di" bpmnElement="Flow_to_convert">
+        <di:waypoint x="1000" y="235" />
+        <di:waypoint x="1000" y="405" />
+        <di:waypoint x="1130" y="405" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_verified_di" bpmnElement="Flow_verified">
-        <di:waypoint x="1100" y="315" />
-        <di:waypoint x="1182" y="315" />
+        <di:waypoint x="1230" y="310" />
+        <di:waypoint x="1312" y="310" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_convert_done_di" bpmnElement="Flow_convert_done">
-        <di:waypoint x="1100" y="410" />
-        <di:waypoint x="1182" y="410" />
+        <di:waypoint x="1230" y="405" />
+        <di:waypoint x="1312" y="405" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
