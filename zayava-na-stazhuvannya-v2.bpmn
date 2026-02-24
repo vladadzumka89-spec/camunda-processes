@@ -1,0 +1,480 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Заява на стажування" processRef="Process_13xdec3" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_13xdec3" name="Заява на стажування" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="2.0" />
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Kerivnyk" name="Керівник">
+        <bpmn:flowNodeRef>Activity_1jq8k7f</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_1lixlva</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_07v5jzf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1mi4136</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_104j3nf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1prbsyy</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1cw099t</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_1c7mhfn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_0y2gh8n</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0pyk5en</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1hed96f</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_0csfm75</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_14r0q30</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1vhn1tf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_18szs5a</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1n5mfgv</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0g0xrqb</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Revizor" name="Ревізор комерційний">
+        <bpmn:flowNodeRef>Activity_1c0jbtk</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Pracivnyk" name="Працівник">
+        <bpmn:flowNodeRef>Activity_1knnpn9</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1mzw4u8</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Finansyst" name="Фінансист">
+        <bpmn:flowNodeRef>Activity_1f7owv2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0ckpmu1</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_KerLogistyky" name="Керівник логістики">
+        <bpmn:flowNodeRef>Activity_1bccr05</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1micvnz</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Administrator" name="Адміністратор">
+        <bpmn:flowNodeRef>Activity_1i8rce0</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1aumnaz</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Avtomatyzator" name="Автоматизатор">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_odoo_xor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_create_main_task</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_odoo_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_184vrms</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_038uzqs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0tjvt5f</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0l8cvrf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0grozq4</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_05n60dl</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0w3oehe</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1r42sgq</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_0u8v35g</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0odd8s6</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_1yjk0cn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_1crfnda</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_0n60dug</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_1hab3fr</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_01x7n86</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_12gvzyo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_16wrue9</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_0kwn5gi</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_142lamg</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_to_odoo_xor</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Gateway_odoo_xor" default="Flow_odoo_default">
+      <bpmn:incoming>Flow_to_odoo_xor</bpmn:incoming>
+      <bpmn:outgoing>Flow_odoo_default</bpmn:outgoing>
+      <bpmn:outgoing>Flow_odoo_skip</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Activity_create_main_task" name="Створити головне завдання">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Заява на стажування&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_odoo_default</bpmn:incoming>
+      <bpmn:outgoing>Flow_create_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_odoo_merge">
+      <bpmn:incoming>Flow_odoo_skip</bpmn:incoming>
+      <bpmn:incoming>Flow_create_to_merge</bpmn:incoming>
+      <bpmn:outgoing>Flow_merge_to_process</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Activity_1jq8k7f" name="Чи потрібно працівнику ОЗ?">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_merge_to_process</bpmn:incoming>
+      <bpmn:outgoing>Flow_1l7bk1z</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_1lixlva">
+      <bpmn:incoming>Flow_1l7bk1z</bpmn:incoming>
+      <bpmn:outgoing>Flow_1x0bpj9</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0tzmjjx</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:intermediateCatchEvent id="Event_07v5jzf" name="Чекаємо виходу на стажування">
+      <bpmn:incoming>Flow_0tzmjjx</bpmn:incoming>
+      <bpmn:outgoing>Flow_0gpf9q8</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_0agfppa" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="Activity_1mi4136" name="Чи прийшов працівник на стажування">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0gpf9q8</bpmn:incoming>
+      <bpmn:outgoing>Flow_083d9jf</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_104j3nf">
+      <bpmn:incoming>Flow_083d9jf</bpmn:incoming>
+      <bpmn:outgoing>Flow_1afcpsv</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Activity_184vrms" name="Чи є всі дані по працівнику">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/api/server-action&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;, &#34;X-API-Key&#34;:&#34;632b5ed6-091f-48db-bd01-1e60aeb10bfc&#34;}" target="headers" />
+          <zeebe:input source="={&#34;action_identifier&#34;: &#34;check_employee_data_completeness&#34;, &#34;context&#34;: {}, &#34;payload&#34;: {}}" target="body" />
+          <zeebe:output source="= result.data.all_fields_complete" target="all_data_present" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1afcpsv</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ytysgz</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_038uzqs" default="Flow_173vlty">
+      <bpmn:incoming>Flow_1ytysgz</bpmn:incoming>
+      <bpmn:outgoing>Flow_14fmvml</bpmn:outgoing>
+      <bpmn:outgoing>Flow_173vlty</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Activity_1prbsyy" name="Внести решту даних по працівнику">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_173vlty</bpmn:incoming>
+      <bpmn:outgoing>Flow_170st20</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Activity_0tjvt5f" name="Створити фіз особу в ДО3">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="do3-feature" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;СтворитиФізОсобу&#34;" target="featureCode" />
+          <zeebe:input source="=&#34;DO3&#34;" target="database" />
+          <zeebe:input source="=x_studio_camunda_surname" target="прізвище" />
+          <zeebe:input source="=x_studio_camunda_first_name" target="імя" />
+          <zeebe:input source="=x_studio_camunda_patronymic" target="поБатькові" />
+          <zeebe:input source="={&#10;  featureCode: &#34;СтворитиФізОсобу&#34;,&#10;  database: &#34;DO3&#34;,&#10;  прізвище: x_studio_camunda_surname,&#10;  імя: x_studio_camunda_first_name,&#10;  поБатькові: x_studio_camunda_patronymic&#10;}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_14g6loc</bpmn:incoming>
+      <bpmn:incoming>Flow_14fmvml</bpmn:incoming>
+      <bpmn:incoming>Flow_170st20</bpmn:incoming>
+      <bpmn:outgoing>Flow_163pitc</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_0l8cvrf" name="Створити упр прийом в ЄРП">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="do3-feature" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;Прийом&#34;" target="featureCode" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_163pitc</bpmn:incoming>
+      <bpmn:outgoing>Flow_0chha98</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_0grozq4" name="Створити користувача в ЄРП">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="do3-feature" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;СтворитиКористувача&#34;" target="featureCode" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0chha98</bpmn:incoming>
+      <bpmn:outgoing>Flow_1t8secs</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:callActivity id="Activity_05n60dl" name="Створити доступи та видати ОЗ працівнику">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_0h8z3ny" propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1t8secs</bpmn:incoming>
+      <bpmn:outgoing>Flow_0309jcu</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:userTask id="Activity_1cw099t" name="Приймаємо працівника в внутрішньому обліку?">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0309jcu</bpmn:incoming>
+      <bpmn:outgoing>Flow_1fkeeot</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_1c7mhfn">
+      <bpmn:incoming>Flow_1fkeeot</bpmn:incoming>
+      <bpmn:outgoing>Flow_15wcl91</bpmn:outgoing>
+      <bpmn:outgoing>Flow_14f1v31</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Activity_0w3oehe" name="Звільнити в ЄРП">
+      <bpmn:incoming>Flow_14f1v31</bpmn:incoming>
+      <bpmn:outgoing>Flow_16jzau7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_1r42sgq" name="Закрити доступи">
+      <bpmn:incoming>Flow_16jzau7</bpmn:incoming>
+      <bpmn:outgoing>Flow_1bhvuz2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="Event_0u8v35g">
+      <bpmn:incoming>Flow_1bhvuz2</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateCatchEvent id="Event_0y2gh8n" name="5 днів">
+      <bpmn:incoming>Flow_15wcl91</bpmn:incoming>
+      <bpmn:outgoing>Flow_0xtum02</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_1aouz7q" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="Activity_0pyk5en" name="Проінформувати людину про офіційний прийом">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0xtum02</bpmn:incoming>
+      <bpmn:outgoing>Flow_1rjj7z3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1hed96f" name="Працевлаштовуємо працівника офіційно?">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1rjj7z3</bpmn:incoming>
+      <bpmn:outgoing>Flow_0zlbhqk</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_0csfm75">
+      <bpmn:incoming>Flow_0zlbhqk</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ontv7k</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1fzgkwk</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Activity_1c0jbtk" name="Видати ОЗ для працівника">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1x0bpj9</bpmn:incoming>
+      <bpmn:outgoing>Flow_14g6loc</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1knnpn9" name="Пропиши родинний стан">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1fzgkwk</bpmn:incoming>
+      <bpmn:outgoing>Flow_18v3c2x</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1mzw4u8" name="Обрати свій розмір світшоту для корпоративного подарунка">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_12rxbjg</bpmn:incoming>
+      <bpmn:outgoing>Flow_1e393q0</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1i8rce0" name="Налаштувати вхід в Dubidoc за допомогою робочої пошти">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1ontv7k</bpmn:incoming>
+      <bpmn:outgoing>Flow_0wk6v4r</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1aumnaz" name="Надати доступи до видачі кредитів">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0myrrlf</bpmn:incoming>
+      <bpmn:outgoing>Flow_05n0f87</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1f7owv2" name="Створити касу для водія">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0bo7lyu</bpmn:incoming>
+      <bpmn:outgoing>Flow_05pr7ce</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_0ckpmu1" name="Створити шаблон розписки по працівнику">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_07q99ju</bpmn:incoming>
+      <bpmn:outgoing>Flow_0tds9k4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1bccr05" name="Створити доступ до навігатора">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_15gvqur</bpmn:incoming>
+      <bpmn:outgoing>Flow_13dg9h9</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1micvnz" name="Створити електронний підпис водія у кабінеті Приват банку">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_03azr5b</bpmn:incoming>
+      <bpmn:outgoing>Flow_0phg73g</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:callActivity id="Activity_0odd8s6" name="Офіційний прийом">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_0fx4kkx" propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0wk6v4r</bpmn:incoming>
+      <bpmn:outgoing>Flow_168j4u3</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:exclusiveGateway id="Gateway_1yjk0cn" name="Посада водій?">
+      <bpmn:incoming>Flow_168j4u3</bpmn:incoming>
+      <bpmn:incoming>Flow_18v3c2x</bpmn:incoming>
+      <bpmn:outgoing>Flow_1y7avex</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1386qrl</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:parallelGateway id="Gateway_1crfnda">
+      <bpmn:incoming>Flow_1y7avex</bpmn:incoming>
+      <bpmn:outgoing>Flow_0bo7lyu</bpmn:outgoing>
+      <bpmn:outgoing>Flow_07q99ju</bpmn:outgoing>
+      <bpmn:outgoing>Flow_15gvqur</bpmn:outgoing>
+      <bpmn:outgoing>Flow_03azr5b</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:inclusiveGateway id="Gateway_0n60dug">
+      <bpmn:incoming>Flow_05pr7ce</bpmn:incoming>
+      <bpmn:incoming>Flow_0tds9k4</bpmn:incoming>
+      <bpmn:incoming>Flow_13dg9h9</bpmn:incoming>
+      <bpmn:incoming>Flow_0phg73g</bpmn:incoming>
+      <bpmn:outgoing>Flow_driver_to_final</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_1hab3fr" name="Посада адмін?">
+      <bpmn:incoming>Flow_1386qrl</bpmn:incoming>
+      <bpmn:outgoing>Flow_0o57w8e</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1leomv0</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:callActivity id="Activity_01x7n86" name="Надання доступів для адміністратора">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_0et2gc9" propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0o57w8e</bpmn:incoming>
+      <bpmn:outgoing>Flow_1los5zm</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:exclusiveGateway id="Gateway_12gvzyo" name="500?">
+      <bpmn:incoming>Flow_1los5zm</bpmn:incoming>
+      <bpmn:incoming>Flow_1leomv0</bpmn:incoming>
+      <bpmn:outgoing>Flow_0myrrlf</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0v8zv1w</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:parallelGateway id="Gateway_16wrue9">
+      <bpmn:incoming>Flow_0v8zv1w</bpmn:incoming>
+      <bpmn:incoming>Flow_05n0f87</bpmn:incoming>
+      <bpmn:incoming>Flow_driver_to_final</bpmn:incoming>
+      <bpmn:outgoing>Flow_143izeq</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0zdw56l</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0nepyuk</bpmn:outgoing>
+      <bpmn:outgoing>Flow_003wz6g</bpmn:outgoing>
+      <bpmn:outgoing>Flow_12rxbjg</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Activity_14r0q30" name="Провести іспит-знайомство з стажером">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_143izeq</bpmn:incoming>
+      <bpmn:outgoing>Flow_142fxqm</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1vhn1tf" name="Ознайомитися з коментарем">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_142fxqm</bpmn:incoming>
+      <bpmn:outgoing>Flow_11qhlge</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_18szs5a" name="Проставити ставку для працівника">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0zdw56l</bpmn:incoming>
+      <bpmn:outgoing>Flow_0s1fyfr</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1n5mfgv" name="Додати працівника в чати">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0nepyuk</bpmn:incoming>
+      <bpmn:outgoing>Flow_0bsyrbd</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_0g0xrqb" name="Перевірити вірність оформлення телеграм">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_003wz6g</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ts18c3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:inclusiveGateway id="Gateway_0kwn5gi">
+      <bpmn:incoming>Flow_1ts18c3</bpmn:incoming>
+      <bpmn:incoming>Flow_11qhlge</bpmn:incoming>
+      <bpmn:incoming>Flow_0s1fyfr</bpmn:incoming>
+      <bpmn:incoming>Flow_0bsyrbd</bpmn:incoming>
+      <bpmn:incoming>Flow_1e393q0</bpmn:incoming>
+      <bpmn:outgoing>Flow_02lhlqa</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:endEvent id="Event_142lamg">
+      <bpmn:incoming>Flow_02lhlqa</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_to_odoo_xor" sourceRef="StartEvent_1" targetRef="Gateway_odoo_xor" />
+    <bpmn:sequenceFlow id="Flow_odoo_default" sourceRef="Gateway_odoo_xor" targetRef="Activity_create_main_task" />
+    <bpmn:sequenceFlow id="Flow_odoo_skip" sourceRef="Gateway_odoo_xor" targetRef="Gateway_odoo_merge">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_create_to_merge" sourceRef="Activity_create_main_task" targetRef="Gateway_odoo_merge" />
+    <bpmn:sequenceFlow id="Flow_merge_to_process" sourceRef="Gateway_odoo_merge" targetRef="Activity_1jq8k7f" />
+    <bpmn:sequenceFlow id="Flow_1l7bk1z" sourceRef="Activity_1jq8k7f" targetRef="Gateway_1lixlva" />
+    <bpmn:sequenceFlow id="Flow_1x0bpj9" name="Так" sourceRef="Gateway_1lixlva" targetRef="Activity_1c0jbtk" />
+    <bpmn:sequenceFlow id="Flow_0tzmjjx" sourceRef="Gateway_1lixlva" targetRef="Event_07v5jzf" />
+    <bpmn:sequenceFlow id="Flow_14g6loc" sourceRef="Activity_1c0jbtk" targetRef="Activity_0tjvt5f" />
+    <bpmn:sequenceFlow id="Flow_0gpf9q8" sourceRef="Event_07v5jzf" targetRef="Activity_1mi4136" />
+    <bpmn:sequenceFlow id="Flow_083d9jf" sourceRef="Activity_1mi4136" targetRef="Gateway_104j3nf" />
+    <bpmn:sequenceFlow id="Flow_1afcpsv" sourceRef="Gateway_104j3nf" targetRef="Activity_184vrms" />
+    <bpmn:sequenceFlow id="Flow_1ytysgz" sourceRef="Activity_184vrms" targetRef="Gateway_038uzqs" />
+    <bpmn:sequenceFlow id="Flow_14fmvml" name="так" sourceRef="Gateway_038uzqs" targetRef="Activity_0tjvt5f">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= all_data_present = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_173vlty" name="ні" sourceRef="Gateway_038uzqs" targetRef="Activity_1prbsyy" />
+    <bpmn:sequenceFlow id="Flow_170st20" sourceRef="Activity_1prbsyy" targetRef="Activity_0tjvt5f" />
+    <bpmn:sequenceFlow id="Flow_163pitc" sourceRef="Activity_0tjvt5f" targetRef="Activity_0l8cvrf" />
+    <bpmn:sequenceFlow id="Flow_0chha98" sourceRef="Activity_0l8cvrf" targetRef="Activity_0grozq4" />
+    <bpmn:sequenceFlow id="Flow_1t8secs" sourceRef="Activity_0grozq4" targetRef="Activity_05n60dl" />
+    <bpmn:sequenceFlow id="Flow_0309jcu" sourceRef="Activity_05n60dl" targetRef="Activity_1cw099t" />
+    <bpmn:sequenceFlow id="Flow_1fkeeot" sourceRef="Activity_1cw099t" targetRef="Gateway_1c7mhfn" />
+    <bpmn:sequenceFlow id="Flow_15wcl91" name="так" sourceRef="Gateway_1c7mhfn" targetRef="Event_0y2gh8n" />
+    <bpmn:sequenceFlow id="Flow_14f1v31" name="ні" sourceRef="Gateway_1c7mhfn" targetRef="Activity_0w3oehe" />
+    <bpmn:sequenceFlow id="Flow_16jzau7" sourceRef="Activity_0w3oehe" targetRef="Activity_1r42sgq" />
+    <bpmn:sequenceFlow id="Flow_1bhvuz2" sourceRef="Activity_1r42sgq" targetRef="Event_0u8v35g" />
+    <bpmn:sequenceFlow id="Flow_0xtum02" sourceRef="Event_0y2gh8n" targetRef="Activity_0pyk5en" />
+    <bpmn:sequenceFlow id="Flow_1rjj7z3" sourceRef="Activity_0pyk5en" targetRef="Activity_1hed96f" />
+    <bpmn:sequenceFlow id="Flow_0zlbhqk" sourceRef="Activity_1hed96f" targetRef="Gateway_0csfm75" />
+    <bpmn:sequenceFlow id="Flow_1ontv7k" name="так" sourceRef="Gateway_0csfm75" targetRef="Activity_1i8rce0" />
+    <bpmn:sequenceFlow id="Flow_1fzgkwk" name="ні" sourceRef="Gateway_0csfm75" targetRef="Activity_1knnpn9" />
+    <bpmn:sequenceFlow id="Flow_0wk6v4r" sourceRef="Activity_1i8rce0" targetRef="Activity_0odd8s6" />
+    <bpmn:sequenceFlow id="Flow_168j4u3" sourceRef="Activity_0odd8s6" targetRef="Gateway_1yjk0cn" />
+    <bpmn:sequenceFlow id="Flow_18v3c2x" sourceRef="Activity_1knnpn9" targetRef="Gateway_1yjk0cn" />
+    <bpmn:sequenceFlow id="Flow_1y7avex" name="так" sourceRef="Gateway_1yjk0cn" targetRef="Gateway_1crfnda" />
+    <bpmn:sequenceFlow id="Flow_1386qrl" name="ні" sourceRef="Gateway_1yjk0cn" targetRef="Gateway_1hab3fr" />
+    <bpmn:sequenceFlow id="Flow_0bo7lyu" sourceRef="Gateway_1crfnda" targetRef="Activity_1f7owv2" />
+    <bpmn:sequenceFlow id="Flow_07q99ju" sourceRef="Gateway_1crfnda" targetRef="Activity_0ckpmu1" />
+    <bpmn:sequenceFlow id="Flow_15gvqur" sourceRef="Gateway_1crfnda" targetRef="Activity_1bccr05" />
+    <bpmn:sequenceFlow id="Flow_03azr5b" sourceRef="Gateway_1crfnda" targetRef="Activity_1micvnz" />
+    <bpmn:sequenceFlow id="Flow_05pr7ce" sourceRef="Activity_1f7owv2" targetRef="Gateway_0n60dug" />
+    <bpmn:sequenceFlow id="Flow_0tds9k4" sourceRef="Activity_0ckpmu1" targetRef="Gateway_0n60dug" />
+    <bpmn:sequenceFlow id="Flow_13dg9h9" sourceRef="Activity_1bccr05" targetRef="Gateway_0n60dug" />
+    <bpmn:sequenceFlow id="Flow_0phg73g" sourceRef="Activity_1micvnz" targetRef="Gateway_0n60dug" />
+    <bpmn:sequenceFlow id="Flow_driver_to_final" sourceRef="Gateway_0n60dug" targetRef="Gateway_16wrue9" />
+    <bpmn:sequenceFlow id="Flow_0o57w8e" name="так" sourceRef="Gateway_1hab3fr" targetRef="Activity_01x7n86" />
+    <bpmn:sequenceFlow id="Flow_1leomv0" name="ні" sourceRef="Gateway_1hab3fr" targetRef="Gateway_12gvzyo" />
+    <bpmn:sequenceFlow id="Flow_1los5zm" sourceRef="Activity_01x7n86" targetRef="Gateway_12gvzyo" />
+    <bpmn:sequenceFlow id="Flow_0myrrlf" name="так" sourceRef="Gateway_12gvzyo" targetRef="Activity_1aumnaz" />
+    <bpmn:sequenceFlow id="Flow_0v8zv1w" name="ні" sourceRef="Gateway_12gvzyo" targetRef="Gateway_16wrue9" />
+    <bpmn:sequenceFlow id="Flow_05n0f87" sourceRef="Activity_1aumnaz" targetRef="Gateway_16wrue9" />
+    <bpmn:sequenceFlow id="Flow_143izeq" sourceRef="Gateway_16wrue9" targetRef="Activity_14r0q30" />
+    <bpmn:sequenceFlow id="Flow_0zdw56l" sourceRef="Gateway_16wrue9" targetRef="Activity_18szs5a" />
+    <bpmn:sequenceFlow id="Flow_0nepyuk" sourceRef="Gateway_16wrue9" targetRef="Activity_1n5mfgv" />
+    <bpmn:sequenceFlow id="Flow_003wz6g" sourceRef="Gateway_16wrue9" targetRef="Activity_0g0xrqb" />
+    <bpmn:sequenceFlow id="Flow_12rxbjg" sourceRef="Gateway_16wrue9" targetRef="Activity_1mzw4u8" />
+    <bpmn:sequenceFlow id="Flow_142fxqm" sourceRef="Activity_14r0q30" targetRef="Activity_1vhn1tf" />
+    <bpmn:sequenceFlow id="Flow_1ts18c3" sourceRef="Activity_0g0xrqb" targetRef="Gateway_0kwn5gi" />
+    <bpmn:sequenceFlow id="Flow_11qhlge" sourceRef="Activity_1vhn1tf" targetRef="Gateway_0kwn5gi" />
+    <bpmn:sequenceFlow id="Flow_0s1fyfr" sourceRef="Activity_18szs5a" targetRef="Gateway_0kwn5gi" />
+    <bpmn:sequenceFlow id="Flow_0bsyrbd" sourceRef="Activity_1n5mfgv" targetRef="Gateway_0kwn5gi" />
+    <bpmn:sequenceFlow id="Flow_1e393q0" sourceRef="Activity_1mzw4u8" targetRef="Gateway_0kwn5gi" />
+    <bpmn:sequenceFlow id="Flow_02lhlqa" sourceRef="Gateway_0kwn5gi" targetRef="Event_142lamg" />
+    <bpmn:textAnnotation id="TextAnnotation_0w95jua">
+      <bpmn:text>Роздріб, швачка,комірник потрібно пару днів</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_0s883vp" associationDirection="None" sourceRef="Activity_1cw099t" targetRef="TextAnnotation_0w95jua" />
+  </bpmn:process>
