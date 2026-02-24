@@ -20,9 +20,9 @@
 
     Значення processing_method:
       "auto_email"      — рахунок залітає автоматично з пошти (~20 сек)
-      "pdf_to_excel"    — PDF конвертую в Excel вручну (незручно, часом швидше вручну)
+      "pdf_to_excel"    — PDF→Excel конвертація (автоматична через конвертор)
       "gemini_ai"       — обробка через Gemini AI (код змішаний з іншим текстом у клітинці)
-      "manual"          — вводжу вручну (специфічна структура / особливості коду)
+      "ai_assistant"    — обробка з AI асистентом (коди потребують валідації / виправлення)
       "manual_no_codes" — вводжу вручну, постачальник не дає кодів
 
     Використання в BPMN:
@@ -44,7 +44,7 @@
               label="Метод обробки"
               typeRef="string">
         <outputValues id="ov_method">
-          <text>"auto_email","pdf_to_excel","gemini_ai","manual","manual_no_codes"</text>
+          <text>"auto_email","pdf_to_excel","gemini_ai","ai_assistant","manual_no_codes"</text>
         </outputValues>
       </output>
 
@@ -220,7 +220,7 @@
       <!-- К109-1 — рахунок на 2 сторінках, код текстовий -->
       <rule id="r_k1091" description="К109-1 — рахунок на 2 сторінках; код на 2-й сторінці, текстовий тип (провідні нулі)">
         <inputEntry id="ie_k1091"><text>"К109-1","к109-1"</text></inputEntry>
-        <outputEntry id="oe_k1091_m"><text>"manual"</text></outputEntry>
+        <outputEntry id="oe_k1091_m"><text>"pdf_to_excel"</text></outputEntry>
         <outputEntry id="oe_k1091_ct"><text>"text"</text></outputEntry>
         <outputEntry id="oe_k1091_p"><text>""</text></outputEntry>
         <outputEntry id="oe_k1091_hc"><text>true</text></outputEntry>
@@ -230,7 +230,7 @@
       <!-- К227 — АРЛАЙН СІСТЕМ, ТОВ — видалити BC_ перед кодом -->
       <rule id="r_k227" description="АРЛАЙН СІСТЕМ — потрібно видаляти BC_ перед кодом">
         <inputEntry id="ie_k227"><text>"К227","к227"</text></inputEntry>
-        <outputEntry id="oe_k227_m"><text>"manual"</text></outputEntry>
+        <outputEntry id="oe_k227_m"><text>"pdf_to_excel"</text></outputEntry>
         <outputEntry id="oe_k227_ct"><text>"number"</text></outputEntry>
         <outputEntry id="oe_k227_p"><text>"BC_"</text></outputEntry>
         <outputEntry id="oe_k227_hc"><text>true</text></outputEntry>
@@ -240,7 +240,7 @@
       <!-- К207 — АРТЛАЙН ІНТЕГРАЦІЯ, ТОВ — іноді УКДЗЕТ або код з пробілом -->
       <rule id="r_k207" description="АРТЛАЙН ІНТЕГРАЦІЯ — іноді УКДЗЕТ замість коду; код може бути з пробілом (2 слова)">
         <inputEntry id="ie_k207"><text>"К207","к207"</text></inputEntry>
-        <outputEntry id="oe_k207_m"><text>"manual"</text></outputEntry>
+        <outputEntry id="oe_k207_m"><text>"ai_assistant"</text></outputEntry>
         <outputEntry id="oe_k207_ct"><text>"mixed"</text></outputEntry>
         <outputEntry id="oe_k207_p"><text>""</text></outputEntry>
         <outputEntry id="oe_k207_hc"><text>true</text></outputEntry>
