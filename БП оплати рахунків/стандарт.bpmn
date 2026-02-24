@@ -17,10 +17,10 @@
   <bpmn:collaboration id="Collaboration_1">
     <bpmn:participant id="Participant_1"
       name="Стандартизація рахунків від постачальників"
-      processRef="Process_invoice_standardization" />
+      processRef="Process_invoice_std_v2" />
   </bpmn:collaboration>
 
-  <bpmn:process id="Process_invoice_standardization"
+  <bpmn:process id="Process_invoice_std_v2"
     name="Стандартизація рахунків від постачальників"
     isExecutable="true">
 
