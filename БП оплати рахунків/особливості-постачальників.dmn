@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+             id="supplier-processing-features-def"
+             name="Особливості обробки рахунків постачальників"
+             namespace="http://camunda.org/schema/1.0/dmn"
+             modeler:executionPlatform="Camunda Cloud"
+             modeler:executionPlatformVersion="8.8.0">
+
+  <!--
+    Вхід:  supplier_code — внутрішній код або назва постачальника (К124, К77, Камтекс, ...)
+    Вихід:
+      processing_method     — метод обробки рахунку
+      code_field_type       — тип поля коду товару ("number" | "text" | "mixed" | "none")
+      code_prefix_to_remove — префікс для видалення з коду (напр. "BC_"), або ""
+      has_codes             — чи надає постачальник коди товарів
+      special_notes         — опис особливостей для оператора
+
+    Значення processing_method:
+      "auto_email"      — рахунок залітає автоматично з пошти (~20 сек)
+      "pdf_to_excel"    — PDF конвертую в Excel вручну (незручно, часом швидше вручну)
+      "gemini_ai"       — обробка через Gemini AI (код змішаний з іншим текстом у клітинці)
+      "manual"          — вводжу вручну (специфічна структура / особливості коду)
+      "manual_no_codes" — вводжу вручну, постачальник не дає кодів
+
+    Використання в BPMN:
+      Business Rule Task → decisionId="supplier-processing-features"
+                         → resultVariable="processingFeatures"
+  -->
+
+  <decision id="supplier-processing-features" name="Особливості обробки постачальника">
+    <decisionTable id="dt_supplier_features" hitPolicy="FIRST">
+
+      <input id="in_supplier_code" label="Код / назва постачальника">
+        <inputExpression id="ie_supplier_code" typeRef="string">
+          <text>supplier_code</text>
+        </inputExpression>
+      </input>
+
+      <output id="out_method"
+              name="processing_method"
+              label="Метод обробки"
+              typeRef="string">
+        <outputValues id="ov_method">
+          <text>"auto_email","pdf_to_excel","gemini_ai","manual","manual_no_codes"</text>
+        </outputValues>
+      </output>
+
+      <output id="out_code_type"
+              name="code_field_type"
+              label="Тип поля коду"
+              typeRef="string">
+        <outputValues id="ov_code_type">
+          <text>"number","text","mixed","none"</text>
+        </outputValues>
+      </output>
+
+      <output id="out_prefix"
+              name="code_prefix_to_remove"
+              label="Префікс для видалення"
+              typeRef="string" />
+
+      <output id="out_has_codes"
+              name="has_codes"
+              label="Постачальник надає коди"
+              typeRef="boolean" />
+
+      <output id="out_notes"
+              name="special_notes"
+              label="Особливості обробки"
+              typeRef="string" />
+
+
+      <!-- ════════════════════════════════════════════════════════════════
+           PDF → Excel конвертація (незручно, часом вручну швидше)
+           ════════════════════════════════════════════════════════════════ -->
+
+      <!-- К124 — Комел -->
+      <rule id="r_k124" description="Комел — PDF конвертую в Excel, завантажую через термінал; вручну швидше">
+        <inputEntry id="ie_k124"><text>"К124","К124-к","к124","к124-к"</text></inputEntry>
+        <outputEntry id="oe_k124_m"><text>"pdf_to_excel"</text></outputEntry>
+        <outputEntry id="oe_k124_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_k124_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k124_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_k124_n"><text>"PDF конвертую в Excel, скачую, перекидаю на термінал, з термінала завантажую — незручно. Часом вручну швидше."</text></outputEntry>
+      </rule>
+
+      <!-- К191 — КМ ДІСТІ, ТОВ -->
+      <rule id="r_k191" description="КМ ДІСТІ — аналогічно К124; 5 позицій, вручну швидше">
+        <inputEntry id="ie_k191"><text>"К191","К191_грн","к191","к191_грн"</text></inputEntry>
+        <outputEntry id="oe_k191_m"><text>"pdf_to_excel"</text></outputEntry>
+        <outputEntry id="oe_k191_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_k191_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k191_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_k191_n"><text>"Аналогічно К124 (Комел). Рахунок на 5 позицій — вручну завести швидше ніж вся процедура конвертації."</text></outputEntry>
+      </rule>
+
+      <!-- К233 -->
+      <rule id="r_k233" description="К233 — конвертація PDF→Excel займає багато часу">
+        <inputEntry id="ie_k233"><text>"К233","к233"</text></inputEntry>
+        <outputEntry id="oe_k233_m"><text>"pdf_to_excel"</text></outputEntry>
+        <outputEntry id="oe_k233_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_k233_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k233_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_k233_n"><text>"Та сама незручність з конвертацією що й К124 — займає багато часу в ручному режимі."</text></outputEntry>
+      </rule>
+
+
+      <!-- ════════════════════════════════════════════════════════════════
+           Автоматично з пошти (~20 секунд)
+           ════════════════════════════════════════════════════════════════ -->
+
+      <!-- К77 — І-АР-СІ, ІП -->
+      <rule id="r_k77" description="І-АР-СІ ІП — автоматично з пошти, рахунок 20 секунд">
+        <inputEntry id="ie_k77"><text>"К77","К77грн","к77","к77грн"</text></inputEntry>
+        <outputEntry id="oe_k77_m"><text>"auto_email"</text></outputEntry>
+        <outputEntry id="oe_k77_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_k77_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k77_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_k77_n"><text>"Залітає автоматично з пошти. Рахунок — це 20 секунд."</text></outputEntry>
+      </rule>
+
+      <!-- К27-2 -->
+      <rule id="r_k272" description="К27-2 — автоматично з пошти (аналогічно К77)">
+        <inputEntry id="ie_k272"><text>"К27-2","к27-2"</text></inputEntry>
+        <outputEntry id="oe_k272_m"><text>"auto_email"</text></outputEntry>
+        <outputEntry id="oe_k272_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_k272_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k272_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_k272_n"><text>"Автоматично з пошти (аналогічно К77)."</text></outputEntry>
+      </rule>
+
+      <!-- Камтекс -->
+      <rule id="r_kamteks" description="Камтекс — автоматично з пошти (аналогічно К77)">
+        <inputEntry id="ie_kamteks"><text>contains(lower case(?), "камтекс")</text></inputEntry>
+        <outputEntry id="oe_kamteks_m"><text>"auto_email"</text></outputEntry>
+        <outputEntry id="oe_kamteks_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_kamteks_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_kamteks_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_kamteks_n"><text>"Автоматично з пошти (аналогічно К77)."</text></outputEntry>
+      </rule>
+
+      <!-- Велду -->
+      <rule id="r_veldu" description="Велду — автоматично з пошти (аналогічно К77)">
+        <inputEntry id="ie_veldu"><text>contains(lower case(?), "велду")</text></inputEntry>
+        <outputEntry id="oe_veldu_m"><text>"auto_email"</text></outputEntry>
+        <outputEntry id="oe_veldu_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_veldu_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_veldu_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_veldu_n"><text>"Автоматично з пошти (аналогічно К77)."</text></outputEntry>
+      </rule>
+
+      <!-- К88/1 -->
+      <rule id="r_k881" description="К88/1 — автоматично з пошти (аналогічно К77)">
+        <inputEntry id="ie_k881"><text>"К88/1","к88/1"</text></inputEntry>
+        <outputEntry id="oe_k881_m"><text>"auto_email"</text></outputEntry>
+        <outputEntry id="oe_k881_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_k881_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k881_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_k881_n"><text>"Автоматично з пошти (аналогічно К77)."</text></outputEntry>
+      </rule>
+
+      <!-- ЮК ДИСТРИБЬЮШН, ТОВ -->
+      <rule id="r_yukdist" description="ЮК ДИСТРИБЬЮШН ТОВ — автоматично з пошти (аналогічно К77)">
+        <inputEntry id="ie_yukdist"><text>contains(lower case(?), "юк дистриб")</text></inputEntry>
+        <outputEntry id="oe_yukdist_m"><text>"auto_email"</text></outputEntry>
+        <outputEntry id="oe_yukdist_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_yukdist_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_yukdist_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_yukdist_n"><text>"Автоматично з пошти (аналогічно К77)."</text></outputEntry>
+      </rule>
+
+      <!-- ЮгТорг_usd -->
+      <rule id="r_yugtorg" description="ЮгТорг — автоматично з пошти (аналогічно К77)">
+        <inputEntry id="ie_yugtorg"><text>contains(lower case(?), "югторг")</text></inputEntry>
+        <outputEntry id="oe_yugtorg_m"><text>"auto_email"</text></outputEntry>
+        <outputEntry id="oe_yugtorg_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_yugtorg_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_yugtorg_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_yugtorg_n"><text>"Автоматично з пошти (аналогічно К77)."</text></outputEntry>
+      </rule>
+
+      <!-- Техніка для бізнесу ТОВ -->
+      <rule id="r_tehnika" description="Техніка для бізнесу ТОВ — автоматично з пошти (аналогічно К77)">
+        <inputEntry id="ie_tehnika"><text>contains(lower case(?), "техніка для")</text></inputEntry>
+        <outputEntry id="oe_tehnika_m"><text>"auto_email"</text></outputEntry>
+        <outputEntry id="oe_tehnika_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_tehnika_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_tehnika_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_tehnika_n"><text>"Автоматично з пошти (аналогічно К77)."</text></outputEntry>
+      </rule>
+
+      <!-- К333 -->
+      <rule id="r_k333" description="К333 — автоматично з пошти (аналогічно К77)">
+        <inputEntry id="ie_k333"><text>"К333","к333"</text></inputEntry>
+        <outputEntry id="oe_k333_m"><text>"auto_email"</text></outputEntry>
+        <outputEntry id="oe_k333_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_k333_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k333_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_k333_n"><text>"Автоматично з пошти (аналогічно К77)."</text></outputEntry>
+      </rule>
+
+      <!-- К197 -->
+      <rule id="r_k197" description="К197 — автоматично з пошти (аналогічно К77)">
+        <inputEntry id="ie_k197"><text>"К197","к197"</text></inputEntry>
+        <outputEntry id="oe_k197_m"><text>"auto_email"</text></outputEntry>
+        <outputEntry id="oe_k197_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_k197_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k197_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_k197_n"><text>"Автоматично з пошти (аналогічно К77)."</text></outputEntry>
+      </rule>
+
+
+      <!-- ════════════════════════════════════════════════════════════════
+           Ручне введення — специфічні особливості
+           ════════════════════════════════════════════════════════════════ -->
+
+      <!-- К109-1 — рахунок на 2 сторінках, код текстовий -->
+      <rule id="r_k1091" description="К109-1 — рахунок на 2 сторінках; код на 2-й сторінці, текстовий тип (провідні нулі)">
+        <inputEntry id="ie_k1091"><text>"К109-1","к109-1"</text></inputEntry>
+        <outputEntry id="oe_k1091_m"><text>"manual"</text></outputEntry>
+        <outputEntry id="oe_k1091_ct"><text>"text"</text></outputEntry>
+        <outputEntry id="oe_k1091_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k1091_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_k1091_n"><text>"Рахунок розбитий на 2 сторінки: КОД — на 2-й сторінці (тип ТЕКСТОВИЙ, містить провідні нулі!); ціна і кількість — на 1-й сторінці."</text></outputEntry>
+      </rule>
+
+      <!-- К227 — АРЛАЙН СІСТЕМ, ТОВ — видалити BC_ перед кодом -->
+      <rule id="r_k227" description="АРЛАЙН СІСТЕМ — потрібно видаляти BC_ перед кодом">
+        <inputEntry id="ie_k227"><text>"К227","к227"</text></inputEntry>
+        <outputEntry id="oe_k227_m"><text>"manual"</text></outputEntry>
+        <outputEntry id="oe_k227_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_k227_p"><text>"BC_"</text></outputEntry>
+        <outputEntry id="oe_k227_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_k227_n"><text>"Перед кожним кодом товару потрібно видаляти префікс 'BC_'."</text></outputEntry>
+      </rule>
+
+      <!-- К207 — АРТЛАЙН ІНТЕГРАЦІЯ, ТОВ — іноді УКДЗЕТ або код з пробілом -->
+      <rule id="r_k207" description="АРТЛАЙН ІНТЕГРАЦІЯ — іноді УКДЗЕТ замість коду; код може бути з пробілом (2 слова)">
+        <inputEntry id="ie_k207"><text>"К207","к207"</text></inputEntry>
+        <outputEntry id="oe_k207_m"><text>"manual"</text></outputEntry>
+        <outputEntry id="oe_k207_ct"><text>"mixed"</text></outputEntry>
+        <outputEntry id="oe_k207_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k207_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_k207_n"><text>"Часто надсилають код УКДЗЕТ замість товарного коду. Іноді код складається з двох слів через пробіл — база не розпізнає як код. Потрібна ручна перевірка кожного рядка."</text></outputEntry>
+      </rule>
+
+
+      <!-- ════════════════════════════════════════════════════════════════
+           Ручне введення — постачальник не надає кодів
+           ════════════════════════════════════════════════════════════════ -->
+
+      <!-- К13 -->
+      <rule id="r_k13" description="К13 — не дають кодів, вводжу вручну">
+        <inputEntry id="ie_k13"><text>"К13","к13"</text></inputEntry>
+        <outputEntry id="oe_k13_m"><text>"manual_no_codes"</text></outputEntry>
+        <outputEntry id="oe_k13_ct"><text>"none"</text></outputEntry>
+        <outputEntry id="oe_k13_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k13_hc"><text>false</text></outputEntry>
+        <outputEntry id="oe_k13_n"><text>"Постачальник не надає кодів товарів — вводиться повністю вручну."</text></outputEntry>
+      </rule>
+
+      <!-- К137 -->
+      <rule id="r_k137" description="К137 — не дають кодів, вводжу вручну">
+        <inputEntry id="ie_k137"><text>"К137","к137"</text></inputEntry>
+        <outputEntry id="oe_k137_m"><text>"manual_no_codes"</text></outputEntry>
+        <outputEntry id="oe_k137_ct"><text>"none"</text></outputEntry>
+        <outputEntry id="oe_k137_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k137_hc"><text>false</text></outputEntry>
+        <outputEntry id="oe_k137_n"><text>"Постачальник не надає кодів товарів — вводиться повністю вручну."</text></outputEntry>
+      </rule>
+
+      <!-- К140 -->
+      <rule id="r_k140" description="К140 — не дають кодів, вводжу вручну">
+        <inputEntry id="ie_k140"><text>"К140","к140"</text></inputEntry>
+        <outputEntry id="oe_k140_m"><text>"manual_no_codes"</text></outputEntry>
+        <outputEntry id="oe_k140_ct"><text>"none"</text></outputEntry>
+        <outputEntry id="oe_k140_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k140_hc"><text>false</text></outputEntry>
+        <outputEntry id="oe_k140_n"><text>"Постачальник не надає кодів товарів — вводиться повністю вручну."</text></outputEntry>
+      </rule>
+
+      <!-- К121 -->
+      <rule id="r_k121" description="К121 — не дають кодів, вводжу вручну">
+        <inputEntry id="ie_k121"><text>"К121","к121"</text></inputEntry>
+        <outputEntry id="oe_k121_m"><text>"manual_no_codes"</text></outputEntry>
+        <outputEntry id="oe_k121_ct"><text>"none"</text></outputEntry>
+        <outputEntry id="oe_k121_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k121_hc"><text>false</text></outputEntry>
+        <outputEntry id="oe_k121_n"><text>"Постачальник не надає кодів товарів — вводиться повністю вручну."</text></outputEntry>
+      </rule>
+
+
+      <!-- ════════════════════════════════════════════════════════════════
+           Gemini AI — в клітинці коду міститься зайвий текст
+           ════════════════════════════════════════════════════════════════ -->
+
+      <!-- К25 -->
+      <rule id="r_k25" description="К25 — Gemini AI; в клітинці не тільки код">
+        <inputEntry id="ie_k25"><text>"К25","к25"</text></inputEntry>
+        <outputEntry id="oe_k25_m"><text>"gemini_ai"</text></outputEntry>
+        <outputEntry id="oe_k25_ct"><text>"mixed"</text></outputEntry>
+        <outputEntry id="oe_k25_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_k25_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_k25_n"><text>"В клітинці з кодом міститься не тільки код товару — потрібен Gemini AI для виділення коду з тексту."</text></outputEntry>
+      </rule>
+
+
+      <!-- ════════════════════════════════════════════════════════════════
+           Fallback: невідомий постачальник
+           ════════════════════════════════════════════════════════════════ -->
+
+      <rule id="r_fallback" description="Невідомий постачальник — ручна обробка за замовчуванням">
+        <inputEntry id="ie_fallback"><text></text></inputEntry>
+        <outputEntry id="oe_fb_m"><text>"manual"</text></outputEntry>
+        <outputEntry id="oe_fb_ct"><text>"number"</text></outputEntry>
+        <outputEntry id="oe_fb_p"><text>""</text></outputEntry>
+        <outputEntry id="oe_fb_hc"><text>true</text></outputEntry>
+        <outputEntry id="oe_fb_n"><text>"Невідомий постачальник — стандартна ручна обробка."</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_supplier_features">
+      <dmndi:DMNShape id="DMNShape_supplier_features" dmnElementRef="supplier-processing-features">
+        <dc:Bounds x="150" y="80" width="320" height="80" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+
+</definitions>
