@@ -23,23 +23,10 @@
     <!-- СТАРТ                                                       -->
     <!-- ========================================================== -->
     <bpmn:startEvent id="StartEvent_1" name="Старт">
-      <bpmn:outgoing>Flow_To_Form</bpmn:outgoing>
+      <bpmn:outgoing>Flow_To_ST1</bpmn:outgoing>
     </bpmn:startEvent>
 
-    <bpmn:sequenceFlow id="Flow_To_Form" sourceRef="StartEvent_1" targetRef="Activity_RegistrationForm" />
-
-    <!-- ========================================================== -->
-    <!-- КРОК 0: Форма вводу даних                                   -->
-    <!-- ========================================================== -->
-    <bpmn:userTask id="Activity_RegistrationForm" name="Ввод даних персони">
-      <bpmn:extensionElements>
-        <zeebe:formDefinition formId="person-data-form" />
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_To_Form</bpmn:incoming>
-      <bpmn:outgoing>Flow_To_ST1</bpmn:outgoing>
-    </bpmn:userTask>
-
-    <bpmn:sequenceFlow id="Flow_To_ST1" sourceRef="Activity_RegistrationForm" targetRef="ST1_CreateDoc" />
+    <bpmn:sequenceFlow id="Flow_To_ST1" sourceRef="StartEvent_1" targetRef="ST1_CreateDoc" />
 
     <!-- ========================================================== -->
     <!-- КРОК 1: Створити документ (REST)                            -->
@@ -57,7 +44,7 @@
           <zeebe:header key="authentication.password" value="{{secrets.DO3_Pass}}" />
         </zeebe:taskHeaders>
         <zeebe:ioMapping>
-          <zeebe:input source="={Name: Name, Surname: Surname, Patronicname: Patronicname, BDay: BDay, Sex: Sex}" target="body" />
+          <zeebe:input source="={&quot;featureCode&quot;: &quot;СтворитиФізОсобу&quot;, &quot;database&quot;: &quot;DO3&quot;, &quot;createDocument&quot;: true, &quot;scriptName&quot;: &quot;Створення фіз особи&quot;, &quot;documentType&quot;: &quot;Заява на стажування.&quot;, &quot;properties&quot;: {&quot;Подразделение&quot;: &quot;c2a0f93b-8fdb-11ec-9285-00115d51d905&quot;}, &quot;additional_details&quot;: {&quot;Прізвище&quot;: &quot;Тестовий&quot;, &quot;Імя&quot;: &quot;Тест&quot;, &quot;ПоБатькові&quot;: &quot;Тестович&quot;, &quot;ДатаЗ&quot;: &quot;20260216000000&quot;, &quot;ДатаПо&quot;: &quot;20260220000000&quot;}}" target="body" />
           <zeebe:output source="=if response.statusCode = 200 or response.statusCode = 201 then if response.body.status = &quot;OK&quot; then {documentID: response.body.documentID, isAbort: false} else {Step: 0, ErrorMessage: response.body.message, isAbort: true} else {Step: 0, ErrorMessage: &quot;REST Error: &quot; + string(response.statusCode), isAbort: true}" target="op1" />
           <zeebe:output source="=op1.documentID" target="documentID" />
           <zeebe:output source="=op1.ErrorMessage" target="ErrorMessage" />
@@ -129,13 +116,6 @@
     <!--   Отримуємо: {status:"OK", personID:"54545…"}               -->
     <!-- ========================================================== -->
     <bpmn:intermediateCatchEvent id="Msg1_PersonCreated" name="Очікування:&#10;ФО створено">
-      <bpmn:extensionElements>
-        <zeebe:ioMapping>
-          <zeebe:output source="=if status = &quot;OK&quot; then {personID: personID, isAbort: false} else {Step: 3, ErrorMessage: message, isAbort: true}" target="op3" />
-          <zeebe:output source="=op3.personID" target="personID" />
-          <zeebe:output source="=op3.ErrorMessage" target="ErrorMessage" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
       <bpmn:incoming>Flow_GW2_ok</bpmn:incoming>
       <bpmn:outgoing>Flow_Msg1_to_GW3</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_PersonCreated" messageRef="Msg_PersonCreated" />
@@ -151,10 +131,10 @@
     </bpmn:exclusiveGateway>
 
     <bpmn:sequenceFlow id="Flow_GW3_ok" name="OK" sourceRef="GW3" targetRef="ST3_TriggerEmployee">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=op3.isAbort = false</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=status = "OK"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_GW3_err" name="Помилка" sourceRef="GW3" targetRef="EndEvent_Abort">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=op3.isAbort = true</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=status != "OK"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
     <!-- ========================================================== -->
@@ -203,13 +183,6 @@
     <!--   Отримуємо: {status:"OK", employeeID:"…"}                  -->
     <!-- ========================================================== -->
     <bpmn:intermediateCatchEvent id="Msg2_EmployeeCreated" name="Очікування:&#10;Співробітника створено">
-      <bpmn:extensionElements>
-        <zeebe:ioMapping>
-          <zeebe:output source="=if status = &quot;OK&quot; then {employeeID: employeeID, isAbort: false} else {Step: 5, ErrorMessage: message, isAbort: true}" target="op5" />
-          <zeebe:output source="=op5.employeeID" target="employeeID" />
-          <zeebe:output source="=op5.ErrorMessage" target="ErrorMessage" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
       <bpmn:incoming>Flow_GW4_ok</bpmn:incoming>
       <bpmn:outgoing>Flow_Msg2_to_GW5</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_EmployeeCreated" messageRef="Msg_EmployeeCreated" />
@@ -225,10 +198,10 @@
     </bpmn:exclusiveGateway>
 
     <bpmn:sequenceFlow id="Flow_GW5_ok" name="Завершено" sourceRef="GW5" targetRef="EndEvent_Success">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=op5.isAbort = false</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=status = "OK"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_GW5_err" name="Помилка" sourceRef="GW5" targetRef="EndEvent_Abort">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=op5.isAbort = true</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=status != "OK"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
     <!-- ========================================================== -->
@@ -278,11 +251,6 @@
         <bpmndi:BPMNLabel>
           <dc:Bounds x="156" y="285" width="28" height="14" />
         </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-
-      <!-- User Task -->
-      <bpmndi:BPMNShape id="Activity_RegistrationForm_di" bpmnElement="Activity_RegistrationForm">
-        <dc:Bounds x="250" y="220" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- ST1: Створити документ -->
@@ -374,13 +342,8 @@
 
       <!-- ====== FLOWS ====== -->
 
-      <bpmndi:BPMNEdge id="Flow_To_Form_di" bpmnElement="Flow_To_Form">
-        <di:waypoint x="188" y="260" />
-        <di:waypoint x="250" y="260" />
-      </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Flow_To_ST1_di" bpmnElement="Flow_To_ST1">
-        <di:waypoint x="350" y="260" />
+        <di:waypoint x="188" y="260" />
         <di:waypoint x="410" y="260" />
       </bpmndi:BPMNEdge>
 
