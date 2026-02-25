@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="supplier-invoice-rules-def" name="Правила обробки файлів постачальників" namespace="http://camunda.org/schema/1.0/dmn" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <decision id="supplier-invoice-rules" name="Визначити правила постачальника">
+    <decisionTable id="decisionTable_1" hitPolicy="FIRST">
+      <input id="input_email" label="Email відправника">
+        <inputExpression id="inputExpr_email" typeRef="string">
+          <text>sender_email</text>
+        </inputExpression>
+      </input>
+      <input id="input_ext" label="Розширення файлу">
+        <inputExpression id="inputExpr_ext" typeRef="string">
+          <text>lower case(file_extension)</text>
+        </inputExpression>
+      </input>
+      <output id="output_name" label="Назва постачальника" name="supplier_name" typeRef="string" />
+      <output id="output_needs_conv" label="Потрібна конвертація" name="needs_conversion" typeRef="boolean" />
+      <output id="output_template" label="Шаблон автозаповнення" name="auto_fill_template" typeRef="string" />
+      <output id="output_converter" label="Тип конвертора" name="converter_type" typeRef="string" />
+      <output id="output_notes" label="Особливості обробки" name="special_notes" typeRef="string" />
+      <rule id="rule_s1_pdf">
+        <description>Постачальник 1 — стандартний PDF</description>
+        <inputEntry id="ie_s1_1">
+          <text>contains(lower case(?), "@supplier1.ua")</text>
+        </inputEntry>
+        <inputEntry id="ie_s1_2">
+          <text>"pdf"</text>
+        </inputEntry>
+        <outputEntry id="oe_s1_1">
+          <text>"Постачальник 1 (замініть назву)"</text>
+        </outputEntry>
+        <outputEntry id="oe_s1_2">
+          <text>false</text>
+        </outputEntry>
+        <outputEntry id="oe_s1_3">
+          <text>"supplier1-pdf"</text>
+        </outputEntry>
+        <outputEntry id="oe_s1_4">
+          <text>""</text>
+        </outputEntry>
+        <outputEntry id="oe_s1_5">
+          <text>"Стандартний PDF — специфічна структура постачальника 1"</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_s2_xlsx">
+        <description>Постачальник 2 — Excel</description>
+        <inputEntry id="ie_s2_1">
+          <text>contains(lower case(?), "@supplier2.com")</text>
+        </inputEntry>
+        <inputEntry id="ie_s2_2">
+          <text>"xlsx","xls"</text>
+        </inputEntry>
+        <outputEntry id="oe_s2_1">
+          <text>"Постачальник 2 (замініть назву)"</text>
+        </outputEntry>
+        <outputEntry id="oe_s2_2">
+          <text>true</text>
+        </outputEntry>
+        <outputEntry id="oe_s2_3">
+          <text>"standard"</text>
+        </outputEntry>
+        <outputEntry id="oe_s2_4">
+          <text>"excel-to-pdf"</text>
+        </outputEntry>
+        <outputEntry id="oe_s2_5">
+          <text>"Excel формат — конвертація через excel-to-pdf"</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_s3_pdf">
+        <description>Постачальник 3 — PDF зі специфічною структурою</description>
+        <inputEntry id="ie_s3_1">
+          <text>contains(lower case(?), "@supplier3.ua")</text>
+        </inputEntry>
+        <inputEntry id="ie_s3_2">
+          <text>"pdf"</text>
+        </inputEntry>
+        <outputEntry id="oe_s3_1">
+          <text>"Постачальник 3 (замініть назву)"</text>
+        </outputEntry>
+        <outputEntry id="oe_s3_2">
+          <text>false</text>
+        </outputEntry>
+        <outputEntry id="oe_s3_3">
+          <text>"supplier3-special-pdf"</text>
+        </outputEntry>
+        <outputEntry id="oe_s3_4">
+          <text>""</text>
+        </outputEntry>
+        <outputEntry id="oe_s3_5">
+          <text>"Спеціальна структура PDF — використовується шаблон supplier3-special-pdf"</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_any_pdf">
+        <description>Невідомий постачальник — PDF</description>
+        <inputEntry id="ie_ap_1">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="ie_ap_2">
+          <text>"pdf"</text>
+        </inputEntry>
+        <outputEntry id="oe_ap_1">
+          <text>"Невідомий постачальник"</text>
+        </outputEntry>
+        <outputEntry id="oe_ap_2">
+          <text>false</text>
+        </outputEntry>
+        <outputEntry id="oe_ap_3">
+          <text>"generic-pdf"</text>
+        </outputEntry>
+        <outputEntry id="oe_ap_4">
+          <text>""</text>
+        </outputEntry>
+        <outputEntry id="oe_ap_5">
+          <text>"PDF формат — стандартна обробка"</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_any_xlsx">
+        <description>Невідомий постачальник — Excel</description>
+        <inputEntry id="ie_axl_1">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="ie_axl_2">
+          <text>"xlsx","xls"</text>
+        </inputEntry>
+        <outputEntry id="oe_axl_1">
+          <text>"Невідомий постачальник"</text>
+        </outputEntry>
+        <outputEntry id="oe_axl_2">
+          <text>true</text>
+        </outputEntry>
+        <outputEntry id="oe_axl_3">
+          <text>"standard"</text>
+        </outputEntry>
+        <outputEntry id="oe_axl_4">
+          <text>"excel-to-pdf"</text>
+        </outputEntry>
+        <outputEntry id="oe_axl_5">
+          <text>"Excel формат — потрібна конвертація"</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_any_xml">
+        <description>XML або EDI формат</description>
+        <inputEntry id="ie_xml_1">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="ie_xml_2">
+          <text>"xml"</text>
+        </inputEntry>
+        <outputEntry id="oe_xml_1">
+          <text>"Невідомий постачальник"</text>
+        </outputEntry>
+        <outputEntry id="oe_xml_2">
+          <text>false</text>
+        </outputEntry>
+        <outputEntry id="oe_xml_3">
+          <text>"xml-invoice"</text>
+        </outputEntry>
+        <outputEntry id="oe_xml_4">
+          <text>""</text>
+        </outputEntry>
+        <outputEntry id="oe_xml_5">
+          <text>"XML/EDI формат"</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_any_doc">
+        <description>Word формат — потрібна конвертація</description>
+        <inputEntry id="ie_doc_1">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="ie_doc_2">
+          <text>"docx","doc"</text>
+        </inputEntry>
+        <outputEntry id="oe_doc_1">
+          <text>"Невідомий постачальник"</text>
+        </outputEntry>
+        <outputEntry id="oe_doc_2">
+          <text>true</text>
+        </outputEntry>
+        <outputEntry id="oe_doc_3">
+          <text>"standard"</text>
+        </outputEntry>
+        <outputEntry id="oe_doc_4">
+          <text>"word-to-pdf"</text>
+        </outputEntry>
+        <outputEntry id="oe_doc_5">
+          <text>"Word формат — потрібна конвертація"</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_fallback">
+        <description>Невідомий формат — ручна обробка</description>
+        <inputEntry id="ie_fb_1">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="ie_fb_2">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="oe_fb_1">
+          <text>"Невідомий постачальник"</text>
+        </outputEntry>
+        <outputEntry id="oe_fb_2">
+          <text>true</text>
+        </outputEntry>
+        <outputEntry id="oe_fb_3">
+          <text>"standard"</text>
+        </outputEntry>
+        <outputEntry id="oe_fb_4">
+          <text>"generic-converter"</text>
+        </outputEntry>
+        <outputEntry id="oe_fb_5">
+          <text>"Невідомий формат — потрібна ручна обробка через конвертор"</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram>
+      <dmndi:DMNShape dmnElementRef="supplier-invoice-rules">
+        <dc:Bounds height="80" width="220" x="150" y="80" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>
