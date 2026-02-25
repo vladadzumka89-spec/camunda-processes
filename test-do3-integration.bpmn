@@ -99,7 +99,7 @@
           <zeebe:header key="authentication.password" value="{{secrets.DO3_Pass}}" />
         </zeebe:taskHeaders>
         <zeebe:ioMapping>
-          <zeebe:input source="={documentID: documentID, &quot;СтворитиФізособу&quot;: true}" target="body" />
+          <zeebe:input source="={documentID: documentID, createDocument: true, properties: {&quot;Наименование&quot;: &quot;Петренко Петро Петрович&quot;, &quot;ДатаРождения&quot;: &quot;1999-03-01&quot;, &quot;Пол&quot;: &quot;Мужской&quot;}, contact_information: {phone: &quot;+380665554433&quot;, email: &quot;1@1.com&quot;}}" target="body" />
           <zeebe:output source="=if response.statusCode = 200 or response.statusCode = 201 then if response.body.status = &quot;OK&quot; then {isAbort: false} else {Step: 2, ErrorMessage: response.body.message, isAbort: true} else {Step: 2, ErrorMessage: &quot;REST Error Step 2&quot;, isAbort: true}" target="op2" />
           <zeebe:output source="=op2.ErrorMessage" target="ErrorMessage" />
         </zeebe:ioMapping>
