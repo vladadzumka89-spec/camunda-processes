@@ -237,4 +237,308 @@
       <zeebe:subscription correlationKey="= documentID" />
     </bpmn:extensionElements>
   </bpmn:message>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_PersonReg">
+
+      <!-- Pool -->
+      <bpmndi:BPMNShape id="Participant_PersonReg_di" bpmnElement="Participant_PersonReg" isHorizontal="true">
+        <dc:Bounds x="160" y="52" width="1420" height="748" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Lanes -->
+      <bpmndi:BPMNShape id="Lane_system_di" bpmnElement="Lane_system" isHorizontal="true">
+        <dc:Bounds x="190" y="52" width="1390" height="308" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_operator_di" bpmnElement="Lane_operator" isHorizontal="true">
+        <dc:Bounds x="190" y="360" width="1390" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_manager_di" bpmnElement="Lane_manager" isHorizontal="true">
+        <dc:Bounds x="190" y="560" width="1390" height="240" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- ===== Lane_system shapes ===== -->
+
+      <!-- StartEvent_1 -->
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="222" y="172" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="228" y="215" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- GW_odoo_check -->
+      <bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true">
+        <dc:Bounds x="305" y="165" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="285" y="222" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ST_create_main -->
+      <bpmndi:BPMNShape id="ST_create_main_di" bpmnElement="ST_create_main">
+        <dc:Bounds x="410" y="150" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Merge_odoo -->
+      <bpmndi:BPMNShape id="Merge_odoo_di" bpmnElement="Merge_odoo" isMarkerVisible="true">
+        <dc:Bounds x="565" y="165" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- ST_process_data -->
+      <bpmndi:BPMNShape id="ST_process_data_di" bpmnElement="ST_process_data">
+        <dc:Bounds x="770" y="150" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- GW_success_1 -->
+      <bpmndi:BPMNShape id="GW_success_1_di" bpmnElement="GW_success_1" isMarkerVisible="true">
+        <dc:Bounds x="925" y="165" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="905" y="222" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ST_create_fo -->
+      <bpmndi:BPMNShape id="ST_create_fo_di" bpmnElement="ST_create_fo">
+        <dc:Bounds x="1030" y="150" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- GW_success_2 -->
+      <bpmndi:BPMNShape id="GW_success_2_di" bpmnElement="GW_success_2" isMarkerVisible="true">
+        <dc:Bounds x="1185" y="165" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1175" y="222" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Event_message_wait -->
+      <bpmndi:BPMNShape id="Event_message_wait_di" bpmnElement="Event_message_wait">
+        <dc:Bounds x="1282" y="172" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1258" y="215" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- GW_status_check -->
+      <bpmndi:BPMNShape id="GW_status_check_di" bpmnElement="GW_status_check" isMarkerVisible="true">
+        <dc:Bounds x="1375" y="165" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1372" y="222" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- End_success -->
+      <bpmndi:BPMNShape id="End_success_di" bpmnElement="End_success">
+        <dc:Bounds x="1482" y="172" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1478" y="215" width="44" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- End_error -->
+      <bpmndi:BPMNShape id="End_error_di" bpmnElement="End_error">
+        <dc:Bounds x="1192" y="292" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1188" y="335" width="50" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ST_rem_fill -->
+      <bpmndi:BPMNShape id="ST_rem_fill_di" bpmnElement="ST_rem_fill">
+        <dc:Bounds x="340" y="260" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- End_rem_fill -->
+      <bpmndi:BPMNShape id="End_rem_fill_di" bpmnElement="End_rem_fill">
+        <dc:Bounds x="502" y="282" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="477" y="325" width="86" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ===== Lane_operator shapes ===== -->
+
+      <!-- UT_fill_data -->
+      <bpmndi:BPMNShape id="UT_fill_data_di" bpmnElement="UT_fill_data">
+        <dc:Bounds x="600" y="420" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Boundary events -->
+      <bpmndi:BPMNShape id="BE_rem_fill_di" bpmnElement="BE_rem_fill">
+        <dc:Bounds x="602" y="482" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="582" y="525" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_fill_di" bpmnElement="BE_ded_fill">
+        <dc:Bounds x="662" y="482" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="656" y="525" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ===== Lane_manager shapes ===== -->
+
+      <!-- UT_esc_fill -->
+      <bpmndi:BPMNShape id="UT_esc_fill_di" bpmnElement="UT_esc_fill">
+        <dc:Bounds x="710" y="630" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- End_esc_fill -->
+      <bpmndi:BPMNShape id="End_esc_fill_di" bpmnElement="End_esc_fill">
+        <dc:Bounds x="872" y="652" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="846" y="695" width="88" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ===== Edges (Sequence Flows) ===== -->
+
+      <!-- Flow_to_odoo_check: Start → GW_odoo_check -->
+      <bpmndi:BPMNEdge id="Flow_to_odoo_check_di" bpmnElement="Flow_to_odoo_check">
+        <di:waypoint x="258" y="190" />
+        <di:waypoint x="305" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_odoo_exists: GW_odoo_check → Merge_odoo (bypass above) -->
+      <bpmndi:BPMNEdge id="Flow_odoo_exists_di" bpmnElement="Flow_odoo_exists">
+        <di:waypoint x="330" y="165" />
+        <di:waypoint x="330" y="110" />
+        <di:waypoint x="590" y="110" />
+        <di:waypoint x="590" y="165" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="452" y="92" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_to_create_main: GW_odoo_check → ST_create_main (default) -->
+      <bpmndi:BPMNEdge id="Flow_to_create_main_di" bpmnElement="Flow_to_create_main">
+        <di:waypoint x="355" y="190" />
+        <di:waypoint x="410" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_create_main_to_merge: ST_create_main → Merge_odoo -->
+      <bpmndi:BPMNEdge id="Flow_create_main_to_merge_di" bpmnElement="Flow_create_main_to_merge">
+        <di:waypoint x="510" y="190" />
+        <di:waypoint x="565" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_to_fill_data: Merge_odoo → UT_fill_data (down to Lane_operator) -->
+      <bpmndi:BPMNEdge id="Flow_to_fill_data_di" bpmnElement="Flow_to_fill_data">
+        <di:waypoint x="615" y="190" />
+        <di:waypoint x="650" y="190" />
+        <di:waypoint x="650" y="420" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_to_process_data: UT_fill_data → ST_process_data (up to Lane_system) -->
+      <bpmndi:BPMNEdge id="Flow_to_process_data_di" bpmnElement="Flow_to_process_data">
+        <di:waypoint x="700" y="460" />
+        <di:waypoint x="740" y="460" />
+        <di:waypoint x="740" y="190" />
+        <di:waypoint x="770" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_rem_fill: BE_rem_fill → ST_rem_fill (up to Lane_system) -->
+      <bpmndi:BPMNEdge id="Flow_rem_fill_di" bpmnElement="Flow_rem_fill">
+        <di:waypoint x="602" y="500" />
+        <di:waypoint x="390" y="500" />
+        <di:waypoint x="390" y="340" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_rem_fill_end: ST_rem_fill → End_rem_fill -->
+      <bpmndi:BPMNEdge id="Flow_rem_fill_end_di" bpmnElement="Flow_rem_fill_end">
+        <di:waypoint x="440" y="300" />
+        <di:waypoint x="502" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_ded_fill: BE_ded_fill → UT_esc_fill (down to Lane_manager) -->
+      <bpmndi:BPMNEdge id="Flow_ded_fill_di" bpmnElement="Flow_ded_fill">
+        <di:waypoint x="680" y="518" />
+        <di:waypoint x="680" y="670" />
+        <di:waypoint x="710" y="670" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_esc_fill_end: UT_esc_fill → End_esc_fill -->
+      <bpmndi:BPMNEdge id="Flow_esc_fill_end_di" bpmnElement="Flow_esc_fill_end">
+        <di:waypoint x="810" y="670" />
+        <di:waypoint x="872" y="670" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_to_gw_success_1: ST_process_data → GW_success_1 -->
+      <bpmndi:BPMNEdge id="Flow_to_gw_success_1_di" bpmnElement="Flow_to_gw_success_1">
+        <di:waypoint x="870" y="190" />
+        <di:waypoint x="925" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_to_create_fo: GW_success_1 → ST_create_fo ("Так") -->
+      <bpmndi:BPMNEdge id="Flow_to_create_fo_di" bpmnElement="Flow_to_create_fo">
+        <di:waypoint x="975" y="190" />
+        <di:waypoint x="1030" y="190" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="994" y="172" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_error_1: GW_success_1 → End_error (default, down) -->
+      <bpmndi:BPMNEdge id="Flow_error_1_di" bpmnElement="Flow_error_1">
+        <di:waypoint x="950" y="215" />
+        <di:waypoint x="950" y="310" />
+        <di:waypoint x="1192" y="310" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_to_gw_success_2: ST_create_fo → GW_success_2 -->
+      <bpmndi:BPMNEdge id="Flow_to_gw_success_2_di" bpmnElement="Flow_to_gw_success_2">
+        <di:waypoint x="1130" y="190" />
+        <di:waypoint x="1185" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_to_message_wait: GW_success_2 → Event_message_wait ("Так") -->
+      <bpmndi:BPMNEdge id="Flow_to_message_wait_di" bpmnElement="Flow_to_message_wait">
+        <di:waypoint x="1235" y="190" />
+        <di:waypoint x="1282" y="190" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1250" y="172" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_error_2: GW_success_2 → End_error (default, down) -->
+      <bpmndi:BPMNEdge id="Flow_error_2_di" bpmnElement="Flow_error_2">
+        <di:waypoint x="1210" y="215" />
+        <di:waypoint x="1210" y="292" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_to_gw_status: Event_message_wait → GW_status_check -->
+      <bpmndi:BPMNEdge id="Flow_to_gw_status_di" bpmnElement="Flow_to_gw_status">
+        <di:waypoint x="1318" y="190" />
+        <di:waypoint x="1375" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_to_success: GW_status_check → End_success ("Так") -->
+      <bpmndi:BPMNEdge id="Flow_to_success_di" bpmnElement="Flow_to_success">
+        <di:waypoint x="1425" y="190" />
+        <di:waypoint x="1482" y="190" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1445" y="172" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_error_3: GW_status_check → End_error (default, down+left) -->
+      <bpmndi:BPMNEdge id="Flow_error_3_di" bpmnElement="Flow_error_3">
+        <di:waypoint x="1400" y="215" />
+        <di:waypoint x="1400" y="310" />
+        <di:waypoint x="1228" y="310" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
 </bpmn:definitions>
