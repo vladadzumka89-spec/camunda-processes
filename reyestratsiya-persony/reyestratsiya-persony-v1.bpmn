@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.16.0">
+  <bpmn:collaboration id="Collaboration_PersonReg">
+    <bpmn:participant id="Participant_PersonReg" name="Реєстрація персони" processRef="Process_PersonRegistration" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_PersonRegistration" name="Реєстрація персони" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
+
+    <!-- ===== Swim Lanes ===== -->
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_system" name="Система (автоматично)">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_create_main</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Merge_odoo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_process_data</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_success_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_create_fo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_success_2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_message_wait</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_status_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_success</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_error</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_rem_fill</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_rem_fill</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_operator" name="Оператор">
+        <bpmn:flowNodeRef>UT_fill_data</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_manager" name="Керівник (ескалація)">
+        <bpmn:flowNodeRef>UT_esc_fill</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_esc_fill</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- ===== Start Event ===== -->
+    <bpmn:startEvent id="StartEvent_1" name="Старт">
+      <bpmn:outgoing>Flow_to_odoo_check</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ===== XOR: Перевірка odoo_task_id ===== -->
+    <bpmn:exclusiveGateway id="GW_odoo_check" name="Задача в Odoo існує?" default="Flow_to_create_main">
+      <bpmn:incoming>Flow_to_odoo_check</bpmn:incoming>
+      <bpmn:outgoing>Flow_odoo_exists</bpmn:outgoing>
+      <bpmn:outgoing>Flow_to_create_main</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_to_odoo_check" sourceRef="StartEvent_1" targetRef="GW_odoo_check" />
+    <bpmn:sequenceFlow id="Flow_odoo_exists" name="Так" sourceRef="GW_odoo_check" targetRef="Merge_odoo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_to_create_main" sourceRef="GW_odoo_check" targetRef="ST_create_main" />
+
+    <!-- ===== ST: Створити головне завдання в Odoo ===== -->
+    <bpmn:serviceTask id="ST_create_main" name="Створити головне завдання">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Реєстрація персони&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_create_main</bpmn:incoming>
+      <bpmn:outgoing>Flow_create_main_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_create_main_to_merge" sourceRef="ST_create_main" targetRef="Merge_odoo" />
+
+    <!-- ===== Merge Gateway ===== -->
+    <bpmn:exclusiveGateway id="Merge_odoo">
+      <bpmn:incoming>Flow_odoo_exists</bpmn:incoming>
+      <bpmn:incoming>Flow_create_main_to_merge</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_fill_data</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_to_fill_data" sourceRef="Merge_odoo" targetRef="UT_fill_data" />
+
+    <!-- ===== User Task: Заповнення даних персони ===== -->
+    <bpmn:userTask id="UT_fill_data" name="Заповнення даних персони">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Заповнення даних персони&#34;, description: &#34;Заповніть дані: ПІБ, дата народження, стать&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_fill_data</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_process_data</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Boundary: Нагадування (non-interrupting, R/PT4H) -->
+    <bpmn:boundaryEvent id="BE_rem_fill" name="Нагадування" cancelActivity="false" attachedToRef="UT_fill_data">
+      <bpmn:outgoing>Flow_rem_fill</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_rem_fill">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT4H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="Flow_rem_fill" sourceRef="BE_rem_fill" targetRef="ST_rem_fill" />
+
+    <bpmn:serviceTask id="ST_rem_fill" name="Нагадування: заповнення даних">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;⚠️ НАГАДУВАННЯ: Заповнення даних персони&#34;, description: &#34;Задача очікує на виконання. Заповніть дані персони.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_fill</bpmn:incoming>
+      <bpmn:outgoing>Flow_rem_fill_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_rem_fill_end" sourceRef="ST_rem_fill" targetRef="End_rem_fill" />
+    <bpmn:endEvent id="End_rem_fill" name="Нагадування надіслано">
+      <bpmn:incoming>Flow_rem_fill_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Boundary: Дедлайн (non-interrupting, P3D) -->
+    <bpmn:boundaryEvent id="BE_ded_fill" name="Дедлайн" cancelActivity="false" attachedToRef="UT_fill_data">
+      <bpmn:outgoing>Flow_ded_fill</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_ded_fill">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="Flow_ded_fill" sourceRef="BE_ded_fill" targetRef="UT_esc_fill" />
+
+    <bpmn:userTask id="UT_esc_fill" name="🔴 ЕСКАЛАЦІЯ: Заповнення даних не виконано">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;🔴 ЕСКАЛАЦІЯ: Заповнення даних персони не виконано&#34;, description: &#34;Оператор не заповнив дані персони протягом встановленого терміну.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_fill</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_fill_end</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_esc_fill_end" sourceRef="UT_esc_fill" targetRef="End_esc_fill" />
+    <bpmn:endEvent id="End_esc_fill" name="Ескалацію оброблено">
+      <bpmn:incoming>Flow_esc_fill_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ===== ST: Обробка даних персони ===== -->
+    <bpmn:sequenceFlow id="Flow_to_process_data" sourceRef="UT_fill_data" targetRef="ST_process_data" />
+    <bpmn:serviceTask id="ST_process_data" name="Обробка даних персони">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/api/server-action&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;, &#34;X-API-Key&#34;:&#34;632b5ed6-091f-48db-bd01-1e60aeb10bfc&#34;}" target="headers" />
+          <zeebe:input source="={action_identifier: &#34;studio_customization.process_person_data&#34;, context: {}, payload: {name: Name, surname: Surname, patronicname: Patronicname, bday: BDay, sex: Sex}}" target="body" />
+          <zeebe:output source="= result" target="result1" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_process_data</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_gw_success_1</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ===== GW: Обробка успішна? ===== -->
+    <bpmn:sequenceFlow id="Flow_to_gw_success_1" sourceRef="ST_process_data" targetRef="GW_success_1" />
+    <bpmn:exclusiveGateway id="GW_success_1" name="Обробка успішна?" default="Flow_error_1">
+      <bpmn:incoming>Flow_to_gw_success_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_create_fo</bpmn:outgoing>
+      <bpmn:outgoing>Flow_error_1</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_to_create_fo" name="Так" sourceRef="GW_success_1" targetRef="ST_create_fo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= result1.isError = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_error_1" sourceRef="GW_success_1" targetRef="End_error" />
+
+    <!-- ===== ST: Створити фізичну особу ===== -->
+    <bpmn:serviceTask id="ST_create_fo" name="Створити фізичну особу">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/api/server-action&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;, &#34;X-API-Key&#34;:&#34;632b5ed6-091f-48db-bd01-1e60aeb10bfc&#34;}" target="headers" />
+          <zeebe:input source="={action_identifier: &#34;studio_customization.create_person&#34;, context: {}, payload: {documentID: result1.documentID}}" target="body" />
+          <zeebe:output source="= result" target="result2" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_create_fo</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_gw_success_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ===== GW: ФО створено? ===== -->
+    <bpmn:sequenceFlow id="Flow_to_gw_success_2" sourceRef="ST_create_fo" targetRef="GW_success_2" />
+    <bpmn:exclusiveGateway id="GW_success_2" name="ФО створено?" default="Flow_error_2">
+      <bpmn:incoming>Flow_to_gw_success_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_message_wait</bpmn:outgoing>
+      <bpmn:outgoing>Flow_error_2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_to_message_wait" name="Так" sourceRef="GW_success_2" targetRef="Event_message_wait">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= result2.isError = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_error_2" sourceRef="GW_success_2" targetRef="End_error" />
+
+    <!-- ===== Message Catch: Очікування PersonID ===== -->
+    <bpmn:intermediateCatchEvent id="Event_message_wait" name="Очікування відповіді">
+      <bpmn:incoming>Flow_to_message_wait</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_gw_status</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_1" messageRef="Message_1" />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- ===== GW: Статус OK? ===== -->
+    <bpmn:sequenceFlow id="Flow_to_gw_status" sourceRef="Event_message_wait" targetRef="GW_status_check" />
+    <bpmn:exclusiveGateway id="GW_status_check" name="Статус OK?" default="Flow_error_3">
+      <bpmn:incoming>Flow_to_gw_status</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_success</bpmn:outgoing>
+      <bpmn:outgoing>Flow_error_3</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_to_success" name="Так" sourceRef="GW_status_check" targetRef="End_success">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= status = "OK"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_error_3" sourceRef="GW_status_check" targetRef="End_error" />
+
+    <!-- ===== End Events ===== -->
+    <bpmn:endEvent id="End_success" name="Успішно">
+      <bpmn:incoming>Flow_to_success</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="End_error" name="Помилка">
+      <bpmn:incoming>Flow_error_1</bpmn:incoming>
+      <bpmn:incoming>Flow_error_2</bpmn:incoming>
+      <bpmn:incoming>Flow_error_3</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+
+  <bpmn:message id="Message_1" name="PersonID_Received">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="= documentID" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+</bpmn:definitions>
