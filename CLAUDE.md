@@ -312,3 +312,10 @@ x_studio_camunda_
 ❌ Поля Odoo без `x_studio_camunda_` префіксу
 ❌ Повторюваний блок copy-paste в кількох процесах замість Call Activity
 ❌ `isExecutable="false"` у головному процесі
+
+---
+
+## Правила роботи з Git
+
+- **НЕ виконувати жодних git-дій** (commit, push, checkout, branch, merge, rebase тощо) без прямої вказівки користувача
+- Дозволено лише **читання** стану репозиторію (`git status`, `git log`, `git diff`) без додаткового підтвердження
