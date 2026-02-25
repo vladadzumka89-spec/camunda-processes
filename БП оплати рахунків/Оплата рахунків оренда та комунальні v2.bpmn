@@ -13,12 +13,12 @@
         <bpmn:flowNodeRef>CA_nego_self</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Yulia" name="Юля">
-        <bpmn:flowNodeRef>End_no_pay</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_yulia</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>GW_yulia_decision</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_nego_manual</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_nego_manual</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Timer_yulia_deadline</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_no_pay</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Pogodjuvach" name="Погоджувач">
         <bpmn:flowNodeRef>Task_approve</bpmn:flowNodeRef>
@@ -119,9 +119,6 @@
       <bpmn:incoming>Flow_nego_self_to_gw</bpmn:incoming>
       <bpmn:outgoing>Flow_dmn_to_gw</bpmn:outgoing>
     </bpmn:businessRuleTask>
-    <bpmn:endEvent id="End_no_pay" name="Рахунок не сплачено">
-      <bpmn:incoming>Flow_yulia_no</bpmn:incoming>
-    </bpmn:endEvent>
     <bpmn:userTask id="Task_dasha" name="Даша, виріши з оплатою рахунку">
       <bpmn:extensionElements>
         <zeebe:userTask />
@@ -413,6 +410,9 @@
     <bpmn:endEvent id="End_break_contract" name="Договір розірвано">
       <bpmn:incoming>Flow_break_to_end</bpmn:incoming>
     </bpmn:endEvent>
+    <bpmn:endEvent id="End_no_pay" name="Рахунок не сплачено">
+      <bpmn:incoming>Flow_yulia_no</bpmn:incoming>
+    </bpmn:endEvent>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collab_1">
@@ -471,12 +471,6 @@
       <bpmndi:BPMNShape id="Task_dmn_record_di" bpmnElement="Task_dmn_record">
         <dc:Bounds x="1550" y="470" width="100" height="80" />
         <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="End_no_pay_di" bpmnElement="End_no_pay">
-        <dc:Bounds x="1282" y="652" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1272" y="695" width="57" height="27" />
-        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_dasha_di" bpmnElement="Task_dasha">
         <dc:Bounds x="1160" y="890" width="100" height="80" />
@@ -612,6 +606,12 @@
         <dc:Bounds x="2102" y="492" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="2095" y="535" width="51" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_no_pay_di" bpmnElement="End_no_pay">
+        <dc:Bounds x="1292" y="652" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1282" y="695" width="57" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Timer_yulia_deadline_di" bpmnElement="Timer_yulia_deadline">
@@ -839,9 +839,9 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_yulia_no_di" bpmnElement="Flow_yulia_no">
         <di:waypoint x="1255" y="670" />
-        <di:waypoint x="1282" y="670" />
+        <di:waypoint x="1292" y="670" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1262" y="652" width="9" height="14" />
+          <dc:Bounds x="1266" y="652" width="9" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_yulia_timer_to_dasha_di" bpmnElement="Flow_yulia_timer_to_dasha">
