@@ -704,18 +704,18 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_timer_to_pay_di" bpmnElement="Flow_timer_to_pay">
         <di:waypoint x="1140" y="222" />
-        <di:waypoint x="1140" y="102" />
-        <di:waypoint x="1580" y="102" />
+        <di:waypoint x="1140" y="80" />
+        <di:waypoint x="1580" y="80" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1360" y="117" width="47" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_contract_yes_di" bpmnElement="Flow_contract_yes">
         <di:waypoint x="1200" y="487" />
-        <di:waypoint x="1200" y="102" />
-        <di:waypoint x="1580" y="102" />
+        <di:waypoint x="1200" y="90" />
+        <di:waypoint x="1580" y="90" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1208" y="362" width="16" height="14" />
+          <dc:Bounds x="1208" y="358" width="16" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_dmn_pay_di" bpmnElement="Flow_dmn_pay">
@@ -731,7 +731,7 @@
         <di:waypoint x="1260" y="102" />
         <di:waypoint x="1580" y="102" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1265" y="367" width="17" height="14" />
+          <dc:Bounds x="1266" y="367" width="16" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_pay_to_service_di" bpmnElement="Flow_pay_to_service">
