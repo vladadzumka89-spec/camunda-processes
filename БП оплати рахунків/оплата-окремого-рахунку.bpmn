@@ -8,17 +8,26 @@
       <zeebe:versionTag value="1.0" />
     </bpmn:extensionElements>
     <bpmn:laneSet id="LaneSet_1">
-      <bpmn:lane id="Lane_Dasha" name="Даша (Менеджер з оренди)">
-        <bpmn:flowNodeRef>Task_dasha</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>CA_nego_self</bpmn:flowNodeRef>
+      <bpmn:lane id="Lane_Buhgalter" name="Бухгалтер">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CA_tp_reissue</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_pay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_main</bpmn:flowNodeRef>
       </bpmn:lane>
-      <bpmn:lane id="Lane_Yulia" name="Юля">
-        <bpmn:flowNodeRef>Task_nego_manual</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>End_nego_manual</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_yulia</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_yulia_decision</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>End_no_pay</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Timer_yulia_deadline</bpmn:flowNodeRef>
+      <bpmn:lane id="Lane_Camunda" name="Система (Camunda)">
+        <bpmn:flowNodeRef>Task_autofill</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_main_split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_tp_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_payday</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_timer_decision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_dmn_nego_who</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Odoo" name="Система (Odoo авто)">
+        <bpmn:flowNodeRef>ST_create_main</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_calendar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_service_receipt</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Pogodjuvach" name="Погоджувач">
         <bpmn:flowNodeRef>Task_approve</bpmn:flowNodeRef>
@@ -32,26 +41,17 @@
         <bpmn:flowNodeRef>End_wait_new</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_break_contract</bpmn:flowNodeRef>
       </bpmn:lane>
-      <bpmn:lane id="Lane_Odoo" name="Система (Odoo авто)">
-        <bpmn:flowNodeRef>ST_create_main</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_calendar</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_service_receipt</bpmn:flowNodeRef>
+      <bpmn:lane id="Lane_Yulia" name="Юля">
+        <bpmn:flowNodeRef>Task_nego_manual</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_nego_manual</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_yulia</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_yulia_decision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_no_pay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_yulia_deadline</bpmn:flowNodeRef>
       </bpmn:lane>
-      <bpmn:lane id="Lane_Camunda" name="Система (Camunda)">
-        <bpmn:flowNodeRef>Task_autofill</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_main_split</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_tp_check</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Timer_payday</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_timer_decision</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_dmn_nego_who</bpmn:flowNodeRef>
-      </bpmn:lane>
-      <bpmn:lane id="Lane_Buhgalter" name="Бухгалтер">
-        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_odoo_check</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_odoo_merge</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>CA_tp_reissue</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_pay</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>End_main</bpmn:flowNodeRef>
+      <bpmn:lane id="Lane_Dasha" name="Даша (Менеджер з оренди)">
+        <bpmn:flowNodeRef>Task_dasha</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CA_nego_self</bpmn:flowNodeRef>
       </bpmn:lane>
     </bpmn:laneSet>
     <bpmn:startEvent id="StartEvent_1" name="Старт">
@@ -282,6 +282,25 @@
     <bpmn:endEvent id="End_no_pay" name="Рахунок не сплачено">
       <bpmn:incoming>Flow_yulia_no</bpmn:incoming>
     </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="GW_dmn_decision" name="Результат перемовин?" default="Flow_dmn_pay">
+      <bpmn:incoming>Flow_dmn_to_gw</bpmn:incoming>
+      <bpmn:outgoing>Flow_dmn_pay</bpmn:outgoing>
+      <bpmn:outgoing>Flow_dmn_wait</bpmn:outgoing>
+      <bpmn:outgoing>Flow_dmn_break</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:callActivity id="CA_break_contract" name="Розриваємо договір">
+      <bpmn:extensionElements>
+        <zeebe:calledElement propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_dmn_break</bpmn:incoming>
+      <bpmn:outgoing>Flow_break_to_end</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:endEvent id="End_wait_new" name="Чекаємо новий рахунок">
+      <bpmn:incoming>Flow_dmn_wait</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="End_break_contract" name="Договір розірвано">
+      <bpmn:incoming>Flow_break_to_end</bpmn:incoming>
+    </bpmn:endEvent>
     <bpmn:boundaryEvent id="Timer_yulia_deadline" name="Дедлайн" attachedToRef="Task_yulia">
       <bpmn:outgoing>Flow_yulia_timer_to_dasha</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerDef_yulia">
@@ -317,14 +336,6 @@
     <bpmn:sequenceFlow id="Flow_nego_manual_end" sourceRef="Task_nego_manual" targetRef="End_nego_manual" />
     <bpmn:sequenceFlow id="Flow_nego_self_to_gw" sourceRef="CA_nego_self" targetRef="Task_dmn_record" />
     <bpmn:sequenceFlow id="Flow_dmn_to_gw" sourceRef="Task_dmn_record" targetRef="GW_dmn_decision" />
-    <bpmn:sequenceFlow id="Flow_dmn_pay" name="Платимо" sourceRef="GW_dmn_decision" targetRef="Task_pay" />
-    <bpmn:sequenceFlow id="Flow_dmn_wait" name="Перевипуск рахунку" sourceRef="GW_dmn_decision" targetRef="End_wait_new">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= nego_action = "reissue"</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="Flow_dmn_break" name="Розриваємо договір" sourceRef="GW_dmn_decision" targetRef="CA_break_contract">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= nego_action = "break_contract"</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="Flow_break_to_end" sourceRef="CA_break_contract" targetRef="End_break_contract" />
     <bpmn:sequenceFlow id="Flow_timer_to_yulia" sourceRef="GW_timer_decision" targetRef="Task_yulia">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_has_question = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
@@ -335,6 +346,7 @@
     <bpmn:sequenceFlow id="Flow_yulia_no" name="ні" sourceRef="GW_yulia_decision" targetRef="End_no_pay" />
     <bpmn:sequenceFlow id="Flow_yulia_timer_to_dasha" sourceRef="Timer_yulia_deadline" targetRef="Task_dasha" />
     <bpmn:sequenceFlow id="Flow_dasha_to_pay" sourceRef="Task_dasha" targetRef="CA_nego_self" />
+    <bpmn:sequenceFlow id="Flow_dmn_pay" name="Платимо" sourceRef="GW_dmn_decision" targetRef="Task_pay" />
     <bpmn:sequenceFlow id="Flow_timer_to_pay" sourceRef="GW_timer_decision" targetRef="Task_pay" />
     <bpmn:sequenceFlow id="Flow_contract_yes" name="так" sourceRef="GW_contract_result" targetRef="Task_pay">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_contract_approved = true</bpmn:conditionExpression>
@@ -347,436 +359,424 @@
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_nego_who = "yulia"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_dmn_nego_who_to_gw" sourceRef="Task_dmn_nego_who" targetRef="GW_who_nego" />
-    <bpmn:exclusiveGateway id="GW_dmn_decision" name="Результат перемовин?" default="Flow_dmn_pay">
-      <bpmn:incoming>Flow_dmn_to_gw</bpmn:incoming>
-      <bpmn:outgoing>Flow_dmn_pay</bpmn:outgoing>
-      <bpmn:outgoing>Flow_dmn_wait</bpmn:outgoing>
-      <bpmn:outgoing>Flow_dmn_break</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-    <bpmn:callActivity id="CA_break_contract" name="Розриваємо договір">
-      <bpmn:extensionElements>
-        <zeebe:calledElement propagateAllChildVariables="false" />
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_dmn_break</bpmn:incoming>
-      <bpmn:outgoing>Flow_break_to_end</bpmn:outgoing>
-    </bpmn:callActivity>
-    <bpmn:endEvent id="End_wait_new" name="Чекаємо новий рахунок">
-      <bpmn:incoming>Flow_dmn_wait</bpmn:incoming>
-    </bpmn:endEvent>
-    <bpmn:endEvent id="End_break_contract" name="Договір розірвано">
-      <bpmn:incoming>Flow_break_to_end</bpmn:incoming>
-    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_dmn_wait" name="Перевипуск рахунку" sourceRef="GW_dmn_decision" targetRef="End_wait_new">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= nego_action = "reissue"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_dmn_break" name="Розриваємо договір" sourceRef="GW_dmn_decision" targetRef="CA_break_contract">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= nego_action = "break_contract"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_break_to_end" sourceRef="CA_break_contract" targetRef="End_break_contract" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collab_single">
       <bpmndi:BPMNShape id="Pool_single_di" bpmnElement="Pool_single" isHorizontal="true">
-        <dc:Bounds x="-30" y="75" width="2330" height="1030" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Dasha_di" bpmnElement="Lane_Dasha" isHorizontal="true">
-        <dc:Bounds x="0" y="935" width="2300" height="170" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Yulia_di" bpmnElement="Lane_Yulia" isHorizontal="true">
-        <dc:Bounds x="0" y="723" width="2300" height="212" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Pogodjuvach_di" bpmnElement="Lane_Pogodjuvach" isHorizontal="true">
-        <dc:Bounds x="0" y="555" width="2300" height="168" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Odoo_di" bpmnElement="Lane_Odoo" isHorizontal="true">
-        <dc:Bounds x="0" y="410" width="2300" height="145" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Camunda_di" bpmnElement="Lane_Camunda" isHorizontal="true">
-        <dc:Bounds x="0" y="270" width="2300" height="140" />
+        <dc:Bounds x="280" y="125" width="2330" height="1030" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Buhgalter_di" bpmnElement="Lane_Buhgalter" isHorizontal="true">
-        <dc:Bounds x="0" y="75" width="2300" height="195" />
+        <dc:Bounds x="310" y="125" width="2300" height="195" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Camunda_di" bpmnElement="Lane_Camunda" isHorizontal="true">
+        <dc:Bounds x="310" y="320" width="2300" height="140" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Odoo_di" bpmnElement="Lane_Odoo" isHorizontal="true">
+        <dc:Bounds x="310" y="460" width="2300" height="145" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Pogodjuvach_di" bpmnElement="Lane_Pogodjuvach" isHorizontal="true">
+        <dc:Bounds x="310" y="605" width="2300" height="168" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Yulia_di" bpmnElement="Lane_Yulia" isHorizontal="true">
+        <dc:Bounds x="310" y="773" width="2300" height="212" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Dasha_di" bpmnElement="Lane_Dasha" isHorizontal="true">
+        <dc:Bounds x="310" y="985" width="2300" height="170" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
-        <dc:Bounds x="52" y="167" width="36" height="36" />
+        <dc:Bounds x="362" y="217" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="56" y="210" width="31" height="14" />
+          <dc:Bounds x="366" y="260" width="31" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true">
-        <dc:Bounds x="125" y="160" width="50" height="50" />
+        <dc:Bounds x="435" y="210" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="113" y="130" width="76" height="27" />
+          <dc:Bounds x="423" y="180" width="77" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ST_create_main_di" bpmnElement="ST_create_main">
-        <dc:Bounds x="160" y="440" width="100" height="80" />
+        <dc:Bounds x="470" y="490" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_odoo_merge_di" bpmnElement="GW_odoo_merge" isMarkerVisible="true">
-        <dc:Bounds x="305" y="160" width="50" height="50" />
+        <dc:Bounds x="615" y="210" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_autofill_di" bpmnElement="Task_autofill">
-        <dc:Bounds x="400" y="305" width="100" height="80" />
+        <dc:Bounds x="710" y="355" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_main_split_di" bpmnElement="GW_main_split">
-        <dc:Bounds x="545" y="320" width="50" height="50" />
+        <dc:Bounds x="855" y="370" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_tp_check_di" bpmnElement="GW_tp_check" isMarkerVisible="true">
-        <dc:Bounds x="645" y="320" width="50" height="50" />
+        <dc:Bounds x="955" y="370" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="631" y="298" width="88" height="14" />
+          <dc:Bounds x="941" y="348" width="89" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="CA_tp_reissue_di" bpmnElement="CA_tp_reissue">
-        <dc:Bounds x="620" y="135" width="120" height="80" />
+        <dc:Bounds x="930" y="185" width="120" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_calendar_di" bpmnElement="Task_calendar">
-        <dc:Bounds x="770" y="440" width="100" height="80" />
+        <dc:Bounds x="1080" y="490" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Timer_payday_di" bpmnElement="Timer_payday">
-        <dc:Bounds x="912" y="327" width="36" height="36" />
+        <dc:Bounds x="1222" y="377" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="905" y="277" width="49" height="40" />
+          <dc:Bounds x="1215" y="327" width="49" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_approve_di" bpmnElement="Task_approve">
-        <dc:Bounds x="620" y="575" width="100" height="80" />
+        <dc:Bounds x="930" y="625" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_approved_di" bpmnElement="GW_approved" isMarkerVisible="true">
-        <dc:Bounds x="775" y="590" width="50" height="50" />
+        <dc:Bounds x="1085" y="640" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="770" y="563" width="62" height="14" />
+          <dc:Bounds x="1080" y="613" width="63" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_approver_contract_di" bpmnElement="Task_approver_contract">
-        <dc:Bounds x="880" y="575" width="100" height="80" />
+        <dc:Bounds x="1190" y="625" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_nego_manual_di" bpmnElement="Task_nego_manual">
-        <dc:Bounds x="1360" y="735" width="100" height="80" />
+        <dc:Bounds x="1670" y="785" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_nego_manual_di" bpmnElement="End_nego_manual">
-        <dc:Bounds x="1512" y="757" width="36" height="36" />
+        <dc:Bounds x="1822" y="807" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1500" y="800" width="61" height="27" />
+          <dc:Bounds x="1810" y="850" width="61" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_dmn_record_di" bpmnElement="Task_dmn_record">
-        <dc:Bounds x="1530" y="575" width="100" height="80" />
+        <dc:Bounds x="1840" y="625" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_yulia_di" bpmnElement="Task_yulia">
-        <dc:Bounds x="1080" y="735" width="100" height="80" />
+        <dc:Bounds x="1390" y="785" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_yulia_decision_di" bpmnElement="GW_yulia_decision" isMarkerVisible="true">
-        <dc:Bounds x="1225" y="750" width="50" height="50" />
+        <dc:Bounds x="1535" y="800" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1285" y="768" width="52" height="14" />
+          <dc:Bounds x="1595" y="818" width="52" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_dasha_di" bpmnElement="Task_dasha">
-        <dc:Bounds x="1200" y="975" width="100" height="80" />
+        <dc:Bounds x="1510" y="1025" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_pay_di" bpmnElement="Task_pay">
-        <dc:Bounds x="1650" y="145" width="100" height="80" />
+        <dc:Bounds x="1960" y="195" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_service_receipt_di" bpmnElement="Task_service_receipt">
-        <dc:Bounds x="1820" y="440" width="100" height="80" />
+        <dc:Bounds x="2130" y="490" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_main_di" bpmnElement="End_main">
-        <dc:Bounds x="1972" y="167" width="36" height="36" />
+        <dc:Bounds x="2282" y="217" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1966" y="210" width="49" height="27" />
+          <dc:Bounds x="2276" y="260" width="49" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_contract_result_di" bpmnElement="GW_contract_result" isMarkerVisible="true">
-        <dc:Bounds x="1065" y="590" width="50" height="50" />
+        <dc:Bounds x="1375" y="640" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1057" y="650" width="65" height="27" />
+          <dc:Bounds x="1367" y="700" width="65" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_timer_decision_di" bpmnElement="GW_timer_decision" isMarkerVisible="true">
-        <dc:Bounds x="995" y="320" width="50" height="50" />
+        <dc:Bounds x="1305" y="370" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1055" y="331" width="68" height="27" />
+          <dc:Bounds x="1365" y="381" width="68" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="CA_nego_self_di" bpmnElement="CA_nego_self">
-        <dc:Bounds x="1440" y="975" width="120" height="80" />
+        <dc:Bounds x="1750" y="1025" width="120" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_dmn_nego_who_di" bpmnElement="Task_dmn_nego_who">
-        <dc:Bounds x="1280" y="325" width="100" height="80" />
+        <dc:Bounds x="1590" y="375" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_who_nego_di" bpmnElement="GW_who_nego" isMarkerVisible="true">
-        <dc:Bounds x="1305" y="590" width="50" height="50" />
+        <dc:Bounds x="1615" y="640" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1230" y="601" width="65" height="27" />
+          <dc:Bounds x="1540" y="651" width="65" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_no_pay_di" bpmnElement="End_no_pay">
-        <dc:Bounds x="1232" y="827" width="36" height="36" />
+        <dc:Bounds x="1542" y="877" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1222" y="870" width="57" height="27" />
+          <dc:Bounds x="1532" y="920" width="57" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_dmn_decision_di" bpmnElement="GW_dmn_decision" isMarkerVisible="true">
-        <dc:Bounds x="1705" y="590" width="50" height="50" />
+        <dc:Bounds x="2015" y="640" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1698.5" y="635.5" width="63" height="27" />
+          <dc:Bounds x="2009" y="686" width="63" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="CA_break_contract_di" bpmnElement="CA_break_contract">
-        <dc:Bounds x="1840" y="640" width="120" height="80" />
+        <dc:Bounds x="2150" y="690" width="120" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_wait_new_di" bpmnElement="End_wait_new">
-        <dc:Bounds x="1862" y="562" width="36" height="36" />
+        <dc:Bounds x="2172" y="612" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1841" y="605" width="78" height="27" />
+          <dc:Bounds x="2151" y="655" width="78" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_break_contract_di" bpmnElement="End_break_contract">
-        <dc:Bounds x="2052" y="662" width="36" height="36" />
+        <dc:Bounds x="2362" y="712" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="2025" y="705" width="90" height="14" />
+          <dc:Bounds x="2355" y="755" width="51" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Timer_yulia_deadline_di" bpmnElement="Timer_yulia_deadline">
-        <dc:Bounds x="1112" y="797" width="36" height="36" />
+        <dc:Bounds x="1422" y="847" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1068" y="835" width="44" height="14" />
+          <dc:Bounds x="1378" y="885" width="45" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_start_to_gw_odoo_di" bpmnElement="Flow_start_to_gw_odoo">
-        <di:waypoint x="88" y="185" />
-        <di:waypoint x="125" y="185" />
+        <di:waypoint x="398" y="235" />
+        <di:waypoint x="435" y="235" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_odoo_no_task_di" bpmnElement="Flow_odoo_no_task">
-        <di:waypoint x="150" y="210" />
-        <di:waypoint x="150" y="480" />
-        <di:waypoint x="160" y="480" />
+        <di:waypoint x="460" y="260" />
+        <di:waypoint x="460" y="530" />
+        <di:waypoint x="470" y="530" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_odoo_has_task_di" bpmnElement="Flow_odoo_has_task">
-        <di:waypoint x="175" y="185" />
-        <di:waypoint x="305" y="185" />
+        <di:waypoint x="485" y="235" />
+        <di:waypoint x="615" y="235" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="210" y="167" width="66" height="14" />
+          <dc:Bounds x="520" y="217" width="66" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_create_main_done_di" bpmnElement="Flow_create_main_done">
-        <di:waypoint x="260" y="480" />
-        <di:waypoint x="330" y="480" />
-        <di:waypoint x="330" y="210" />
+        <di:waypoint x="570" y="530" />
+        <di:waypoint x="640" y="530" />
+        <di:waypoint x="640" y="260" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_odoo_merge_to_autofill_di" bpmnElement="Flow_odoo_merge_to_autofill">
-        <di:waypoint x="355" y="185" />
-        <di:waypoint x="450" y="185" />
-        <di:waypoint x="450" y="305" />
+        <di:waypoint x="665" y="235" />
+        <di:waypoint x="760" y="235" />
+        <di:waypoint x="760" y="355" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_autofill_to_main_split_di" bpmnElement="Flow_autofill_to_main_split">
-        <di:waypoint x="500" y="345" />
-        <di:waypoint x="545" y="345" />
+        <di:waypoint x="810" y="395" />
+        <di:waypoint x="855" y="395" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_main_to_calendar_di" bpmnElement="Flow_main_to_calendar">
-        <di:waypoint x="595" y="345" />
-        <di:waypoint x="645" y="345" />
+        <di:waypoint x="905" y="395" />
+        <di:waypoint x="955" y="395" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_main_to_approve_di" bpmnElement="Flow_main_to_approve">
-        <di:waypoint x="570" y="370" />
-        <di:waypoint x="570" y="615" />
-        <di:waypoint x="620" y="615" />
+        <di:waypoint x="880" y="420" />
+        <di:waypoint x="880" y="665" />
+        <di:waypoint x="930" y="665" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_tp_yes_di" bpmnElement="Flow_tp_yes">
-        <di:waypoint x="670" y="320" />
-        <di:waypoint x="670" y="215" />
+        <di:waypoint x="980" y="370" />
+        <di:waypoint x="980" y="265" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="675" y="265" width="61" height="14" />
+          <dc:Bounds x="985" y="315" width="61" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_tp_no_di" bpmnElement="Flow_tp_no">
-        <di:waypoint x="695" y="345" />
-        <di:waypoint x="800" y="345" />
-        <di:waypoint x="800" y="440" />
+        <di:waypoint x="1005" y="395" />
+        <di:waypoint x="1110" y="395" />
+        <di:waypoint x="1110" y="490" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_tp_done_di" bpmnElement="Flow_tp_done">
-        <di:waypoint x="740" y="175" />
-        <di:waypoint x="840" y="175" />
-        <di:waypoint x="840" y="440" />
+        <di:waypoint x="1050" y="225" />
+        <di:waypoint x="1150" y="225" />
+        <di:waypoint x="1150" y="490" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_calendar_to_timer_di" bpmnElement="Flow_calendar_to_timer">
-        <di:waypoint x="870" y="480" />
-        <di:waypoint x="930" y="480" />
-        <di:waypoint x="930" y="363" />
+        <di:waypoint x="1180" y="530" />
+        <di:waypoint x="1240" y="530" />
+        <di:waypoint x="1240" y="413" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_timer_to_gw_decision_di" bpmnElement="Flow_timer_to_gw_decision">
-        <di:waypoint x="948" y="345" />
-        <di:waypoint x="995" y="345" />
+        <di:waypoint x="1258" y="395" />
+        <di:waypoint x="1305" y="395" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_approve_to_gw_di" bpmnElement="Flow_approve_to_gw">
-        <di:waypoint x="720" y="615" />
-        <di:waypoint x="775" y="615" />
+        <di:waypoint x="1030" y="665" />
+        <di:waypoint x="1085" y="665" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_approved_yes_di" bpmnElement="Flow_approved_yes">
-        <di:waypoint x="825" y="615" />
-        <di:waypoint x="880" y="615" />
+        <di:waypoint x="1135" y="665" />
+        <di:waypoint x="1190" y="665" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="846" y="597" width="16" height="14" />
+          <dc:Bounds x="1156" y="647" width="16" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_approved_no_di" bpmnElement="Flow_approved_no">
-        <di:waypoint x="800" y="640" />
-        <di:waypoint x="800" y="895" />
-        <di:waypoint x="1410" y="895" />
-        <di:waypoint x="1410" y="815" />
+        <di:waypoint x="1110" y="690" />
+        <di:waypoint x="1110" y="945" />
+        <di:waypoint x="1720" y="945" />
+        <di:waypoint x="1720" y="865" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="811" y="769" width="9" height="14" />
+          <dc:Bounds x="1121" y="819" width="9" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_contract_to_gw_di" bpmnElement="Flow_contract_to_gw">
-        <di:waypoint x="980" y="615" />
-        <di:waypoint x="1065" y="615" />
+        <di:waypoint x="1290" y="665" />
+        <di:waypoint x="1375" y="665" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_nego_dasha_di" bpmnElement="Flow_nego_dasha">
-        <di:waypoint x="1330" y="640" />
-        <di:waypoint x="1330" y="775" />
-        <di:waypoint x="1360" y="775" />
+        <di:waypoint x="1640" y="690" />
+        <di:waypoint x="1640" y="825" />
+        <di:waypoint x="1670" y="825" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1386" y="590" width="88" height="27" />
+          <dc:Bounds x="1696" y="640" width="88" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_nego_manual_end_di" bpmnElement="Flow_nego_manual_end">
-        <di:waypoint x="1460" y="775" />
-        <di:waypoint x="1512" y="775" />
+        <di:waypoint x="1770" y="825" />
+        <di:waypoint x="1822" y="825" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_nego_self_to_gw_di" bpmnElement="Flow_nego_self_to_gw">
-        <di:waypoint x="1560" y="995" />
-        <di:waypoint x="1600" y="995" />
-        <di:waypoint x="1600" y="655" />
+        <di:waypoint x="1870" y="1045" />
+        <di:waypoint x="1910" y="1045" />
+        <di:waypoint x="1910" y="705" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_dmn_to_gw_di" bpmnElement="Flow_dmn_to_gw">
-        <di:waypoint x="1630" y="615" />
-        <di:waypoint x="1705" y="615" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_dmn_pay_di" bpmnElement="Flow_dmn_pay">
-        <di:waypoint x="1730" y="590" />
-        <di:waypoint x="1730" y="225" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1727" y="443" width="46" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_dmn_wait_di" bpmnElement="Flow_dmn_wait">
-        <di:waypoint x="1745" y="605" />
-        <di:waypoint x="1784" y="580" />
-        <di:waypoint x="1862" y="580" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1749" y="546" width="61" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_dmn_break_di" bpmnElement="Flow_dmn_break">
-        <di:waypoint x="1730" y="640" />
-        <di:waypoint x="1730" y="680" />
-        <di:waypoint x="1840" y="680" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1768" y="650" width="62" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_break_to_end_di" bpmnElement="Flow_break_to_end">
-        <di:waypoint x="1960" y="680" />
-        <di:waypoint x="2052" y="680" />
+        <di:waypoint x="1940" y="665" />
+        <di:waypoint x="2015" y="665" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_timer_to_yulia_di" bpmnElement="Flow_timer_to_yulia">
-        <di:waypoint x="1020" y="370" />
-        <di:waypoint x="1020" y="775" />
-        <di:waypoint x="1080" y="775" />
+        <di:waypoint x="1330" y="420" />
+        <di:waypoint x="1330" y="825" />
+        <di:waypoint x="1390" y="825" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_yulia_to_gw_di" bpmnElement="Flow_yulia_to_gw">
-        <di:waypoint x="1180" y="775" />
-        <di:waypoint x="1225" y="775" />
+        <di:waypoint x="1490" y="825" />
+        <di:waypoint x="1535" y="825" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_yulia_yes_di" bpmnElement="Flow_yulia_yes">
-        <di:waypoint x="1250" y="750" />
-        <di:waypoint x="1250" y="205" />
-        <di:waypoint x="1650" y="205" />
+        <di:waypoint x="1560" y="800" />
+        <di:waypoint x="1560" y="255" />
+        <di:waypoint x="1960" y="255" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1231" y="674" width="16" height="14" />
+          <dc:Bounds x="1541" y="724" width="16" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_yulia_no_di" bpmnElement="Flow_yulia_no">
-        <di:waypoint x="1250" y="800" />
-        <di:waypoint x="1250" y="827" />
+        <di:waypoint x="1560" y="850" />
+        <di:waypoint x="1560" y="877" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1257" y="809" width="9" height="14" />
+          <dc:Bounds x="1567" y="859" width="9" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_yulia_timer_to_dasha_di" bpmnElement="Flow_yulia_timer_to_dasha">
-        <di:waypoint x="1130" y="833" />
-        <di:waypoint x="1130" y="1015" />
-        <di:waypoint x="1200" y="1015" />
+        <di:waypoint x="1440" y="883" />
+        <di:waypoint x="1440" y="1065" />
+        <di:waypoint x="1510" y="1065" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_dasha_to_pay_di" bpmnElement="Flow_dasha_to_pay">
-        <di:waypoint x="1300" y="1015" />
-        <di:waypoint x="1440" y="1015" />
+        <di:waypoint x="1610" y="1065" />
+        <di:waypoint x="1750" y="1065" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_dmn_pay_di" bpmnElement="Flow_dmn_pay">
+        <di:waypoint x="2040" y="640" />
+        <di:waypoint x="2040" y="275" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2037" y="493" width="46" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_timer_to_pay_di" bpmnElement="Flow_timer_to_pay">
-        <di:waypoint x="1020" y="320" />
-        <di:waypoint x="1020" y="165" />
-        <di:waypoint x="1650" y="165" />
+        <di:waypoint x="1330" y="370" />
+        <di:waypoint x="1330" y="215" />
+        <di:waypoint x="1960" y="215" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_contract_yes_di" bpmnElement="Flow_contract_yes">
-        <di:waypoint x="1090" y="590" />
-        <di:waypoint x="1090" y="185" />
-        <di:waypoint x="1650" y="185" />
+        <di:waypoint x="1400" y="640" />
+        <di:waypoint x="1400" y="235" />
+        <di:waypoint x="1960" y="235" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1096" y="385" width="16" height="14" />
+          <dc:Bounds x="1406" y="435" width="16" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_0ues5t2_di" bpmnElement="Flow_0ues5t2">
-        <di:waypoint x="1560" y="1035" />
-        <di:waypoint x="1670" y="1035" />
-        <di:waypoint x="1670" y="225" />
+        <di:waypoint x="1870" y="1085" />
+        <di:waypoint x="1980" y="1085" />
+        <di:waypoint x="1980" y="275" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_pay_to_service_di" bpmnElement="Flow_pay_to_service">
-        <di:waypoint x="1750" y="185" />
-        <di:waypoint x="1870" y="185" />
-        <di:waypoint x="1870" y="440" />
+        <di:waypoint x="2060" y="235" />
+        <di:waypoint x="2180" y="235" />
+        <di:waypoint x="2180" y="490" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_service_to_end_di" bpmnElement="Flow_service_to_end">
-        <di:waypoint x="1920" y="480" />
-        <di:waypoint x="1990" y="480" />
-        <di:waypoint x="1990" y="203" />
+        <di:waypoint x="2230" y="530" />
+        <di:waypoint x="2300" y="530" />
+        <di:waypoint x="2300" y="253" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_contract_no_di" bpmnElement="Flow_contract_no">
-        <di:waypoint x="1115" y="615" />
-        <di:waypoint x="1160" y="615" />
-        <di:waypoint x="1160" y="365" />
-        <di:waypoint x="1280" y="365" />
+        <di:waypoint x="1425" y="665" />
+        <di:waypoint x="1470" y="665" />
+        <di:waypoint x="1470" y="415" />
+        <di:waypoint x="1590" y="415" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1166" y="487" width="9" height="14" />
+          <dc:Bounds x="1476" y="537" width="9" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_nego_self_di" bpmnElement="Flow_nego_self">
-        <di:waypoint x="1355" y="615" />
-        <di:waypoint x="1480" y="615" />
-        <di:waypoint x="1480" y="975" />
+        <di:waypoint x="1665" y="665" />
+        <di:waypoint x="1790" y="665" />
+        <di:waypoint x="1790" y="1025" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1331" y="676" width="88" height="27" />
+          <dc:Bounds x="1641" y="726" width="88" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_dmn_nego_who_to_gw_di" bpmnElement="Flow_dmn_nego_who_to_gw">
-        <di:waypoint x="1330" y="405" />
-        <di:waypoint x="1330" y="590" />
+        <di:waypoint x="1640" y="455" />
+        <di:waypoint x="1640" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_dmn_wait_di" bpmnElement="Flow_dmn_wait">
+        <di:waypoint x="2055" y="655" />
+        <di:waypoint x="2094" y="630" />
+        <di:waypoint x="2172" y="630" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2059" y="596" width="61" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_dmn_break_di" bpmnElement="Flow_dmn_break">
+        <di:waypoint x="2040" y="690" />
+        <di:waypoint x="2040" y="730" />
+        <di:waypoint x="2150" y="730" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2078" y="700" width="62" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_break_to_end_di" bpmnElement="Flow_break_to_end">
+        <di:waypoint x="2270" y="730" />
+        <di:waypoint x="2362" y="730" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

@@ -25,7 +25,6 @@
         <bpmn:flowNodeRef>Task_create_main</bpmn:flowNodeRef>
       </bpmn:lane>
     </bpmn:laneSet>
-    <!-- === START + ODOO CHECK === -->
     <bpmn:startEvent id="StartEvent_1" name="Старт">
       <bpmn:outgoing>Flow_start_to_gw_odoo</bpmn:outgoing>
     </bpmn:startEvent>
@@ -52,7 +51,6 @@
       <bpmn:incoming>Flow_create_main_done</bpmn:incoming>
       <bpmn:outgoing>Flow_odoo_merge_to_intro</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <!-- === PARALLEL: FILE + DETAIL === -->
     <bpmn:parallelGateway id="GW_intro_split">
       <bpmn:incoming>Flow_odoo_merge_to_intro</bpmn:incoming>
       <bpmn:outgoing>Flow_split_to_add_file</bpmn:outgoing>
@@ -91,7 +89,6 @@
       <bpmn:incoming>Flow_detail_to_merge</bpmn:incoming>
       <bpmn:outgoing>Flow_merge_to_ca</bpmn:outgoing>
     </bpmn:parallelGateway>
-    <!-- === MULTI-INSTANCE CALL ACTIVITY === -->
     <bpmn:callActivity id="CA_per_invoice" name="Обробка окремого рахунку">
       <bpmn:extensionElements>
         <zeebe:calledElement processId="Process_single_invoice" propagateAllChildVariables="false" />
@@ -112,11 +109,9 @@
         </bpmn:extensionElements>
       </bpmn:multiInstanceLoopCharacteristics>
     </bpmn:callActivity>
-    <!-- === END === -->
     <bpmn:endEvent id="End_main" name="Усі рахунки оброблено">
       <bpmn:incoming>Flow_ca_to_end</bpmn:incoming>
     </bpmn:endEvent>
-    <!-- === SEQUENCE FLOWS === -->
     <bpmn:sequenceFlow id="Flow_start_to_gw_odoo" sourceRef="StartEvent_1" targetRef="GW_odoo_check" />
     <bpmn:sequenceFlow id="Flow_odoo_no_task" sourceRef="GW_odoo_check" targetRef="Task_create_main" />
     <bpmn:sequenceFlow id="Flow_odoo_has_task" name="Задача існує" sourceRef="GW_odoo_check" targetRef="GW_odoo_merge">
@@ -137,72 +132,61 @@
         <dc:Bounds x="-30" y="-10" width="1100" height="470" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Buhgalter_di" bpmnElement="Lane_Buhgalter" isHorizontal="true">
-        <dc:Bounds x="0" y="-10" width="1070" height="230" />
+      <bpmndi:BPMNShape id="Lane_Odoo_di" bpmnElement="Lane_Odoo" isHorizontal="true">
+        <dc:Bounds x="0" y="340" width="1070" height="120" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Camunda_di" bpmnElement="Lane_Camunda" isHorizontal="true">
         <dc:Bounds x="0" y="220" width="1070" height="120" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Odoo_di" bpmnElement="Lane_Odoo" isHorizontal="true">
-        <dc:Bounds x="0" y="340" width="1070" height="120" />
+      <bpmndi:BPMNShape id="Lane_Buhgalter_di" bpmnElement="Lane_Buhgalter" isHorizontal="true">
+        <dc:Bounds x="0" y="-10" width="1070" height="230" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <!-- Start -->
       <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
         <dc:Bounds x="52" y="82" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="56" y="125" width="30" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <!-- GW odoo check -->
       <bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true">
         <dc:Bounds x="125" y="75" width="50" height="50" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="107" y="40" width="87" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <!-- Task create main -->
       <bpmndi:BPMNShape id="Task_create_main_di" bpmnElement="Task_create_main">
         <dc:Bounds x="160" y="360" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <!-- GW odoo merge -->
       <bpmndi:BPMNShape id="GW_odoo_merge_di" bpmnElement="GW_odoo_merge" isMarkerVisible="true">
         <dc:Bounds x="305" y="75" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <!-- GW intro split -->
       <bpmndi:BPMNShape id="GW_intro_split_di" bpmnElement="GW_intro_split">
         <dc:Bounds x="395" y="75" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <!-- Task add file -->
       <bpmndi:BPMNShape id="Task_add_file_di" bpmnElement="Task_add_file">
         <dc:Bounds x="490" y="10" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <!-- Task detail -->
       <bpmndi:BPMNShape id="Task_detail_di" bpmnElement="Task_detail">
         <dc:Bounds x="490" y="120" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <!-- GW intro merge -->
       <bpmndi:BPMNShape id="GW_intro_merge_di" bpmnElement="GW_intro_merge">
         <dc:Bounds x="635" y="75" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <!-- CA per invoice -->
       <bpmndi:BPMNShape id="CA_per_invoice_di" bpmnElement="CA_per_invoice">
         <dc:Bounds x="740" y="250" width="120" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <!-- End -->
       <bpmndi:BPMNShape id="End_main_di" bpmnElement="End_main">
         <dc:Bounds x="932" y="82" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="905" y="125" width="90" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <!-- Edges -->
       <bpmndi:BPMNEdge id="Flow_start_to_gw_odoo_di" bpmnElement="Flow_start_to_gw_odoo">
         <di:waypoint x="88" y="100" />
         <di:waypoint x="125" y="100" />
