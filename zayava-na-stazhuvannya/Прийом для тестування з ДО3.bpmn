@@ -29,26 +29,33 @@
     <bpmn:sequenceFlow id="Flow_To_ST1" sourceRef="StartEvent_1" targetRef="ST1_CreateDoc" />
 
     <!-- ========================================================== -->
-    <!-- КРОК 1: Створити документ (REST)                            -->
-    <!--   Відправляємо первинні параметри (ім'я, прізвище…)         -->
-    <!--   Отримуємо: {status:"OK", documentID:"123…"}               -->
+    <!-- КРОК 1: Створити документ (REST Outbound Connector)         -->
+    <!--   POST → 1С ДО3: створити документ "Заява на стажування"    -->
+    <!--   Отримуємо: {status:"OK", documentID:"..."}                -->
     <!-- ========================================================== -->
-    <bpmn:serviceTask id="ST1_CreateDoc" name="(1) Створити документ">
+    <bpmn:serviceTask id="ST1_CreateDoc" name="(1) Створити документ"
+      zeebe:modelerTemplate="io.camunda.connectors.HttpJson.v2"
+      zeebe:modelerTemplateVersion="12">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="io.camunda:http-json:1" />
-        <zeebe:taskHeaders>
-          <zeebe:header key="url" value="{{secrets.DO3_Link}}" />
-          <zeebe:header key="method" value="POST" />
-          <zeebe:header key="authentication.type" value="basic" />
-          <zeebe:header key="authentication.username" value="{{secrets.DO3_Login}}" />
-          <zeebe:header key="authentication.password" value="{{secrets.DO3_Pass}}" />
-        </zeebe:taskHeaders>
+        <zeebe:taskDefinition type="io.camunda:http-json:1" retries="3" />
         <zeebe:ioMapping>
-          <zeebe:input source="={&quot;featureCode&quot;: &quot;СтворитиФізОсобу&quot;, &quot;database&quot;: &quot;DO3&quot;, &quot;createDocument&quot;: true, &quot;scriptName&quot;: &quot;Створення фіз особи&quot;, &quot;documentType&quot;: &quot;Заява на стажування.&quot;, &quot;properties&quot;: {&quot;Подразделение&quot;: &quot;c2a0f93b-8fdb-11ec-9285-00115d51d905&quot;}, &quot;additional_details&quot;: {&quot;Прізвище&quot;: &quot;Тестовий&quot;, &quot;Імя&quot;: &quot;Тест&quot;, &quot;ПоБатькові&quot;: &quot;Тестович&quot;, &quot;ДатаЗ&quot;: &quot;20260216000000&quot;, &quot;ДатаПо&quot;: &quot;20260220000000&quot;}}" target="body" />
-          <zeebe:output source="=if response.statusCode = 200 or response.statusCode = 201 then if response.body.status = &quot;OK&quot; then {documentID: response.body.documentID, isAbort: false} else {Step: 0, ErrorMessage: response.body.message, isAbort: true} else {Step: 0, ErrorMessage: &quot;REST Error: &quot; + string(response.statusCode), isAbort: true}" target="op1" />
-          <zeebe:output source="=op1.documentID" target="documentID" />
-          <zeebe:output source="=op1.ErrorMessage" target="ErrorMessage" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;http://web.dobrom.com/dev_edoc3_abarkin/hs/tut/camunda_document&quot;" target="url" />
+          <zeebe:input source="=&quot;basic&quot;" target="authentication.type" />
+          <zeebe:input source="=&quot;camunda&quot;" target="authentication.username" />
+          <zeebe:input source="=&quot;14412&quot;" target="authentication.password" />
+          <zeebe:input source="=20" target="connectionTimeoutInSeconds" />
+          <zeebe:input source="=20" target="readTimeoutInSeconds" />
+          <zeebe:input source="={&quot;featureCode&quot;: &quot;СтворитиФізОсобу&quot;, &quot;database&quot;: &quot;DO3&quot;, &quot;createDocument&quot;: true, &quot;scriptName&quot;: &quot;Створення фіз особи&quot;, &quot;documentType&quot;: &quot;Заява на стажування.&quot;, &quot;properties&quot;: {&quot;Подразделение&quot;: &quot;c2a0f93b-8fdb-11ec-9285-00115d51d905&quot;, &quot;Прізвище&quot;: &quot;Тестовий&quot;, &quot;Імя&quot;: &quot;Тест&quot;, &quot;ПоБатькові&quot;: &quot;Тестович&quot;, &quot;ДатаЗ&quot;: &quot;20260216000000&quot;, &quot;ДатаПо&quot;: &quot;20260220000000&quot;}}" target="body" />
         </zeebe:ioMapping>
+        <zeebe:taskHeaders>
+          <zeebe:header key="resultVariable" value="response" />
+          <zeebe:header key="resultExpression" value="=if response.status = 200 and response.body.status = &quot;OK&quot; then {documentID: response.body.documentID, isAbort: false} else {isAbort: true, ErrorMessage: response.body.message}" />
+          <zeebe:header key="errorExpression" value="" />
+          <zeebe:header key="retryBackoff" value="PT0S" />
+          <zeebe:header key="elementTemplateVersion" value="12" />
+          <zeebe:header key="elementTemplateId" value="io.camunda.connectors.HttpJson.v2" />
+        </zeebe:taskHeaders>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_ST1</bpmn:incoming>
       <bpmn:outgoing>Flow_ST1_to_GW1</bpmn:outgoing>
@@ -64,32 +71,40 @@
     </bpmn:exclusiveGateway>
 
     <bpmn:sequenceFlow id="Flow_GW1_ok" name="OK" sourceRef="GW1" targetRef="ST2_TriggerFO">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=op1.isAbort = false</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = false</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_GW1_err" name="Помилка" sourceRef="GW1" targetRef="EndEvent_Abort">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=op1.isAbort = true</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
     <!-- ========================================================== -->
     <!-- КРОК 2: Запустити скрипт "Створити ФО" (REST)               -->
-    <!--   Відправляємо: {documentID, СтворитиФізособу: true}        -->
+    <!--   POST → 1С ДО3: створити фізичну особу                    -->
     <!--   Отримуємо: {status:"OK"}                                  -->
     <!-- ========================================================== -->
-    <bpmn:serviceTask id="ST2_TriggerFO" name="(2) Запустити скрипт ФО">
+    <bpmn:serviceTask id="ST2_TriggerFO" name="(2) Запустити скрипт ФО"
+      zeebe:modelerTemplate="io.camunda.connectors.HttpJson.v2"
+      zeebe:modelerTemplateVersion="12">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="io.camunda:http-json:1" />
-        <zeebe:taskHeaders>
-          <zeebe:header key="url" value="{{secrets.DO3_Link}}" />
-          <zeebe:header key="method" value="POST" />
-          <zeebe:header key="authentication.type" value="basic" />
-          <zeebe:header key="authentication.username" value="{{secrets.DO3_Login}}" />
-          <zeebe:header key="authentication.password" value="{{secrets.DO3_Pass}}" />
-        </zeebe:taskHeaders>
+        <zeebe:taskDefinition type="io.camunda:http-json:1" retries="3" />
         <zeebe:ioMapping>
-          <zeebe:input source="={documentID: documentID, createDocument: true, properties: {&quot;Наименование&quot;: &quot;Петренко Петро Петрович&quot;, &quot;ДатаРождения&quot;: &quot;1999-03-01&quot;, &quot;Пол&quot;: &quot;Мужской&quot;}, contact_information: {phone: &quot;+380665554433&quot;, email: &quot;1@1.com&quot;}}" target="body" />
-          <zeebe:output source="=if response.statusCode = 200 or response.statusCode = 201 then if response.body.status = &quot;OK&quot; then {isAbort: false} else {Step: 2, ErrorMessage: response.body.message, isAbort: true} else {Step: 2, ErrorMessage: &quot;REST Error Step 2&quot;, isAbort: true}" target="op2" />
-          <zeebe:output source="=op2.ErrorMessage" target="ErrorMessage" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;http://web.dobrom.com/dev_edoc3_abarkin/hs/tut/camunda_document&quot;" target="url" />
+          <zeebe:input source="=&quot;basic&quot;" target="authentication.type" />
+          <zeebe:input source="=&quot;camunda&quot;" target="authentication.username" />
+          <zeebe:input source="=&quot;14412&quot;" target="authentication.password" />
+          <zeebe:input source="=20" target="connectionTimeoutInSeconds" />
+          <zeebe:input source="=20" target="readTimeoutInSeconds" />
+          <zeebe:input source="={&quot;documentID&quot;: documentID, &quot;createDocument&quot;: true, &quot;properties&quot;: {&quot;Наименование&quot;: &quot;Петренко Петро Петрович&quot;, &quot;ДатаРождения&quot;: &quot;1999-03-01&quot;, &quot;Пол&quot;: &quot;Мужской&quot;}, &quot;contact_information&quot;: {&quot;phone&quot;: &quot;+380665554433&quot;, &quot;email&quot;: &quot;1@1.com&quot;}}" target="body" />
         </zeebe:ioMapping>
+        <zeebe:taskHeaders>
+          <zeebe:header key="resultVariable" value="response" />
+          <zeebe:header key="resultExpression" value="=if response.status = 200 and response.body.status = &quot;OK&quot; then {isAbort: false} else {isAbort: true, ErrorMessage: response.body.message}" />
+          <zeebe:header key="errorExpression" value="" />
+          <zeebe:header key="retryBackoff" value="PT0S" />
+          <zeebe:header key="elementTemplateVersion" value="12" />
+          <zeebe:header key="elementTemplateId" value="io.camunda.connectors.HttpJson.v2" />
+        </zeebe:taskHeaders>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_GW1_ok</bpmn:incoming>
       <bpmn:outgoing>Flow_ST2_to_GW2</bpmn:outgoing>
@@ -105,15 +120,16 @@
     </bpmn:exclusiveGateway>
 
     <bpmn:sequenceFlow id="Flow_GW2_ok" name="OK" sourceRef="GW2" targetRef="Msg1_PersonCreated">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=op2.isAbort = false</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = false</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_GW2_err" name="Помилка" sourceRef="GW2" targetRef="EndEvent_Abort">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=op2.isAbort = true</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
     <!-- ========================================================== -->
     <!-- КРОК 3: Очікування сигналу "ФО створено"                    -->
-    <!--   Отримуємо: {status:"OK", personID:"54545…"}               -->
+    <!--   1С надсилає message "PersonCreated" з correlationKey=documentID -->
+    <!--   Змінні з повідомлення автоматично мерджаться в процес     -->
     <!-- ========================================================== -->
     <bpmn:intermediateCatchEvent id="Msg1_PersonCreated" name="Очікування:&#10;ФО створено">
       <bpmn:incoming>Flow_GW2_ok</bpmn:incoming>
@@ -139,24 +155,32 @@
 
     <!-- ========================================================== -->
     <!-- КРОК 4: Запустити скрипт "Створити співробітника" (REST)     -->
-    <!--   Відправляємо: {documentID, СтворитиСпівробітника: true}   -->
+    <!--   POST → 1С ДО3: встановити прапорець СтворитиСпівробітника -->
     <!--   Отримуємо: {status:"OK"}                                  -->
     <!-- ========================================================== -->
-    <bpmn:serviceTask id="ST3_TriggerEmployee" name="(4) Запустити скрипт Співробітника">
+    <bpmn:serviceTask id="ST3_TriggerEmployee" name="(4) Запустити скрипт Співробітника"
+      zeebe:modelerTemplate="io.camunda.connectors.HttpJson.v2"
+      zeebe:modelerTemplateVersion="12">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="io.camunda:http-json:1" />
-        <zeebe:taskHeaders>
-          <zeebe:header key="url" value="{{secrets.DO3_Link}}" />
-          <zeebe:header key="method" value="POST" />
-          <zeebe:header key="authentication.type" value="basic" />
-          <zeebe:header key="authentication.username" value="{{secrets.DO3_Login}}" />
-          <zeebe:header key="authentication.password" value="{{secrets.DO3_Pass}}" />
-        </zeebe:taskHeaders>
+        <zeebe:taskDefinition type="io.camunda:http-json:1" retries="3" />
         <zeebe:ioMapping>
-          <zeebe:input source="={documentID: documentID, &quot;СтворитиСпівробітника&quot;: true}" target="body" />
-          <zeebe:output source="=if response.statusCode = 200 or response.statusCode = 201 then if response.body.status = &quot;OK&quot; then {isAbort: false} else {Step: 4, ErrorMessage: response.body.message, isAbort: true} else {Step: 4, ErrorMessage: &quot;REST Error Step 4&quot;, isAbort: true}" target="op4" />
-          <zeebe:output source="=op4.ErrorMessage" target="ErrorMessage" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;http://web.dobrom.com/dev_edoc3_abarkin/hs/tut/camunda_document&quot;" target="url" />
+          <zeebe:input source="=&quot;basic&quot;" target="authentication.type" />
+          <zeebe:input source="=&quot;camunda&quot;" target="authentication.username" />
+          <zeebe:input source="=&quot;14412&quot;" target="authentication.password" />
+          <zeebe:input source="=20" target="connectionTimeoutInSeconds" />
+          <zeebe:input source="=20" target="readTimeoutInSeconds" />
+          <zeebe:input source="={&quot;documentID&quot;: documentID, &quot;СтворитиСпівробітника&quot;: true}" target="body" />
         </zeebe:ioMapping>
+        <zeebe:taskHeaders>
+          <zeebe:header key="resultVariable" value="response" />
+          <zeebe:header key="resultExpression" value="=if response.status = 200 and response.body.status = &quot;OK&quot; then {isAbort: false} else {isAbort: true, ErrorMessage: response.body.message}" />
+          <zeebe:header key="errorExpression" value="" />
+          <zeebe:header key="retryBackoff" value="PT0S" />
+          <zeebe:header key="elementTemplateVersion" value="12" />
+          <zeebe:header key="elementTemplateId" value="io.camunda.connectors.HttpJson.v2" />
+        </zeebe:taskHeaders>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_GW3_ok</bpmn:incoming>
       <bpmn:outgoing>Flow_ST3_to_GW4</bpmn:outgoing>
@@ -172,15 +196,15 @@
     </bpmn:exclusiveGateway>
 
     <bpmn:sequenceFlow id="Flow_GW4_ok" name="OK" sourceRef="GW4" targetRef="Msg2_EmployeeCreated">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=op4.isAbort = false</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = false</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_GW4_err" name="Помилка" sourceRef="GW4" targetRef="EndEvent_Abort">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=op4.isAbort = true</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
     <!-- ========================================================== -->
     <!-- КРОК 5: Очікування сигналу "Співробітника створено"         -->
-    <!--   Отримуємо: {status:"OK", employeeID:"…"}                  -->
+    <!--   1С надсилає message "EmployeeCreated" з correlationKey=documentID -->
     <!-- ========================================================== -->
     <bpmn:intermediateCatchEvent id="Msg2_EmployeeCreated" name="Очікування:&#10;Співробітника створено">
       <bpmn:incoming>Flow_GW4_ok</bpmn:incoming>
