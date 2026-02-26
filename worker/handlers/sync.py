@@ -15,9 +15,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from pyzeebe import ZeebeClient, ZeebeWorker
-
-from ..auth import ZeebeAuthConfig, create_channel
+from pyzeebe import ZeebeWorker
 from ..config import AppConfig
 from ..github_client import GitHubClient
 from ..retry import retry
@@ -215,7 +213,7 @@ def register_sync_handlers(
 
     # ── sync-modules ───────────────────────────────────────────
 
-    @worker.task(task_type="sync-modules", timeout_ms=300_000)
+    @worker.task(task_type="sync-modules", timeout_ms=1_200_000)
     async def sync_modules(
         server_host: str = "",
         modules: str = "",
@@ -279,7 +277,7 @@ def register_sync_handlers(
                 f"rsync -a --delete --checksum --exclude='.git' "
                 f"/tmp/upstream-community/ {WORKSPACE}/src/community/",
                 check=True,
-                timeout=180,
+                timeout=600,
             )
 
             # Sync enterprise (full replace, exclude .git)
@@ -288,7 +286,7 @@ def register_sync_handlers(
                 f"rsync -a --delete --checksum --exclude='.git' "
                 f"/tmp/upstream-enterprise/ {WORKSPACE}/src/enterprise/",
                 check=True,
-                timeout=180,
+                timeout=600,
             )
 
             # Count synced
@@ -308,7 +306,7 @@ def register_sync_handlers(
 
     # ── diff-report ────────────────────────────────────────────
 
-    @worker.task(task_type="diff-report", timeout_ms=60_000)
+    @worker.task(task_type="diff-report", timeout_ms=600_000)
     async def diff_report(
         server_host: str = "",
         **kwargs: Any,
@@ -322,11 +320,11 @@ def register_sync_handlers(
         )
 
         # Check community changes
-        com_check = await _ws_run(server, "git diff --quiet -- src/community/ 2>/dev/null; echo $?")
+        com_check = await _ws_run(server, "git diff --quiet -- src/community/ 2>/dev/null; echo $?", timeout=300)
         community_changed = com_check.stdout.strip() != "0"
 
         # Check enterprise changes
-        ent_check = await _ws_run(server, "git diff --quiet -- src/enterprise/ 2>/dev/null; echo $?")
+        ent_check = await _ws_run(server, "git diff --quiet -- src/enterprise/ 2>/dev/null; echo $?", timeout=300)
         enterprise_changed = ent_check.stdout.strip() != "0"
 
         has_changes = community_changed or enterprise_changed
@@ -337,13 +335,13 @@ def register_sync_handlers(
 
         if community_changed:
             result = await _ws_run(
-                server, "git diff --name-only -- src/community/ | wc -l", check=True,
+                server, "git diff --name-only -- src/community/ | wc -l", check=True, timeout=300,
             )
             community_files = int(result.stdout.strip())
 
         if enterprise_changed:
             result = await _ws_run(
-                server, "git diff --name-only -- src/enterprise/ | wc -l", check=True,
+                server, "git diff --name-only -- src/enterprise/ | wc -l", check=True, timeout=300,
             )
             enterprise_files = int(result.stdout.strip())
 
@@ -351,7 +349,7 @@ def register_sync_handlers(
             result = await _ws_run(
                 server,
                 "git diff --name-only -- src/enterprise/ | cut -d'/' -f3 | sort -u",
-                check=True,
+                check=True, timeout=300,
             )
             changed_modules = [m for m in result.stdout.strip().split("\n") if m]
 
@@ -361,6 +359,7 @@ def register_sync_handlers(
                 server,
                 "git diff --name-only -- src/community/odoo/addons/ 2>/dev/null "
                 "| cut -d'/' -f5 | sort -u",
+                timeout=300,
             )
             community_modules = [m for m in result.stdout.strip().split("\n") if m]
             all_modules = sorted(set(changed_modules + community_modules))
@@ -504,15 +503,16 @@ def register_sync_handlers(
             check=True,
         )
 
-        # Push to GitHub
+        # Push sync branch to GitHub
+        push_url = (
+            f"https://x-access-token:{deploy_pat}@github.com/{repo}.git"
+        )
         await _ws_run(
             server,
-            f"git push --no-verify https://x-access-token:{deploy_pat}@github.com/"
-            f"{repo}.git {branch_name}",
+            f"git push --no-verify {push_url} {branch_name}",
             check=True,
             timeout=60,
         )
-
         logger.info("Pushed sync branch: %s", branch_name)
 
         # Save sync state on server (for next fetch-current-version)
@@ -558,6 +558,80 @@ def register_sync_handlers(
             "is_draft": True,
         }
 
+    # ── sync-code-to-demo ─────────────────────────────────────
+
+    @worker.task(task_type="sync-code-to-demo", timeout_ms=120_000)
+    async def sync_code_to_demo(
+        sync_branch: str,
+        server_host: str = "",
+        **kwargs: Any,
+    ) -> dict:
+        """Fetch and checkout sync branch on demo server (git only, no deploy).
+
+        Pulls the sync branch onto kozak_demo so the developer can review
+        and fix conflict files before the full deploy runs.
+        """
+        server = _resolve_server(server_host)
+        repo_dir = server.repo_dir
+
+        await ssh.run(
+            server,
+            f"cd {repo_dir} && git fetch origin {sync_branch}",
+            check=True,
+            timeout=60,
+        )
+        await ssh.run(
+            server,
+            f"cd {repo_dir} && git checkout -B {sync_branch} origin/{sync_branch}",
+            check=True,
+        )
+
+        logger.info("Synced code to %s: branch %s", server.host, sync_branch)
+        return {"code_synced": True}
+
+    # ── merge-to-staging ────────────────────────────────────────
+
+    @worker.task(task_type="merge-to-staging", timeout_ms=180_000)
+    async def merge_to_staging(
+        sync_branch: str = "",
+        server_host: str = "",
+        repository: str = "",
+        **kwargs: Any,
+    ) -> dict:
+        """Merge sync branch into staging with -X theirs and push.
+
+        Called after deploy to demo + optional conflict resolution.
+        The sync branch may contain additional fix commits pushed by the developer.
+        """
+        server = config.resolve_server(server_host or "staging")
+        repo = repository or config.github.repository
+        deploy_pat = config.github.deploy_pat
+
+        if not sync_branch:
+            raise ValueError("sync_branch is required for merge-to-staging")
+
+        push_url = (
+            f"https://x-access-token:{deploy_pat}@github.com/{repo}.git"
+        )
+
+        # Merge sync branch into staging with -X theirs
+        # (upstream files overwrite staging, custom modules untouched)
+        merge_cmd = (
+            f"cd /tmp && rm -rf merge-workspace && git clone --depth=50 "
+            f"-b staging {push_url} merge-workspace && "
+            f"cd merge-workspace && "
+            f"git fetch origin {sync_branch} && "
+            f"git merge origin/{sync_branch} -X theirs --no-edit && "
+            f"git push --no-verify origin staging"
+        )
+        await ssh.run(server, merge_cmd, check=True, timeout=120)
+        logger.info("Merged %s into staging", sync_branch)
+
+        # Cleanup
+        await ssh.run(server, "rm -rf /tmp/merge-workspace", check=False)
+
+        return {"staging_merged": True}
+
     # ── github-pr-ready ────────────────────────────────────────
 
     @worker.task(task_type="github-pr-ready", timeout_ms=60_000)
@@ -566,59 +640,14 @@ def register_sync_handlers(
         repository: str = "",
         **kwargs: Any,
     ) -> dict:
-        """Mark a draft PR as ready and publish Zeebe message to start feature-to-production."""
+        """Mark a draft PR as ready for review.
+
+        After marking ready, GitHub sends a ready_for_review webhook event,
+        which the webhook handler routes to start feature-to-production.
+        """
         repo = repository or config.github.repository
 
         await github.mark_pr_ready(repo, pr_number)
         logger.info("Marked PR #%d as ready in %s", pr_number, repo)
-
-        # Publish Zeebe message to start feature-to-production
-        auth_config = ZeebeAuthConfig(
-            gateway_address=config.zeebe.gateway_address,
-            client_id=config.zeebe.client_id,
-            client_secret=config.zeebe.client_secret,
-            token_url=config.zeebe.token_url,
-            audience=config.zeebe.audience,
-        )
-        channel = create_channel(auth_config)
-        zeebe_client = ZeebeClient(channel)
-
-        pr_data = await github.get_pr(repo, pr_number)
-        staging = config.servers.get("staging")
-
-        variables: dict[str, Any] = {
-            "pr_number": pr_number,
-            "pr_url": pr_data.get("html_url", ""),
-            "pr_title": pr_data.get("title", ""),
-            "pr_author": pr_data.get("user", {}).get("login", ""),
-            "repository": repo,
-            "base_branch": pr_data.get("base", {}).get("ref", "staging"),
-            "head_branch": pr_data.get("head", {}).get("ref", ""),
-        }
-        if staging:
-            variables.update({
-                "staging_host": staging.host,
-                "staging_ssh_user": staging.ssh_user,
-                "staging_repo_dir": staging.repo_dir,
-                "staging_db": staging.db_name,
-                "staging_container": staging.container,
-            })
-
-        production = config.servers.get("production")
-        if production:
-            variables.update({
-                "production_host": production.host,
-                "production_ssh_user": production.ssh_user,
-                "production_repo_dir": production.repo_dir,
-                "production_db": production.db_name,
-                "production_container": production.container,
-            })
-
-        await zeebe_client.publish_message(
-            name="msg_pr_event",
-            correlation_key=variables.get("head_branch", ""),
-            variables=variables,
-        )
-        logger.info("Published msg_pr_event for PR #%d (process linking)", pr_number)
 
         return {}

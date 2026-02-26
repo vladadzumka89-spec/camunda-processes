@@ -6,7 +6,6 @@ import logging
 from dataclasses import dataclass
 
 import grpc
-from pyzeebe import create_insecure_channel
 
 logger = logging.getLogger(__name__)
 
@@ -90,13 +89,32 @@ class _BearerTokenInterceptor(grpc.aio.UnaryUnaryClientInterceptor):
         return await continuation(new_details, request)
 
 
+def _keepalive_options() -> list[tuple]:
+    """gRPC keepalive options to prevent channel closure during long tasks.
+
+    Zeebe server has minKeepAliveInterval=10s, but too-frequent pings
+    can trigger GOAWAY "too_many_pings" under load. Use 60s intervals
+    as a safe balance between liveness and server tolerance.
+    """
+    return [
+        ('grpc.keepalive_time_ms', 60_000),
+        ('grpc.keepalive_timeout_ms', 20_000),
+        ('grpc.keepalive_permit_without_calls', 1),
+        ('grpc.http2.max_pings_without_data', 0),
+        ('grpc.http2.min_time_between_pings_ms', 60_000),
+        ('grpc.http2.min_ping_interval_without_data_ms', 60_000),
+    ]
+
+
 def create_channel(config: ZeebeAuthConfig) -> grpc.aio.Channel:
     """Create a gRPC channel for Zeebe — insecure or OAuth2-authenticated."""
     global _token_manager
 
+    options = _keepalive_options()
+
     if not config.use_oauth:
         logger.info('Using insecure Zeebe channel to %s', config.gateway_address)
-        return create_insecure_channel(config.gateway_address)
+        return grpc.aio.insecure_channel(config.gateway_address, options=options)
 
     # OAuth2 — initialise token manager
     _token_manager = TokenManager(
@@ -114,7 +132,7 @@ def create_channel(config: ZeebeAuthConfig) -> grpc.aio.Channel:
         )
         interceptor = _BearerTokenInterceptor(_token_manager)
         return grpc.aio.insecure_channel(
-            config.gateway_address, interceptors=[interceptor],
+            config.gateway_address, interceptors=[interceptor], options=options,
         )
 
     # TLS channel with composite credentials (external / cloud)
@@ -123,7 +141,7 @@ def create_channel(config: ZeebeAuthConfig) -> grpc.aio.Channel:
     composite = grpc.composite_channel_credentials(channel_credentials, call_credentials)
 
     logger.info('Using TLS OAuth2 Zeebe channel to %s', config.gateway_address)
-    return grpc.aio.secure_channel(config.gateway_address, composite)
+    return grpc.aio.secure_channel(config.gateway_address, composite, options=options)
 
 
 def get_token_manager() -> TokenManager | None:

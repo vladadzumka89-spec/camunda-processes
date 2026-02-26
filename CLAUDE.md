@@ -1,11 +1,98 @@
-# Camunda 8.8 — Правила створення BPMN-процесів
+# CLAUDE.md
 
-Цей документ містить обов'язкові правила для створення BPMN-процесів у Camunda 8.8 з інтеграцією Odoo.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Стек:** Camunda 8.8 · Odoo ERP (`o.tut.ua`) · Job worker (`http-request-smart`)
-**Принцип:** кожен процес Camunda = задача/проект в Odoo (ID проекту: `252`)
+## Git policy
 
----
+**ЗАБОРОНЕНО** виконувати будь-які записуючі git-операції (commit, push, merge, rebase, reset, checkout, branch -D, tag, stash drop тощо) без прямої явної вказівки користувача. Читання (status, log, diff, branch --list) — дозволено завжди.
+
+## Project overview
+
+Camunda 8.8 BPMN workflow orchestrator integrated with Odoo ERP and GitHub. Manages CI/CD pipelines (feature-to-production), upstream Odoo module synchronization, and reusable deployment sub-processes.
+
+**Stack**: Python 3.12 async, Camunda 8.8.3 (Zeebe gRPC), Docker, asyncssh, httpx, aiohttp, pyzeebe.
+
+## Build and run
+
+```bash
+# Local dev stack (Zeebe + Elasticsearch + Operate + Connectors + Worker)
+docker compose up -d
+
+# Full stack with Keycloak/Identity/Web Modeler
+docker compose -f docker-compose-full.yaml up -d
+
+# Run worker locally (outside Docker)
+pip install -r requirements.txt
+python -m worker
+
+# Deploy BPMN to Zeebe (basic auth demo:demo)
+curl -s -X POST "http://localhost:8088/v2/deployments" \
+  -u "demo:demo" -F "resources=@bpmn/feature-to-production.bpmn"
+```
+
+## Tests
+
+```bash
+pytest                                           # all tests
+pytest tests/test_handlers_deploy.py             # single file
+pytest tests/test_handlers_deploy.py::test_git_pull_success  # single test
+pytest -vv -s                                    # verbose with stdout
+pytest tests/integration/                        # integration (requires Docker Zeebe)
+```
+
+Tests use `pytest` + `pytest-asyncio` + `unittest.mock`. Fixtures in `tests/conftest.py` provide `app_config`, `mock_ssh`, `mock_github`, `mock_odoo`, `mock_worker` (captures handlers via `worker.task` decorator interception).
+
+## Architecture
+
+```
+                  GitHub/Odoo webhooks
+                         │
+              WebhookServer (aiohttp :9001)
+                         │ publish Zeebe message
+                         ▼
+              Zeebe Engine (gRPC :26500)
+                         │ poll jobs
+                         ▼
+              ZeebeWorker (pyzeebe, 26 task types)
+                  │          │          │
+              SSH cmds   GitHub API   Odoo webhook
+           (staging/prod) (PR ops)  (task creation)
+```
+
+**Entry point**: `worker/__main__.py` → `worker.worker.main()` runs `worker_loop()` + `WebhookServer.start()` via `asyncio.gather()`.
+
+**Handlers** (`worker/handlers/`): Each module exports `register_*_handlers(worker, config, ssh, ...)` that decorates async functions with `@worker.task(task_type=...)`. Groups:
+- `deploy.py` (10): git-pull, detect-modules, docker-build, docker-up, module-update, cache-clear, smoke-test, http-verify, save-deploy-state, rollback
+- `github.py` (4): pr-agent-review, github-merge, github-comment, github-create-pr
+- `sync.py` (8): fetch-current-version, fetch-runbot, clone-upstream, sync-modules, diff-report, impact-analysis, git-commit-push, github-pr-ready
+- `audit.py` (1): audit-analysis
+- `clickbot.py` (1): clickbot-test
+- `notify.py` (2): send-notification, create-odoo-task
+
+**Clients**: `GitHubClient` (REST API), `OdooClient` (webhook POST), `AsyncSSHClient` (connection pooling + remote exec).
+
+**Config**: `AppConfig.from_env()` loads from `.env.camunda`. Frozen dataclasses: `ZeebeConfig`, `GitHubConfig`, `OdooConfig`, `WebhookConfig`, `ServerConfig`. Servers dict keyed by name (staging, production, kozak_demo).
+
+## BPMN processes
+
+Three executable processes in `bpmn/`:
+- **feature-to-production.bpmn** — Main CI/CD: PR event → PR-Agent review → score check → staging deploy → prod deploy. Uses message correlation (`msg_pr_event`, `msg_pr_updated`, `msg_odoo_task_done`).
+- **upstream-sync.bpmn** — Nightly upstream Odoo module sync: fetch Runbot CI → clone → sync → audit → PR.
+- **deploy-process.bpmn** — Reusable call activity: git-pull → detect-modules → docker-build → module-update → smoke-test → rollback on failure.
+
+Camunda UI forms in `bpmn/forms/`. Root-level Ukrainian `.bpmn`/`.dmn` files are Odoo invoice/payment processes (use `http-request-smart` connectors, not the Python worker).
+
+## Key ports
+
+| Service | Port |
+|---------|------|
+| Zeebe gRPC | 26500 |
+| Camunda REST + Operate UI | 8088 |
+| Connectors | 8086 |
+| Elasticsearch | 9200 |
+| Webhook server | 9001 |
+
+## Правила створення BPMN-процесів (Camunda 8.8 + Odoo)
 
 ## Обов'язкові правила (порушувати ЗАБОРОНЕНО)
 
@@ -69,16 +156,8 @@ Start Event
 | body | `body` | див. нижче |
 
 ```
-= {name: "<НАЗВА ПРОЦЕСУ — вказує замовник БП>",
-   create_process: true,
-   _model: "project.project",
-   _id: 252}
+= {name: "<НАЗВА ПРОЦЕСУ>", create_process: true, _model: "project.project", _id: 252}
 ```
-
-- `name` — назва головної задачі/процесу (єдине що змінюється, вказує замовник)
-- `create_process: true` — завжди обов'язково
-- `_model: "project.project"` — завжди фіксоване
-- `_id: 252` — ID проекту в Odoo (фіксований, всі процеси в одному проекті)
 
 ---
 
@@ -102,9 +181,6 @@ Start Event
     payload: { groups: [<ID групи працівників>] }
 }
 ```
-
-- `action_identifier` — посилання на серверну дію в Odoo
-- `groups` — масив ID груп, з яких потрібні працівники (вказує замовник)
 
 **Output:** `employees = result.data`
 

@@ -16,7 +16,7 @@ COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy worker source code
-COPY worker/ ./
+COPY worker/ ./worker/
 
 # SSH key mount point
 VOLUME /root/.ssh

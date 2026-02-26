@@ -67,3 +67,29 @@ def test_create_task_with_assignee(mock_post: MagicMock, odoo_client: OdooClient
     assert task_id == 101
     body = mock_post.call_args[1]["json"]
     assert body["x_studio_camunda_user_ids"] == 10
+
+
+@patch("worker.odoo_client.httpx.post")
+def test_create_task_with_process_instance_key(mock_post: MagicMock, odoo_client: OdooClient) -> None:
+    mock_post.return_value = MagicMock(
+        status_code=200,
+        json=MagicMock(return_value={"id": 102}),
+        raise_for_status=MagicMock(),
+    )
+    task_id = odoo_client.create_task(name="Tracked task", process_instance_key=2251799813688185)
+    assert task_id == 102
+    body = mock_post.call_args[1]["json"]
+    assert body["process_instance_key"] == 2251799813688185
+
+
+@patch("worker.odoo_client.httpx.post")
+def test_create_task_without_process_instance_key(mock_post: MagicMock, odoo_client: OdooClient) -> None:
+    mock_post.return_value = MagicMock(
+        status_code=200,
+        json=MagicMock(return_value={"id": 103}),
+        raise_for_status=MagicMock(),
+    )
+    task_id = odoo_client.create_task(name="No key task")
+    assert task_id == 103
+    body = mock_post.call_args[1]["json"]
+    assert "process_instance_key" not in body

@@ -389,6 +389,7 @@ def run_analysis(workspace: str) -> dict[str, Any]:
                                 "custom_file": rel_path,
                                 "target": f"{model}.{method}",
                                 "has_super": ov["has_super"],
+                                "super_conditional": ov.get("super_conditional", False),
                                 "base_file": bf,
                                 "line": ov["line"],
                             })
@@ -560,21 +561,36 @@ def register_audit_handlers(
         ]
 
         if conflicts:
-            report_lines.append("| # | Severity | Type | Custom Module | Target | Base |")
-            report_lines.append("|---|---|---|---|---|---|")
+            report_lines.append("| # | Severity | Type | Custom Module | Target | Base | File | Line | Super |")
+            report_lines.append("|---|---|---|---|---|---|---|---|---|")
 
-            for c in conflicts[:50]:  # Limit to 50 in report
+            for c in conflicts[:80]:  # Limit to 80 in report
                 sev_icon = {"critical": "!!!", "warning": "!", "info": "-"}.get(
                     c.get("severity", "info"), "-"
                 )
+                custom_file = c.get("custom_file", "")
+                line_no = c.get("line", "")
+                # Super call info for python overrides
+                if c.get("type") == "python_override":
+                    if not c.get("has_super"):
+                        super_info = "no"
+                    elif c.get("super_conditional"):
+                        super_info = "cond"
+                    else:
+                        super_info = "yes"
+                elif c.get("type") == "xml_xpath":
+                    super_info = c.get("xpath", "")[:40]
+                else:
+                    super_info = ""
                 report_lines.append(
                     f"| {c.get('id', '')} | {sev_icon} {c.get('severity', '')} "
                     f"| {c.get('type', '')} | {c.get('custom_module', '')} "
-                    f"| {c.get('target', '')} | {c.get('base_file', c.get('base_module', ''))} |"
+                    f"| {c.get('target', '')} | {c.get('base_file', c.get('base_module', ''))} "
+                    f"| {custom_file} | {line_no} | {super_info} |"
                 )
 
-            if len(conflicts) > 50:
-                report_lines.append(f"| ... | ... | ... | +{len(conflicts) - 50} more | ... | ... |")
+            if len(conflicts) > 80:
+                report_lines.append(f"| ... | ... | ... | +{len(conflicts) - 80} more | ... | ... | ... | ... | ... |")
 
         audit_report = "\n".join(report_lines)
 

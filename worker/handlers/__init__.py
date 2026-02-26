@@ -31,13 +31,13 @@ def register_all_handlers(
                      save-deploy-state, rollback
         GitHub (4):  pr-agent-review, github-merge, github-comment,
                      github-create-pr
-        Sync (8):    fetch-current-version, fetch-runbot, clone-upstream,
+        Sync (9):    fetch-current-version, fetch-runbot, clone-upstream,
                      sync-modules, diff-report, impact-analysis,
-                     git-commit-push, github-pr-ready
+                     git-commit-push, sync-code-to-demo, github-pr-ready
         Audit (1):   audit-analysis
         Clickbot (1): clickbot-test
         Notify (2):   send-notification, create-odoo-task
-    Total: 26 task types
+    Total: 27 task types
     """
     register_deploy_handlers(worker, config, ssh)
     register_github_handlers(worker, config, ssh, github)

@@ -147,7 +147,7 @@ class WebhookServer:
                 "reason": f"base_branch={base_branch}",
             })
 
-        if action in ('opened', 'reopened'):
+        if action in ('opened', 'reopened', 'ready_for_review'):
             return await self._publish_pr_event(pr, payload)
         elif action == 'synchronize':
             return await self._publish_pr_updated(pr)
@@ -239,11 +239,14 @@ class WebhookServer:
 
     async def _handle_odoo(self, request: web.Request) -> web.Response:
         """Handle Odoo task closure callback — simple token auth."""
-        # Token verification
+        # Token verification (Bearer header or ?token= query param)
         expected_token = self._config.webhook.odoo_webhook_token
         if expected_token:
             auth_header = request.headers.get('Authorization', '')
-            token = auth_header.removeprefix('Bearer ').strip()
+            token = (
+                auth_header.removeprefix('Bearer ').strip()
+                or request.query.get('token', '')
+            )
             if not hmac.compare_digest(token, expected_token):
                 logger.warning("Invalid Odoo webhook token")
                 return web.Response(status=401, text="Invalid token")
@@ -253,28 +256,98 @@ class WebhookServer:
         except json.JSONDecodeError:
             return web.Response(status=400, text="Invalid JSON")
 
+        # Support both task_id and process_instance_key for correlation.
+        # Also check x_studio_camunda_process_instance_key (Odoo webhook action field name).
         task_id = str(payload.get('task_id', ''))
-        if not task_id:
-            return web.Response(status=400, text="Missing task_id")
+        pik = str(
+            payload.get('process_instance_key', '')
+            or payload.get('x_studio_camunda_process_instance_key', '')
+        )
+        # action from JSON body or query param (?action=cancel for Odoo webhook actions)
+        action = payload.get('action', request.query.get('action', 'done'))
+        correlation_key = task_id or pik
+
+        if not correlation_key:
+            return web.Response(status=400, text="Missing task_id or process_instance_key")
+
+        logger.info(
+            "Odoo webhook: action=%s, task_id=%s, pik=%s, payload_keys=%s",
+            action, task_id, pik, list(payload.keys()),
+        )
+
+        # Cancel action: terminate the Camunda process instance
+        if action == 'cancel' and pik:
+            return await self._cancel_process_instance(pik)
 
         try:
             client = self._create_zeebe_client()
             await client.publish_message(
                 name="msg_odoo_task_done",
-                correlation_key=task_id,
+                correlation_key=correlation_key,
                 variables={
                     "odoo_task_resolved": True,
                 },
             )
-            logger.info("Published msg_odoo_task_done for task_id=%s", task_id)
+            logger.info(
+                "Published msg_odoo_task_done correlation_key=%s (task_id=%s, pik=%s)",
+                correlation_key, task_id, pik,
+            )
             return web.json_response({
                 "status": "published",
                 "message": "msg_odoo_task_done",
-                "task_id": task_id,
+                "correlation_key": correlation_key,
             })
         except Exception as exc:
-            logger.error("Failed to publish msg_odoo_task_done for task_id=%s: %s", task_id, exc)
+            logger.error(
+                "Failed to publish msg_odoo_task_done correlation_key=%s: %s",
+                correlation_key, exc,
+            )
             return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
+
+    async def _cancel_process_instance(self, pik: str) -> web.Response:
+        """Cancel a Camunda process instance via REST API."""
+        import httpx
+
+        # REST API is on port 8080 inside Docker network (8088 is host-mapped)
+        gw = self._config.zeebe.gateway_address  # e.g. "orchestration:26500"
+        zeebe_host = gw.split(':')[0] if ':' in gw else gw
+        zeebe_rest = f"http://{zeebe_host}:8080"
+        url = f"{zeebe_rest}/v2/process-instances/{pik}/cancellation"
+
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    url,
+                    auth=("demo", "demo"),
+                    headers={"Content-Type": "application/json"},
+                    content="{}",
+                    timeout=10,
+                )
+            if resp.status_code in (200, 204):
+                logger.info("Cancelled process instance %s (Odoo task cancelled)", pik)
+                return web.json_response({
+                    "status": "cancelled",
+                    "process_instance_key": pik,
+                })
+            elif resp.status_code == 404:
+                # Already cancelled/completed — treat as success
+                logger.info("Process %s already terminated (404)", pik)
+                return web.json_response({
+                    "status": "already_terminated",
+                    "process_instance_key": pik,
+                })
+            else:
+                logger.warning(
+                    "Failed to cancel process %s: HTTP %d %s",
+                    pik, resp.status_code, resp.text,
+                )
+                return web.Response(
+                    status=502,
+                    text=f"Cancel failed: HTTP {resp.status_code}",
+                )
+        except Exception as exc:
+            logger.error("Cancel process %s failed: %s", pik, exc)
+            return web.Response(status=502, text=f"Cancel failed: {exc}")
 
     # ── Helpers ───────────────────────────────────────────
 

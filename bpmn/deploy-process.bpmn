@@ -19,12 +19,15 @@
        Job worker types:
          git-pull, detect-modules, docker-build, docker-up,
          module-update, cache-clear, smoke-test, http-verify,
-         save-deploy-state, rollback
+         clickbot-test, save-deploy-state, rollback
        ═══════════════════════════════════════════════════════════ -->
 
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
 
   <bpmn:process id="deploy-process" name="Deploy Process" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.1" />
+    </bpmn:extensionElements>
 
     <!-- ── START ─────────────────────────────────────────────── -->
     <bpmn:startEvent id="evt_start" name="Початок деплою">
@@ -124,13 +127,7 @@ Output: modules_updated</bpmn:documentation>
       <bpmn:outgoing>f12</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- ── SMOKE TEST? ───────────────────────────────────────── -->
-    <bpmn:exclusiveGateway id="gw_smoke" name="Smoke test?" default="f14">
-      <bpmn:incoming>f12</bpmn:incoming>
-      <bpmn:outgoing>f13</bpmn:outgoing>
-      <bpmn:outgoing>f14</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-
+    <!-- ── SMOKE TEST ─────────────────────────────────────────── -->
     <bpmn:serviceTask id="task_smoke_test" name="Smoke Test">
       <bpmn:documentation>Окремий контейнер: odoo-bin --stop-after-init --no-http (120s timeout).
 Аналіз логів на CRITICAL/ERROR/ImportError/SyntaxError.
@@ -138,15 +135,9 @@ Output: smoke_passed</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="smoke-test" retries="1" />
       </bpmn:extensionElements>
-      <bpmn:incoming>f13</bpmn:incoming>
-      <bpmn:outgoing>f15</bpmn:outgoing>
+      <bpmn:incoming>f12</bpmn:incoming>
+      <bpmn:outgoing>f_smoke_to_http</bpmn:outgoing>
     </bpmn:serviceTask>
-
-    <bpmn:exclusiveGateway id="gw_merge_smoke">
-      <bpmn:incoming>f14</bpmn:incoming>
-      <bpmn:incoming>f15</bpmn:incoming>
-      <bpmn:outgoing>f16</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
 
     <!-- ── HTTP VERIFY ───────────────────────────────────────── -->
     <bpmn:serviceTask id="task_http_verify" name="Перевірити HTTP /web/login">
@@ -154,9 +145,41 @@ Output: smoke_passed</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-verify" retries="3" />
       </bpmn:extensionElements>
-      <bpmn:incoming>f16</bpmn:incoming>
-      <bpmn:outgoing>f17</bpmn:outgoing>
+      <bpmn:incoming>f_smoke_to_http</bpmn:incoming>
+      <bpmn:outgoing>f_http_to_gw_clickbot</bpmn:outgoing>
     </bpmn:serviceTask>
+
+    <!-- ── CLICKBOT GATEWAY ────────────────────────────────────── -->
+    <bpmn:exclusiveGateway id="gw_clickbot" name="Clickbot?" default="f_skip_clickbot">
+      <bpmn:incoming>f_http_to_gw_clickbot</bpmn:incoming>
+      <bpmn:outgoing>f_run_clickbot</bpmn:outgoing>
+      <bpmn:outgoing>f_skip_clickbot</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ── CLICKBOT E2E TEST ─────────────────────────────────── -->
+    <bpmn:serviceTask id="task_clickbot" name="Clickbot E2E тести">
+      <bpmn:documentation>Запускає clickbot в ізольованому Docker середовищі.
+Дампить БД, відновлює в tmpfs PostgreSQL, запускає browser-тести.
+Клікає по всіх меню Odoo, перевіряє що все працює.
+Light — тільки app menus (~10 хв). Full — всі views + фільтри (~30 хв).
+Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="clickbot-test" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=server_host" target="server_host" />
+          <zeebe:input source="=db_name" target="db_name" />
+          <zeebe:input source="=test_mode" target="test_mode" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_run_clickbot</bpmn:incoming>
+      <bpmn:outgoing>f_clickbot_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="gw_merge_clickbot">
+      <bpmn:incoming>f_skip_clickbot</bpmn:incoming>
+      <bpmn:incoming>f_clickbot_to_merge</bpmn:incoming>
+      <bpmn:outgoing>f_merge_to_save</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
 
     <!-- ── SAVE STATE ────────────────────────────────────────── -->
     <bpmn:serviceTask id="task_save_state" name="Зберегти стан деплою">
@@ -164,7 +187,7 @@ Output: smoke_passed</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="save-deploy-state" retries="1" />
       </bpmn:extensionElements>
-      <bpmn:incoming>f17</bpmn:incoming>
+      <bpmn:incoming>f_merge_to_save</bpmn:incoming>
       <bpmn:outgoing>f18</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -173,12 +196,29 @@ Output: smoke_passed</bpmn:documentation>
       <bpmn:incoming>f18</bpmn:incoming>
     </bpmn:endEvent>
 
-    <!-- ── ERROR EVENT SUBPROCESS (Rollback) ─────────────────── -->
-    <bpmn:subProcess id="subprocess_error" name="Rollback on Error" triggeredByEvent="true">
+    <!-- ── ERROR EVENT SUBPROCESS (Odoo notify + Rollback) ────── -->
+    <bpmn:subProcess id="subprocess_error" name="Обробка помилок деплою" triggeredByEvent="true">
       <bpmn:startEvent id="evt_error_catch" name="Помилка деплою" isInterrupting="true">
-        <bpmn:outgoing>f_err1</bpmn:outgoing>
-        <bpmn:errorEventDefinition id="ErrorDef_catch" />
+        <bpmn:outgoing>f_err_to_odoo</bpmn:outgoing>
+        <bpmn:errorEventDefinition id="ErrorDef_catch">
+          <bpmn:extensionElements>
+            <zeebe:errorEventDefinition errorCodeVariable="caught_error_code" errorMessageVariable="caught_error_message" />
+          </bpmn:extensionElements>
+        </bpmn:errorEventDefinition>
       </bpmn:startEvent>
+
+      <bpmn:serviceTask id="ST_error_odoo_task" name="❌ Створити задачу про помилку в Odoo">
+        <bpmn:documentation>Створює підзадачу в Odoo про помилку деплою з деталями помилки.</bpmn:documentation>
+        <bpmn:extensionElements>
+          <zeebe:taskDefinition type="send-notification" retries="2" />
+          <zeebe:ioMapping>
+            <zeebe:input source="=&quot;deploy_error&quot;" target="notification_type" />
+            <zeebe:input source="=&quot;Сервер: &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;\nГілка: &quot; + (if is defined(branch) and branch != null then branch else &quot;unknown&quot;) + &quot;\nКод помилки: &quot; + (if is defined(caught_error_code) and caught_error_code != null then caught_error_code else &quot;—&quot;) + &quot;\nДеталі: &quot; + (if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Невідома помилка&quot;) + &quot;\n\nАвтоматичний rollback виконано.&quot;" target="message_body" />
+          </zeebe:ioMapping>
+        </bpmn:extensionElements>
+        <bpmn:incoming>f_err_to_odoo</bpmn:incoming>
+        <bpmn:outgoing>f_err_odoo_to_rollback</bpmn:outgoing>
+      </bpmn:serviceTask>
 
       <bpmn:serviceTask id="task_rollback" name="Rollback">
         <bpmn:documentation>git checkout old_commit, docker compose up -d --force-recreate.
@@ -186,7 +226,7 @@ Output: smoke_passed</bpmn:documentation>
         <bpmn:extensionElements>
           <zeebe:taskDefinition type="rollback" retries="1" />
         </bpmn:extensionElements>
-        <bpmn:incoming>f_err1</bpmn:incoming>
+        <bpmn:incoming>f_err_odoo_to_rollback</bpmn:incoming>
         <bpmn:outgoing>f_err2</bpmn:outgoing>
       </bpmn:serviceTask>
 
@@ -195,7 +235,8 @@ Output: smoke_passed</bpmn:documentation>
         <bpmn:errorEventDefinition id="ErrorDef_throw" errorRef="Error_deploy_failed" />
       </bpmn:endEvent>
 
-      <bpmn:sequenceFlow id="f_err1" sourceRef="evt_error_catch" targetRef="task_rollback" />
+      <bpmn:sequenceFlow id="f_err_to_odoo" sourceRef="evt_error_catch" targetRef="ST_error_odoo_task" />
+      <bpmn:sequenceFlow id="f_err_odoo_to_rollback" sourceRef="ST_error_odoo_task" targetRef="task_rollback" />
       <bpmn:sequenceFlow id="f_err2" sourceRef="task_rollback" targetRef="evt_error_end" />
     </bpmn:subProcess>
 
@@ -215,14 +256,15 @@ Output: smoke_passed</bpmn:documentation>
     <bpmn:sequenceFlow id="f09" sourceRef="gw_merge_docker" targetRef="task_docker_up" />
     <bpmn:sequenceFlow id="f10" sourceRef="task_docker_up" targetRef="task_module_update" />
     <bpmn:sequenceFlow id="f11" sourceRef="task_module_update" targetRef="task_cache_clear" />
-    <bpmn:sequenceFlow id="f12" sourceRef="task_cache_clear" targetRef="gw_smoke" />
-    <bpmn:sequenceFlow id="f13" name="Так" sourceRef="gw_smoke" targetRef="task_smoke_test">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=run_smoke_test = true</bpmn:conditionExpression>
+    <bpmn:sequenceFlow id="f12" sourceRef="task_cache_clear" targetRef="task_smoke_test" />
+    <bpmn:sequenceFlow id="f_smoke_to_http" sourceRef="task_smoke_test" targetRef="task_http_verify" />
+    <bpmn:sequenceFlow id="f_http_to_gw_clickbot" sourceRef="task_http_verify" targetRef="gw_clickbot" />
+    <bpmn:sequenceFlow id="f_run_clickbot" name="Так" sourceRef="gw_clickbot" targetRef="task_clickbot">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(test_mode) and test_mode != null</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="f14" sourceRef="gw_smoke" targetRef="gw_merge_smoke" />
-    <bpmn:sequenceFlow id="f15" sourceRef="task_smoke_test" targetRef="gw_merge_smoke" />
-    <bpmn:sequenceFlow id="f16" sourceRef="gw_merge_smoke" targetRef="task_http_verify" />
-    <bpmn:sequenceFlow id="f17" sourceRef="task_http_verify" targetRef="task_save_state" />
+    <bpmn:sequenceFlow id="f_skip_clickbot" sourceRef="gw_clickbot" targetRef="gw_merge_clickbot" />
+    <bpmn:sequenceFlow id="f_clickbot_to_merge" sourceRef="task_clickbot" targetRef="gw_merge_clickbot" />
+    <bpmn:sequenceFlow id="f_merge_to_save" sourceRef="gw_merge_clickbot" targetRef="task_save_state" />
     <bpmn:sequenceFlow id="f18" sourceRef="task_save_state" targetRef="evt_end_success" />
 
   </bpmn:process>
@@ -286,48 +328,56 @@ Output: smoke_passed</bpmn:documentation>
         <dc:Bounds x="1460" y="160" width="140" height="80" />
       </bpmndi:BPMNShape>
 
-      <!-- GW Smoke -->
-      <bpmndi:BPMNShape id="gw_smoke_di" bpmnElement="gw_smoke" isMarkerVisible="true">
-        <dc:Bounds x="1655" y="175" width="50" height="50" />
-      </bpmndi:BPMNShape>
-
-      <!-- Smoke Test (above) -->
+      <!-- Smoke Test -->
       <bpmndi:BPMNShape id="task_smoke_test_di" bpmnElement="task_smoke_test">
-        <dc:Bounds x="1740" y="60" width="140" height="80" />
-      </bpmndi:BPMNShape>
-
-      <!-- GW Merge Smoke -->
-      <bpmndi:BPMNShape id="gw_merge_smoke_di" bpmnElement="gw_merge_smoke" isMarkerVisible="true">
-        <dc:Bounds x="1935" y="175" width="50" height="50" />
+        <dc:Bounds x="1660" y="160" width="140" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- HTTP Verify -->
       <bpmndi:BPMNShape id="task_http_verify_di" bpmnElement="task_http_verify">
-        <dc:Bounds x="2040" y="160" width="140" height="80" />
+        <dc:Bounds x="1860" y="160" width="140" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- GW Clickbot -->
+      <bpmndi:BPMNShape id="gw_clickbot_di" bpmnElement="gw_clickbot" isMarkerVisible="true">
+        <dc:Bounds x="2055" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- Clickbot E2E (above main flow) -->
+      <bpmndi:BPMNShape id="task_clickbot_di" bpmnElement="task_clickbot">
+        <dc:Bounds x="2140" y="60" width="140" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- GW Merge Clickbot -->
+      <bpmndi:BPMNShape id="gw_merge_clickbot_di" bpmnElement="gw_merge_clickbot" isMarkerVisible="true">
+        <dc:Bounds x="2335" y="175" width="50" height="50" />
       </bpmndi:BPMNShape>
 
       <!-- Save State -->
       <bpmndi:BPMNShape id="task_save_state_di" bpmnElement="task_save_state">
-        <dc:Bounds x="2240" y="160" width="140" height="80" />
+        <dc:Bounds x="2440" y="160" width="140" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- End Success -->
       <bpmndi:BPMNShape id="evt_end_success_di" bpmnElement="evt_end_success">
-        <dc:Bounds x="2442" y="182" width="36" height="36" />
+        <dc:Bounds x="2642" y="182" width="36" height="36" />
       </bpmndi:BPMNShape>
 
-      <!-- Error Event Subprocess -->
+      <!-- Error Event Subprocess (expanded to fit Odoo task) -->
       <bpmndi:BPMNShape id="subprocess_error_di" bpmnElement="subprocess_error" isExpanded="true">
-        <dc:Bounds x="170" y="360" width="400" height="120" />
+        <dc:Bounds x="170" y="360" width="620" height="120" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="evt_error_catch_di" bpmnElement="evt_error_catch">
         <dc:Bounds x="200" y="402" width="36" height="36" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_error_odoo_task_di" bpmnElement="ST_error_odoo_task">
+        <dc:Bounds x="280" y="380" width="160" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_rollback_di" bpmnElement="task_rollback">
-        <dc:Bounds x="290" y="380" width="140" height="80" />
+        <dc:Bounds x="490" y="380" width="140" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="evt_error_end_di" bpmnElement="evt_error_end">
-        <dc:Bounds x="490" y="402" width="36" height="36" />
+        <dc:Bounds x="700" y="402" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <!-- ═══ EDGES ═══ -->
@@ -400,58 +450,68 @@ Output: smoke_passed</bpmn:documentation>
         <di:waypoint x="1460" y="200" />
       </bpmndi:BPMNEdge>
 
-      <!-- f12: Cache Clear → GW Smoke -->
+      <!-- f12: Cache Clear → Smoke Test -->
       <bpmndi:BPMNEdge id="f12_di" bpmnElement="f12">
         <di:waypoint x="1600" y="200" />
-        <di:waypoint x="1655" y="200" />
+        <di:waypoint x="1660" y="200" />
       </bpmndi:BPMNEdge>
 
-      <!-- f13: GW Smoke → Smoke Test (up) -->
-      <bpmndi:BPMNEdge id="f13_di" bpmnElement="f13">
-        <di:waypoint x="1680" y="175" />
-        <di:waypoint x="1680" y="100" />
-        <di:waypoint x="1740" y="100" />
+      <!-- Smoke Test → HTTP Verify -->
+      <bpmndi:BPMNEdge id="f_smoke_to_http_di" bpmnElement="f_smoke_to_http">
+        <di:waypoint x="1800" y="200" />
+        <di:waypoint x="1860" y="200" />
       </bpmndi:BPMNEdge>
 
-      <!-- f14: GW Smoke → GW Merge Smoke (skip) -->
-      <bpmndi:BPMNEdge id="f14_di" bpmnElement="f14">
-        <di:waypoint x="1705" y="200" />
-        <di:waypoint x="1935" y="200" />
+      <!-- HTTP Verify → GW Clickbot -->
+      <bpmndi:BPMNEdge id="f_http_to_gw_clickbot_di" bpmnElement="f_http_to_gw_clickbot">
+        <di:waypoint x="2000" y="200" />
+        <di:waypoint x="2055" y="200" />
       </bpmndi:BPMNEdge>
 
-      <!-- f15: Smoke Test → GW Merge Smoke -->
-      <bpmndi:BPMNEdge id="f15_di" bpmnElement="f15">
-        <di:waypoint x="1880" y="100" />
-        <di:waypoint x="1960" y="100" />
-        <di:waypoint x="1960" y="175" />
+      <!-- GW Clickbot → Clickbot (up) -->
+      <bpmndi:BPMNEdge id="f_run_clickbot_di" bpmnElement="f_run_clickbot">
+        <di:waypoint x="2080" y="175" />
+        <di:waypoint x="2080" y="100" />
+        <di:waypoint x="2140" y="100" />
       </bpmndi:BPMNEdge>
 
-      <!-- f16: GW Merge Smoke → HTTP Verify -->
-      <bpmndi:BPMNEdge id="f16_di" bpmnElement="f16">
-        <di:waypoint x="1985" y="200" />
-        <di:waypoint x="2040" y="200" />
+      <!-- GW Clickbot → GW Merge (skip, right) -->
+      <bpmndi:BPMNEdge id="f_skip_clickbot_di" bpmnElement="f_skip_clickbot">
+        <di:waypoint x="2105" y="200" />
+        <di:waypoint x="2335" y="200" />
       </bpmndi:BPMNEdge>
 
-      <!-- f17: HTTP Verify → Save State -->
-      <bpmndi:BPMNEdge id="f17_di" bpmnElement="f17">
-        <di:waypoint x="2180" y="200" />
-        <di:waypoint x="2240" y="200" />
+      <!-- Clickbot → GW Merge -->
+      <bpmndi:BPMNEdge id="f_clickbot_to_merge_di" bpmnElement="f_clickbot_to_merge">
+        <di:waypoint x="2280" y="100" />
+        <di:waypoint x="2360" y="100" />
+        <di:waypoint x="2360" y="175" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW Merge → Save State -->
+      <bpmndi:BPMNEdge id="f_merge_to_save_di" bpmnElement="f_merge_to_save">
+        <di:waypoint x="2385" y="200" />
+        <di:waypoint x="2440" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- f18: Save State → End Success -->
       <bpmndi:BPMNEdge id="f18_di" bpmnElement="f18">
-        <di:waypoint x="2380" y="200" />
-        <di:waypoint x="2442" y="200" />
+        <di:waypoint x="2580" y="200" />
+        <di:waypoint x="2642" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- Error subprocess edges -->
-      <bpmndi:BPMNEdge id="f_err1_di" bpmnElement="f_err1">
+      <bpmndi:BPMNEdge id="f_err_to_odoo_di" bpmnElement="f_err_to_odoo">
         <di:waypoint x="236" y="420" />
-        <di:waypoint x="290" y="420" />
+        <di:waypoint x="280" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_err_odoo_to_rollback_di" bpmnElement="f_err_odoo_to_rollback">
+        <di:waypoint x="440" y="420" />
+        <di:waypoint x="490" y="420" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_err2_di" bpmnElement="f_err2">
-        <di:waypoint x="430" y="420" />
-        <di:waypoint x="490" y="420" />
+        <di:waypoint x="630" y="420" />
+        <di:waypoint x="700" y="420" />
       </bpmndi:BPMNEdge>
 
     </bpmndi:BPMNPlane>

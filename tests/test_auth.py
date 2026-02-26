@@ -36,10 +36,13 @@ def test_auth_config_use_oauth_false_partial() -> None:
 
 def test_create_channel_insecure() -> None:
     cfg = ZeebeAuthConfig(gateway_address="localhost:26500")
-    with patch("worker.auth.create_insecure_channel") as mock_insecure:
+    with patch("grpc.aio.insecure_channel") as mock_insecure:
         mock_insecure.return_value = MagicMock()
         channel = create_channel(cfg)
-    mock_insecure.assert_called_once_with("localhost:26500")
+    mock_insecure.assert_called_once()
+    args, kwargs = mock_insecure.call_args
+    assert args[0] == "localhost:26500"
+    assert "options" in kwargs
 
 
 def test_create_channel_oauth() -> None:

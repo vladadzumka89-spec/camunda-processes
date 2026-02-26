@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -71,41 +71,42 @@ def _setup_clickbot_ssh(mock_ssh: AsyncMock, test_stdout: str, exit_code: int = 
     ]
     mock_ssh.run.side_effect = [
         _make_ssh_result(),  # pg_dump
+        _make_ssh_result(),  # pg_isready wait
         _make_ssh_result(),  # docker cp
         _make_ssh_result(),  # pg_restore
-        _make_ssh_result(stdout="1", exit_code=0),  # verify DB
-        _make_ssh_result(),  # prepare SQL
+        _make_ssh_result(),  # rename DB to clickbot_test
+        _make_ssh_result(),  # prepare SQL (neutralize crons/mail)
         _make_ssh_result(),  # rm dump finally
     ]
 
 
 @pytest.mark.asyncio
 async def test_clickbot_passed(handlers: dict, mock_ssh: AsyncMock) -> None:
-    with patch("worker.handlers.clickbot.asyncio.sleep", new_callable=AsyncMock):
-        _setup_clickbot_ssh(mock_ssh, "clickbot test succeeded", exit_code=0)
-        result = await handlers["clickbot-test"](server_host="staging")
+    _setup_clickbot_ssh(mock_ssh, "clickbot test succeeded", exit_code=0)
+    result = await handlers["clickbot-test"](server_host="staging")
     assert result["clickbot_passed"] is True
+    assert result["clickbot_failed_apps"] == ""
 
 
 @pytest.mark.asyncio
 async def test_clickbot_failed(handlers: dict, mock_ssh: AsyncMock) -> None:
-    with patch("worker.handlers.clickbot.asyncio.sleep", new_callable=AsyncMock):
-        _setup_clickbot_ssh(
-            mock_ssh,
-            "FAIL: Subtest clickbot app='sale_management'\n"
-            "FAIL: Subtest clickbot app='purchase'",
-            exit_code=1,
-        )
-        result = await handlers["clickbot-test"](server_host="staging")
+    _setup_clickbot_ssh(
+        mock_ssh,
+        "FAIL: Subtest clickbot app='sale_management'\n"
+        "FAIL: Subtest clickbot app='purchase'",
+        exit_code=1,
+    )
+    result = await handlers["clickbot-test"](server_host="staging")
     assert result["clickbot_passed"] is False
     assert "sale_management" in result["clickbot_report"]
+    assert "sale_management" in result["clickbot_failed_apps"]
+    assert "purchase" in result["clickbot_failed_apps"]
 
 
 @pytest.mark.asyncio
 async def test_clickbot_cleanup_on_success(handlers: dict, mock_ssh: AsyncMock) -> None:
-    with patch("worker.handlers.clickbot.asyncio.sleep", new_callable=AsyncMock):
-        _setup_clickbot_ssh(mock_ssh, "clickbot test succeeded", exit_code=0)
-        await handlers["clickbot-test"](server_host="staging")
+    _setup_clickbot_ssh(mock_ssh, "clickbot test succeeded", exit_code=0)
+    await handlers["clickbot-test"](server_host="staging")
     # Verify cleanup docker-compose down was called (last run_in_repo call)
     last_repo_call = mock_ssh.run_in_repo.call_args_list[-1]
     assert "down" in last_repo_call[0][1]
@@ -113,23 +114,23 @@ async def test_clickbot_cleanup_on_success(handlers: dict, mock_ssh: AsyncMock) 
 
 @pytest.mark.asyncio
 async def test_clickbot_cleanup_on_error(handlers: dict, mock_ssh: AsyncMock) -> None:
-    with patch("worker.handlers.clickbot.asyncio.sleep", new_callable=AsyncMock):
-        mock_ssh.run_in_repo.side_effect = [
-            _make_ssh_result(),  # cleanup previous
-            _make_ssh_result(),  # start clickbot-db
-            RuntimeError("SSH connection lost"),  # test fails
-            _make_ssh_result(),  # cleanup finally
-        ]
-        mock_ssh.run.side_effect = [
-            _make_ssh_result(),  # pg_dump
-            _make_ssh_result(),  # docker cp
-            _make_ssh_result(),  # pg_restore
-            _make_ssh_result(stdout="1", exit_code=0),  # verify DB
-            _make_ssh_result(),  # prepare SQL
-            _make_ssh_result(),  # rm dump finally
-        ]
-        with pytest.raises(RuntimeError, match="SSH connection lost"):
-            await handlers["clickbot-test"](server_host="staging")
+    mock_ssh.run_in_repo.side_effect = [
+        _make_ssh_result(),  # cleanup previous
+        _make_ssh_result(),  # start clickbot-db
+        RuntimeError("SSH connection lost"),  # test fails
+        _make_ssh_result(),  # cleanup finally
+    ]
+    mock_ssh.run.side_effect = [
+        _make_ssh_result(),  # pg_dump
+        _make_ssh_result(),  # pg_isready wait
+        _make_ssh_result(),  # docker cp
+        _make_ssh_result(),  # pg_restore
+        _make_ssh_result(),  # rename DB to clickbot_test
+        _make_ssh_result(),  # prepare SQL
+        _make_ssh_result(),  # rm dump finally
+    ]
+    with pytest.raises(RuntimeError, match="SSH connection lost"):
+        await handlers["clickbot-test"](server_host="staging")
     # Cleanup should still be called in finally block
     last_repo_call = mock_ssh.run_in_repo.call_args_list[-1]
     assert "down" in last_repo_call[0][1]

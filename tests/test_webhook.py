@@ -232,11 +232,32 @@ async def test_odoo_valid_token(client: TestClient) -> None:
         assert resp.status == 200
         data = await resp.json()
         assert data["message"] == "msg_odoo_task_done"
-        assert data["task_id"] == "123"
+        assert data["correlation_key"] == "123"
 
         call_kwargs = mock_client.publish_message.call_args[1]
         assert call_kwargs["name"] == "msg_odoo_task_done"
         assert call_kwargs["correlation_key"] == "123"
+
+
+@pytest.mark.asyncio
+async def test_odoo_process_instance_key_fallback(client: TestClient) -> None:
+    """When task_id is missing, process_instance_key is used for correlation."""
+    with patch.object(WebhookServer, "_create_zeebe_client") as mock_factory:
+        mock_client = AsyncMock()
+        mock_client.publish_message = AsyncMock()
+        mock_factory.return_value = mock_client
+
+        resp = await client.post(
+            "/webhook/odoo",
+            json={"process_instance_key": "2251799813793035"},
+            headers={"Authorization": "Bearer odoo-token-456"},
+        )
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["correlation_key"] == "2251799813793035"
+
+        call_kwargs = mock_client.publish_message.call_args[1]
+        assert call_kwargs["correlation_key"] == "2251799813793035"
 
 
 @pytest.mark.asyncio
@@ -250,7 +271,7 @@ async def test_odoo_invalid_token(client: TestClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_odoo_missing_task_id(client: TestClient) -> None:
+async def test_odoo_missing_task_id_and_pik(client: TestClient) -> None:
     resp = await client.post(
         "/webhook/odoo",
         json={},

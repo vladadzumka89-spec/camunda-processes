@@ -196,6 +196,26 @@ async def test_impact_analysis_finds_affected(handlers: dict, mock_ssh: AsyncMoc
     assert "tut_hr" in result["impact_table"]
 
 
+# ── sync-code-to-demo ─────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_sync_code_to_demo_success(handlers: dict, mock_ssh: AsyncMock) -> None:
+    mock_ssh.run.side_effect = [
+        _make_ssh_result(),  # git fetch
+        _make_ssh_result(),  # git checkout
+    ]
+    result = await handlers["sync-code-to-demo"](sync_branch="sync/upstream-20260225-120000")
+    assert result == {"code_synced": True}
+
+    calls = mock_ssh.run.call_args_list
+    assert len(calls) == 2
+    # Verify git fetch command
+    assert "git fetch origin sync/upstream-20260225-120000" in calls[0].args[1]
+    # Verify git checkout command
+    assert "git checkout -B sync/upstream-20260225-120000 origin/sync/upstream-20260225-120000" in calls[1].args[1]
+
+
 # ── github-pr-ready ───────────────────────────────────────
 
 
@@ -205,17 +225,7 @@ async def test_github_pr_ready(
     mock_github: AsyncMock,
     kozak_config: AppConfig,
 ) -> None:
-    with patch("worker.handlers.sync.create_channel") as mock_channel:
-        with patch("worker.handlers.sync.ZeebeClient") as MockZeebe:
-            mock_zeebe = AsyncMock()
-            mock_zeebe.publish_message = AsyncMock()
-            MockZeebe.return_value = mock_zeebe
-
-            result = await handlers["github-pr-ready"](pr_number=99)
+    result = await handlers["github-pr-ready"](pr_number=99)
 
     assert result == {}
     mock_github.mark_pr_ready.assert_awaited_once()
-    mock_zeebe.publish_message.assert_awaited_once()
-    call_kwargs = mock_zeebe.publish_message.call_args[1]
-    assert call_kwargs["name"] == "msg_pr_event"
-    assert call_kwargs["variables"]["pr_number"] == 99

@@ -413,11 +413,12 @@ def register_deploy_handlers(
         server = config.resolve_server(server_host)
         repo = repo_dir or server.repo_dir
 
+        safe_branch = branch.replace("/", "_")
         await ssh.run(
             server,
             f"mkdir -p {repo}/.deploy-state && chmod 700 {repo}/.deploy-state && "
-            f"echo '{new_commit}' > {repo}/.deploy-state/deploy_state_{branch} && "
-            f"chmod 600 {repo}/.deploy-state/deploy_state_{branch}",
+            f"echo '{new_commit}' > {repo}/.deploy-state/deploy_state_{safe_branch} && "
+            f"chmod 600 {repo}/.deploy-state/deploy_state_{safe_branch}",
             check=True,
         )
         logger.info("save-deploy-state on %s: %s → %s", server.host, branch, new_commit[:8])
