@@ -1,0 +1,1105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  id="Definitions_simple_v2"
+  targetNamespace="http://bpmn.io/schema/bpmn"
+  exporter="Camunda Web Modeler"
+  exporterVersion="e787c33"
+  modeler:executionPlatform="Camunda Cloud"
+  modeler:executionPlatformVersion="8.8.0">
+
+  <bpmn:collaboration id="Collab_simple_v2">
+    <bpmn:participant id="Pool_simple_v2" name="Оплата рахунків (спрощена схема)" processRef="Process_invoice_simple" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_invoice_simple" name="Оплата рахунків (спрощена схема) v2" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
+
+    <!-- LANES -->
+    <bpmn:laneSet id="LaneSet_simple_v2">
+
+      <bpmn:lane id="Lane_system" name="Система (автоматично)">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_create_main</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_type_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_approve_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_entity_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CA_pay_fop</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_paid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_rem_detail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_rem_detail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_rem_rent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_rem_rent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_rem_util</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_rem_util</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_rem_tp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_rem_tp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_rem_reissue</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_rem_reissue</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_reissue</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_buhgalter" name="Бухгалтер (Наташа)">
+        <bpmn:flowNodeRef>UT_detail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BE_rem_detail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BE_ded_detail</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_pogodjuvach" name="Погоджувач">
+        <bpmn:flowNodeRef>UT_approve_rent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BE_rem_rent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BE_ded_rent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_approve_util</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BE_rem_util</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BE_ded_util</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_oplata" name="Фінансист (Марина)">
+        <bpmn:flowNodeRef>UT_pay_tp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BE_rem_tp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BE_ded_tp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_reissue</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BE_rem_reissue</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BE_ded_reissue</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <bpmn:lane id="Lane_manager" name="Керівник (ескалація)">
+        <bpmn:flowNodeRef>UT_esc_detail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_esc_detail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_esc_rent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_esc_rent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_esc_util</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_esc_util</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_esc_tp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_esc_tp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_esc_reissue</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_esc_reissue</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- ========== БЛОК 0: СТАРТ + ПЕРЕВІРКА ODOO ========== -->
+
+    <bpmn:startEvent id="StartEvent_1" name="Рахунок на оплату">
+      <bpmn:outgoing>Flow_start_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:exclusiveGateway id="GW_odoo_check" name="Задача в Odoo існує?" default="Flow_odoo_no_task">
+      <bpmn:incoming>Flow_start_to_gw</bpmn:incoming>
+      <bpmn:outgoing>Flow_odoo_no_task</bpmn:outgoing>
+      <bpmn:outgoing>Flow_odoo_has_task</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="ST_create_main" name="Створити головне завдання">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Оплата рахунків (спрощена)&quot;, create_process: true, _model: &quot;project.project&quot;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_odoo_no_task</bpmn:incoming>
+      <bpmn:outgoing>Flow_create_main_done</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="GW_odoo_merge">
+      <bpmn:incoming>Flow_odoo_has_task</bpmn:incoming>
+      <bpmn:incoming>Flow_create_main_done</bpmn:incoming>
+      <bpmn:outgoing>Flow_merge_to_detail</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ========== БЛОК 1: ДЕТАЛІЗАЦІЯ РАХУНКУ (Бухгалтер) ========== -->
+
+    <bpmn:userTask id="UT_detail" name="Деталізація рахунку">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Деталізація рахунку&quot;, description: &quot;Заповніть деталі рахунку: контрагент, сума, тип (оренда/комунальні), юридична особа (ТОВ/ФОП)&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="= x_studio_camunda_invoice_type" target="x_studio_camunda_invoice_type" />
+          <zeebe:output source="= x_studio_camunda_entity_type" target="x_studio_camunda_entity_type" />
+          <zeebe:output source="= x_studio_camunda_partner_name" target="x_studio_camunda_partner_name" />
+          <zeebe:output source="= x_studio_camunda_invoice_amount" target="x_studio_camunda_invoice_amount" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_merge_to_detail</bpmn:incoming>
+      <bpmn:outgoing>Flow_detail_to_type</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Boundary: нагадування (non-interrupting) -->
+    <bpmn:boundaryEvent id="BE_rem_detail" name="Нагадування" attachedToRef="UT_detail" cancelActivity="false">
+      <bpmn:outgoing>Flow_rem_detail</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_rem_detail">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT4H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <!-- Boundary: дедлайн (non-interrupting) -->
+    <bpmn:boundaryEvent id="BE_ded_detail" name="Дедлайн (3 дні)" attachedToRef="UT_detail" cancelActivity="false">
+      <bpmn:outgoing>Flow_ded_detail</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_ded_detail">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <!-- Нагадування detail -->
+    <bpmn:serviceTask id="ST_rem_detail" name="&#9888;&#65039; НАГАДУВАННЯ: Деталізація рахунку">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;&#9888;&#65039; НАГАДУВАННЯ: Деталізація рахунку&quot;, description: &quot;Будь ласка, заповніть деталі рахунку&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_detail</bpmn:incoming>
+      <bpmn:outgoing>Flow_rem_detail_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="End_rem_detail">
+      <bpmn:incoming>Flow_rem_detail_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Ескалація detail -->
+    <bpmn:userTask id="UT_esc_detail" name="&#128308; ЕСКАЛАЦІЯ: Деталізація рахунку не виконана">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;&#128308; ЕСКАЛАЦІЯ: Деталізація рахунку не виконана&quot;, description: &quot;Бухгалтер не виконав деталізацію рахунку протягом 3 днів&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_detail</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_detail_end</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="End_esc_detail">
+      <bpmn:incoming>Flow_esc_detail_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ========== БЛОК 2: РОЗГАЛУЖЕННЯ ЗА ТИПОМ РАХУНКУ ========== -->
+
+    <bpmn:exclusiveGateway id="GW_type_check" name="Оренда чи комунальні?" default="Flow_type_rent">
+      <bpmn:incoming>Flow_detail_to_type</bpmn:incoming>
+      <bpmn:outgoing>Flow_type_rent</bpmn:outgoing>
+      <bpmn:outgoing>Flow_type_util</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ========== БЛОК 2a: ПОГОДЖЕННЯ ОРЕНДИ (Погоджувач) ========== -->
+
+    <bpmn:userTask id="UT_approve_rent" name="Погодження рахунку оренди&#10;(Юля Томусяк)">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Погодження рахунку оренди: &quot; + x_studio_camunda_partner_name, description: &quot;Погодьте рахунок оренди на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн від &quot; + x_studio_camunda_partner_name, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_approver_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_type_rent</bpmn:incoming>
+      <bpmn:outgoing>Flow_rent_to_merge</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:boundaryEvent id="BE_rem_rent" name="Нагадування" attachedToRef="UT_approve_rent" cancelActivity="false">
+      <bpmn:outgoing>Flow_rem_rent</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_rem_rent">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT4H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="BE_ded_rent" name="Дедлайн (3 дні)" attachedToRef="UT_approve_rent" cancelActivity="false">
+      <bpmn:outgoing>Flow_ded_rent</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_ded_rent">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="ST_rem_rent" name="&#9888;&#65039; НАГАДУВАННЯ: Погодження оренди">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;&#9888;&#65039; НАГАДУВАННЯ: Погодження рахунку оренди&quot;, description: &quot;Будь ласка, погодьте рахунок оренди від &quot; + x_studio_camunda_partner_name, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_approver_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_rent</bpmn:incoming>
+      <bpmn:outgoing>Flow_rem_rent_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="End_rem_rent">
+      <bpmn:incoming>Flow_rem_rent_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:userTask id="UT_esc_rent" name="&#128308; ЕСКАЛАЦІЯ: Погодження оренди прострочено">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;&#128308; ЕСКАЛАЦІЯ: Погодження оренди прострочено&quot;, description: &quot;Погоджувач не погодив рахунок оренди від &quot; + x_studio_camunda_partner_name + &quot; протягом 3 днів&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_rent</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_rent_end</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="End_esc_rent">
+      <bpmn:incoming>Flow_esc_rent_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ========== БЛОК 2b: ПОГОДЖЕННЯ КОМУНАЛЬНИХ (Погоджувач) ========== -->
+
+    <bpmn:userTask id="UT_approve_util" name="Погодження комунального рахунку&#10;(Регіональний)">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Погодження комунального рахунку: &quot; + x_studio_camunda_partner_name, description: &quot;Погодьте комунальний рахунок на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн від &quot; + x_studio_camunda_partner_name, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_regional_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_type_util</bpmn:incoming>
+      <bpmn:outgoing>Flow_util_to_merge</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:boundaryEvent id="BE_rem_util" name="Нагадування" attachedToRef="UT_approve_util" cancelActivity="false">
+      <bpmn:outgoing>Flow_rem_util</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_rem_util">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT4H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="BE_ded_util" name="Дедлайн (3 дні)" attachedToRef="UT_approve_util" cancelActivity="false">
+      <bpmn:outgoing>Flow_ded_util</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_ded_util">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="ST_rem_util" name="&#9888;&#65039; НАГАДУВАННЯ: Погодження комунальних">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;&#9888;&#65039; НАГАДУВАННЯ: Погодження комунального рахунку&quot;, description: &quot;Будь ласка, погодьте комунальний рахунок від &quot; + x_studio_camunda_partner_name, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_regional_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_util</bpmn:incoming>
+      <bpmn:outgoing>Flow_rem_util_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="End_rem_util">
+      <bpmn:incoming>Flow_rem_util_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:userTask id="UT_esc_util" name="&#128308; ЕСКАЛАЦІЯ: Погодження комунальних прострочено">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;&#128308; ЕСКАЛАЦІЯ: Погодження комунальних прострочено&quot;, description: &quot;Регіональний не погодив комунальний рахунок від &quot; + x_studio_camunda_partner_name + &quot; протягом 3 днів&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_util</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_util_end</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="End_esc_util">
+      <bpmn:incoming>Flow_esc_util_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ========== БЛОК 3: MERGE ПІСЛЯ ПОГОДЖЕННЯ + ПЕРЕВІРКА ТОВ/ФОП ========== -->
+
+    <bpmn:exclusiveGateway id="GW_approve_merge">
+      <bpmn:incoming>Flow_rent_to_merge</bpmn:incoming>
+      <bpmn:incoming>Flow_util_to_merge</bpmn:incoming>
+      <bpmn:outgoing>Flow_merge_to_entity</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:exclusiveGateway id="GW_entity_check" name="ТОВ чи ФОП?" default="Flow_entity_fop">
+      <bpmn:incoming>Flow_merge_to_entity</bpmn:incoming>
+      <bpmn:outgoing>Flow_entity_tov</bpmn:outgoing>
+      <bpmn:outgoing>Flow_entity_fop</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ========== БЛОК 4a: ОПЛАТА ЧЕРЕЗ ТП+ (Фінансист) ========== -->
+
+    <bpmn:userTask id="UT_pay_tp" name="Оплата через ТП+&#10;(Марина)">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Оплата через ТП+: &quot; + x_studio_camunda_partner_name, description: &quot;Оплатіть рахунок на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн від &quot; + x_studio_camunda_partner_name + &quot; через ТП+&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_finance_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_entity_tov</bpmn:incoming>
+      <bpmn:outgoing>Flow_tp_to_reissue</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:boundaryEvent id="BE_rem_tp" name="Нагадування" attachedToRef="UT_pay_tp" cancelActivity="false">
+      <bpmn:outgoing>Flow_rem_tp</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_rem_tp">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT4H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="BE_ded_tp" name="Дедлайн (3 дні)" attachedToRef="UT_pay_tp" cancelActivity="false">
+      <bpmn:outgoing>Flow_ded_tp</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_ded_tp">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="ST_rem_tp" name="&#9888;&#65039; НАГАДУВАННЯ: Оплата через ТП+">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;&#9888;&#65039; НАГАДУВАННЯ: Оплата через ТП+&quot;, description: &quot;Будь ласка, оплатіть рахунок від &quot; + x_studio_camunda_partner_name + &quot; через ТП+&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_finance_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_tp</bpmn:incoming>
+      <bpmn:outgoing>Flow_rem_tp_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="End_rem_tp">
+      <bpmn:incoming>Flow_rem_tp_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:userTask id="UT_esc_tp" name="&#128308; ЕСКАЛАЦІЯ: Оплата через ТП+ прострочена">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;&#128308; ЕСКАЛАЦІЯ: Оплата через ТП+ прострочена&quot;, description: &quot;Фінансист не оплатив рахунок від &quot; + x_studio_camunda_partner_name + &quot; через ТП+ протягом 3 днів&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_tp</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_tp_end</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="End_esc_tp">
+      <bpmn:incoming>Flow_esc_tp_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ========== БЛОК 4a-cont: ПЕРЕВИСТАВЛЕННЯ НА ФОП (Фінансист) ========== -->
+
+    <bpmn:userTask id="UT_reissue" name="Перевиставлення рахунку на ФОП">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Перевиставлення рахунку на ФОП&quot;, description: &quot;Перевиставте рахунок від &quot; + x_studio_camunda_partner_name + &quot; на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн на ФОП&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_finance_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_tp_to_reissue</bpmn:incoming>
+      <bpmn:outgoing>Flow_reissue_to_end</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:boundaryEvent id="BE_rem_reissue" name="Нагадування" attachedToRef="UT_reissue" cancelActivity="false">
+      <bpmn:outgoing>Flow_rem_reissue</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_rem_reissue">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT4H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="BE_ded_reissue" name="Дедлайн (3 дні)" attachedToRef="UT_reissue" cancelActivity="false">
+      <bpmn:outgoing>Flow_ded_reissue</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_ded_reissue">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="ST_rem_reissue" name="&#9888;&#65039; НАГАДУВАННЯ: Перевиставлення на ФОП">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;&#9888;&#65039; НАГАДУВАННЯ: Перевиставлення рахунку на ФОП&quot;, description: &quot;Будь ласка, перевиставте рахунок від &quot; + x_studio_camunda_partner_name + &quot; на ФОП&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_finance_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_reissue</bpmn:incoming>
+      <bpmn:outgoing>Flow_rem_reissue_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="End_rem_reissue">
+      <bpmn:incoming>Flow_rem_reissue_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:userTask id="UT_esc_reissue" name="&#128308; ЕСКАЛАЦІЯ: Перевиставлення на ФОП прострочено">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;&#128308; ЕСКАЛАЦІЯ: Перевиставлення на ФОП прострочено&quot;, description: &quot;Фінансист не перевиставив рахунок від &quot; + x_studio_camunda_partner_name + &quot; на ФОП протягом 3 днів&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_reissue</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_reissue_end</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="End_esc_reissue">
+      <bpmn:incoming>Flow_esc_reissue_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_reissue" name="Рахунок оплачено (ТОВ)">
+      <bpmn:incoming>Flow_reissue_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ========== БЛОК 4b: ОПЛАТА З ФОП (Call Activity) ========== -->
+
+    <bpmn:callActivity id="CA_pay_fop" name="Оплата рахунку з ФОП">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_0awppf9" propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_entity_fop</bpmn:incoming>
+      <bpmn:outgoing>Flow_fop_to_end</bpmn:outgoing>
+    </bpmn:callActivity>
+
+    <bpmn:endEvent id="End_paid" name="Рахунок оплачено (ФОП)">
+      <bpmn:incoming>Flow_fop_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ========== SEQUENCE FLOWS ========== -->
+
+    <!-- Блок 0: Старт + Odoo check -->
+    <bpmn:sequenceFlow id="Flow_start_to_gw" sourceRef="StartEvent_1" targetRef="GW_odoo_check" />
+    <bpmn:sequenceFlow id="Flow_odoo_no_task" sourceRef="GW_odoo_check" targetRef="ST_create_main" />
+    <bpmn:sequenceFlow id="Flow_odoo_has_task" name="Задача існує" sourceRef="GW_odoo_check" targetRef="GW_odoo_merge">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_create_main_done" sourceRef="ST_create_main" targetRef="GW_odoo_merge" />
+
+    <!-- Блок 1: До деталізації -->
+    <bpmn:sequenceFlow id="Flow_merge_to_detail" sourceRef="GW_odoo_merge" targetRef="UT_detail" />
+
+    <!-- Boundary flows detail -->
+    <bpmn:sequenceFlow id="Flow_rem_detail" sourceRef="BE_rem_detail" targetRef="ST_rem_detail" />
+    <bpmn:sequenceFlow id="Flow_rem_detail_end" sourceRef="ST_rem_detail" targetRef="End_rem_detail" />
+    <bpmn:sequenceFlow id="Flow_ded_detail" sourceRef="BE_ded_detail" targetRef="UT_esc_detail" />
+    <bpmn:sequenceFlow id="Flow_esc_detail_end" sourceRef="UT_esc_detail" targetRef="End_esc_detail" />
+
+    <!-- Блок 2: Тип рахунку -->
+    <bpmn:sequenceFlow id="Flow_detail_to_type" sourceRef="UT_detail" targetRef="GW_type_check" />
+    <bpmn:sequenceFlow id="Flow_type_rent" sourceRef="GW_type_check" targetRef="UT_approve_rent" />
+    <bpmn:sequenceFlow id="Flow_type_util" name="Комунальні" sourceRef="GW_type_check" targetRef="UT_approve_util">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_invoice_type = "комунальні"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Boundary flows rent -->
+    <bpmn:sequenceFlow id="Flow_rem_rent" sourceRef="BE_rem_rent" targetRef="ST_rem_rent" />
+    <bpmn:sequenceFlow id="Flow_rem_rent_end" sourceRef="ST_rem_rent" targetRef="End_rem_rent" />
+    <bpmn:sequenceFlow id="Flow_ded_rent" sourceRef="BE_ded_rent" targetRef="UT_esc_rent" />
+    <bpmn:sequenceFlow id="Flow_esc_rent_end" sourceRef="UT_esc_rent" targetRef="End_esc_rent" />
+
+    <!-- Boundary flows util -->
+    <bpmn:sequenceFlow id="Flow_rem_util" sourceRef="BE_rem_util" targetRef="ST_rem_util" />
+    <bpmn:sequenceFlow id="Flow_rem_util_end" sourceRef="ST_rem_util" targetRef="End_rem_util" />
+    <bpmn:sequenceFlow id="Flow_ded_util" sourceRef="BE_ded_util" targetRef="UT_esc_util" />
+    <bpmn:sequenceFlow id="Flow_esc_util_end" sourceRef="UT_esc_util" targetRef="End_esc_util" />
+
+    <!-- Блок 3: Merge + entity check -->
+    <bpmn:sequenceFlow id="Flow_rent_to_merge" sourceRef="UT_approve_rent" targetRef="GW_approve_merge" />
+    <bpmn:sequenceFlow id="Flow_util_to_merge" sourceRef="UT_approve_util" targetRef="GW_approve_merge" />
+    <bpmn:sequenceFlow id="Flow_merge_to_entity" sourceRef="GW_approve_merge" targetRef="GW_entity_check" />
+    <bpmn:sequenceFlow id="Flow_entity_tov" name="ТОВ" sourceRef="GW_entity_check" targetRef="UT_pay_tp">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_entity_type = "ТОВ"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_entity_fop" sourceRef="GW_entity_check" targetRef="CA_pay_fop" />
+
+    <!-- Boundary flows tp -->
+    <bpmn:sequenceFlow id="Flow_rem_tp" sourceRef="BE_rem_tp" targetRef="ST_rem_tp" />
+    <bpmn:sequenceFlow id="Flow_rem_tp_end" sourceRef="ST_rem_tp" targetRef="End_rem_tp" />
+    <bpmn:sequenceFlow id="Flow_ded_tp" sourceRef="BE_ded_tp" targetRef="UT_esc_tp" />
+    <bpmn:sequenceFlow id="Flow_esc_tp_end" sourceRef="UT_esc_tp" targetRef="End_esc_tp" />
+
+    <!-- ТП+ → Перевиставлення → End -->
+    <bpmn:sequenceFlow id="Flow_tp_to_reissue" sourceRef="UT_pay_tp" targetRef="UT_reissue" />
+
+    <!-- Boundary flows reissue -->
+    <bpmn:sequenceFlow id="Flow_rem_reissue" sourceRef="BE_rem_reissue" targetRef="ST_rem_reissue" />
+    <bpmn:sequenceFlow id="Flow_rem_reissue_end" sourceRef="ST_rem_reissue" targetRef="End_rem_reissue" />
+    <bpmn:sequenceFlow id="Flow_ded_reissue" sourceRef="BE_ded_reissue" targetRef="UT_esc_reissue" />
+    <bpmn:sequenceFlow id="Flow_esc_reissue_end" sourceRef="UT_esc_reissue" targetRef="End_esc_reissue" />
+
+    <bpmn:sequenceFlow id="Flow_reissue_to_end" sourceRef="UT_reissue" targetRef="End_reissue" />
+
+    <!-- ФОП → End -->
+    <bpmn:sequenceFlow id="Flow_fop_to_end" sourceRef="CA_pay_fop" targetRef="End_paid" />
+
+  </bpmn:process>
+
+  <!-- ============================================================ -->
+  <!-- BPMN DIAGRAM                                                  -->
+  <!-- Pool: x=120, y=30, w=2400, h=1100                           -->
+  <!-- Lanes (top → bottom):                                        -->
+  <!--   Lane_system:      y=30,  h=200                             -->
+  <!--   Lane_buhgalter:   y=230, h=200                             -->
+  <!--   Lane_pogodjuvach: y=430, h=250                             -->
+  <!--   Lane_oplata:      y=680, h=250                             -->
+  <!--   Lane_manager:     y=930, h=200                             -->
+  <!-- ============================================================ -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_simple_v2">
+    <bpmndi:BPMNPlane id="BPMNPlane_simple_v2" bpmnElement="Collab_simple_v2">
+
+      <!-- POOL -->
+      <bpmndi:BPMNShape id="Pool_simple_v2_di" bpmnElement="Pool_simple_v2" isHorizontal="true">
+        <dc:Bounds x="120" y="30" width="2400" height="1100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- LANE: Система -->
+      <bpmndi:BPMNShape id="Lane_system_di" bpmnElement="Lane_system" isHorizontal="true">
+        <dc:Bounds x="150" y="30" width="2370" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- LANE: Бухгалтер -->
+      <bpmndi:BPMNShape id="Lane_buhgalter_di" bpmnElement="Lane_buhgalter" isHorizontal="true">
+        <dc:Bounds x="150" y="230" width="2370" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- LANE: Погоджувач -->
+      <bpmndi:BPMNShape id="Lane_pogodjuvach_di" bpmnElement="Lane_pogodjuvach" isHorizontal="true">
+        <dc:Bounds x="150" y="430" width="2370" height="250" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- LANE: Фінансист -->
+      <bpmndi:BPMNShape id="Lane_oplata_di" bpmnElement="Lane_oplata" isHorizontal="true">
+        <dc:Bounds x="150" y="680" width="2370" height="250" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- LANE: Керівник -->
+      <bpmndi:BPMNShape id="Lane_manager_di" bpmnElement="Lane_manager" isHorizontal="true">
+        <dc:Bounds x="150" y="930" width="2370" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- ========== SHAPES: Система (center y ≈ 130) ========== -->
+
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="212" y="112" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="190" y="155" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true">
+        <dc:Bounds x="295" y="105" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="275" y="75" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="ST_create_main_di" bpmnElement="ST_create_main">
+        <dc:Bounds x="400" y="60" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="GW_odoo_merge_di" bpmnElement="GW_odoo_merge" isMarkerVisible="true">
+        <dc:Bounds x="555" y="105" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="GW_type_check_di" bpmnElement="GW_type_check" isMarkerVisible="true">
+        <dc:Bounds x="835" y="105" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="815" y="75" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="GW_approve_merge_di" bpmnElement="GW_approve_merge" isMarkerVisible="true">
+        <dc:Bounds x="1255" y="105" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="GW_entity_check_di" bpmnElement="GW_entity_check" isMarkerVisible="true">
+        <dc:Bounds x="1365" y="105" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1350" y="75" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="CA_pay_fop_di" bpmnElement="CA_pay_fop">
+        <dc:Bounds x="1500" y="90" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="End_paid_di" bpmnElement="End_paid">
+        <dc:Bounds x="1662" y="112" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1635" y="155" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Reminder/end shapes in Lane_system -->
+      <bpmndi:BPMNShape id="ST_rem_detail_di" bpmnElement="ST_rem_detail">
+        <dc:Bounds x="750" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_rem_detail_di" bpmnElement="End_rem_detail">
+        <dc:Bounds x="872" y="172" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="ST_rem_rent_di" bpmnElement="ST_rem_rent">
+        <dc:Bounds x="1050" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_rem_rent_di" bpmnElement="End_rem_rent">
+        <dc:Bounds x="1172" y="172" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="ST_rem_util_di" bpmnElement="ST_rem_util">
+        <dc:Bounds x="1050" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_rem_util_di" bpmnElement="End_rem_util">
+        <dc:Bounds x="1172" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="ST_rem_tp_di" bpmnElement="ST_rem_tp">
+        <dc:Bounds x="1600" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_rem_tp_di" bpmnElement="End_rem_tp">
+        <dc:Bounds x="1722" y="172" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="ST_rem_reissue_di" bpmnElement="ST_rem_reissue">
+        <dc:Bounds x="1900" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_rem_reissue_di" bpmnElement="End_rem_reissue">
+        <dc:Bounds x="2022" y="172" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="End_reissue_di" bpmnElement="End_reissue">
+        <dc:Bounds x="2082" y="112" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2055" y="155" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ========== SHAPES: Бухгалтер (center y ≈ 330) ========== -->
+
+      <bpmndi:BPMNShape id="UT_detail_di" bpmnElement="UT_detail">
+        <dc:Bounds x="640" y="290" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="BE_rem_detail_di" bpmnElement="BE_rem_detail">
+        <dc:Bounds x="642" y="352" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="620" y="391" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="BE_ded_detail_di" bpmnElement="BE_ded_detail">
+        <dc:Bounds x="722" y="352" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="705" y="391" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ========== SHAPES: Погоджувач (center y ≈ 555) ========== -->
+
+      <bpmndi:BPMNShape id="UT_approve_rent_di" bpmnElement="UT_approve_rent">
+        <dc:Bounds x="920" y="500" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="BE_rem_rent_di" bpmnElement="BE_rem_rent">
+        <dc:Bounds x="922" y="562" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="900" y="601" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="BE_ded_rent_di" bpmnElement="BE_ded_rent">
+        <dc:Bounds x="1002" y="562" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="985" y="601" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="UT_approve_util_di" bpmnElement="UT_approve_util">
+        <dc:Bounds x="920" y="460" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="BE_rem_util_di" bpmnElement="BE_rem_util">
+        <dc:Bounds x="922" y="522" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="900" y="561" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="BE_ded_util_di" bpmnElement="BE_ded_util">
+        <dc:Bounds x="1002" y="522" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="985" y="561" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ========== SHAPES: Фінансист (center y ≈ 805) ========== -->
+
+      <bpmndi:BPMNShape id="UT_pay_tp_di" bpmnElement="UT_pay_tp">
+        <dc:Bounds x="1500" y="750" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="BE_rem_tp_di" bpmnElement="BE_rem_tp">
+        <dc:Bounds x="1502" y="812" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1480" y="851" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="BE_ded_tp_di" bpmnElement="BE_ded_tp">
+        <dc:Bounds x="1582" y="812" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1565" y="851" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="UT_reissue_di" bpmnElement="UT_reissue">
+        <dc:Bounds x="1800" y="750" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="BE_rem_reissue_di" bpmnElement="BE_rem_reissue">
+        <dc:Bounds x="1802" y="812" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1780" y="851" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="BE_ded_reissue_di" bpmnElement="BE_ded_reissue">
+        <dc:Bounds x="1882" y="812" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1865" y="851" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ========== SHAPES: Керівник (center y ≈ 1030) ========== -->
+
+      <bpmndi:BPMNShape id="UT_esc_detail_di" bpmnElement="UT_esc_detail">
+        <dc:Bounds x="640" y="990" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_esc_detail_di" bpmnElement="End_esc_detail">
+        <dc:Bounds x="782" y="1012" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="UT_esc_rent_di" bpmnElement="UT_esc_rent">
+        <dc:Bounds x="920" y="990" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_esc_rent_di" bpmnElement="End_esc_rent">
+        <dc:Bounds x="1062" y="1012" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="UT_esc_util_di" bpmnElement="UT_esc_util">
+        <dc:Bounds x="1100" y="990" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_esc_util_di" bpmnElement="End_esc_util">
+        <dc:Bounds x="1242" y="1012" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="UT_esc_tp_di" bpmnElement="UT_esc_tp">
+        <dc:Bounds x="1500" y="990" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_esc_tp_di" bpmnElement="End_esc_tp">
+        <dc:Bounds x="1642" y="1012" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="UT_esc_reissue_di" bpmnElement="UT_esc_reissue">
+        <dc:Bounds x="1800" y="990" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_esc_reissue_di" bpmnElement="End_esc_reissue">
+        <dc:Bounds x="1942" y="1012" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- ========== EDGES ========== -->
+
+      <!-- Start → GW_odoo_check -->
+      <bpmndi:BPMNEdge id="Flow_start_to_gw_di" bpmnElement="Flow_start_to_gw">
+        <di:waypoint x="248" y="130" />
+        <di:waypoint x="295" y="130" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_odoo_check → ST_create_main (default, up) -->
+      <bpmndi:BPMNEdge id="Flow_odoo_no_task_di" bpmnElement="Flow_odoo_no_task">
+        <di:waypoint x="320" y="105" />
+        <di:waypoint x="320" y="100" />
+        <di:waypoint x="400" y="100" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_odoo_check → GW_odoo_merge (has task, right) -->
+      <bpmndi:BPMNEdge id="Flow_odoo_has_task_di" bpmnElement="Flow_odoo_has_task">
+        <di:waypoint x="345" y="130" />
+        <di:waypoint x="555" y="130" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="410" y="112" width="65" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- ST_create_main → GW_odoo_merge -->
+      <bpmndi:BPMNEdge id="Flow_create_main_done_di" bpmnElement="Flow_create_main_done">
+        <di:waypoint x="500" y="100" />
+        <di:waypoint x="580" y="100" />
+        <di:waypoint x="580" y="105" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_odoo_merge → UT_detail (down to Бухгалтер) -->
+      <bpmndi:BPMNEdge id="Flow_merge_to_detail_di" bpmnElement="Flow_merge_to_detail">
+        <di:waypoint x="580" y="155" />
+        <di:waypoint x="580" y="330" />
+        <di:waypoint x="640" y="330" />
+      </bpmndi:BPMNEdge>
+
+      <!-- UT_detail → GW_type_check (up to Система) -->
+      <bpmndi:BPMNEdge id="Flow_detail_to_type_di" bpmnElement="Flow_detail_to_type">
+        <di:waypoint x="740" y="330" />
+        <di:waypoint x="810" y="330" />
+        <di:waypoint x="810" y="130" />
+        <di:waypoint x="835" y="130" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_type_check → UT_approve_rent (default, down to Погоджувач) -->
+      <bpmndi:BPMNEdge id="Flow_type_rent_di" bpmnElement="Flow_type_rent">
+        <di:waypoint x="860" y="155" />
+        <di:waypoint x="860" y="540" />
+        <di:waypoint x="920" y="540" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_type_check → UT_approve_util (down to Погоджувач) -->
+      <bpmndi:BPMNEdge id="Flow_type_util_di" bpmnElement="Flow_type_util">
+        <di:waypoint x="885" y="130" />
+        <di:waypoint x="900" y="130" />
+        <di:waypoint x="900" y="500" />
+        <di:waypoint x="920" y="500" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="905" y="300" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- UT_approve_rent → GW_approve_merge (up to Система) -->
+      <bpmndi:BPMNEdge id="Flow_rent_to_merge_di" bpmnElement="Flow_rent_to_merge">
+        <di:waypoint x="1020" y="540" />
+        <di:waypoint x="1230" y="540" />
+        <di:waypoint x="1230" y="130" />
+        <di:waypoint x="1255" y="130" />
+      </bpmndi:BPMNEdge>
+
+      <!-- UT_approve_util → GW_approve_merge (up to Система) -->
+      <bpmndi:BPMNEdge id="Flow_util_to_merge_di" bpmnElement="Flow_util_to_merge">
+        <di:waypoint x="1020" y="500" />
+        <di:waypoint x="1240" y="500" />
+        <di:waypoint x="1240" y="140" />
+        <di:waypoint x="1255" y="140" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_approve_merge → GW_entity_check -->
+      <bpmndi:BPMNEdge id="Flow_merge_to_entity_di" bpmnElement="Flow_merge_to_entity">
+        <di:waypoint x="1305" y="130" />
+        <di:waypoint x="1365" y="130" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_entity_check → UT_pay_tp (ТОВ, down to Фінансист) -->
+      <bpmndi:BPMNEdge id="Flow_entity_tov_di" bpmnElement="Flow_entity_tov">
+        <di:waypoint x="1390" y="155" />
+        <di:waypoint x="1390" y="790" />
+        <di:waypoint x="1500" y="790" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1395" y="470" width="25" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_entity_check → CA_pay_fop (default, right) -->
+      <bpmndi:BPMNEdge id="Flow_entity_fop_di" bpmnElement="Flow_entity_fop">
+        <di:waypoint x="1415" y="130" />
+        <di:waypoint x="1500" y="130" />
+      </bpmndi:BPMNEdge>
+
+      <!-- CA_pay_fop → End_paid -->
+      <bpmndi:BPMNEdge id="Flow_fop_to_end_di" bpmnElement="Flow_fop_to_end">
+        <di:waypoint x="1600" y="130" />
+        <di:waypoint x="1662" y="130" />
+      </bpmndi:BPMNEdge>
+
+      <!-- UT_pay_tp → UT_reissue -->
+      <bpmndi:BPMNEdge id="Flow_tp_to_reissue_di" bpmnElement="Flow_tp_to_reissue">
+        <di:waypoint x="1600" y="790" />
+        <di:waypoint x="1800" y="790" />
+      </bpmndi:BPMNEdge>
+
+      <!-- UT_reissue → End_reissue (up to Система) -->
+      <bpmndi:BPMNEdge id="Flow_reissue_to_end_di" bpmnElement="Flow_reissue_to_end">
+        <di:waypoint x="1900" y="790" />
+        <di:waypoint x="2100" y="790" />
+        <di:waypoint x="2100" y="148" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Boundary: BE_rem_detail → ST_rem_detail -->
+      <bpmndi:BPMNEdge id="Flow_rem_detail_di" bpmnElement="Flow_rem_detail">
+        <di:waypoint x="660" y="388" />
+        <di:waypoint x="660" y="420" />
+        <di:waypoint x="760" y="420" />
+        <di:waypoint x="760" y="230" />
+      </bpmndi:BPMNEdge>
+
+      <!-- ST_rem_detail → End_rem_detail -->
+      <bpmndi:BPMNEdge id="Flow_rem_detail_end_di" bpmnElement="Flow_rem_detail_end">
+        <di:waypoint x="850" y="190" />
+        <di:waypoint x="872" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <!-- BE_ded_detail → UT_esc_detail (down to Керівник) -->
+      <bpmndi:BPMNEdge id="Flow_ded_detail_di" bpmnElement="Flow_ded_detail">
+        <di:waypoint x="740" y="388" />
+        <di:waypoint x="740" y="1030" />
+        <di:waypoint x="640" y="1030" />
+      </bpmndi:BPMNEdge>
+
+      <!-- UT_esc_detail → End_esc_detail -->
+      <bpmndi:BPMNEdge id="Flow_esc_detail_end_di" bpmnElement="Flow_esc_detail_end">
+        <di:waypoint x="740" y="1030" />
+        <di:waypoint x="782" y="1030" />
+      </bpmndi:BPMNEdge>
+
+      <!-- BE_rem_rent → ST_rem_rent -->
+      <bpmndi:BPMNEdge id="Flow_rem_rent_di" bpmnElement="Flow_rem_rent">
+        <di:waypoint x="940" y="598" />
+        <di:waypoint x="940" y="630" />
+        <di:waypoint x="1060" y="630" />
+        <di:waypoint x="1060" y="230" />
+      </bpmndi:BPMNEdge>
+
+      <!-- ST_rem_rent → End_rem_rent -->
+      <bpmndi:BPMNEdge id="Flow_rem_rent_end_di" bpmnElement="Flow_rem_rent_end">
+        <di:waypoint x="1150" y="190" />
+        <di:waypoint x="1172" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <!-- BE_ded_rent → UT_esc_rent (down to Керівник) -->
+      <bpmndi:BPMNEdge id="Flow_ded_rent_di" bpmnElement="Flow_ded_rent">
+        <di:waypoint x="1020" y="598" />
+        <di:waypoint x="1020" y="1030" />
+        <di:waypoint x="920" y="1030" />
+      </bpmndi:BPMNEdge>
+
+      <!-- UT_esc_rent → End_esc_rent -->
+      <bpmndi:BPMNEdge id="Flow_esc_rent_end_di" bpmnElement="Flow_esc_rent_end">
+        <di:waypoint x="1020" y="1030" />
+        <di:waypoint x="1062" y="1030" />
+      </bpmndi:BPMNEdge>
+
+      <!-- BE_rem_util → ST_rem_util -->
+      <bpmndi:BPMNEdge id="Flow_rem_util_di" bpmnElement="Flow_rem_util">
+        <di:waypoint x="940" y="558" />
+        <di:waypoint x="940" y="620" />
+        <di:waypoint x="1070" y="620" />
+        <di:waypoint x="1070" y="140" />
+      </bpmndi:BPMNEdge>
+
+      <!-- ST_rem_util → End_rem_util -->
+      <bpmndi:BPMNEdge id="Flow_rem_util_end_di" bpmnElement="Flow_rem_util_end">
+        <di:waypoint x="1150" y="100" />
+        <di:waypoint x="1172" y="100" />
+      </bpmndi:BPMNEdge>
+
+      <!-- BE_ded_util → UT_esc_util (down to Керівник) -->
+      <bpmndi:BPMNEdge id="Flow_ded_util_di" bpmnElement="Flow_ded_util">
+        <di:waypoint x="1020" y="558" />
+        <di:waypoint x="1020" y="650" />
+        <di:waypoint x="1150" y="650" />
+        <di:waypoint x="1150" y="990" />
+      </bpmndi:BPMNEdge>
+
+      <!-- UT_esc_util → End_esc_util -->
+      <bpmndi:BPMNEdge id="Flow_esc_util_end_di" bpmnElement="Flow_esc_util_end">
+        <di:waypoint x="1200" y="1030" />
+        <di:waypoint x="1242" y="1030" />
+      </bpmndi:BPMNEdge>
+
+      <!-- BE_rem_tp → ST_rem_tp -->
+      <bpmndi:BPMNEdge id="Flow_rem_tp_di" bpmnElement="Flow_rem_tp">
+        <di:waypoint x="1520" y="848" />
+        <di:waypoint x="1520" y="870" />
+        <di:waypoint x="1610" y="870" />
+        <di:waypoint x="1610" y="230" />
+      </bpmndi:BPMNEdge>
+
+      <!-- ST_rem_tp → End_rem_tp -->
+      <bpmndi:BPMNEdge id="Flow_rem_tp_end_di" bpmnElement="Flow_rem_tp_end">
+        <di:waypoint x="1700" y="190" />
+        <di:waypoint x="1722" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <!-- BE_ded_tp → UT_esc_tp (down to Керівник) -->
+      <bpmndi:BPMNEdge id="Flow_ded_tp_di" bpmnElement="Flow_ded_tp">
+        <di:waypoint x="1600" y="848" />
+        <di:waypoint x="1600" y="1030" />
+        <di:waypoint x="1500" y="1030" />
+      </bpmndi:BPMNEdge>
+
+      <!-- UT_esc_tp → End_esc_tp -->
+      <bpmndi:BPMNEdge id="Flow_esc_tp_end_di" bpmnElement="Flow_esc_tp_end">
+        <di:waypoint x="1600" y="1030" />
+        <di:waypoint x="1642" y="1030" />
+      </bpmndi:BPMNEdge>
+
+      <!-- BE_rem_reissue → ST_rem_reissue -->
+      <bpmndi:BPMNEdge id="Flow_rem_reissue_di" bpmnElement="Flow_rem_reissue">
+        <di:waypoint x="1820" y="848" />
+        <di:waypoint x="1820" y="870" />
+        <di:waypoint x="1910" y="870" />
+        <di:waypoint x="1910" y="230" />
+      </bpmndi:BPMNEdge>
+
+      <!-- ST_rem_reissue → End_rem_reissue -->
+      <bpmndi:BPMNEdge id="Flow_rem_reissue_end_di" bpmnElement="Flow_rem_reissue_end">
+        <di:waypoint x="2000" y="190" />
+        <di:waypoint x="2022" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <!-- BE_ded_reissue → UT_esc_reissue (down to Керівник) -->
+      <bpmndi:BPMNEdge id="Flow_ded_reissue_di" bpmnElement="Flow_ded_reissue">
+        <di:waypoint x="1900" y="848" />
+        <di:waypoint x="1900" y="1030" />
+        <di:waypoint x="1800" y="1030" />
+      </bpmndi:BPMNEdge>
+
+      <!-- UT_esc_reissue → End_esc_reissue -->
+      <bpmndi:BPMNEdge id="Flow_esc_reissue_end_di" bpmnElement="Flow_esc_reissue_end">
+        <di:waypoint x="1900" y="1030" />
+        <di:waypoint x="1942" y="1030" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>
