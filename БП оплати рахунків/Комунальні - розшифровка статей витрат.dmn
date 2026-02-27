@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions
+  xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+  xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+  xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+  id="Definitions_utility_expense"
+  name="Комунальні - розшифровка статей витрат"
+  namespace="http://camunda.org/schema/1.0/dmn"
+  exporter="Camunda Web Modeler"
+  exporterVersion="e787c33"
+  modeler:executionPlatform="Camunda Cloud"
+  modeler:executionPlatformVersion="8.8.0">
+
+  <!--
+    DMN — Класифікація комунальних послуг за статтями витрат
+    ==========================================================
+
+    Призначення: визначення узагальненої статті витрат (як в базі 1С)
+    за назвою послуги, що вказана в рахунку від постачальника.
+
+    Використовується в процесі "Оплата рахунків оренда та комунальні".
+
+    Вхідні змінні:
+      - x_studio_camunda_service_name  — назва послуги в рахунку
+
+    Вихідні змінні:
+      - x_studio_camunda_expense_category — стаття витрат в 1С
+  -->
+
+  <decision id="utility-expense-classification" name="Класифікація комунальних послуг за статтями витрат">
+    <decisionTable id="dt_utility_expense" hitPolicy="FIRST">
+
+      <!-- ── INPUT ──────────────────────────────────────────────────────── -->
+
+      <input id="input_service" label="Назва послуги в рахунку">
+        <inputExpression id="ie_service" typeRef="string">
+          <text>x_studio_camunda_service_name</text>
+        </inputExpression>
+      </input>
+
+      <!-- ── OUTPUT ─────────────────────────────────────────────────────── -->
+
+      <output id="output_category"
+              label="Стаття витрат"
+              name="x_studio_camunda_expense_category"
+              typeRef="string" />
+
+      <!-- ══════════════════════════════════════════════════════════════════
+           Комунальні - вивіз сміття, прибирання
+           ══════════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_garbage_1">
+        <description>Вивіз ТПВ та захоронення</description>
+        <inputEntry id="ie_garbage_1"><text>"компенс. витрат за вивіз ТПВ та їх захоронення"</text></inputEntry>
+        <outputEntry id="oe_garbage_1"><text>"Комунальні - вивіз сміття, прибирання"</text></outputEntry>
+      </rule>
+
+      <!-- ══════════════════════════════════════════════════════════════════
+           Комунальні - вода, стоки
+           ══════════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_water_1">
+        <description>Відшкодування вартості водопостачання</description>
+        <inputEntry id="ie_water_1"><text>"відшкодування вартості водопостачання"</text></inputEntry>
+        <outputEntry id="oe_water_1"><text>"Комунальні - вода,стоки"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_water_2">
+        <description>Відшкодування комун. витрат (вода)</description>
+        <inputEntry id="ie_water_2"><text>"відшкодування комун. витрат (вода)"</text></inputEntry>
+        <outputEntry id="oe_water_2"><text>"Комунальні - вода,стоки"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_water_3">
+        <description>Водовідведення стічних труб</description>
+        <inputEntry id="ie_water_3"><text>"водовідвед.стічних труб"</text></inputEntry>
+        <outputEntry id="oe_water_3"><text>"Комунальні - вода,стоки"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_water_4">
+        <description>Холодне водопостачання</description>
+        <inputEntry id="ie_water_4"><text>"холод.водопостач"</text></inputEntry>
+        <outputEntry id="oe_water_4"><text>"Комунальні - вода,стоки"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_water_5">
+        <description>Водовідведення</description>
+        <inputEntry id="ie_water_5"><text>"водовідведення"</text></inputEntry>
+        <outputEntry id="oe_water_5"><text>"Комунальні - вода,стоки"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_water_6">
+        <description>Витрати за спожиту воду</description>
+        <inputEntry id="ie_water_6"><text>"відшкодування витрат за спожиту воду"</text></inputEntry>
+        <outputEntry id="oe_water_6"><text>"Комунальні - вода,стоки"</text></outputEntry>
+      </rule>
+
+      <!-- ══════════════════════════════════════════════════════════════════
+           Комунальні - електроенергія
+           ══════════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_elec_1">
+        <description>Відшкодування витрат комунальних послуг</description>
+        <inputEntry id="ie_elec_1"><text>"відшкодування витрат комунальних послуг"</text></inputEntry>
+        <outputEntry id="oe_elec_1"><text>"Комунальні - електроенергія"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_elec_2">
+        <description>Компенс. витрат на електроустановку</description>
+        <inputEntry id="ie_elec_2"><text>"відкодування комунальних витрат (компенс.вит. на електроустановку)"</text></inputEntry>
+        <outputEntry id="oe_elec_2"><text>"Комунальні - електроенергія"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_elec_3">
+        <description>Відшкодування вартості електричної енергії</description>
+        <inputEntry id="ie_elec_3"><text>"відшкодування вартості електричної енергії"</text></inputEntry>
+        <outputEntry id="oe_elec_3"><text>"Комунальні - електроенергія"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_elec_4">
+        <description>Електроенергія активна (NB: в оригіналі "елекроенергія")</description>
+        <inputEntry id="ie_elec_4"><text>"елекроенергія (активна)"</text></inputEntry>
+        <outputEntry id="oe_elec_4"><text>"Комунальні - електроенергія"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_elec_5">
+        <description>Електроенергія реактивна</description>
+        <inputEntry id="ie_elec_5"><text>"електроенергія (реактивна)"</text></inputEntry>
+        <outputEntry id="oe_elec_5"><text>"Комунальні - електроенергія"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_elec_6">
+        <description>Використання генератора</description>
+        <inputEntry id="ie_elec_6"><text>"викор. генератора"</text></inputEntry>
+        <outputEntry id="oe_elec_6"><text>"Комунальні - електроенергія"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_elec_7">
+        <description>Розподіл електроенергії</description>
+        <inputEntry id="ie_elec_7"><text>"відшкодування витрат за розподіл електроенергії"</text></inputEntry>
+        <outputEntry id="oe_elec_7"><text>"Комунальні - електроенергія"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_elec_8">
+        <description>Обслуговування електрогенераторної установки</description>
+        <inputEntry id="ie_elec_8"><text>"відшкодування експлуатаційних витрат за обслуговування електрогенераторної установки"</text></inputEntry>
+        <outputEntry id="oe_elec_8"><text>"Комунальні - електроенергія"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_elec_9">
+        <description>Експлуатаційний платіж за електрогенераторну установку</description>
+        <inputEntry id="ie_elec_9"><text>"додатковий Експлуатаційний платіж за експлуатацію бензинової/дизельної електрогенераторної установки для цілей користування орендованими приміщеннями в період їх відключення від електропостачання"</text></inputEntry>
+        <outputEntry id="oe_elec_9"><text>"Комунальні - електроенергія"</text></outputEntry>
+      </rule>
+
+      <!-- ══════════════════════════════════════════════════════════════════
+           Комунальні - опалення, кондиціонування
+           ══════════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_heat_1">
+        <description>Блок кондиціонування</description>
+        <inputEntry id="ie_heat_1"><text>"блок кондиціонування"</text></inputEntry>
+        <outputEntry id="oe_heat_1"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_heat_2">
+        <description>Приточно-витяжна система</description>
+        <inputEntry id="ie_heat_2"><text>"приточно-витяжна система"</text></inputEntry>
+        <outputEntry id="oe_heat_2"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_heat_3">
+        <description>Договірна потужність природного газу</description>
+        <inputEntry id="ie_heat_3"><text>"відшкодування вартості замовленої (договірної) потужності природного газу"</text></inputEntry>
+        <outputEntry id="oe_heat_3"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_heat_4">
+        <description>Розподіл природного газу</description>
+        <inputEntry id="ie_heat_4"><text>"відшкодування витрат за розподіл природного газ"</text></inputEntry>
+        <outputEntry id="oe_heat_4"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_heat_5">
+        <description>Використання природного газу</description>
+        <inputEntry id="ie_heat_5"><text>"відшкодування витрат по викор. природного газ"</text></inputEntry>
+        <outputEntry id="oe_heat_5"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_heat_6">
+        <description>Компенсація теплопостачання</description>
+        <inputEntry id="ie_heat_6"><text>"комунальні послуги (компенсація теплопостачання"</text></inputEntry>
+        <outputEntry id="oe_heat_6"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_heat_7">
+        <description>Теплова енергія</description>
+        <inputEntry id="ie_heat_7"><text>"відшкодування комунальних послуг за теплову енергію"</text></inputEntry>
+        <outputEntry id="oe_heat_7"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_heat_8">
+        <description>Витрати на опалення</description>
+        <inputEntry id="ie_heat_8"><text>"відшкодування витрат на опалення"</text></inputEntry>
+        <outputEntry id="oe_heat_8"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+      </rule>
+
+      <!-- ══════════════════════════════════════════════════════════════════
+           Комунальні обслуговування заг площ
+           ══════════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_common_1">
+        <description>Е/е на загальних площах ТЦ</description>
+        <inputEntry id="ie_common_1"><text>"компенсація за е/е на загальних площах ТЦ"</text></inputEntry>
+        <outputEntry id="oe_common_1"><text>"Комунальні обслуговування заг площ"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_common_2">
+        <description>Нерозподілені витрати на площі загального користування</description>
+        <inputEntry id="ie_common_2"><text>"відшкодування нерозподілених витрат на площі загального користуванян"</text></inputEntry>
+        <outputEntry id="oe_common_2"><text>"Комунальні обслуговування заг площ"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_common_3">
+        <description>Електроенергія та розподіл на площах ТЦ</description>
+        <inputEntry id="ie_common_3"><text>"компенс. витрат за спожиту елекроенергію та її розподіл на площах корист. ТЦ"</text></inputEntry>
+        <outputEntry id="oe_common_3"><text>"Комунальні обслуговування заг площ"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_common_4">
+        <description>Фонтан</description>
+        <inputEntry id="ie_common_4"><text>"фонтан"</text></inputEntry>
+        <outputEntry id="oe_common_4"><text>"Комунальні обслуговування заг площ"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_common_5">
+        <description>Енергозабезпечення місць загального користування</description>
+        <inputEntry id="ie_common_5"><text>"компенсація витрат з енергозабеспечення місць загального користування"</text></inputEntry>
+        <outputEntry id="oe_common_5"><text>"Комунальні обслуговування заг площ"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_common_6">
+        <description>Вода МЗК</description>
+        <inputEntry id="ie_common_6"><text>"вода МЗК"</text></inputEntry>
+        <outputEntry id="oe_common_6"><text>"Комунальні обслуговування заг площ"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_common_7">
+        <description>Тепло МЗК</description>
+        <inputEntry id="ie_common_7"><text>"тепло МЗК"</text></inputEntry>
+        <outputEntry id="oe_common_7"><text>"Комунальні обслуговування заг площ"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_common_8">
+        <description>Комунальні послуги площ загального користування та земельної ділянки</description>
+        <inputEntry id="ie_common_8"><text>"компенсація витрат на забезпечення комунальними послугами площ загального користування та земельної ділянки"</text></inputEntry>
+        <outputEntry id="oe_common_8"><text>"Комунальні обслуговування заг площ"</text></outputEntry>
+      </rule>
+
+      <!-- ══════════════════════════════════════════════════════════════════
+           Оренда вивіски
+           ══════════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_sign_1">
+        <description>Реклама</description>
+        <inputEntry id="ie_sign_1"><text>"реклама"</text></inputEntry>
+        <outputEntry id="oe_sign_1"><text>"Оренда вивіски"</text></outputEntry>
+      </rule>
+
+      <rule id="rule_sign_2">
+        <description>Оренда вивіски</description>
+        <inputEntry id="ie_sign_2"><text>"оренда вивіски"</text></inputEntry>
+        <outputEntry id="oe_sign_2"><text>"Оренда вивіски"</text></outputEntry>
+      </rule>
+
+      <!-- ══════════════════════════════════════════════════════════════════
+           DEFAULT — невідома послуга
+           ══════════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_default">
+        <description>Невідома назва послуги — потребує ручної класифікації</description>
+        <inputEntry id="ie_default"><text></text></inputEntry>
+        <outputEntry id="oe_default"><text>"Невідома послуга — потребує ручної класифікації"</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       DMNDI — візуальне розташування
+       ═══════════════════════════════════════════════════════════════════ -->
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_utility_expense">
+      <dmndi:DMNShape id="DMNShape_utility_expense" dmnElementRef="utility-expense-classification">
+        <dc:Bounds x="160" y="100" width="200" height="80" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+
+</definitions>
