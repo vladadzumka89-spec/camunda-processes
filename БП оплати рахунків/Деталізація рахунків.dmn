@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions
+  xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+  xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+  xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+  id="Definitions_invoice_detail"
+  name="Деталізація рахунків"
+  namespace="http://camunda.org/schema/1.0/dmn"
+  exporter="Camunda Web Modeler"
+  exporterVersion="e787c33"
+  modeler:executionPlatform="Camunda Cloud"
+  modeler:executionPlatformVersion="8.8.0">
+
+  <!--
+    DMN — Деталізація рахунків за підрозділом та постачальником
+    ============================================================
+
+    Призначення: класифікація рахунків по видах (оренда / комунальні / ТО)
+    для процесу "Оплата рахунків оренда та комунальні v2".
+
+    Вхідні змінні:
+      - x_studio_camunda_department    — код підрозділу (906, 605, 909, ...)
+      - x_studio_camunda_partner_name  — назва постачальника послуг (контрагент 2)
+
+    Вихідні змінні:
+      - x_studio_camunda_invoice_type  — вид рахунку: "rent" | "utilities" | "maintenance"
+      - x_studio_camunda_receiver      — отримувач послуг (контрагент 1)
+      - x_studio_camunda_special_notes — особливості обробки рахунку
+  -->
+
+  <decision id="invoice-detail-type" name="Деталізація рахунків">
+    <decisionTable id="decisionTable_invoice_detail" hitPolicy="FIRST">
+
+      <!-- ── INPUTS ──────────────────────────────────────────────────────── -->
+
+      <input id="input_department" label="Підрозділ">
+        <inputExpression id="inputExpr_department" typeRef="string">
+          <text>x_studio_camunda_department</text>
+        </inputExpression>
+      </input>
+
+      <input id="input_partner" label="Постачальник">
+        <inputExpression id="inputExpr_partner" typeRef="string">
+          <text>x_studio_camunda_partner_name</text>
+        </inputExpression>
+      </input>
+
+      <!-- ── OUTPUTS ─────────────────────────────────────────────────────── -->
+
+      <output id="output_invoice_type"
+              label="Вид рахунку"
+              name="x_studio_camunda_invoice_type"
+              typeRef="string">
+        <outputValues id="outputValues_type">
+          <text>"rent","utilities","maintenance"</text>
+        </outputValues>
+      </output>
+
+      <output id="output_receiver"
+              label="Отримувач послуг"
+              name="x_studio_camunda_receiver"
+              typeRef="string" />
+
+      <output id="output_special_notes"
+              label="Особливості"
+              name="x_studio_camunda_special_notes"
+              typeRef="string" />
+
+      <!-- ── RULES ───────────────────────────────────────────────────────── -->
+
+      <!-- Підрозділ 906 / Герман Олена Василівна -->
+      <rule id="rule_906_german">
+        <description>4 рахунки в одному PDF, один йде на погодження до Юлі, решта до регіональних</description>
+        <inputEntry id="ie_906"><text>"906"</text></inputEntry>
+        <inputEntry id="ie_german"><text>"Герман Олена Василівна"</text></inputEntry>
+        <outputEntry id="oe_906_type"><text>"rent"</text></outputEntry>
+        <outputEntry id="oe_906_receiver"><text>"Стецюк Ірина Олександрівна"</text></outputEntry>
+        <outputEntry id="oe_906_notes"><text>"4 рахунки в одному PDF, один йде на погодження до Юлі, решта тільки до регіональних"</text></outputEntry>
+      </rule>
+
+      <!-- Підрозділ 605 / ЛЬВІВБУДМАКС-ІНВЕСТ — оренда/експлуатація/маркетинг -->
+      <rule id="rule_605_lvivbudmax">
+        <description>Три послуги в одному рахунку (оренда/експлуатація/маркетинг), не вказано місяць</description>
+        <inputEntry id="ie_605"><text>"605"</text></inputEntry>
+        <inputEntry id="ie_lvivbudmax"><text>"ЛЬВІВБУДМАКС-ІНВЕСТ, ТЗОВ"</text></inputEntry>
+        <outputEntry id="oe_605_type"><text>"rent"</text></outputEntry>
+        <outputEntry id="oe_605_receiver"><text>"Технопростір Плюс"</text></outputEntry>
+        <outputEntry id="oe_605_notes"><text>"три послуги (оренда/експлуатація/маркетинг), не вказано за який місяць"</text></outputEntry>
+      </rule>
+
+      <!-- Будь-який підрозділ / Логістик Ультра-плюс — ТО -->
+      <rule id="rule_any_logistic">
+        <description>Не вказано за який місяць рахунок</description>
+        <inputEntry id="ie_any_log"><text></text></inputEntry>
+        <inputEntry id="ie_logistic"><text>"Логістик Ультра-плюс"</text></inputEntry>
+        <outputEntry id="oe_log_type"><text>"maintenance"</text></outputEntry>
+        <outputEntry id="oe_log_receiver"><text>"Технопростір Плюс"</text></outputEntry>
+        <outputEntry id="oe_log_notes"><text>"не вказано за який місяць рахунок"</text></outputEntry>
+      </rule>
+
+      <!-- Підрозділ 909 / Сільпо фуд — комунальні -->
+      <rule id="rule_909_silpo">
+        <description>Деталізація комунальних в окремому документі</description>
+        <inputEntry id="ie_909"><text>"909"</text></inputEntry>
+        <inputEntry id="ie_silpo"><text>"Сільпо фуд"</text></inputEntry>
+        <outputEntry id="oe_909_type"><text>"utilities"</text></outputEntry>
+        <outputEntry id="oe_909_receiver"><text>"Технопростір Плюс"</text></outputEntry>
+        <outputEntry id="oe_909_notes"><text>"деталізація комунальних в окремому документі"</text></outputEntry>
+      </rule>
+
+      <!-- Підрозділ 507 / Житомирський меблевий комбінат -->
+      <rule id="rule_507_zhytomyr">
+        <description>Фото рахунку поганої якості</description>
+        <inputEntry id="ie_507"><text>"507"</text></inputEntry>
+        <inputEntry id="ie_zhytomyr_507"><text>"Житомирський меблевий комбінат"</text></inputEntry>
+        <outputEntry id="oe_507_type"><text>"rent"</text></outputEntry>
+        <outputEntry id="oe_507_receiver"><text>"техно простір"</text></outputEntry>
+        <outputEntry id="oe_507_notes"><text>"фото рахунку поганої якості"</text></outputEntry>
+      </rule>
+
+      <!-- Підрозділ 908 / Житомирський меблевий комбінат -->
+      <rule id="rule_908_zhytomyr">
+        <description>4 рахунки та акти в одному PDF файлі</description>
+        <inputEntry id="ie_908"><text>"908"</text></inputEntry>
+        <inputEntry id="ie_zhytomyr_908"><text>"Житомирський меблевий комбінат"</text></inputEntry>
+        <outputEntry id="oe_908_type"><text>"rent"</text></outputEntry>
+        <outputEntry id="oe_908_receiver"><text>"Технопростір Плюс"</text></outputEntry>
+        <outputEntry id="oe_908_notes"><text>"4 рахунки та акти в одному PDF файлі"</text></outputEntry>
+      </rule>
+
+      <!-- Підрозділ 602 / Житомирський меблевий комбінат (той самий пакет що і 908) -->
+      <rule id="rule_602_zhytomyr">
+        <description>4 рахунки та акти в одному PDF файлі (спільно з підрозділом 908)</description>
+        <inputEntry id="ie_602"><text>"602"</text></inputEntry>
+        <inputEntry id="ie_zhytomyr_602"><text>"Житомирський меблевий комбінат"</text></inputEntry>
+        <outputEntry id="oe_602_type"><text>"rent"</text></outputEntry>
+        <outputEntry id="oe_602_receiver"><text>"Технопростір Плюс"</text></outputEntry>
+        <outputEntry id="oe_602_notes"><text>"4 рахунки та акти в одному PDF файлі (спільно з підрозділом 908)"</text></outputEntry>
+      </rule>
+
+      <!-- ── DEFAULT — невідома комбінація ────────────────────────────────── -->
+      <rule id="rule_default">
+        <description>Невідома комбінація підрозділ/постачальник — потребує ручної класифікації</description>
+        <inputEntry id="ie_default_dept"><text></text></inputEntry>
+        <inputEntry id="ie_default_partner"><text></text></inputEntry>
+        <outputEntry id="oe_default_type"><text>"rent"</text></outputEntry>
+        <outputEntry id="oe_default_receiver"><text></text></outputEntry>
+        <outputEntry id="oe_default_notes"><text>"невідома комбінація — потребує ручної класифікації"</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       DMNDI — візуальне розташування
+       ═══════════════════════════════════════════════════════════════════ -->
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_detail">
+      <dmndi:DMNShape id="DMNShape_invoice_detail" dmnElementRef="invoice-detail-type">
+        <dc:Bounds x="160" y="100" width="200" height="80" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+
+</definitions>
