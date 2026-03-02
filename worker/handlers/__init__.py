@@ -11,7 +11,7 @@ from ..ssh import AsyncSSHClient
 from .audit import register_audit_handlers
 from .clickbot import register_clickbot_handlers
 from .deploy import register_deploy_handlers
-from .http_smart import register_http_smart_handlers
+from ..http_request_smart import register_http_smart_handlers
 from .github import register_github_handlers
 from .notify import register_notify_handlers
 from .sync import register_sync_handlers

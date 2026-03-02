@@ -295,5 +295,92 @@ async def main():
             await asyncio.sleep(5)
 
 
+def register_http_smart_handlers(worker, config=None):
+    """Register http-request-smart handler with an existing worker.
+
+    Used by worker/handlers/__init__.py to integrate into the full worker.
+    When running standalone (python http_request_smart.py), uses create_worker() instead.
+    """
+    @worker.task(task_type="http-request-smart", timeout_ms=30_000)
+    async def handle_smart_http_request_integrated(
+        job: Job,
+        url: str,
+        method: str = "POST",
+        body: dict = None,
+        headers: dict = None,
+        result_variable_name: str = None
+    ):
+        is_task_listener = not job.element_instance_key or job.element_instance_key == 0
+
+        user_task_key = None
+
+        if job.custom_headers and "io.camunda.zeebe:userTaskKey" in job.custom_headers:
+            user_task_key = str(job.custom_headers["io.camunda.zeebe:userTaskKey"])
+            logger.info(f"Got user_task_key from custom_headers: {user_task_key}")
+
+        elif hasattr(job, 'user_task_key') and job.user_task_key:
+            user_task_key = str(job.user_task_key)
+            logger.info(f"Got user_task_key from job attribute: {user_task_key}")
+
+        elif is_task_listener and hasattr(job, 'element_id') and job.element_id:
+            user_task_key = await get_user_task_key(
+                str(job.process_instance_key),
+                job.element_id
+            )
+            logger.info(f"Got user_task_key from REST API: {user_task_key}")
+
+        metadata = {
+            "process_instance_key": job.process_instance_key,
+            "element_instance_key": job.element_instance_key if job.element_instance_key else None,
+            "bpmn_process_id": job.bpmn_process_id,
+            "element_id": job.element_id if hasattr(job, 'element_id') else None,
+            "job_key": job.key,
+            "user_task_key": user_task_key
+        }
+
+        payload = body if body else {}
+        payload.update(metadata)
+
+        req_headers = headers if headers else {}
+        req_headers['Content-Type'] = 'application/json'
+
+        logger.info(f"[{job.process_instance_key}] Sending {method} to {url}")
+        logger.info(f"[{job.process_instance_key}] Payload: {payload}")
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.request(
+                    method=method.upper(),
+                    url=url,
+                    json=payload,
+                    headers=req_headers,
+                    timeout=30.0
+                )
+
+                try:
+                    response_body = response.json() if response.content else {}
+                except:
+                    response_body = response.text if response.content else ""
+
+                if response.status_code >= 400:
+                    error_msg = f"HTTP {response.status_code}: {response_body}"
+                    logger.error(error_msg)
+                    raise Exception(error_msg)
+
+                logger.info(f"Success. Status: {response.status_code}")
+
+                if result_variable_name:
+                    if is_task_listener:
+                        logger.warning(f"Task Listener detected - skipping variable return to avoid loop")
+                        return
+
+                    logger.info(f"Returning data into variable: '{result_variable_name}'")
+                    return {result_variable_name: response_body}
+
+            except httpx.RequestError as e:
+                logger.error(f"Network error: {e}")
+                raise Exception(f"Network error: {e}")
+
+
 if __name__ == "__main__":
     asyncio.run(main())
