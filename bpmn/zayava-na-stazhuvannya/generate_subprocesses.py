@@ -641,7 +641,7 @@ def generate_dostupiv_oz():
 # MAIN: Generate all 3 files
 # ============================================================
 if __name__ == "__main__":
-    base = "/opt/camunda/docker-compose-8.8"
+    base = "/opt/camunda/docker-compose-8.8/bpmn/zayava-na-stazhuvannya"
 
     files = [
         (f"{base}/oficiynyy-pryyom-v2.bpmn", generate_oficiynyy_pryyom),

@@ -1,0 +1,4 @@
+pyzeebe==4.0.0
+grpcio>=1.60.0
+httpx>=0.25.0
+requests>=2.31.0

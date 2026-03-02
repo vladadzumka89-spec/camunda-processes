@@ -5,13 +5,13 @@
       <zeebe:subscription correlationKey="= process_instance_key" />
     </bpmn:extensionElements>
   </bpmn:message>
-  <bpmn:collaboration id="Collab_pogodzhennya">
-    <bpmn:participant id="Pool_pogodzhennya" name="Погодження рахунків (скорочений)" processRef="Process_54fqm9i" />
+  <bpmn:collaboration id="Collab_test_run">
+    <bpmn:participant id="Pool_test_run" name="тест запуску процесу" processRef="Process_test_run" />
     <bpmn:textAnnotation id="TextAnnotation_1xa74mu">
       <bpmn:text>Співставляємо рахунок з ДМН таблицею щоб зрозуміти які затрати вносимо</bpmn:text>
     </bpmn:textAnnotation>
   </bpmn:collaboration>
-  <bpmn:process id="Process_54fqm9i" name="Погодження рахунків (скорочений)" isExecutable="true">
+  <bpmn:process id="Process_test_run" name="тест запуску процесу" isExecutable="true">
     <bpmn:extensionElements>
       <zeebe:versionTag value="1.0" />
     </bpmn:extensionElements>
@@ -58,8 +58,8 @@
     <bpmn:association id="Association_1m1y9qn" associationDirection="None" sourceRef="ST_dmn_fop" targetRef="TextAnnotation_1xa74mu" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collab_pogodzhennya">
-      <bpmndi:BPMNShape id="Pool_pogodzhennya_di" bpmnElement="Pool_pogodzhennya" isHorizontal="true">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collab_test_run">
+      <bpmndi:BPMNShape id="Pool_test_run_di" bpmnElement="Pool_test_run" isHorizontal="true">
         <dc:Bounds x="440" y="120" width="710" height="230" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
