@@ -150,7 +150,7 @@ Output: smoke_passed</bpmn:documentation>
     </bpmn:serviceTask>
 
     <!-- ── CLICKBOT GATEWAY ────────────────────────────────────── -->
-    <bpmn:exclusiveGateway id="gw_clickbot" name="Clickbot?" default="f_skip_clickbot">
+    <bpmn:exclusiveGateway id="gw_clickbot" name="Clickbot?" default="f_run_clickbot">
       <bpmn:incoming>f_http_to_gw_clickbot</bpmn:incoming>
       <bpmn:outgoing>f_run_clickbot</bpmn:outgoing>
       <bpmn:outgoing>f_skip_clickbot</bpmn:outgoing>
@@ -168,7 +168,7 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <zeebe:ioMapping>
           <zeebe:input source="=server_host" target="server_host" />
           <zeebe:input source="=db_name" target="db_name" />
-          <zeebe:input source="=test_mode" target="test_mode" />
+          <zeebe:input source="=if is defined(test_mode) and test_mode != null then test_mode else &quot;full&quot;" target="test_mode" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_run_clickbot</bpmn:incoming>
@@ -178,8 +178,22 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
     <bpmn:exclusiveGateway id="gw_merge_clickbot">
       <bpmn:incoming>f_skip_clickbot</bpmn:incoming>
       <bpmn:incoming>f_clickbot_to_merge</bpmn:incoming>
-      <bpmn:outgoing>f_merge_to_save</bpmn:outgoing>
+      <bpmn:outgoing>f_merge_to_clickbot_report</bpmn:outgoing>
     </bpmn:exclusiveGateway>
+
+    <!-- ── CLICKBOT REPORT → ODOO TASK ─────────────────────── -->
+    <bpmn:serviceTask id="ST_clickbot_report" name="📋 Результати Clickbot → Odoo">
+      <bpmn:documentation>Створює підзадачу в Odoo з повними результатами clickbot тестів.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;clickbot_report&quot;" target="notification_type" />
+          <zeebe:input source="=&quot;Сервер: &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;\nГілка: &quot; + (if is defined(branch) and branch != null then branch else &quot;unknown&quot;) + &quot;\nРезультат: &quot; + (if is defined(clickbot_passed) and clickbot_passed = true then &quot;✅ PASSED&quot; else &quot;❌ FAILED&quot;) + &quot;\n\n&quot; + (if is defined(clickbot_report) and clickbot_report != null then clickbot_report else &quot;Clickbot не запускався&quot;)" target="message_body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_merge_to_clickbot_report</bpmn:incoming>
+      <bpmn:outgoing>f_clickbot_report_to_save</bpmn:outgoing>
+    </bpmn:serviceTask>
 
     <!-- ── SAVE STATE ────────────────────────────────────────── -->
     <bpmn:serviceTask id="task_save_state" name="Зберегти стан деплою">
@@ -253,18 +267,19 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="f07" sourceRef="gw_docker_build" targetRef="gw_merge_docker" />
     <bpmn:sequenceFlow id="f08" sourceRef="task_docker_build" targetRef="gw_merge_docker" />
-    <bpmn:sequenceFlow id="f09" sourceRef="gw_merge_docker" targetRef="task_docker_up" />
-    <bpmn:sequenceFlow id="f10" sourceRef="task_docker_up" targetRef="task_module_update" />
-    <bpmn:sequenceFlow id="f11" sourceRef="task_module_update" targetRef="task_cache_clear" />
+    <bpmn:sequenceFlow id="f09" sourceRef="gw_merge_docker" targetRef="task_module_update" />
+    <bpmn:sequenceFlow id="f10" sourceRef="task_module_update" targetRef="task_docker_up" />
+    <bpmn:sequenceFlow id="f11" sourceRef="task_docker_up" targetRef="task_cache_clear" />
     <bpmn:sequenceFlow id="f12" sourceRef="task_cache_clear" targetRef="task_smoke_test" />
     <bpmn:sequenceFlow id="f_smoke_to_http" sourceRef="task_smoke_test" targetRef="task_http_verify" />
     <bpmn:sequenceFlow id="f_http_to_gw_clickbot" sourceRef="task_http_verify" targetRef="gw_clickbot" />
-    <bpmn:sequenceFlow id="f_run_clickbot" name="Так" sourceRef="gw_clickbot" targetRef="task_clickbot">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(test_mode) and test_mode != null</bpmn:conditionExpression>
+    <bpmn:sequenceFlow id="f_run_clickbot" sourceRef="gw_clickbot" targetRef="task_clickbot" />
+    <bpmn:sequenceFlow id="f_skip_clickbot" name="Скіп" sourceRef="gw_clickbot" targetRef="gw_merge_clickbot">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(skip_clickbot) and skip_clickbot = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="f_skip_clickbot" sourceRef="gw_clickbot" targetRef="gw_merge_clickbot" />
     <bpmn:sequenceFlow id="f_clickbot_to_merge" sourceRef="task_clickbot" targetRef="gw_merge_clickbot" />
-    <bpmn:sequenceFlow id="f_merge_to_save" sourceRef="gw_merge_clickbot" targetRef="task_save_state" />
+    <bpmn:sequenceFlow id="f_merge_to_clickbot_report" sourceRef="gw_merge_clickbot" targetRef="ST_clickbot_report" />
+    <bpmn:sequenceFlow id="f_clickbot_report_to_save" sourceRef="ST_clickbot_report" targetRef="task_save_state" />
     <bpmn:sequenceFlow id="f18" sourceRef="task_save_state" targetRef="evt_end_success" />
 
   </bpmn:process>
@@ -313,13 +328,13 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <dc:Bounds x="955" y="175" width="50" height="50" />
       </bpmndi:BPMNShape>
 
-      <!-- Docker Up -->
-      <bpmndi:BPMNShape id="task_docker_up_di" bpmnElement="task_docker_up">
+      <!-- Module Update -->
+      <bpmndi:BPMNShape id="task_module_update_di" bpmnElement="task_module_update">
         <dc:Bounds x="1060" y="160" width="140" height="80" />
       </bpmndi:BPMNShape>
 
-      <!-- Module Update -->
-      <bpmndi:BPMNShape id="task_module_update_di" bpmnElement="task_module_update">
+      <!-- Docker Up -->
+      <bpmndi:BPMNShape id="task_docker_up_di" bpmnElement="task_docker_up">
         <dc:Bounds x="1260" y="160" width="140" height="80" />
       </bpmndi:BPMNShape>
 
@@ -353,14 +368,19 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <dc:Bounds x="2335" y="175" width="50" height="50" />
       </bpmndi:BPMNShape>
 
+      <!-- Clickbot Report → Odoo -->
+      <bpmndi:BPMNShape id="ST_clickbot_report_di" bpmnElement="ST_clickbot_report">
+        <dc:Bounds x="2440" y="160" width="140" height="80" />
+      </bpmndi:BPMNShape>
+
       <!-- Save State -->
       <bpmndi:BPMNShape id="task_save_state_di" bpmnElement="task_save_state">
-        <dc:Bounds x="2440" y="160" width="140" height="80" />
+        <dc:Bounds x="2640" y="160" width="140" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- End Success -->
       <bpmndi:BPMNShape id="evt_end_success_di" bpmnElement="evt_end_success">
-        <dc:Bounds x="2642" y="182" width="36" height="36" />
+        <dc:Bounds x="2842" y="182" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <!-- Error Event Subprocess (expanded to fit Odoo task) -->
@@ -432,19 +452,19 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <di:waypoint x="980" y="175" />
       </bpmndi:BPMNEdge>
 
-      <!-- f09: GW Merge Docker → Docker Up -->
+      <!-- f09: GW Merge Docker → Module Update -->
       <bpmndi:BPMNEdge id="f09_di" bpmnElement="f09">
         <di:waypoint x="1005" y="200" />
         <di:waypoint x="1060" y="200" />
       </bpmndi:BPMNEdge>
 
-      <!-- f10: Docker Up → Module Update -->
+      <!-- f10: Module Update → Docker Up -->
       <bpmndi:BPMNEdge id="f10_di" bpmnElement="f10">
         <di:waypoint x="1200" y="200" />
         <di:waypoint x="1260" y="200" />
       </bpmndi:BPMNEdge>
 
-      <!-- f11: Module Update → Cache Clear -->
+      <!-- f11: Docker Up → Cache Clear -->
       <bpmndi:BPMNEdge id="f11_di" bpmnElement="f11">
         <di:waypoint x="1400" y="200" />
         <di:waypoint x="1460" y="200" />
@@ -488,16 +508,22 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <di:waypoint x="2360" y="175" />
       </bpmndi:BPMNEdge>
 
-      <!-- GW Merge → Save State -->
-      <bpmndi:BPMNEdge id="f_merge_to_save_di" bpmnElement="f_merge_to_save">
+      <!-- GW Merge → Clickbot Report -->
+      <bpmndi:BPMNEdge id="f_merge_to_clickbot_report_di" bpmnElement="f_merge_to_clickbot_report">
         <di:waypoint x="2385" y="200" />
         <di:waypoint x="2440" y="200" />
       </bpmndi:BPMNEdge>
 
+      <!-- Clickbot Report → Save State -->
+      <bpmndi:BPMNEdge id="f_clickbot_report_to_save_di" bpmnElement="f_clickbot_report_to_save">
+        <di:waypoint x="2580" y="200" />
+        <di:waypoint x="2640" y="200" />
+      </bpmndi:BPMNEdge>
+
       <!-- f18: Save State → End Success -->
       <bpmndi:BPMNEdge id="f18_di" bpmnElement="f18">
-        <di:waypoint x="2580" y="200" />
-        <di:waypoint x="2642" y="200" />
+        <di:waypoint x="2780" y="200" />
+        <di:waypoint x="2842" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- Error subprocess edges -->

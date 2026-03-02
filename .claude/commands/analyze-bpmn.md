@@ -90,6 +90,95 @@ ls bpmn/*.bpmn
 
 - Якщо є XOR/inclusive gateways з складними FEEL умовами (більше ніж проста перевірка змінної) — WARN, рекомендація винести в DMN.
 
+### 3.9 Батьківська задача на початку процесу
+
+Кожен головний процес (НЕ Call Activity підпроцес) повинен створювати **батьківську задачу в Odoo** одразу на початку — після XOR gateway перевірки `odoo_task_id`.
+
+**Як реалізовано в проєкті:**
+- Service Task з job type `send-notification` та `notification_type` зі значенням `"feature_start"`, `"sync_start"` або аналогічним
+- Хендлер Python викликає `odoo.create_task(..., create_process=True)` — прапор `create_process=True` сигналізує Odoo створити задачу-контейнер (батьківську)
+- Результат зберігається у змінну `odoo_task_id`
+
+**Перевірки:**
+- Одразу після XOR gateway `GW_odoo_check` (на default-гілці) має бути Service Task що створює батьківську задачу. Якщо такого немає — FAIL.
+- Input mapping має містити `notification_type` зі значенням що закінчується на `_start` (або аналогічне, що позначає створення батьківської задачі). Або, якщо використовується `http-request-smart`, body має містити `create_process: true`. Якщо ні — WARN.
+- **Виняток:** Call Activity підпроцеси (наприклад `deploy-process.bpmn`) НЕ створюють батьківську задачу — вони працюють в контексті процесу-викликача.
+
+**Еталонна структура (feature-to-production.bpmn):**
+```
+Start Event
+  → GW_odoo_check (XOR: "Задача в Odoo існує?")
+      ├── [default] → task_create_odoo (send-notification, notification_type="feature_start")
+      │                    → Merge_odoo
+      └── [= is defined(odoo_task_id) ...] → Merge_odoo (skip)
+  → [далі по процесу]
+```
+
+### 3.10 Підзадачі прив'язані до батьківської задачі
+
+Усі наступні задачі що створюються в Odoo протягом процесу повинні бути **підзадачами** батьківської задачі.
+
+**Як реалізовано в проєкті:**
+- Підзадачі прив'язуються до батьківської через змінну `process_instance_key` — Odoo на своїй стороні використовує цей ключ для встановлення зв'язку батько→дитина
+- Підзадачі НЕ використовують `create_process: true` (або хендлер передає `create_process=False`)
+- Два варіанти створення підзадач:
+  1. **`http-request-smart`** — прямий HTTP POST на webhook з `process_instance_key` в body
+  2. **`send-notification` / `create-odoo-task`** — Python хендлер, який автоматично передає `process_instance_key` через `OdooClient`
+
+**Перевірки:**
+- Кожен Service Task що створює задачу в Odoo (тип `http-request-smart` з webhook URL, або `send-notification`/`create-odoo-task`) ПІСЛЯ батьківської задачі повинен передавати `process_instance_key`. Якщо `process_instance_key` відсутній у body — FAIL.
+- Підзадачі НЕ повинні мати `create_process: true` в body. Якщо є — FAIL.
+- Кожна підзадача має мати змістовне `name` що описує конкретний етап процесу. Якщо `name` відсутнє або generic — WARN.
+
+**Приклади підзадач (feature-to-production.bpmn):**
+```
+task_subtask_verify_staging   → "Перевірити staging: PR #..." (http-request-smart)
+task_subtask_merge_main       → "Review та merge PR в main: ..." (http-request-smart)
+task_subtask_verify_prod      → "Перевірити production: PR #..." (http-request-smart)
+```
+
+**Приклади підзадач (upstream-sync.bpmn):**
+```
+task_notify_conflicts → "Виправити конфлікти (N модулів)" (create-odoo-task)
+ST_review_sync        → "Переглянути аналіз оновлення" (create-odoo-task)
+```
+
+### 3.11 Error/Fallback — створення підзадачі з описом помилки
+
+Кожен процес повинен мати **обробку помилок** що створює підзадачу в Odoo з описом помилки при збоях.
+
+**Як реалізовано в проєкті:**
+Використовується **Event-Triggered Error Subprocess** (`triggeredByEvent="true"`) на рівні головного процесу:
+
+```xml
+<bpmn:subProcess id="subprocess_error_..." triggeredByEvent="true">
+  <bpmn:startEvent id="evt_error_catch_...">
+    <!-- ловить всі помилки, зберігає код та повідомлення -->
+    <zeebe:errorEventDefinition
+      errorCodeVariable="caught_error_code"
+      errorMessageVariable="caught_error_message" />
+  </bpmn:startEvent>
+  → Service Task (send-notification) з описом помилки
+  → [опційно: rollback]
+  → End Event
+</bpmn:subProcess>
+```
+
+**Перевірки:**
+- Процес має містити хоча б один `<bpmn:subProcess triggeredByEvent="true">` з error start event всередині. Якщо немає — FAIL.
+- Error subprocess повинен містити Service Task що створює задачу в Odoo з описом помилки. Шукай `send-notification` з `notification_type` що містить `error` (наприклад `"pipeline_error"`, `"sync_error"`, `"deploy_error"`). Якщо немає — FAIL.
+- `message_body` або `description` error-задачі повинен містити інформацію про помилку: `caught_error_code` та `caught_error_message`. Якщо ці змінні не передаються — WARN.
+- Error-задача повинна створюватись як підзадача (без `create_process: true`), щоб вона потрапила до батьківської задачі. Якщо є `create_process: true` — FAIL.
+- **Виняток для Call Activity:** підпроцес `deploy-process.bpmn` після створення error-задачі виконує rollback і **re-throw** помилки через Error End Event (`errorCode="DEPLOY_FAILED"`) — щоб батьківський процес теж міг її обробити. Це рекомендований паттерн для Call Activity.
+
+**Еталонні реалізації:**
+
+| Процес | Error Subprocess ID | Service Task | notification_type | Додатково |
+|--------|-------------------|--------------|-------------------|-----------|
+| feature-to-production | `subprocess_error_pipeline` | `ST_error_notify_pipeline` | `pipeline_error` | — |
+| upstream-sync | `subprocess_error_sync` | `ST_error_notify_sync` | `sync_error` | — |
+| deploy-process | `subprocess_error` | `ST_error_odoo_task` | `deploy_error` | + rollback + re-throw |
+
 ## Крок 4: Перевірки за стандартами BPMN 2.0
 
 Виконай додаткові перевірки валідності BPMN:
@@ -151,6 +240,9 @@ ls bpmn/*.bpmn
 - isExecutable = true
 - versionTag присутній
 - XOR gateway на початку з перевіркою odoo_task_id
+- Батьківська задача створюється після XOR gateway з create_process=true
+- Усі підзадачі передають process_instance_key
+- Error subprocess з створенням error-підзадачі в Odoo
 - ...
 
 ───────────────────────────────────────

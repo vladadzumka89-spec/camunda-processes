@@ -27,7 +27,7 @@ python -m worker
 
 # Deploy BPMN to Zeebe (basic auth demo:demo)
 curl -s -X POST "http://localhost:8088/v2/deployments" \
-  -u "demo:demo" -F "resources=@bpmn/feature-to-production.bpmn"
+  -u "demo:demo" -F "resources=@bpmn/ci-cd/feature-to-production.bpmn"
 ```
 
 ## Tests

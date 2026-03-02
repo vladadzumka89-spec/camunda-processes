@@ -1,5 +1,5 @@
 """
-Integration tests for the feature-to-production BPMN pipeline.
+Integration tests for the feature-to-production BPMN pipeline v3.0.
 
 Runs against a real Zeebe instance (docker-compose).
 All service task handlers AND user tasks are handled via the gRPC job worker.
@@ -31,7 +31,7 @@ BASE_VARIABLES = {
     "pr_number": 42,
     "pr_url": "https://github.com/test/pr/42",
     "repository": "tut-ua/odoo-enterprise",
-    "base_branch": "staging",
+    "base_branch": "main",
     "head_branch": "feat/test",
     "pr_title": "Test Feature",
     "pr_author": "dev",
@@ -56,9 +56,9 @@ BASE_VARIABLES = {
 
 SERVICE_TASK_RESPONSES: dict[str, dict] = {
     "pr-agent-review": {"review_score": 8, "has_critical_issues": False},
-    "github-merge": {},
+    "merge-feature-to-staging": {"staging_merged": True},
+    "github-pr-ready": {},
     "github-comment": {},
-    "github-create-pr": {"pr_url": "https://github.com/test/pr/99", "pr_number": 99},
     "send-notification": {"odoo_task_id": 1},
     "clickbot-test": {"clickbot_passed": True, "clickbot_report": "All OK"},
     "rollback": {},
@@ -230,9 +230,9 @@ async def stop_worker(worker_task: asyncio.Task) -> None:
 
 
 class TestHappyPath:
-    """PR → review(8) → merge → deploy staging → clickbot → notify →
-    verify staging(OK) → create PR main → merge main → deploy prod →
-    verify prod(OK) → END SUCCESS"""
+    """PR → review(8) → merge feature→staging → deploy staging → clickbot →
+    verify staging(OK) → 2nd review(8) → undraft → subtask merge →
+    merge main → deploy prod → verify prod(OK) → END SUCCESS"""
 
     async def test_happy_path(self, zeebe_client, mock_worker, rest_client):
         call_counts, worker_task = await start_pipeline(
@@ -249,11 +249,11 @@ class TestHappyPath:
             await wait_for_handler(call_counts, "ut:user_verify_prod")
 
             # Verify all key handlers were called
-            assert call_counts.get("pr-agent-review", 0) >= 1
-            assert call_counts.get("github-merge", 0) >= 1
+            assert call_counts.get("pr-agent-review", 0) >= 2  # 1st + 2nd review
+            assert call_counts.get("merge-feature-to-staging", 0) >= 1
+            assert call_counts.get("github-pr-ready", 0) >= 1  # undraft
             assert call_counts.get("git-pull", 0) >= 2  # staging + production
             assert call_counts.get("clickbot-test", 0) >= 1
-            assert call_counts.get("github-create-pr", 0) >= 1
             assert call_counts.get("ut:user_verify_staging", 0) >= 1
             assert call_counts.get("ut:user_merge_main", 0) >= 1
             assert call_counts.get("ut:user_verify_prod", 0) >= 1
@@ -268,7 +268,7 @@ class TestHappyPath:
 
 class TestScoreBelowThreshold:
     """PR → review(4) → comment → wait msg_pr_updated → re-review(8) →
-    merge → ... → END SUCCESS"""
+    merge feature→staging → ... → END SUCCESS"""
 
     async def test_score_below_threshold(self, zeebe_client, mock_worker, rest_client):
         call_counts, worker_task = await start_pipeline(
@@ -277,6 +277,7 @@ class TestScoreBelowThreshold:
             service_overrides={
                 "pr-agent-review": [
                     {"review_score": 4, "has_critical_issues": False},
+                    {"review_score": 8, "has_critical_issues": False},
                     {"review_score": 8, "has_critical_issues": False},
                 ],
             },
@@ -314,9 +315,9 @@ class TestScoreBelowThreshold:
 
 
 class TestStagingRejectedRework:
-    """PR → review(8) → merge → deploy staging → clickbot → notify →
+    """PR → review(8) → merge feature→staging → deploy staging →
     verify staging(REJECT) → comment rework → msg_pr_updated →
-    re-review(8) → merge → deploy staging → ... → verify prod(OK) → END"""
+    re-review(8) → merge feature→staging → ... → verify prod(OK) → END"""
 
     async def test_staging_rejected_rework(self, zeebe_client, mock_worker, rest_client):
         call_counts, worker_task = await start_pipeline(

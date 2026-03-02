@@ -6,7 +6,7 @@ Endpoints:
     GET  /health          — Liveness probe
 
 Zeebe messages published:
-    msg_pr_event     — PR opened/reopened targeting staging → starts feature-to-production
+    msg_pr_event     — PR opened/reopened targeting main → starts feature-to-production
     msg_pr_updated   — PR synchronize → correlates to running instance by pr_number
     msg_odoo_task_done — Odoo task closed → correlates to upstream-sync by odoo_task_id
 """
@@ -139,21 +139,21 @@ class WebhookServer:
             pr_number, action, base_branch,
         )
 
-        # Only process PRs targeting staging
-        if base_branch != 'staging':
-            logger.info("Ignoring PR #%d: targets %s (not staging)", pr_number, base_branch)
-            return web.json_response({
-                "status": "ignored",
-                "reason": f"base_branch={base_branch}",
-            })
+        # PRs targeting main: full lifecycle (opened, synchronize)
+        if base_branch == 'main':
+            if action in ('opened', 'reopened'):
+                return await self._publish_pr_event(pr, payload)
+            elif action == 'synchronize':
+                return await self._publish_pr_updated(pr)
+            else:
+                logger.info("Ignoring PR #%d action=%s", pr_number, action)
+                return web.json_response({"status": "ignored", "action": action})
 
-        if action in ('opened', 'reopened', 'ready_for_review'):
-            return await self._publish_pr_event(pr, payload)
-        elif action == 'synchronize':
-            return await self._publish_pr_updated(pr)
-        else:
-            logger.info("Ignoring PR #%d action=%s", pr_number, action)
-            return web.json_response({"status": "ignored", "action": action})
+        logger.info("Ignoring PR #%d: base=%s action=%s", pr_number, base_branch, action)
+        return web.json_response({
+            "status": "ignored",
+            "reason": f"base_branch={base_branch}, action={action}",
+        })
 
     async def _publish_pr_event(self, pr: dict, payload: dict) -> web.Response:
         """Publish msg_pr_event — starts a new feature-to-production process instance."""
@@ -166,7 +166,7 @@ class WebhookServer:
             "pr_title": pr.get('title', ''),
             "pr_author": pr.get('user', {}).get('login', ''),
             "repository": repo_full,
-            "base_branch": pr.get('base', {}).get('ref', 'staging'),
+            "base_branch": pr.get('base', {}).get('ref', 'main'),
             "head_branch": pr.get('head', {}).get('ref', ''),
         }
 
@@ -305,37 +305,31 @@ class WebhookServer:
             return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
 
     async def _cancel_process_instance(self, pik: str) -> web.Response:
-        """Cancel a Camunda process instance via REST API."""
+        """Cancel a Camunda process instance and rollback sync state if needed."""
         import httpx
 
         # REST API is on port 8080 inside Docker network (8088 is host-mapped)
         gw = self._config.zeebe.gateway_address  # e.g. "orchestration:26500"
         zeebe_host = gw.split(':')[0] if ':' in gw else gw
         zeebe_rest = f"http://{zeebe_host}:8080"
-        url = f"{zeebe_rest}/v2/process-instances/{pik}/cancellation"
+        auth = ("demo", "demo")
 
+        # 1. Fetch process variables BEFORE cancellation (for rollback)
+        old_shas = await self._fetch_sync_shas(zeebe_rest, pik, auth)
+
+        # 2. Cancel the process instance
+        url = f"{zeebe_rest}/v2/process-instances/{pik}/cancellation"
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
-                    url,
-                    auth=("demo", "demo"),
+                    url, auth=auth,
                     headers={"Content-Type": "application/json"},
-                    content="{}",
-                    timeout=10,
+                    content="{}", timeout=10,
                 )
             if resp.status_code in (200, 204):
                 logger.info("Cancelled process instance %s (Odoo task cancelled)", pik)
-                return web.json_response({
-                    "status": "cancelled",
-                    "process_instance_key": pik,
-                })
             elif resp.status_code == 404:
-                # Already cancelled/completed — treat as success
                 logger.info("Process %s already terminated (404)", pik)
-                return web.json_response({
-                    "status": "already_terminated",
-                    "process_instance_key": pik,
-                })
             else:
                 logger.warning(
                     "Failed to cancel process %s: HTTP %d %s",
@@ -348,6 +342,95 @@ class WebhookServer:
         except Exception as exc:
             logger.error("Cancel process %s failed: %s", pik, exc)
             return web.Response(status=502, text=f"Cancel failed: {exc}")
+
+        # 3. Rollback SHA state file if this was an upstream-sync process
+        if old_shas:
+            await self._rollback_sync_state(old_shas)
+
+        return web.json_response({
+            "status": "cancelled",
+            "process_instance_key": pik,
+        })
+
+    async def _fetch_sync_shas(
+        self, zeebe_rest: str, pik: str, auth: tuple,
+    ) -> dict | None:
+        """Fetch original SHA values from process variables (for rollback)."""
+        import httpx
+
+        url = f"{zeebe_rest}/v2/variables/search"
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    url, auth=auth,
+                    headers={"Content-Type": "application/json"},
+                    content=json.dumps({
+                        "filter": {"processInstanceKey": pik},
+                    }),
+                    timeout=10,
+                )
+            if resp.status_code != 200:
+                logger.warning("Variables search failed: HTTP %d", resp.status_code)
+                return None
+            data = resp.json()
+            variables = {}
+            for item in data.get("items", []):
+                name = item.get("name", "")
+                if name in (
+                    "current_community_sha", "current_enterprise_sha",
+                    "enterprise_version", "server_host",
+                ):
+                    val = item.get("value", "")
+                    # Values come JSON-encoded (e.g. '"abc"')
+                    try:
+                        variables[name] = json.loads(val)
+                    except (json.JSONDecodeError, TypeError):
+                        variables[name] = val
+            if variables.get("current_enterprise_sha"):
+                return variables
+        except Exception as exc:
+            logger.warning("Failed to fetch variables for %s: %s", pik, exc)
+        return None
+
+    async def _rollback_sync_state(self, shas: dict) -> None:
+        """Restore SHA state file on the server after cancelled sync."""
+        import asyncssh
+
+        community_sha = shas.get("current_community_sha", "")
+        enterprise_sha = shas.get("current_enterprise_sha", "")
+        upstream_branch = shas.get("enterprise_version", "19.0")
+
+        # Find the server config (default to staging)
+        server = self._config.servers.get("staging")
+        if not server:
+            logger.warning("No staging server config — cannot rollback sync state")
+            return
+
+        state = json.dumps({
+            "community_sha": community_sha,
+            "enterprise_sha": enterprise_sha,
+            "synced_at": "rollback",
+            "upstream_branch": upstream_branch,
+        })
+        repo_dir = server.repo_dir
+        cmd = (
+            f"mkdir -p {repo_dir}/.sync-state && "
+            f"echo '{state}' > {repo_dir}/.sync-state/upstream_shas.json"
+        )
+
+        try:
+            async with asyncssh.connect(
+                server.host,
+                username=server.ssh_user,
+                known_hosts=None,
+            ) as conn:
+                result = await conn.run(cmd, check=True, timeout=10)
+            logger.info(
+                "Rolled back sync state: enterprise=%s, community=%s",
+                enterprise_sha[:8], community_sha[:8],
+            )
+        except Exception as exc:
+            logger.warning("Failed to rollback sync state: %s", exc)
 
     # ── Helpers ───────────────────────────────────────────
 

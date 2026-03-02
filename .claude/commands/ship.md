@@ -112,17 +112,47 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 
 Типи: `feat` (нова фіча), `fix` (виправлення), `refactor`, `style`, `docs`, `chore`.
 
+## Крок 3.5: Синхронізація з main
+
+Перед пушем — переконайся що гілка актуальна відносно main:
+
+```bash
+git fetch origin main
+```
+
+Спробуй rebase:
+
+```bash
+git rebase origin/main
+```
+
+Якщо rebase пройшов успішно — продовжуй до Кроку 4.
+
+Якщо rebase впав з конфліктами:
+
+```bash
+git rebase --abort
+git merge origin/main --no-edit
+```
+
+Якщо merge теж впав з конфліктами — покажи:
+> ⚠️ Є конфлікти з main. Це означає що хтось змінив ті самі файли.
+> Конфліктні файли: (список)
+
+Спробуй автоматично вирішити конфлікти (прийняти обидві версії де можливо).
+Якщо не вдається — запитай через AskUserQuestion:
+- "Є конфлікти з main які я не можу вирішити автоматично. Що робити?"
+- Варіанти: "Покажи конфлікти, я вирішу сам" / "Прийняти версію з main" / "Скасувати ship"
+
 ## Крок 4: Пуш
 
 ```bash
-git push -u origin BRANCH_NAME
+git push --force-with-lease -u origin BRANCH_NAME
 ```
 
 ## Крок 5: Створи PR
 
-Визнач target branch:
-- Якщо поточна гілка створена від `staging` або її назва містить `hotfix` → `--base staging`
-- В усіх інших випадках → `--base staging` (за замовчуванням PR йде в staging)
+PR завжди створюється як **draft** в **main**.
 
 Перевір чи вже є PR для цієї гілки:
 ```bash
@@ -134,7 +164,7 @@ gh pr list --head BRANCH_NAME --json url --jq '.[0].url'
 Якщо PR не існує — створи новий:
 
 ```bash
-gh pr create --title "ЗАГОЛОВОК" --body "BODY" --base staging
+gh pr create --title "ЗАГОЛОВОК" --body "BODY" --base main --draft
 ```
 
 Заголовок PR = повідомлення коміту (без Co-Authored-By).
@@ -158,12 +188,22 @@ gh pr view --json comments,reviews --jq '.comments | length'
 
 ## Крок 7: Проаналізуй коментарі
 
+Отримай ВСІ типи коментарів — загальні, review та inline (до конкретних рядків коду):
+
 ```bash
 gh pr view --json comments,reviews
 ```
 
+```bash
+gh api repos/{owner}/{repo}/pulls/PR_NUMBER/comments
+```
+
+Друга команда повертає **inline review comments** — зауваження PR-Agent до конкретних рядків коду. Це найважливіша частина review, саме тут конкретні зауваження.
+
+Об'єднай результати обох команд для повної картини.
+
 Якщо є зауваження від PR-Agent:
-1. Покажи користувачу список зауважень простою мовою
+1. Покажи користувачу список зауважень простою мовою (і загальні, і inline)
 2. Виправ код згідно зауважень
 3. Закоміть та запуш виправлення (тільки змінені файли):
 ```bash
@@ -190,7 +230,7 @@ rm -f .claude-task
 
 > 🚀 **Відправлено!**
 >
-> - 🌿 Гілка: `BRANCH_NAME` → `staging`
+> - 🌿 Гілка: `BRANCH_NAME` → `main` (draft)
 > - 🔗 PR: URL_PR
 > - 📝 Файлів: N
 > - 🔍 Review: статус (пройшов / були виправлення / таймаут)

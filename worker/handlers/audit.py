@@ -20,9 +20,6 @@ from ..ssh import AsyncSSHClient
 
 logger = logging.getLogger(__name__)
 
-# Isolated workspace path (same as sync.py)
-WORKSPACE = "/tmp/sync-workspace"
-
 # Self-contained analysis script transferred to the remote server.
 # Inlines SuperCallAnalyzer to avoid external dependencies.
 _ANALYSIS_SCRIPT = textwrap.dedent(r'''
@@ -475,6 +472,7 @@ def register_audit_handlers(
     @worker.task(task_type="audit-analysis", timeout_ms=300_000)
     async def audit_analysis(
         changed_modules: str = "",
+        workspace_dir: str = "",
         server_host: str = "",
         **kwargs: Any,
     ) -> dict:
@@ -485,6 +483,9 @@ def register_audit_handlers(
         """
         server = _resolve_server(server_host)
 
+        if not workspace_dir:
+            raise ValueError("workspace_dir is required for audit-analysis")
+
         if not changed_modules:
             return {
                 "audit_conflicts": 0,
@@ -493,9 +494,11 @@ def register_audit_handlers(
                 "audit_report": "",
             }
 
+        ws = workspace_dir
+
         # Transfer analysis script to workspace
         # Use heredoc to write the script via SSH
-        script_path = f"{WORKSPACE}/_audit_analyze.py"
+        script_path = f"{ws}/_audit_analyze.py"
         await ssh.run(
             server,
             f"cat > {script_path} << 'AUDIT_SCRIPT_EOF'\n{_ANALYSIS_SCRIPT}\nAUDIT_SCRIPT_EOF",
@@ -506,14 +509,14 @@ def register_audit_handlers(
         # Stage files for diff detection (git add -N to track new files)
         await ssh.run(
             server,
-            f"cd {WORKSPACE} && git add -N src/community/ src/enterprise/ 2>/dev/null || true",
+            f"cd {ws} && git add -N src/community/ src/enterprise/ 2>/dev/null || true",
             timeout=30,
         )
 
         # Run the analysis script
         result = await ssh.run(
             server,
-            f"cd {WORKSPACE} && python3 {script_path} {WORKSPACE} 2>/dev/null",
+            f"cd {ws} && python3 {script_path} {ws} 2>/dev/null",
             timeout=240,
         )
 

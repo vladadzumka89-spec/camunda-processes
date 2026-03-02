@@ -35,7 +35,7 @@
 
   <bpmn:process id="upstream-sync" name="Upstream Sync" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="1.3" />
+      <zeebe:versionTag value="1.4" />
     </bpmn:extensionElements>
 
     <!-- ── START ─────────────────────────────────────────────── -->
@@ -121,7 +121,7 @@ Output: runbot_community_sha, runbot_enterprise_sha</bpmn:documentation>
 Потребує DEPLOY_PAT для enterprise (приватний репо).
 Output: community_date, enterprise_date, enterprise_count</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="clone-upstream" retries="2" />
+        <zeebe:taskDefinition type="clone-upstream" retries="5" />
       </bpmn:extensionElements>
       <bpmn:incoming>f_needed</bpmn:incoming>
       <bpmn:outgoing>f04</bpmn:outgoing>
@@ -291,9 +291,22 @@ impact table, audit report, список змінених модулів.
     <!-- ── WAIT: Review task closed ────────────────────────── -->
     <bpmn:intermediateCatchEvent id="wait_review_done" name="Чекаємо перевірки аналізу">
       <bpmn:incoming>f_review_to_wait</bpmn:incoming>
-      <bpmn:outgoing>f_review_done_to_merge</bpmn:outgoing>
+      <bpmn:outgoing>f_review_done_to_create_pr</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_review_done" messageRef="Message_odoo_task_done" />
     </bpmn:intermediateCatchEvent>
+
+    <!-- ── CREATE PR ON GITHUB ─────────────────────────────── -->
+    <bpmn:serviceTask id="ST_create_pr" name="Створити PR на GitHub">
+      <bpmn:documentation>Створює draft PR: sync branch → staging.
+Після рев'ю на демці гілка може мати додаткові фікс-коміти,
+тому PR створюється саме тут (а не одразу після push).
+Використовує змінні від git-commit-push: head_branch, base_branch, pr_title, pr_body, is_draft.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-create-pr" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_review_done_to_create_pr</bpmn:incoming>
+      <bpmn:outgoing>f_create_pr_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
 
     <!-- ── MERGE TO STAGING ────────────────────────────────── -->
     <bpmn:serviceTask id="task_merge_staging" name="Merge в staging">
@@ -302,7 +315,7 @@ impact table, audit report, список змінених модулів.
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="merge-to-staging" retries="2" />
       </bpmn:extensionElements>
-      <bpmn:incoming>f_review_done_to_merge</bpmn:incoming>
+      <bpmn:incoming>f_create_pr_to_merge</bpmn:incoming>
       <bpmn:outgoing>f_merge_to_deploy_staging</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -368,7 +381,8 @@ impact table, audit report, список змінених модулів.
     <bpmn:sequenceFlow id="f_after_resolve" sourceRef="wait_conflicts_resolved" targetRef="call_deploy_demo" />
     <bpmn:sequenceFlow id="f_deploy_demo_to_review" sourceRef="call_deploy_demo" targetRef="ST_review_sync" />
     <bpmn:sequenceFlow id="f_review_to_wait" sourceRef="ST_review_sync" targetRef="wait_review_done" />
-    <bpmn:sequenceFlow id="f_review_done_to_merge" sourceRef="wait_review_done" targetRef="task_merge_staging" />
+    <bpmn:sequenceFlow id="f_review_done_to_create_pr" sourceRef="wait_review_done" targetRef="ST_create_pr" />
+    <bpmn:sequenceFlow id="f_create_pr_to_merge" sourceRef="ST_create_pr" targetRef="task_merge_staging" />
     <bpmn:sequenceFlow id="f_merge_to_deploy_staging" sourceRef="task_merge_staging" targetRef="call_deploy_staging" />
     <bpmn:sequenceFlow id="f_deploy_staging_to_end" sourceRef="call_deploy_staging" targetRef="evt_end_success" />
 
@@ -536,19 +550,24 @@ impact table, audit report, список змінених модулів.
         <dc:Bounds x="3522" y="182" width="36" height="36" />
       </bpmndi:BPMNShape>
 
+      <!-- Create PR on GitHub -->
+      <bpmndi:BPMNShape id="ST_create_pr_di" bpmnElement="ST_create_pr">
+        <dc:Bounds x="3620" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
       <!-- Merge to staging -->
       <bpmndi:BPMNShape id="task_merge_staging_di" bpmnElement="task_merge_staging">
-        <dc:Bounds x="3620" y="160" width="160" height="80" />
+        <dc:Bounds x="3840" y="160" width="160" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Deploy to staging (Call Activity) -->
       <bpmndi:BPMNShape id="call_deploy_staging_di" bpmnElement="call_deploy_staging">
-        <dc:Bounds x="3840" y="160" width="160" height="80" />
+        <dc:Bounds x="4060" y="160" width="160" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- End Success -->
       <bpmndi:BPMNShape id="evt_end_success_di" bpmnElement="evt_end_success">
-        <dc:Bounds x="4060" y="182" width="36" height="36" />
+        <dc:Bounds x="4280" y="182" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <!-- Error Event Subprocess -->
@@ -719,22 +738,28 @@ impact table, audit report, список змінених модулів.
         <di:waypoint x="3522" y="200" />
       </bpmndi:BPMNEdge>
 
-      <!-- Wait Review → Merge Staging -->
-      <bpmndi:BPMNEdge id="f_review_done_to_merge_di" bpmnElement="f_review_done_to_merge">
+      <!-- Wait Review → Create PR -->
+      <bpmndi:BPMNEdge id="f_review_done_to_create_pr_di" bpmnElement="f_review_done_to_create_pr">
         <di:waypoint x="3558" y="200" />
         <di:waypoint x="3620" y="200" />
       </bpmndi:BPMNEdge>
 
-      <!-- Merge Staging → Deploy Staging -->
-      <bpmndi:BPMNEdge id="f_merge_to_deploy_staging_di" bpmnElement="f_merge_to_deploy_staging">
+      <!-- Create PR → Merge Staging -->
+      <bpmndi:BPMNEdge id="f_create_pr_to_merge_di" bpmnElement="f_create_pr_to_merge">
         <di:waypoint x="3780" y="200" />
         <di:waypoint x="3840" y="200" />
       </bpmndi:BPMNEdge>
 
-      <!-- Deploy Staging → End -->
-      <bpmndi:BPMNEdge id="f_deploy_staging_to_end_di" bpmnElement="f_deploy_staging_to_end">
+      <!-- Merge Staging → Deploy Staging -->
+      <bpmndi:BPMNEdge id="f_merge_to_deploy_staging_di" bpmnElement="f_merge_to_deploy_staging">
         <di:waypoint x="4000" y="200" />
         <di:waypoint x="4060" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Deploy Staging → End -->
+      <bpmndi:BPMNEdge id="f_deploy_staging_to_end_di" bpmnElement="f_deploy_staging_to_end">
+        <di:waypoint x="4220" y="200" />
+        <di:waypoint x="4280" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- Error subprocess edges -->

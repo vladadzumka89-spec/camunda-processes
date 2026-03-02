@@ -143,6 +143,9 @@ def register_notify_handlers(
         message_body: str = "",
         pr_url: str = "",
         sync_branch: str = "",
+        task_name: str = "",
+        task_description: str = "",
+        process_instance_key: int = 0,
         **kwargs: Any,
     ) -> dict:
         """Create a task in Odoo CI/CD project."""
@@ -150,7 +153,9 @@ def register_notify_handlers(
         branch_code = sync_branch.split("upstream-", 1)[-1] if "upstream-" in sync_branch else ""
         branch_suffix = f" {branch_code}" if branch_code else ""
 
-        pik = job.process_instance_key
+        # Use explicit variable from parent (via Call Activity input mapping)
+        # if available, otherwise fall back to job's own process instance key.
+        pik = process_instance_key or job.process_instance_key
 
         titles = {
             "staging_ready": "[deploy] Staging готовий до перевірки",
@@ -158,6 +163,8 @@ def register_notify_handlers(
             "review_needed": "[review] Потрібна перевірка",
             "sync_conflicts": "[upstream-sync] Перевірити конфлікти з custom модулями",
             "sync_start": f"[upstream-sync{branch_suffix}] Upstream Sync | x_camunda:{pik}",
+            "feature_start": task_name or f"[feature] Нова задача | x_camunda:{pik}",
+            "clickbot_report": "[deploy] 🤖 Результати Clickbot тестів",
             "deploy_error": "[deploy] ❌ Помилка деплою",
             "sync_error": f"[upstream-sync{branch_suffix}] ❌ Помилка синхронізації",
             "pipeline_error": "[pipeline] ❌ Помилка пайплайну",
@@ -165,17 +172,20 @@ def register_notify_handlers(
         name = titles.get(notification_type, f"[ci] {notification_type}")
 
         # Only parent-type notifications create a process container
-        is_parent = notification_type in ("sync_start",)
+        is_parent = notification_type in ("sync_start", "feature_start")
 
         description = ""
-        if sync_branch:
-            repo = config.github.repository
-            branch_url = f"https://github.com/{repo}/tree/{sync_branch}"
-            description += f'<p>🔗 <b>Гілка:</b> <a href="{branch_url}">{sync_branch}</a></p>'
-        if message_body:
-            description += f"<p>{message_body}</p>"
-        if pr_url:
-            description += f'<p>PR: <a href="{pr_url}">{pr_url}</a></p>'
+        if notification_type == "feature_start" and task_description:
+            description = task_description
+        else:
+            if sync_branch:
+                repo = config.github.repository
+                branch_url = f"https://github.com/{repo}/tree/{sync_branch}"
+                description += f'<p>🔗 <b>Гілка:</b> <a href="{branch_url}">{sync_branch}</a></p>'
+            if message_body:
+                description += f"<p>{message_body}</p>"
+            if pr_url:
+                description += f'<p>PR: <a href="{pr_url}">{pr_url}</a></p>'
 
         task_id = odoo.create_task(
             name=name,
@@ -208,6 +218,7 @@ def register_notify_handlers(
         pr_url: str = "",
         pr_number: int = 0,
         sync_branch: str = "",
+        process_instance_key: int = 0,
         **kwargs: Any,
     ) -> dict:
         """Create a blocking Odoo task and return its ID for message correlation.
@@ -297,10 +308,11 @@ def register_notify_handlers(
             "description": f"<p>Task type: {odoo_task_type}</p>",
         })
 
+        pik = process_instance_key or job.process_instance_key
         task_id = odoo.create_task(
             name=cfg["name"],
             description=cfg["description"],
-            process_instance_key=job.process_instance_key,
+            process_instance_key=pik,
             element_instance_key=job.element_instance_key,
             bpmn_process_id=job.bpmn_process_id,
             create_process=False,

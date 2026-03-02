@@ -1,8 +1,9 @@
 """Upstream sync handlers — isolated workspace approach.
 
 Source: .github/workflows/sync-enterprise.yml
-All sync operations use an isolated clone in /tmp/sync-workspace
+All sync operations use an isolated clone in /tmp/sync-workspace-{run_id}
 instead of the live server repo, preventing interference with local changes.
+Each process instance gets unique directories to prevent concurrent retry conflicts.
 """
 
 from __future__ import annotations
@@ -11,7 +12,9 @@ import ast
 import json
 import logging
 import re
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Any
 
 import httpx
@@ -22,9 +25,6 @@ from ..retry import retry
 from ..ssh import AsyncSSHClient
 
 logger = logging.getLogger(__name__)
-
-# Isolated workspace path on remote server (clean clone from GitHub main)
-WORKSPACE = "/tmp/sync-workspace"
 
 
 def register_sync_handlers(
@@ -39,9 +39,12 @@ def register_sync_handlers(
         """Resolve server config, defaulting to kozak_demo."""
         return config.resolve_server(server_host or "kozak_demo")
 
-    async def _ws_run(server, cmd: str, **kwargs):
+    async def _ws_run(server, cmd: str, workspace: str = "", **kwargs):
         """Run a command inside the isolated workspace directory via SSH."""
-        return await ssh.run(server, f"cd {WORKSPACE} && {cmd}", **kwargs)
+        ws = workspace
+        if not ws:
+            raise ValueError("workspace path is required for _ws_run")
+        return await ssh.run(server, f"cd {ws} && {cmd}", **kwargs)
 
     # ── fetch-current-version ──────────────────────────────────
 
@@ -133,66 +136,82 @@ def register_sync_handlers(
 
     # ── clone-upstream ─────────────────────────────────────────
 
-    @worker.task(task_type="clone-upstream", timeout_ms=600_000)
+    @worker.task(task_type="clone-upstream", timeout_ms=300_000)
     async def clone_upstream(
         runbot_community_sha: str,
         runbot_enterprise_sha: str,
+        upstream_branch: str = "19.0",
         server_host: str = "",
         **kwargs: Any,
     ) -> dict:
-        """Clone upstream repos at Runbot SHAs + prepare isolated workspace."""
+        """Clone upstream repos at Runbot SHAs + prepare isolated workspace.
+
+        Returns unique directory paths as process variables so downstream tasks
+        use the exact dirs this attempt created (no shared-path conflicts).
+        """
         server = _resolve_server(server_host)
         deploy_pat = config.github.deploy_pat
         repo = config.github.repository
 
-        # 1. Clone upstream community (public repo)
-        await ssh.run(
-            server,
-            "rm -rf /tmp/upstream-community && mkdir -p /tmp/upstream-community && "
-            "cd /tmp/upstream-community && git init -q && "
-            "git remote add origin https://github.com/odoo/odoo.git && "
-            f"git fetch --depth=1 origin {runbot_community_sha} && "
-            "git checkout FETCH_HEAD -q",
-            check=True,
-            timeout=300,
-        )
+        # Unique dirs per attempt — prevents concurrent retry conflicts
+        run_id = uuid.uuid4().hex[:8]
+        community_dir = f"/tmp/upstream-community-{run_id}"
+        enterprise_dir = f"/tmp/upstream-enterprise-{run_id}"
+        workspace_dir = f"/tmp/sync-workspace-{run_id}"
 
-        # 2. Clone upstream enterprise (private repo, needs PAT)
-        await ssh.run(
-            server,
-            "rm -rf /tmp/upstream-enterprise && mkdir -p /tmp/upstream-enterprise && "
-            "cd /tmp/upstream-enterprise && git init -q && "
-            f"git remote add origin https://x-access-token:{deploy_pat}@github.com/odoo/enterprise.git && "
-            f"git fetch --depth=1 origin {runbot_enterprise_sha} && "
-            "git checkout FETCH_HEAD -q",
-            check=True,
-            timeout=300,
-        )
+        try:
+            # 1. Clone upstream community (public repo)
+            await ssh.run(
+                server,
+                f"git clone --depth=1 --single-branch --branch {upstream_branch} "
+                f"https://github.com/odoo/odoo.git {community_dir} && "
+                f"cd {community_dir} && git fetch --depth=1 origin {runbot_community_sha} && "
+                "git checkout FETCH_HEAD -q",
+                check=True,
+                timeout=300,
+            )
 
-        # 3. Clone our repo to isolated workspace (clean state from main)
-        await ssh.run(
-            server,
-            f"rm -rf {WORKSPACE} && "
-            f"git clone --depth=1 --branch main "
-            f"https://x-access-token:{deploy_pat}@github.com/{repo}.git {WORKSPACE}",
-            check=True,
-            timeout=300,
-        )
-        logger.info("Prepared isolated workspace at %s", WORKSPACE)
+            # 2. Clone upstream enterprise (private repo, needs PAT)
+            await ssh.run(
+                server,
+                f"git clone --depth=1 --single-branch --branch {upstream_branch} "
+                f"https://x-access-token:{deploy_pat}@github.com/odoo/enterprise.git "
+                f"{enterprise_dir} && "
+                f"cd {enterprise_dir} && git fetch --depth=1 origin {runbot_enterprise_sha} && "
+                "git checkout FETCH_HEAD -q",
+                check=True,
+                timeout=300,
+            )
 
-        # Unshallow enough for diff to work (fetch one more commit for comparison base)
-        await _ws_run(server, "git fetch --unshallow 2>/dev/null || true", timeout=120)
+            # 3. Clone our repo to isolated workspace (clean state from main)
+            await ssh.run(
+                server,
+                f"git clone --depth=1 --branch main "
+                f"https://x-access-token:{deploy_pat}@github.com/{repo}.git {workspace_dir}",
+                check=True,
+                timeout=300,
+            )
+        except Exception:
+            # Cleanup unique dirs on failure
+            await ssh.run(
+                server,
+                f"rm -rf {community_dir} {enterprise_dir} {workspace_dir}",
+                check=False,
+            )
+            raise
+
+        logger.info("Prepared isolated workspace at %s (run %s)", workspace_dir, run_id)
 
         # 4. Get metadata
         com_date_result = await ssh.run(
-            server, "git -C /tmp/upstream-community log -1 --format=%ci", check=True,
+            server, f"git -C {community_dir} log -1 --format=%ci", check=True,
         )
         ent_date_result = await ssh.run(
-            server, "git -C /tmp/upstream-enterprise log -1 --format=%ci", check=True,
+            server, f"git -C {enterprise_dir} log -1 --format=%ci", check=True,
         )
         ent_count_result = await ssh.run(
             server,
-            "find /tmp/upstream-enterprise -mindepth 1 -maxdepth 1 -type d ! -name '.git' ! -name '.*' | wc -l",
+            f"find {enterprise_dir} -mindepth 1 -maxdepth 1 -type d ! -name '.git' ! -name '.*' | wc -l",
             check=True,
         )
 
@@ -206,6 +225,9 @@ def register_sync_handlers(
             runbot_enterprise_sha[:8], enterprise_date, enterprise_count,
         )
         return {
+            "community_dir": community_dir,
+            "enterprise_dir": enterprise_dir,
+            "workspace_dir": workspace_dir,
             "community_date": community_date,
             "enterprise_date": enterprise_date,
             "enterprise_count": enterprise_count,
@@ -215,12 +237,17 @@ def register_sync_handlers(
 
     @worker.task(task_type="sync-modules", timeout_ms=1_200_000)
     async def sync_modules(
+        community_dir: str = "",
+        enterprise_dir: str = "",
+        workspace_dir: str = "",
         server_host: str = "",
         modules: str = "",
         **kwargs: Any,
     ) -> dict:
         """Sync modules from upstream into isolated workspace via rsync."""
         server = _resolve_server(server_host)
+        if not community_dir or not enterprise_dir or not workspace_dir:
+            raise ValueError("community_dir, enterprise_dir, workspace_dir are required")
 
         if modules:
             # Selective mode — sync only specified enterprise modules
@@ -231,7 +258,7 @@ def register_sync_handlers(
             for mod in module_list:
                 # Check if exists in upstream
                 check = await ssh.run(
-                    server, f"test -d /tmp/upstream-enterprise/{mod} && echo yes || echo no",
+                    server, f"test -d {enterprise_dir}/{mod} && echo yes || echo no",
                 )
                 if check.stdout.strip() != "yes":
                     logger.warning("Module %s not found in upstream, skipping", mod)
@@ -239,7 +266,7 @@ def register_sync_handlers(
 
                 # Check if new (not in workspace)
                 check = await ssh.run(
-                    server, f"test -d {WORKSPACE}/src/enterprise/{mod} && echo yes || echo no",
+                    server, f"test -d {workspace_dir}/src/enterprise/{mod} && echo yes || echo no",
                 )
                 if check.stdout.strip() != "yes":
                     new_modules.append(mod)
@@ -247,7 +274,7 @@ def register_sync_handlers(
                 await ssh.run(
                     server,
                     f"rsync -a --delete --checksum "
-                    f"/tmp/upstream-enterprise/{mod}/ {WORKSPACE}/src/enterprise/{mod}/",
+                    f"{enterprise_dir}/{mod}/ {workspace_dir}/src/enterprise/{mod}/",
                     check=True,
                 )
                 synced += 1
@@ -264,9 +291,9 @@ def register_sync_handlers(
             # Full mode — detect new modules first
             new_result = await ssh.run(
                 server,
-                f"for d in /tmp/upstream-enterprise/*/; do "
+                f"for d in {enterprise_dir}/*/; do "
                 f"mod=$(basename \"$d\"); "
-                f"[ ! -d \"{WORKSPACE}/src/enterprise/$mod\" ] && echo \"$mod\"; "
+                f"[ ! -d \"{workspace_dir}/src/enterprise/$mod\" ] && echo \"$mod\"; "
                 f"done 2>/dev/null || true",
             )
             new_modules = [m for m in new_result.stdout.strip().split("\n") if m]
@@ -275,7 +302,7 @@ def register_sync_handlers(
             await ssh.run(
                 server,
                 f"rsync -a --delete --checksum --exclude='.git' "
-                f"/tmp/upstream-community/ {WORKSPACE}/src/community/",
+                f"{community_dir}/ {workspace_dir}/src/community/",
                 check=True,
                 timeout=600,
             )
@@ -284,7 +311,7 @@ def register_sync_handlers(
             await ssh.run(
                 server,
                 f"rsync -a --delete --checksum --exclude='.git' "
-                f"/tmp/upstream-enterprise/ {WORKSPACE}/src/enterprise/",
+                f"{enterprise_dir}/ {workspace_dir}/src/enterprise/",
                 check=True,
                 timeout=600,
             )
@@ -292,7 +319,7 @@ def register_sync_handlers(
             # Count synced
             count_result = await ssh.run(
                 server,
-                "find /tmp/upstream-enterprise -mindepth 1 -maxdepth 1 -type d ! -name '.*' | wc -l",
+                f"find {enterprise_dir} -mindepth 1 -maxdepth 1 -type d ! -name '.*' | wc -l",
                 check=True,
             )
             synced_count = int(count_result.stdout.strip() or "0")
@@ -308,23 +335,28 @@ def register_sync_handlers(
 
     @worker.task(task_type="diff-report", timeout_ms=600_000)
     async def diff_report(
+        workspace_dir: str = "",
         server_host: str = "",
         **kwargs: Any,
     ) -> dict:
         """Generate diff report after sync (in isolated workspace)."""
         server = _resolve_server(server_host)
+        if not workspace_dir:
+            raise ValueError("workspace_dir is required")
+        ws = workspace_dir
 
         # Register new files for diff tracking
         await _ws_run(
             server, "git add -N src/community/ src/enterprise/ 2>/dev/null || true",
+            workspace=ws,
         )
 
         # Check community changes
-        com_check = await _ws_run(server, "git diff --quiet -- src/community/ 2>/dev/null; echo $?", timeout=300)
+        com_check = await _ws_run(server, "git diff --quiet -- src/community/ 2>/dev/null; echo $?", workspace=ws, timeout=300)
         community_changed = com_check.stdout.strip() != "0"
 
         # Check enterprise changes
-        ent_check = await _ws_run(server, "git diff --quiet -- src/enterprise/ 2>/dev/null; echo $?", timeout=300)
+        ent_check = await _ws_run(server, "git diff --quiet -- src/enterprise/ 2>/dev/null; echo $?", workspace=ws, timeout=300)
         enterprise_changed = ent_check.stdout.strip() != "0"
 
         has_changes = community_changed or enterprise_changed
@@ -335,13 +367,13 @@ def register_sync_handlers(
 
         if community_changed:
             result = await _ws_run(
-                server, "git diff --name-only -- src/community/ | wc -l", check=True, timeout=300,
+                server, "git diff --name-only -- src/community/ | wc -l", check=True, workspace=ws, timeout=300,
             )
             community_files = int(result.stdout.strip())
 
         if enterprise_changed:
             result = await _ws_run(
-                server, "git diff --name-only -- src/enterprise/ | wc -l", check=True, timeout=300,
+                server, "git diff --name-only -- src/enterprise/ | wc -l", check=True, workspace=ws, timeout=300,
             )
             enterprise_files = int(result.stdout.strip())
 
@@ -349,7 +381,7 @@ def register_sync_handlers(
             result = await _ws_run(
                 server,
                 "git diff --name-only -- src/enterprise/ | cut -d'/' -f3 | sort -u",
-                check=True, timeout=300,
+                check=True, workspace=ws, timeout=300,
             )
             changed_modules = [m for m in result.stdout.strip().split("\n") if m]
 
@@ -359,7 +391,7 @@ def register_sync_handlers(
                 server,
                 "git diff --name-only -- src/community/odoo/addons/ 2>/dev/null "
                 "| cut -d'/' -f5 | sort -u",
-                timeout=300,
+                workspace=ws, timeout=300,
             )
             community_modules = [m for m in result.stdout.strip().split("\n") if m]
             all_modules = sorted(set(changed_modules + community_modules))
@@ -382,6 +414,7 @@ def register_sync_handlers(
     @worker.task(task_type="impact-analysis", timeout_ms=120_000)
     async def impact_analysis(
         changed_modules: str = "",
+        workspace_dir: str = "",
         server_host: str = "",
         **kwargs: Any,
     ) -> dict:
@@ -391,12 +424,15 @@ def register_sync_handlers(
         if not changed_modules:
             return {"affected_custom_count": 0, "impact_table": ""}
 
+        if not workspace_dir:
+            raise ValueError("workspace_dir is required")
+
         changed_set = set(m.strip() for m in changed_modules.split(",") if m.strip())
 
         # List custom modules in workspace
         result = await ssh.run(
             server,
-            f"find {WORKSPACE}/src/custom -maxdepth 2 -name '__manifest__.py' "
+            f"find {workspace_dir}/src/custom -maxdepth 2 -name '__manifest__.py' "
             f"-exec dirname {{}} \\; 2>/dev/null",
         )
         custom_dirs = [d for d in result.stdout.strip().split("\n") if d]
@@ -445,6 +481,9 @@ def register_sync_handlers(
 
     @worker.task(task_type="git-commit-push", timeout_ms=120_000)
     async def git_commit_push(
+        community_dir: str = "",
+        enterprise_dir: str = "",
+        workspace_dir: str = "",
         server_host: str = "",
         upstream_branch: str = "19.0",
         sync_mode: str = "full",
@@ -464,7 +503,11 @@ def register_sync_handlers(
         deploy_pat = config.github.deploy_pat
         repo = config.github.repository
 
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        if not workspace_dir:
+            raise ValueError("workspace_dir is required")
+        ws = workspace_dir
+
+        timestamp = datetime.now(ZoneInfo("Europe/Kyiv")).strftime("%Y%m%d-%H%M%S")
         branch_name = f"sync/upstream-{timestamp}"
 
         # Configure git identity in workspace
@@ -472,15 +515,15 @@ def register_sync_handlers(
             server,
             "git config user.name 'github-actions[bot]' && "
             "git config user.email 'github-actions[bot]@users.noreply.github.com'",
-            check=True,
+            check=True, workspace=ws,
         )
 
         # Create sync branch
-        await _ws_run(server, f"git checkout -b {branch_name}", check=True)
+        await _ws_run(server, f"git checkout -b {branch_name}", check=True, workspace=ws)
 
         # Stage sync changes (community + enterprise only)
         await _ws_run(
-            server, "git add src/community/ src/enterprise/", check=True,
+            server, "git add src/community/ src/enterprise/", check=True, workspace=ws,
         )
 
         # Build commit message
@@ -500,7 +543,7 @@ def register_sync_handlers(
         await _ws_run(
             server,
             f'git commit --no-verify -m $\'{commit_msg}\'',
-            check=True,
+            check=True, workspace=ws,
         )
 
         # Push sync branch to GitHub
@@ -510,10 +553,14 @@ def register_sync_handlers(
         await _ws_run(
             server,
             f"git push --no-verify {push_url} {branch_name}",
-            check=True,
-            timeout=60,
+            check=True, timeout=60, workspace=ws,
         )
         logger.info("Pushed sync branch: %s", branch_name)
+
+        # Cleanup unique tmp dirs (no longer needed after push)
+        for d in (community_dir, enterprise_dir, workspace_dir):
+            if d:
+                await ssh.run(server, f"rm -rf {d}", check=False)
 
         # Save sync state on server (for next fetch-current-version)
         state_json = json.dumps({
@@ -614,21 +661,96 @@ def register_sync_handlers(
             f"https://x-access-token:{deploy_pat}@github.com/{repo}.git"
         )
 
-        # Merge sync branch into staging with -X theirs
-        # (upstream files overwrite staging, custom modules untouched)
-        merge_cmd = (
-            f"cd /tmp && rm -rf merge-workspace && git clone --depth=50 "
-            f"-b staging {push_url} merge-workspace && "
-            f"cd merge-workspace && "
-            f"git fetch origin {sync_branch} && "
-            f"git merge origin/{sync_branch} -X theirs --no-edit && "
-            f"git push --no-verify origin staging"
-        )
-        await ssh.run(server, merge_cmd, check=True, timeout=120)
-        logger.info("Merged %s into staging", sync_branch)
+        run_id = uuid.uuid4().hex[:8]
+        workspace = f"/tmp/merge-workspace-{run_id}"
 
-        # Cleanup
-        await ssh.run(server, "rm -rf /tmp/merge-workspace", check=False)
+        try:
+            # Merge sync branch into staging with -X theirs
+            # (upstream files overwrite staging, custom modules untouched)
+            merge_cmd = (
+                f"git clone --depth=50 -b staging {push_url} {workspace} && "
+                f"cd {workspace} && "
+                f"git fetch origin {sync_branch} && "
+                f"git merge origin/{sync_branch} -X theirs --no-edit && "
+                f"git push --no-verify origin staging"
+            )
+            await ssh.run(server, merge_cmd, check=True, timeout=120)
+            logger.info("Merged %s into staging (workspace %s)", sync_branch, run_id)
+        finally:
+            await ssh.run(server, f"rm -rf {workspace}", check=False)
+
+        return {"staging_merged": True}
+
+    # ── merge-feature-to-staging ──────────────────────────────
+
+    @worker.task(task_type="merge-feature-to-staging", timeout_ms=180_000)
+    async def merge_feature_to_staging(
+        feature_branch: str = "",
+        server_host: str = "",
+        repository: str = "",
+        **kwargs: Any,
+    ) -> dict:
+        """Merge feature branch into staging without -X theirs and push.
+
+        Unlike merge-to-staging (which uses -X theirs for upstream sync),
+        this performs a regular merge so conflicts are detected and reported
+        back to the developer via BPMN error boundary event.
+
+        Raises RuntimeError on merge conflict (caught as BPMN error).
+        """
+        server = config.resolve_server(server_host or "staging")
+        repo = repository or config.github.repository
+        deploy_pat = config.github.deploy_pat
+
+        if not feature_branch:
+            raise ValueError("feature_branch is required for merge-feature-to-staging")
+
+        push_url = (
+            f"https://x-access-token:{deploy_pat}@github.com/{repo}.git"
+        )
+
+        run_id = uuid.uuid4().hex[:8]
+        workspace = f"/tmp/merge-feature-{run_id}"
+
+        try:
+            # Clone staging branch
+            await ssh.run(
+                server,
+                f"git clone --depth=50 -b staging {push_url} {workspace}",
+                check=True, timeout=120,
+            )
+
+            # Fetch feature branch
+            await ssh.run(
+                server,
+                f"cd {workspace} && git fetch origin {feature_branch}",
+                check=True, timeout=60,
+            )
+
+            # Merge feature into staging (no -X theirs — conflicts must be detected)
+            merge_result = await ssh.run(
+                server,
+                f"cd {workspace} && git merge origin/{feature_branch} --no-edit",
+                check=False, timeout=60,
+            )
+
+            if merge_result.exit_code != 0:
+                raise RuntimeError(
+                    f"Merge conflict: cannot merge {feature_branch} into staging. "
+                    f"Please rebase your branch on main and resolve conflicts."
+                )
+
+            # Push merged staging
+            await ssh.run(
+                server,
+                f"cd {workspace} && git push --no-verify origin staging",
+                check=True, timeout=60,
+            )
+
+            logger.info("Merged %s into staging (workspace %s)", feature_branch, run_id)
+        finally:
+            # Cleanup workspace
+            await ssh.run(server, f"rm -rf {workspace}", check=False)
 
         return {"staging_merged": True}
 
@@ -642,8 +764,8 @@ def register_sync_handlers(
     ) -> dict:
         """Mark a draft PR as ready for review.
 
-        After marking ready, GitHub sends a ready_for_review webhook event,
-        which the webhook handler routes to start feature-to-production.
+        Called by the feature-to-production process after staging deploy
+        and second PR-Agent review pass to undraft the PR targeting main.
         """
         repo = repository or config.github.repository
 

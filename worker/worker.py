@@ -20,6 +20,10 @@ from .github_client import GitHubClient
 from .handlers import register_all_handlers
 from .odoo_client import OdooClient
 from .ssh import AsyncSSHClient
+from .incident_janitor import (
+    JANITOR_INTERVAL_SECONDS,
+    cleanup_stale_incidents,
+)
 from .webhook import WebhookServer
 
 logging.basicConfig(
@@ -29,6 +33,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Track in-flight jobs so we can release them on shutdown
+_active_jobs: dict[int, tuple[Job, JobController]] = {}
+
 
 async def _exception_handler(exc: Exception, job: Job, job_controller: JobController) -> None:
     """Custom exception handler: last retry → BPMN Error instead of incident.
@@ -37,6 +44,7 @@ async def _exception_handler(exc: Exception, job: Job, job_controller: JobContro
     error event subprocesses can catch it and create an Odoo task.
     Otherwise, fail the job normally so Zeebe retries it.
     """
+    _active_jobs.pop(job.key, None)
     if job.retries <= 1:
         error_code = type(exc).__name__
         error_msg = str(exc)[:500]
@@ -54,6 +62,31 @@ async def _exception_handler(exc: Exception, job: Job, job_controller: JobContro
             job.key, job.type, job.retries - 1, exc,
         )
         await job_controller.set_failure_status(message=f"Failed job. Error: {exc}")
+
+
+def _wrap_handler(original_handler):
+    """Wrap a task handler to track active jobs and release them on cancel."""
+    async def wrapper(job: Job, job_controller: JobController) -> None:
+        _active_jobs[job.key] = (job, job_controller)
+        try:
+            result = await original_handler(job, job_controller)
+            return result
+        except asyncio.CancelledError:
+            # Worker is shutting down — release the job back to Zeebe
+            logger.info(
+                "Job %s [%s] interrupted by shutdown — releasing back to Zeebe",
+                job.key, job.type,
+            )
+            try:
+                await job_controller.set_failure_status(
+                    message="Worker shutdown — job released for retry",
+                )
+            except Exception:
+                pass  # gRPC channel might already be closed
+            raise
+        finally:
+            _active_jobs.pop(job.key, None)
+    return wrapper
 
 
 async def create_worker(config: AppConfig) -> ZeebeWorker:
@@ -79,7 +112,27 @@ async def create_worker(config: AppConfig) -> ZeebeWorker:
 
     register_all_handlers(worker, config=config, ssh=ssh, github=github, odoo=odoo)
 
+    # Wrap all registered handlers to track active jobs
+    for task in worker.tasks:
+        task.job_handler = _wrap_handler(task.job_handler)
+
     return worker
+
+
+async def _release_active_jobs() -> None:
+    """On shutdown, fail all in-flight jobs so Zeebe releases them immediately."""
+    if not _active_jobs:
+        return
+    logger.info("Releasing %d in-flight job(s)...", len(_active_jobs))
+    for key, (job, controller) in list(_active_jobs.items()):
+        try:
+            await controller.set_failure_status(
+                message="Worker shutdown — job released for retry",
+            )
+            logger.info("Released job %s [%s]", key, job.type)
+        except Exception as exc:
+            logger.warning("Could not release job %s: %s", key, exc)
+    _active_jobs.clear()
 
 
 async def worker_loop(config: AppConfig, stop_event: asyncio.Event) -> None:
@@ -105,11 +158,14 @@ async def worker_loop(config: AppConfig, stop_event: asyncio.Event) -> None:
             )
 
             if stop_task in done:
+                logger.info("Shutdown signal — stopping worker...")
                 worker_task.cancel()
                 try:
                     await worker_task
                 except asyncio.CancelledError:
                     pass
+                # Release any jobs that weren't caught by the wrapper
+                await _release_active_jobs()
                 break  # clean shutdown
 
             # worker.work() exited unexpectedly — restart
@@ -124,6 +180,21 @@ async def worker_loop(config: AppConfig, stop_event: asyncio.Event) -> None:
         await asyncio.sleep(restart_delay)
 
     logger.info("Worker loop stopped.")
+
+
+async def _incident_janitor_loop(config: AppConfig, stop_event: asyncio.Event) -> None:
+    """Periodically clean up stale incidents (every hour)."""
+    while not stop_event.is_set():
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=JANITOR_INTERVAL_SECONDS)
+            break  # stop_event was set
+        except asyncio.TimeoutError:
+            pass  # interval elapsed — run cleanup
+
+        try:
+            await cleanup_stale_incidents(config)
+        except Exception as exc:
+            logger.error("Incident janitor loop error: %s", exc)
 
 
 async def main() -> None:
@@ -142,11 +213,12 @@ async def main() -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, _shutdown)
 
-    # Run worker + webhook server in parallel
+    # Run worker + webhook server + incident janitor in parallel
     webhook = WebhookServer(config)
     await asyncio.gather(
         worker_loop(config, stop_event),
         webhook.start(),
+        _incident_janitor_loop(config, stop_event),
     )
 
     logger.info("All services stopped.")

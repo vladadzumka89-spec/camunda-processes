@@ -11,6 +11,7 @@ from ..ssh import AsyncSSHClient
 from .audit import register_audit_handlers
 from .clickbot import register_clickbot_handlers
 from .deploy import register_deploy_handlers
+from .http_smart import register_http_smart_handlers
 from .github import register_github_handlers
 from .notify import register_notify_handlers
 from .sync import register_sync_handlers
@@ -37,8 +38,10 @@ def register_all_handlers(
         Audit (1):   audit-analysis
         Clickbot (1): clickbot-test
         Notify (2):   send-notification, create-odoo-task
-    Total: 27 task types
+        HTTP Smart (1): http-request-smart
+    Total: 28 task types
     """
+    register_http_smart_handlers(worker, config)
     register_deploy_handlers(worker, config, ssh)
     register_github_handlers(worker, config, ssh, github)
     register_sync_handlers(worker, config, ssh, github)

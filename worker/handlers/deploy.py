@@ -223,6 +223,14 @@ def register_deploy_handlers(
 
         # Wait for HTTP service (max 240s)
         await _wait_http(ssh, server, svc_port, max_attempts=24, interval=10)
+
+        # Restart nginx — it caches DNS at startup and fails if odoo wasn't running
+        await ssh.run(
+            server,
+            f"docker restart {ctr}-nginx 2>/dev/null || true",
+            timeout=30,
+        )
+
         logger.info("docker-up: service healthy on %s:%d", server.host, svc_port)
         return {}
 
@@ -280,13 +288,14 @@ def register_deploy_handlers(
             "find src -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true",
         )
 
-        # Stop Odoo
-        await ssh.run(server, f"docker stop {ctr} 2>/dev/null || true", timeout=30)
+        # Stop all services (nginx, sfu, etc.) to prevent stale websocket connections
+        await ssh.run_in_repo(server, "docker compose stop", timeout=60)
 
-        # Run module update
+        # Run module update (--no-deps prevents docker from restarting nginx/sfu)
         await ssh.run_in_repo(
             server,
-            f"timeout 2000 docker compose run --rm web "
+            f"docker compose start db && sleep 3 && "
+            f"timeout 2000 docker compose run --rm --no-deps web "
             f"odoo-bin -d {db} -u {update_modules} "
             f"--db_password='{db_password}' "
             f"--stop-after-init --no-http --log-level=warn",
@@ -348,13 +357,15 @@ def register_deploy_handlers(
 
         db_password = await _get_db_password(ssh, server, ctr)
 
-        # Stop main container
-        await ssh.run(server, f"docker stop {ctr} 2>/dev/null || true", timeout=30)
+        # Stop all services to prevent websocket interference
+        await ssh.run_in_repo(server, "docker compose stop", timeout=60)
 
-        # Run smoke test
+        # Run smoke test (--no-deps: only DB, no nginx/sfu)
+        await ssh.run_in_repo(server, "docker compose start db", check=True, timeout=60)
+        await _sleep(3)
         result = await ssh.run_in_repo(
             server,
-            f"timeout 120 docker compose run --rm -T web "
+            f"timeout 120 docker compose run --rm --no-deps -T web "
             f"odoo-bin -d {db} --db_password='{db_password}' "
             f"--stop-after-init --no-http 2>&1",
             timeout=150,
@@ -374,10 +385,10 @@ def register_deploy_handlers(
 
         smoke_passed = result.exit_code == 0 and not error_lines
 
-        if smoke_passed:
-            # Restart Odoo
-            await ssh.run_in_repo(server, "docker compose up -d", check=True)
-        else:
+        # Always restart all services — DB is already migrated, rollback is dangerous
+        await ssh.run_in_repo(server, "docker compose up -d", check=True)
+
+        if not smoke_passed:
             logger.warning("Smoke test failed on %s: %s", server.host, error_lines[:3])
 
         logger.info("smoke-test on %s: passed=%s", server.host, smoke_passed)

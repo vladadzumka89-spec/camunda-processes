@@ -86,7 +86,7 @@ async def test_github_valid_signature(client: TestClient, app_config: AppConfig)
             "title": "Test PR",
             "html_url": "https://github.com/tut-ua/odoo-enterprise/pull/42",
             "user": {"login": "dev"},
-            "base": {"ref": "staging"},
+            "base": {"ref": "main"},
             "head": {"ref": "feat/test", "sha": "abc123"},
         },
         "repository": {"full_name": "tut-ua/odoo-enterprise"},
@@ -123,9 +123,42 @@ async def test_github_valid_signature(client: TestClient, app_config: AppConfig)
 # ── Event routing ─────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_ignores_non_staging_pr(client: TestClient, app_config: AppConfig) -> None:
+async def test_ignores_non_main_pr(client: TestClient, app_config: AppConfig) -> None:
+    """PRs targeting staging are now ignored (previously they were the trigger)."""
     payload = {
         "action": "opened",
+        "pull_request": {
+            "number": 10,
+            "title": "Fix",
+            "html_url": "",
+            "user": {"login": "dev"},
+            "base": {"ref": "staging"},
+            "head": {"ref": "fix/bug"},
+        },
+        "repository": {"full_name": "tut-ua/odoo-enterprise"},
+    }
+    body = json.dumps(payload).encode()
+    sig = _sign(body, app_config.github.webhook_secret)
+
+    resp = await client.post(
+        "/webhook/github",
+        data=body,
+        headers={
+            "X-GitHub-Event": "pull_request",
+            "X-Hub-Signature-256": sig,
+            "Content-Type": "application/json",
+        },
+    )
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["status"] == "ignored"
+
+
+@pytest.mark.asyncio
+async def test_ready_for_review_ignored(client: TestClient, app_config: AppConfig) -> None:
+    """ready_for_review is now ignored (undraft is done by the process)."""
+    payload = {
+        "action": "ready_for_review",
         "pull_request": {
             "number": 10,
             "title": "Fix",
@@ -164,7 +197,7 @@ async def test_synchronize_publishes_pr_updated(
             "title": "Test PR",
             "html_url": "",
             "user": {"login": "dev"},
-            "base": {"ref": "staging"},
+            "base": {"ref": "main"},
             "head": {"ref": "feat/test", "sha": "def456"},
         },
         "repository": {"full_name": "tut-ua/odoo-enterprise"},
@@ -319,7 +352,7 @@ async def test_pr_event_includes_production_vars(
                 "title": "Test PR",
                 "html_url": "https://github.com/tut-ua/odoo-enterprise/pull/42",
                 "user": {"login": "dev"},
-                "base": {"ref": "staging"},
+                "base": {"ref": "main"},
                 "head": {"ref": "feat/test", "sha": "abc123"},
             },
             "repository": {"full_name": "tut-ua/odoo-enterprise"},
@@ -366,7 +399,7 @@ async def test_pr_event_without_production(
             "title": "Test PR",
             "html_url": "",
             "user": {"login": "dev"},
-            "base": {"ref": "staging"},
+            "base": {"ref": "main"},
             "head": {"ref": "feat/test", "sha": "abc123"},
         },
         "repository": {"full_name": "tut-ua/odoo-enterprise"},
@@ -405,7 +438,7 @@ async def test_pr_event_includes_staging_vars(
             "title": "Test PR",
             "html_url": "",
             "user": {"login": "dev"},
-            "base": {"ref": "staging"},
+            "base": {"ref": "main"},
             "head": {"ref": "feat/test", "sha": "abc123"},
         },
         "repository": {"full_name": "tut-ua/odoo-enterprise"},

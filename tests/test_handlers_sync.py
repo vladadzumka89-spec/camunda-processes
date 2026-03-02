@@ -216,6 +216,58 @@ async def test_sync_code_to_demo_success(handlers: dict, mock_ssh: AsyncMock) ->
     assert "git checkout -B sync/upstream-20260225-120000 origin/sync/upstream-20260225-120000" in calls[1].args[1]
 
 
+# ── merge-feature-to-staging ──────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_merge_feature_to_staging_success(handlers: dict, mock_ssh: AsyncMock) -> None:
+    mock_ssh.run.side_effect = [
+        _make_ssh_result(),  # git clone
+        _make_ssh_result(),  # git fetch
+        _make_ssh_result(exit_code=0),  # git merge (success)
+        _make_ssh_result(),  # git push
+        _make_ssh_result(),  # rm -rf cleanup
+    ]
+    result = await handlers["merge-feature-to-staging"](
+        feature_branch="feat/my-feature",
+        server_host="staging",
+    )
+    assert result == {"staging_merged": True}
+
+    calls = mock_ssh.run.call_args_list
+    # Verify clone command
+    assert "clone" in calls[0].args[1]
+    assert "staging" in calls[0].args[1]
+    # Verify fetch
+    assert "fetch origin feat/my-feature" in calls[1].args[1]
+    # Verify merge (no -X theirs)
+    assert "merge origin/feat/my-feature --no-edit" in calls[2].args[1]
+    assert "-X theirs" not in calls[2].args[1]
+    # Verify push
+    assert "push" in calls[3].args[1]
+
+
+@pytest.mark.asyncio
+async def test_merge_feature_to_staging_conflict(handlers: dict, mock_ssh: AsyncMock) -> None:
+    mock_ssh.run.side_effect = [
+        _make_ssh_result(),  # git clone
+        _make_ssh_result(),  # git fetch
+        _make_ssh_result(exit_code=1, stderr="CONFLICT"),  # git merge (conflict)
+        _make_ssh_result(),  # rm -rf cleanup
+    ]
+    with pytest.raises(RuntimeError, match="Merge conflict"):
+        await handlers["merge-feature-to-staging"](
+            feature_branch="feat/conflicting",
+            server_host="staging",
+        )
+
+
+@pytest.mark.asyncio
+async def test_merge_feature_to_staging_missing_branch(handlers: dict) -> None:
+    with pytest.raises(ValueError, match="feature_branch is required"):
+        await handlers["merge-feature-to-staging"](feature_branch="")
+
+
 # ── github-pr-ready ───────────────────────────────────────
 
 
