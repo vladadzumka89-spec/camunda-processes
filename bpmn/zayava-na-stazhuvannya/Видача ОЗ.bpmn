@@ -1,155 +1,778 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Видача ОЗ" processRef="Process_1s0osfg" />
+  </bpmn:collaboration>
   <bpmn:process id="Process_1s0osfg" name="Видача ОЗ" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="2.0" />
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_system" name="Система (автоматично)">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_create_main</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_workspace</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_wait_stazh</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_intern_arrived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_official</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_move_oz</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_ok</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_no_oz</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_not_arrived</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_rem_workspace</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_rem_available</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_rem_oz</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_rem_intern</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_rem_workspace</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_rem_available</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_rem_oz</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_rem_intern</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_responsible" name="Відповідальний за ОЗ">
+        <bpmn:flowNodeRef>UT_workspace_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_check_available</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_issue_oz</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_intern_check</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_manager" name="Керівник (ескалація)">
+        <bpmn:flowNodeRef>UT_esc_workspace</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_esc_available</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_esc_oz</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_esc_intern</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_esc_workspace</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_esc_available</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_esc_oz</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_esc_intern</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- ============ MAIN FLOW ============ -->
+
     <bpmn:startEvent id="StartEvent_1">
-      <bpmn:outgoing>Flow_19qcxw5</bpmn:outgoing>
+      <bpmn:outgoing>Flow_to_odoo_check</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:sequenceFlow id="Flow_19qcxw5" sourceRef="StartEvent_1" targetRef="Activity_0zjq9d3" />
-    <bpmn:userTask id="Activity_0zjq9d3" name="Чи потрібне робоче місце?">
-      <bpmn:extensionElements>
-        <zeebe:userTask />
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_19qcxw5</bpmn:incoming>
-      <bpmn:outgoing>Flow_0yh49j3</bpmn:outgoing>
-    </bpmn:userTask>
-    <bpmn:exclusiveGateway id="Gateway_11d6zxf">
-      <bpmn:incoming>Flow_0yh49j3</bpmn:incoming>
-      <bpmn:outgoing>Flow_1iee8j5</bpmn:outgoing>
-      <bpmn:outgoing>Flow_0c1dztt</bpmn:outgoing>
+
+    <bpmn:exclusiveGateway id="GW_odoo_check" name="Задача в Odoo існує?" default="Flow_odoo_default">
+      <bpmn:incoming>Flow_to_odoo_check</bpmn:incoming>
+      <bpmn:outgoing>Flow_odoo_skip</bpmn:outgoing>
+      <bpmn:outgoing>Flow_odoo_default</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="Flow_0yh49j3" sourceRef="Activity_0zjq9d3" targetRef="Gateway_11d6zxf" />
-    <bpmn:sequenceFlow id="Flow_1iee8j5" name="так" sourceRef="Gateway_11d6zxf" targetRef="Activity_1w9dxjb" />
-    <bpmn:userTask id="Activity_1w9dxjb" name="Можливо щось є?">
+
+    <bpmn:serviceTask id="ST_create_main" name="Створити задачу в Odoo">
       <bpmn:extensionElements>
-        <zeebe:userTask />
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Видача ОЗ&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_1iee8j5</bpmn:incoming>
-      <bpmn:outgoing>Flow_05adfrq</bpmn:outgoing>
-    </bpmn:userTask>
-    <bpmn:userTask id="Activity_1g07pow" name="Видати ОЗ для працівника">
-      <bpmn:extensionElements>
-        <zeebe:userTask />
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_05adfrq</bpmn:incoming>
-      <bpmn:outgoing>Flow_1braqxr</bpmn:outgoing>
-    </bpmn:userTask>
-    <bpmn:sequenceFlow id="Flow_05adfrq" sourceRef="Activity_1w9dxjb" targetRef="Activity_1g07pow" />
-    <bpmn:endEvent id="Event_18bxofg">
-      <bpmn:incoming>Flow_0c1dztt</bpmn:incoming>
-      <bpmn:incoming>Flow_0gdn7bp</bpmn:incoming>
-    </bpmn:endEvent>
-    <bpmn:sequenceFlow id="Flow_0c1dztt" sourceRef="Gateway_11d6zxf" targetRef="Event_18bxofg" />
-    <bpmn:sequenceFlow id="Flow_1braqxr" sourceRef="Activity_1g07pow" targetRef="Event_0jpvxk1" />
-    <bpmn:intermediateCatchEvent id="Event_0jpvxk1" name="Чекаємо виходу на стажування">
-      <bpmn:incoming>Flow_1braqxr</bpmn:incoming>
-      <bpmn:outgoing>Flow_1yoafpe</bpmn:outgoing>
-      <bpmn:timerEventDefinition id="TimerEventDefinition_17kso0h" />
-    </bpmn:intermediateCatchEvent>
-    <bpmn:exclusiveGateway id="Gateway_15a9tnn" name="Працівник вийшов на стажування?">
-      <bpmn:incoming>Flow_1yoafpe</bpmn:incoming>
-      <bpmn:outgoing>Flow_092vn5k</bpmn:outgoing>
-      <bpmn:outgoing>Flow_0gdn7bp</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="Flow_1yoafpe" sourceRef="Event_0jpvxk1" targetRef="Gateway_15a9tnn" />
-    <bpmn:sequenceFlow id="Flow_092vn5k" sourceRef="Gateway_15a9tnn" targetRef="Event_143z16j" />
-    <bpmn:serviceTask id="Activity_0ri3waa" name="Перемістити ОЗ на працівника">
-      <bpmn:incoming>Flow_0sb35vz</bpmn:incoming>
+      <bpmn:incoming>Flow_odoo_default</bpmn:incoming>
+      <bpmn:outgoing>Flow_create_to_merge</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="Flow_0sb35vz" sourceRef="Event_143z16j" targetRef="Activity_0ri3waa" />
-    <bpmn:intermediateCatchEvent id="Event_143z16j" name="Підвязати до офіційного прийому">
-      <bpmn:incoming>Flow_092vn5k</bpmn:incoming>
-      <bpmn:outgoing>Flow_0sb35vz</bpmn:outgoing>
-      <bpmn:timerEventDefinition id="TimerEventDefinition_1boqg2b" />
+
+    <bpmn:exclusiveGateway id="GW_odoo_merge">
+      <bpmn:incoming>Flow_odoo_skip</bpmn:incoming>
+      <bpmn:incoming>Flow_create_to_merge</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_workspace</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="UT_workspace_check" name="Чи потрібне робоче місце?">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Чи потрібне робоче місце?&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_workspace</bpmn:incoming>
+      <bpmn:outgoing>Flow_workspace_to_gw</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="GW_workspace" name="Потрібне?" default="Flow_no_oz">
+      <bpmn:incoming>Flow_workspace_to_gw</bpmn:incoming>
+      <bpmn:outgoing>Flow_yes_workspace</bpmn:outgoing>
+      <bpmn:outgoing>Flow_no_oz</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="UT_check_available" name="Перевірити наявне обладнання">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Перевірити наявне обладнання&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_yes_workspace</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_issue</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="UT_issue_oz" name="Видати ОЗ для працівника">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Видати ОЗ для працівника&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_issue</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_timer</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:intermediateCatchEvent id="Timer_wait_stazh" name="Чекаємо виходу на стажування">
+      <bpmn:incoming>Flow_to_timer</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_intern_check</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_wait_stazh">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P1D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
     </bpmn:intermediateCatchEvent>
-    <bpmn:sequenceFlow id="Flow_0gdn7bp" sourceRef="Gateway_15a9tnn" targetRef="Event_18bxofg" />
+
+    <bpmn:userTask id="UT_intern_check" name="Чи вийшов стажер на стажування?">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Чи вийшов стажер на стажування?&#34;, description: &#34;Підтвердіть чи стажер вийшов на роботу&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_intern_check</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_intern_gw</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="GW_intern_arrived" name="Стажер вийшов?" default="Flow_intern_yes">
+      <bpmn:incoming>Flow_to_intern_gw</bpmn:incoming>
+      <bpmn:outgoing>Flow_intern_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_intern_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:intermediateCatchEvent id="Timer_official" name="Підвʼязати до офіційного прийому">
+      <bpmn:incoming>Flow_intern_yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_move_oz</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_official">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P30D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:serviceTask id="ST_move_oz" name="Перемістити ОЗ на працівника">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Перемістити ОЗ на працівника&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_move_oz</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_end_ok</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="End_ok" name="ОЗ переміщено">
+      <bpmn:incoming>Flow_to_end_ok</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_no_oz" name="ОЗ не потрібне">
+      <bpmn:incoming>Flow_no_oz</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_not_arrived" name="Стажер не вийшов">
+      <bpmn:incoming>Flow_intern_no</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ============ BOUNDARY EVENTS ============ -->
+
+    <bpmn:boundaryEvent id="BE_rem_workspace" name="Нагадування" cancelActivity="false" attachedToRef="UT_workspace_check">
+      <bpmn:outgoing>Flow_rem_workspace</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_rem_workspace">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT4H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="BE_ded_workspace" name="Дедлайн" cancelActivity="false" attachedToRef="UT_workspace_check">
+      <bpmn:outgoing>Flow_ded_workspace</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_ded_workspace">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="BE_rem_available" name="Нагадування" cancelActivity="false" attachedToRef="UT_check_available">
+      <bpmn:outgoing>Flow_rem_available</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_rem_available">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT4H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="BE_ded_available" name="Дедлайн" cancelActivity="false" attachedToRef="UT_check_available">
+      <bpmn:outgoing>Flow_ded_available</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_ded_available">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="BE_rem_oz" name="Нагадування" cancelActivity="false" attachedToRef="UT_issue_oz">
+      <bpmn:outgoing>Flow_rem_oz</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_rem_oz">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT4H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="BE_ded_oz" name="Дедлайн" cancelActivity="false" attachedToRef="UT_issue_oz">
+      <bpmn:outgoing>Flow_ded_oz</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_ded_oz">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="BE_rem_intern" name="Нагадування" cancelActivity="false" attachedToRef="UT_intern_check">
+      <bpmn:outgoing>Flow_rem_intern</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_rem_intern">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT4H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="BE_ded_intern" name="Дедлайн" cancelActivity="false" attachedToRef="UT_intern_check">
+      <bpmn:outgoing>Flow_ded_intern</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_ded_intern">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <!-- ============ REMINDER SERVICE TASKS (Lane_system) ============ -->
+
+    <bpmn:serviceTask id="ST_rem_workspace" name="⚠️ НАГАДУВАННЯ: Чи потрібне робоче місце?">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;⚠️ НАГАДУВАННЯ: Чи потрібне робоче місце?&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_workspace</bpmn:incoming>
+      <bpmn:outgoing>Flow_rem_workspace_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_rem_workspace">
+      <bpmn:incoming>Flow_rem_workspace_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:serviceTask id="ST_rem_available" name="⚠️ НАГАДУВАННЯ: Перевірити наявне обладнання">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;⚠️ НАГАДУВАННЯ: Перевірити наявне обладнання&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_available</bpmn:incoming>
+      <bpmn:outgoing>Flow_rem_available_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_rem_available">
+      <bpmn:incoming>Flow_rem_available_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:serviceTask id="ST_rem_oz" name="⚠️ НАГАДУВАННЯ: Видати ОЗ для працівника">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;⚠️ НАГАДУВАННЯ: Видати ОЗ для працівника&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_oz</bpmn:incoming>
+      <bpmn:outgoing>Flow_rem_oz_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_rem_oz">
+      <bpmn:incoming>Flow_rem_oz_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:serviceTask id="ST_rem_intern" name="⚠️ НАГАДУВАННЯ: Чи вийшов стажер?">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;⚠️ НАГАДУВАННЯ: Чи вийшов стажер?&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_intern</bpmn:incoming>
+      <bpmn:outgoing>Flow_rem_intern_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_rem_intern">
+      <bpmn:incoming>Flow_rem_intern_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ============ ESCALATION USER TASKS (Lane_manager) ============ -->
+
+    <bpmn:userTask id="UT_esc_workspace" name="🔴 ЕСКАЛАЦІЯ: Чи потрібне робоче місце?">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;🔴 ЕСКАЛАЦІЯ: Чи потрібне робоче місце?&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_workspace</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_workspace_end</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_esc_workspace">
+      <bpmn:incoming>Flow_esc_workspace_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:userTask id="UT_esc_available" name="🔴 ЕСКАЛАЦІЯ: Перевірити наявне обладнання">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;🔴 ЕСКАЛАЦІЯ: Перевірити наявне обладнання&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_available</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_available_end</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_esc_available">
+      <bpmn:incoming>Flow_esc_available_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:userTask id="UT_esc_oz" name="🔴 ЕСКАЛАЦІЯ: Видати ОЗ для працівника">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;🔴 ЕСКАЛАЦІЯ: Видати ОЗ для працівника&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_oz</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_oz_end</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_esc_oz">
+      <bpmn:incoming>Flow_esc_oz_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:userTask id="UT_esc_intern" name="🔴 ЕСКАЛАЦІЯ: Чи вийшов стажер?">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;🔴 ЕСКАЛАЦІЯ: Чи вийшов стажер?&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_intern</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_intern_end</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_esc_intern">
+      <bpmn:incoming>Flow_esc_intern_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ============ SEQUENCE FLOWS ============ -->
+
+    <!-- Main flow -->
+    <bpmn:sequenceFlow id="Flow_to_odoo_check" sourceRef="StartEvent_1" targetRef="GW_odoo_check" />
+    <bpmn:sequenceFlow id="Flow_odoo_skip" sourceRef="GW_odoo_check" targetRef="GW_odoo_merge">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_odoo_default" sourceRef="GW_odoo_check" targetRef="ST_create_main" />
+    <bpmn:sequenceFlow id="Flow_create_to_merge" sourceRef="ST_create_main" targetRef="GW_odoo_merge" />
+    <bpmn:sequenceFlow id="Flow_to_workspace" sourceRef="GW_odoo_merge" targetRef="UT_workspace_check" />
+    <bpmn:sequenceFlow id="Flow_workspace_to_gw" sourceRef="UT_workspace_check" targetRef="GW_workspace" />
+    <bpmn:sequenceFlow id="Flow_yes_workspace" name="так" sourceRef="GW_workspace" targetRef="UT_check_available">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_workspace_needed = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_no_oz" sourceRef="GW_workspace" targetRef="End_no_oz" />
+    <bpmn:sequenceFlow id="Flow_to_issue" sourceRef="UT_check_available" targetRef="UT_issue_oz" />
+    <bpmn:sequenceFlow id="Flow_to_timer" sourceRef="UT_issue_oz" targetRef="Timer_wait_stazh" />
+    <bpmn:sequenceFlow id="Flow_to_intern_check" sourceRef="Timer_wait_stazh" targetRef="UT_intern_check" />
+    <bpmn:sequenceFlow id="Flow_to_intern_gw" sourceRef="UT_intern_check" targetRef="GW_intern_arrived" />
+    <bpmn:sequenceFlow id="Flow_intern_yes" sourceRef="GW_intern_arrived" targetRef="Timer_official" />
+    <bpmn:sequenceFlow id="Flow_intern_no" name="ні" sourceRef="GW_intern_arrived" targetRef="End_not_arrived">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_employee_arrived = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_to_move_oz" sourceRef="Timer_official" targetRef="ST_move_oz" />
+    <bpmn:sequenceFlow id="Flow_to_end_ok" sourceRef="ST_move_oz" targetRef="End_ok" />
+
+    <!-- Reminder flows -->
+    <bpmn:sequenceFlow id="Flow_rem_workspace" sourceRef="BE_rem_workspace" targetRef="ST_rem_workspace" />
+    <bpmn:sequenceFlow id="Flow_rem_workspace_end" sourceRef="ST_rem_workspace" targetRef="End_rem_workspace" />
+    <bpmn:sequenceFlow id="Flow_rem_available" sourceRef="BE_rem_available" targetRef="ST_rem_available" />
+    <bpmn:sequenceFlow id="Flow_rem_available_end" sourceRef="ST_rem_available" targetRef="End_rem_available" />
+    <bpmn:sequenceFlow id="Flow_rem_oz" sourceRef="BE_rem_oz" targetRef="ST_rem_oz" />
+    <bpmn:sequenceFlow id="Flow_rem_oz_end" sourceRef="ST_rem_oz" targetRef="End_rem_oz" />
+    <bpmn:sequenceFlow id="Flow_rem_intern" sourceRef="BE_rem_intern" targetRef="ST_rem_intern" />
+    <bpmn:sequenceFlow id="Flow_rem_intern_end" sourceRef="ST_rem_intern" targetRef="End_rem_intern" />
+
+    <!-- Escalation flows -->
+    <bpmn:sequenceFlow id="Flow_ded_workspace" sourceRef="BE_ded_workspace" targetRef="UT_esc_workspace" />
+    <bpmn:sequenceFlow id="Flow_esc_workspace_end" sourceRef="UT_esc_workspace" targetRef="End_esc_workspace" />
+    <bpmn:sequenceFlow id="Flow_ded_available" sourceRef="BE_ded_available" targetRef="UT_esc_available" />
+    <bpmn:sequenceFlow id="Flow_esc_available_end" sourceRef="UT_esc_available" targetRef="End_esc_available" />
+    <bpmn:sequenceFlow id="Flow_ded_oz" sourceRef="BE_ded_oz" targetRef="UT_esc_oz" />
+    <bpmn:sequenceFlow id="Flow_esc_oz_end" sourceRef="UT_esc_oz" targetRef="End_esc_oz" />
+    <bpmn:sequenceFlow id="Flow_ded_intern" sourceRef="BE_ded_intern" targetRef="UT_esc_intern" />
+    <bpmn:sequenceFlow id="Flow_esc_intern_end" sourceRef="UT_esc_intern" targetRef="End_esc_intern" />
   </bpmn:process>
+
+  <!-- ============ DIAGRAM ============ -->
+
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1s0osfg">
-      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
-        <dc:Bounds x="252" y="232" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_144hk92_di" bpmnElement="Activity_0zjq9d3">
-        <dc:Bounds x="330" y="210" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_11d6zxf_di" bpmnElement="Gateway_11d6zxf" isMarkerVisible="true">
-        <dc:Bounds x="475" y="225" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_11s27sg_di" bpmnElement="Activity_1w9dxjb">
-        <dc:Bounds x="580" y="110" width="100" height="80" />
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_1">
+      <!-- Pool -->
+      <bpmndi:BPMNShape id="Participant_1_di" bpmnElement="Participant_1" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="1720" height="820" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_03nap12_di" bpmnElement="Activity_1g07pow">
-        <dc:Bounds x="750" y="110" width="100" height="80" />
+      <!-- Lanes -->
+      <bpmndi:BPMNShape id="Lane_system_di" bpmnElement="Lane_system" isHorizontal="true">
+        <dc:Bounds x="190" y="80" width="1690" height="260" />
+        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_0wsj5xa_di" bpmnElement="Event_0jpvxk1">
-        <dc:Bounds x="902" y="132" width="36" height="36" />
+      <bpmndi:BPMNShape id="Lane_responsible_di" bpmnElement="Lane_responsible" isHorizontal="true">
+        <dc:Bounds x="190" y="340" width="1690" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_manager_di" bpmnElement="Lane_manager" isHorizontal="true">
+        <dc:Bounds x="190" y="540" width="1690" height="360" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Main flow shapes (Lane_system, y~270) -->
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="222" y="252" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true">
+        <dc:Bounds x="305" y="245" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="879" y="175" width="83" height="27" />
+          <dc:Bounds x="286" y="215" width="88" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_15a9tnn_di" bpmnElement="Gateway_15a9tnn" isMarkerVisible="true">
-        <dc:Bounds x="1005" y="125" width="50" height="50" />
+      <bpmndi:BPMNShape id="ST_create_main_di" bpmnElement="ST_create_main">
+        <dc:Bounds x="400" y="230" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_odoo_merge_di" bpmnElement="GW_odoo_merge" isMarkerVisible="true">
+        <dc:Bounds x="545" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_workspace_di" bpmnElement="GW_workspace" isMarkerVisible="true">
+        <dc:Bounds x="805" y="245" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="947" y="80" width="66" height="40" />
+          <dc:Bounds x="800" y="221" width="60" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_18bxofg_di" bpmnElement="Event_18bxofg">
-        <dc:Bounds x="1012" y="402" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_053lx14_di" bpmnElement="Activity_0ri3waa">
-        <dc:Bounds x="1180" y="10" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_16oa5pe_di" bpmnElement="Event_143z16j">
-        <dc:Bounds x="1082" y="32" width="36" height="36" />
+      <bpmndi:BPMNShape id="Timer_wait_stazh_di" bpmnElement="Timer_wait_stazh">
+        <dc:Bounds x="1202" y="252" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1056" y="-20" width="67" height="40" />
+          <dc:Bounds x="1178" y="295" width="84" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_19qcxw5_di" bpmnElement="Flow_19qcxw5">
-        <di:waypoint x="288" y="250" />
-        <di:waypoint x="330" y="250" />
+      <bpmndi:BPMNShape id="GW_intern_arrived_di" bpmnElement="GW_intern_arrived" isMarkerVisible="true">
+        <dc:Bounds x="1435" y="245" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1420" y="221" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Timer_official_di" bpmnElement="Timer_official">
+        <dc:Bounds x="1542" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1518" y="295" width="84" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_move_oz_di" bpmnElement="ST_move_oz">
+        <dc:Bounds x="1630" y="230" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_ok_di" bpmnElement="End_ok">
+        <dc:Bounds x="1782" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1764" y="295" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_no_oz_di" bpmnElement="End_no_oz">
+        <dc:Bounds x="812" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="850" y="313" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_not_arrived_di" bpmnElement="End_not_arrived">
+        <dc:Bounds x="1442" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1484" y="313" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Reminder STs (Lane_system, y~110) -->
+      <bpmndi:BPMNShape id="ST_rem_workspace_di" bpmnElement="ST_rem_workspace">
+        <dc:Bounds x="650" y="110" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_rem_workspace_di" bpmnElement="End_rem_workspace">
+        <dc:Bounds x="782" y="132" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_rem_available_di" bpmnElement="ST_rem_available">
+        <dc:Bounds x="900" y="110" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_rem_available_di" bpmnElement="End_rem_available">
+        <dc:Bounds x="1032" y="132" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_rem_oz_di" bpmnElement="ST_rem_oz">
+        <dc:Bounds x="1100" y="110" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_rem_oz_di" bpmnElement="End_rem_oz">
+        <dc:Bounds x="1232" y="132" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_rem_intern_di" bpmnElement="ST_rem_intern">
+        <dc:Bounds x="1300" y="110" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_rem_intern_di" bpmnElement="End_rem_intern">
+        <dc:Bounds x="1432" y="132" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- User Tasks (Lane_responsible, y~400) -->
+      <bpmndi:BPMNShape id="UT_workspace_check_di" bpmnElement="UT_workspace_check">
+        <dc:Bounds x="650" y="400" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_check_available_di" bpmnElement="UT_check_available">
+        <dc:Bounds x="900" y="400" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_issue_oz_di" bpmnElement="UT_issue_oz">
+        <dc:Bounds x="1050" y="400" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_intern_check_di" bpmnElement="UT_intern_check">
+        <dc:Bounds x="1300" y="400" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Boundary events -->
+      <bpmndi:BPMNShape id="BE_rem_workspace_di" bpmnElement="BE_rem_workspace">
+        <dc:Bounds x="662" y="462" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="636" y="505" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_workspace_di" bpmnElement="BE_ded_workspace">
+        <dc:Bounds x="702" y="462" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="696" y="505" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_rem_available_di" bpmnElement="BE_rem_available">
+        <dc:Bounds x="912" y="462" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_available_di" bpmnElement="BE_ded_available">
+        <dc:Bounds x="952" y="462" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_rem_oz_di" bpmnElement="BE_rem_oz">
+        <dc:Bounds x="1062" y="462" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_oz_di" bpmnElement="BE_ded_oz">
+        <dc:Bounds x="1102" y="462" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_rem_intern_di" bpmnElement="BE_rem_intern">
+        <dc:Bounds x="1312" y="462" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_intern_di" bpmnElement="BE_ded_intern">
+        <dc:Bounds x="1352" y="462" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Escalation UTs (Lane_manager, y~660) -->
+      <bpmndi:BPMNShape id="UT_esc_workspace_di" bpmnElement="UT_esc_workspace">
+        <dc:Bounds x="650" y="660" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_esc_workspace_di" bpmnElement="End_esc_workspace">
+        <dc:Bounds x="682" y="790" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_esc_available_di" bpmnElement="UT_esc_available">
+        <dc:Bounds x="900" y="660" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_esc_available_di" bpmnElement="End_esc_available">
+        <dc:Bounds x="932" y="790" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_esc_oz_di" bpmnElement="UT_esc_oz">
+        <dc:Bounds x="1050" y="660" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_esc_oz_di" bpmnElement="End_esc_oz">
+        <dc:Bounds x="1082" y="790" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_esc_intern_di" bpmnElement="UT_esc_intern">
+        <dc:Bounds x="1300" y="660" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_esc_intern_di" bpmnElement="End_esc_intern">
+        <dc:Bounds x="1332" y="790" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- ============ EDGES ============ -->
+
+      <!-- Main flow -->
+      <bpmndi:BPMNEdge id="Flow_to_odoo_check_di" bpmnElement="Flow_to_odoo_check">
+        <di:waypoint x="258" y="270" />
+        <di:waypoint x="305" y="270" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0yh49j3_di" bpmnElement="Flow_0yh49j3">
-        <di:waypoint x="430" y="250" />
-        <di:waypoint x="475" y="250" />
+      <bpmndi:BPMNEdge id="Flow_odoo_default_di" bpmnElement="Flow_odoo_default">
+        <di:waypoint x="355" y="270" />
+        <di:waypoint x="400" y="270" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1iee8j5_di" bpmnElement="Flow_1iee8j5">
-        <di:waypoint x="500" y="225" />
-        <di:waypoint x="500" y="150" />
-        <di:waypoint x="580" y="150" />
+      <bpmndi:BPMNEdge id="Flow_odoo_skip_di" bpmnElement="Flow_odoo_skip">
+        <di:waypoint x="330" y="245" />
+        <di:waypoint x="330" y="210" />
+        <di:waypoint x="570" y="210" />
+        <di:waypoint x="570" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_create_to_merge_di" bpmnElement="Flow_create_to_merge">
+        <di:waypoint x="500" y="270" />
+        <di:waypoint x="545" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_workspace_di" bpmnElement="Flow_to_workspace">
+        <di:waypoint x="570" y="295" />
+        <di:waypoint x="570" y="440" />
+        <di:waypoint x="650" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_workspace_to_gw_di" bpmnElement="Flow_workspace_to_gw">
+        <di:waypoint x="750" y="440" />
+        <di:waypoint x="778" y="440" />
+        <di:waypoint x="778" y="270" />
+        <di:waypoint x="805" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_yes_workspace_di" bpmnElement="Flow_yes_workspace">
+        <di:waypoint x="855" y="270" />
+        <di:waypoint x="878" y="270" />
+        <di:waypoint x="878" y="440" />
+        <di:waypoint x="900" y="440" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="507" y="133" width="16" height="14" />
+          <dc:Bounds x="862" y="253" width="16" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_05adfrq_di" bpmnElement="Flow_05adfrq">
-        <di:waypoint x="680" y="150" />
+      <bpmndi:BPMNEdge id="Flow_no_oz_di" bpmnElement="Flow_no_oz">
+        <di:waypoint x="830" y="295" />
+        <di:waypoint x="830" y="302" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_issue_di" bpmnElement="Flow_to_issue">
+        <di:waypoint x="1000" y="440" />
+        <di:waypoint x="1050" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_timer_di" bpmnElement="Flow_to_timer">
+        <di:waypoint x="1150" y="440" />
+        <di:waypoint x="1176" y="440" />
+        <di:waypoint x="1176" y="270" />
+        <di:waypoint x="1202" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_intern_check_di" bpmnElement="Flow_to_intern_check">
+        <di:waypoint x="1238" y="270" />
+        <di:waypoint x="1270" y="270" />
+        <di:waypoint x="1270" y="440" />
+        <di:waypoint x="1300" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_intern_gw_di" bpmnElement="Flow_to_intern_gw">
+        <di:waypoint x="1400" y="440" />
+        <di:waypoint x="1418" y="440" />
+        <di:waypoint x="1418" y="270" />
+        <di:waypoint x="1435" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_intern_yes_di" bpmnElement="Flow_intern_yes">
+        <di:waypoint x="1485" y="270" />
+        <di:waypoint x="1542" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_intern_no_di" bpmnElement="Flow_intern_no">
+        <di:waypoint x="1460" y="295" />
+        <di:waypoint x="1460" y="302" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1466" y="293" width="10" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_move_oz_di" bpmnElement="Flow_to_move_oz">
+        <di:waypoint x="1578" y="270" />
+        <di:waypoint x="1630" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_end_ok_di" bpmnElement="Flow_to_end_ok">
+        <di:waypoint x="1730" y="270" />
+        <di:waypoint x="1782" y="270" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Reminder flows (UP from boundary to Lane_system) -->
+      <bpmndi:BPMNEdge id="Flow_rem_workspace_di" bpmnElement="Flow_rem_workspace">
+        <di:waypoint x="680" y="462" />
+        <di:waypoint x="680" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_rem_workspace_end_di" bpmnElement="Flow_rem_workspace_end">
         <di:waypoint x="750" y="150" />
+        <di:waypoint x="782" y="150" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0c1dztt_di" bpmnElement="Flow_0c1dztt">
-        <di:waypoint x="500" y="275" />
-        <di:waypoint x="500" y="420" />
-        <di:waypoint x="1012" y="420" />
+      <bpmndi:BPMNEdge id="Flow_rem_available_di" bpmnElement="Flow_rem_available">
+        <di:waypoint x="930" y="462" />
+        <di:waypoint x="930" y="190" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1braqxr_di" bpmnElement="Flow_1braqxr">
-        <di:waypoint x="850" y="150" />
-        <di:waypoint x="902" y="150" />
+      <bpmndi:BPMNEdge id="Flow_rem_available_end_di" bpmnElement="Flow_rem_available_end">
+        <di:waypoint x="1000" y="150" />
+        <di:waypoint x="1032" y="150" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1yoafpe_di" bpmnElement="Flow_1yoafpe">
-        <di:waypoint x="938" y="150" />
-        <di:waypoint x="1005" y="150" />
+      <bpmndi:BPMNEdge id="Flow_rem_oz_di" bpmnElement="Flow_rem_oz">
+        <di:waypoint x="1080" y="462" />
+        <di:waypoint x="1080" y="190" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_092vn5k_di" bpmnElement="Flow_092vn5k">
-        <di:waypoint x="1030" y="125" />
-        <di:waypoint x="1030" y="50" />
-        <di:waypoint x="1082" y="50" />
+      <bpmndi:BPMNEdge id="Flow_rem_oz_end_di" bpmnElement="Flow_rem_oz_end">
+        <di:waypoint x="1200" y="150" />
+        <di:waypoint x="1232" y="150" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0sb35vz_di" bpmnElement="Flow_0sb35vz">
-        <di:waypoint x="1118" y="50" />
-        <di:waypoint x="1180" y="50" />
+      <bpmndi:BPMNEdge id="Flow_rem_intern_di" bpmnElement="Flow_rem_intern">
+        <di:waypoint x="1330" y="462" />
+        <di:waypoint x="1330" y="190" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0gdn7bp_di" bpmnElement="Flow_0gdn7bp">
-        <di:waypoint x="1030" y="175" />
-        <di:waypoint x="1030" y="402" />
+      <bpmndi:BPMNEdge id="Flow_rem_intern_end_di" bpmnElement="Flow_rem_intern_end">
+        <di:waypoint x="1400" y="150" />
+        <di:waypoint x="1432" y="150" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Escalation flows (DOWN from boundary to Lane_manager) -->
+      <bpmndi:BPMNEdge id="Flow_ded_workspace_di" bpmnElement="Flow_ded_workspace">
+        <di:waypoint x="720" y="498" />
+        <di:waypoint x="720" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_workspace_end_di" bpmnElement="Flow_esc_workspace_end">
+        <di:waypoint x="700" y="740" />
+        <di:waypoint x="700" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ded_available_di" bpmnElement="Flow_ded_available">
+        <di:waypoint x="970" y="498" />
+        <di:waypoint x="970" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_available_end_di" bpmnElement="Flow_esc_available_end">
+        <di:waypoint x="950" y="740" />
+        <di:waypoint x="950" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ded_oz_di" bpmnElement="Flow_ded_oz">
+        <di:waypoint x="1120" y="498" />
+        <di:waypoint x="1120" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_oz_end_di" bpmnElement="Flow_esc_oz_end">
+        <di:waypoint x="1100" y="740" />
+        <di:waypoint x="1100" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ded_intern_di" bpmnElement="Flow_ded_intern">
+        <di:waypoint x="1370" y="498" />
+        <di:waypoint x="1370" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_intern_end_di" bpmnElement="Flow_esc_intern_end">
+        <di:waypoint x="1350" y="740" />
+        <di:waypoint x="1350" y="790" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
