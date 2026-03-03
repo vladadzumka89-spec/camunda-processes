@@ -14,6 +14,7 @@ from .deploy import register_deploy_handlers
 from ..http_request_smart import register_http_smart_handlers
 from .github import register_github_handlers
 from .notify import register_notify_handlers
+from .ocr import register_ocr_handlers
 from .sync import register_sync_handlers
 
 
@@ -38,8 +39,9 @@ def register_all_handlers(
         Audit (1):   audit-analysis
         Clickbot (1): clickbot-test
         Notify (2):   send-notification, create-odoo-task
+        OCR (1):      invoice-data-extractor
         HTTP Smart (1): http-request-smart
-    Total: 28 task types
+    Total: 29 task types
     """
     register_http_smart_handlers(worker, config)
     register_deploy_handlers(worker, config, ssh)
@@ -48,3 +50,4 @@ def register_all_handlers(
     register_audit_handlers(worker, config, ssh)
     register_clickbot_handlers(worker, config, ssh)
     register_notify_handlers(worker, config, odoo)
+    register_ocr_handlers(worker, config)

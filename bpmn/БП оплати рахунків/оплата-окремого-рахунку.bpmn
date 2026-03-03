@@ -9,7 +9,7 @@
   </bpmn:collaboration>
   <bpmn:process id="Process_single_invoice" name="Оплата окремого рахунку" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="1.0" />
+      <zeebe:versionTag value="2.0" />
     </bpmn:extensionElements>
     <bpmn:laneSet id="LaneSet_1">
       <bpmn:lane id="Lane_Buhgalter" name="Бухгалтер">
@@ -73,7 +73,7 @@
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: x_studio_camunda_invoice_type + &#34;: &#34; + x_studio_camunda_partner_name + &#34; &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+          <zeebe:input source="= {name: &#34;Рахунок №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + x_studio_camunda_partner_name + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_invoice_number: x_studio_camunda_invoice_number, x_studio_camunda_invoice_date: x_studio_camunda_invoice_date, x_studio_camunda_invoice_line_name: x_studio_camunda_invoice_line_name, x_studio_camunda_supplier_code: x_studio_camunda_supplier_code, x_studio_camunda_contract: x_studio_camunda_contract, x_studio_camunda_buyer_name: x_studio_camunda_buyer_name, x_studio_camunda_quantity: x_studio_camunda_quantity, x_studio_camunda_unit: x_studio_camunda_unit}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_odoo_no_task</bpmn:incoming>
