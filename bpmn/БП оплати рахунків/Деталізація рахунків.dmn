@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions
+  xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+  xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+  xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+  id="Definitions_invoice_detail"
+  name="Деталізація рахунків"
+  namespace="http://camunda.org/schema/1.0/dmn"
+  exporter="Camunda Web Modeler"
+  exporterVersion="e787c33"
+  modeler:executionPlatform="Camunda Cloud"
+  modeler:executionPlatformVersion="8.8.0">
+
+  <!--
+    DMN — Деталізація рахунків
+    ==========================
+
+    Як працює:
+      1. На вхід подається назва позиції з рахунку та назва постачальника
+      2. DMN шукає ключове слово в назві позиції (через contains)
+         і перевіряє постачальника
+      3. Повертає вид рахунку: "rent" (оренда) або "utilities" (комунальні)
+
+    Де використовується в BPMN:
+      Процес "Оплата рахунків оренда та комунальні v2":
+        Старт → Деталізація рахунку (бухгалтер розбиває PDF на позиції)
+              → ця DMN класифікує кожну позицію
+              → Call Activity "Обробка окремого рахунку" (по кожній позиції)
+
+    Вхідні змінні:
+      - x_studio_camunda_invoice_line_name — назва послуги/позиції з рахунку
+        Приклад: "Суборенда приміщення за березень 2026р."
+      - x_studio_camunda_partner_name — назва постачальника (контрагент 2 з Excel)
+        Приклад: "Герман Олена Василівна"
+
+    Вихідні змінні:
+      - x_studio_camunda_invoice_type — "rent" або "utilities"
+      - x_studio_camunda_invoice_notes — підказка для бухгалтера
+
+    Джерело даних: "Деталізація рахунків (2).xlsx"
+  -->
+
+  <decision id="invoice-detail-type" name="Деталізація рахунків">
+    <decisionTable id="decisionTable_invoice_detail" hitPolicy="FIRST">
+
+      <!-- ── INPUTS ──────────────────────────────────────────────────────── -->
+
+      <!-- Input 1: назва позиції — приводимо до нижнього регістру для пошуку -->
+      <input id="input_line_name" label="Назва позиції рахунку">
+        <inputExpression id="inputExpr_line_name" typeRef="string">
+          <text>lower case(x_studio_camunda_invoice_line_name)</text>
+        </inputExpression>
+      </input>
+
+      <!-- Input 2: постачальник — точна назва з Odoo -->
+      <input id="input_partner" label="Постачальник">
+        <inputExpression id="inputExpr_partner" typeRef="string">
+          <text>x_studio_camunda_partner_name</text>
+        </inputExpression>
+      </input>
+
+      <!-- ── OUTPUTS ─────────────────────────────────────────────────────── -->
+
+      <output id="output_invoice_type"
+              label="Вид рахунку"
+              name="x_studio_camunda_invoice_type"
+              typeRef="string">
+        <outputValues id="outputValues_type">
+          <text>"rent","utilities"</text>
+        </outputValues>
+      </output>
+
+      <output id="output_notes"
+              label="Примітки"
+              name="x_studio_camunda_invoice_notes"
+              typeRef="string" />
+
+      <!-- ═════════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: Герман Олена Василівна
+           Контрагент 1: Стецюк Ірина Олександрівна
+           Підрозділи:   907, 908, 909, 910
+           4 рахунки в одному PDF
+           ═════════════════════════════════════════════════════════════════ -->
+
+      <!-- 907: "Суборенда приміщення за березень 2026р." → оренда -->
+      <rule id="rule_german_suborenda">
+        <description>Герман: Суборенда приміщення — оренда</description>
+        <inputEntry id="ie_german_sub"><text>contains(?, "суборенда приміщення")</text></inputEntry>
+        <inputEntry id="ie_german_sub_p"><text>"Герман Олена Василівна"</text></inputEntry>
+        <outputEntry id="oe_german_sub_type"><text>"rent"</text></outputEntry>
+        <outputEntry id="oe_german_sub_notes"><text>"договір не вказаний, прописано pinky"</text></outputEntry>
+      </rule>
+
+      <!-- 908: "Експлуатаційна суборендна плата" → комунальні -->
+      <rule id="rule_german_ekspl">
+        <description>Герман: Експлуатаційна суборендна плата — комунальні</description>
+        <inputEntry id="ie_german_ekspl"><text>contains(?, "експлуатаційна суборендна плата")</text></inputEntry>
+        <inputEntry id="ie_german_ekspl_p"><text>"Герман Олена Василівна"</text></inputEntry>
+        <outputEntry id="oe_german_ekspl_type"><text>"utilities"</text></outputEntry>
+        <outputEntry id="oe_german_ekspl_notes"><text>"місяць оплати беру з рахунку на оренду"</text></outputEntry>
+      </rule>
+
+      <!-- 909: "Маркетингова суборендна плата" → комунальні -->
+      <rule id="rule_german_market">
+        <description>Герман: Маркетингова суборендна плата — комунальні</description>
+        <inputEntry id="ie_german_market"><text>contains(?, "маркетингова суборендна плата")</text></inputEntry>
+        <inputEntry id="ie_german_market_p"><text>"Герман Олена Василівна"</text></inputEntry>
+        <outputEntry id="oe_german_market_type"><text>"utilities"</text></outputEntry>
+        <outputEntry id="oe_german_market_notes"><text>"місяць оплати беру з рахунку на оренду"</text></outputEntry>
+      </rule>
+
+      <!-- 910: "Розміщення рекламного матеріалу на спеціальних конструкціях" → комунальні -->
+      <rule id="rule_german_reklam">
+        <description>Герман: Розміщення рекламного матеріалу — комунальні</description>
+        <inputEntry id="ie_german_reklam"><text>contains(?, "розміщення рекламного матеріалу")</text></inputEntry>
+        <inputEntry id="ie_german_reklam_p"><text>"Герман Олена Василівна"</text></inputEntry>
+        <outputEntry id="oe_german_reklam_type"><text>"utilities"</text></outputEntry>
+        <outputEntry id="oe_german_reklam_notes"><text>""</text></outputEntry>
+      </rule>
+
+      <!-- ═════════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: ЛЬВІВБУДМАКС-ІНВЕСТ, ТЗОВ
+           Контрагент 1: Технопростір Плюс
+           Підрозділ:    605
+           3 послуги в одному рахунку (оренда/експлуатація/маркетинг)
+           ═════════════════════════════════════════════════════════════════ -->
+
+      <!-- 605: "Оренда нерухомого майна за адресою: м. Львів..." → оренда -->
+      <rule id="rule_lviv_orenda">
+        <description>ЛЬВІВБУДМАКС: Оренда нерухомого майна — оренда</description>
+        <inputEntry id="ie_lviv_orenda"><text>contains(?, "оренда нерухомого майна")</text></inputEntry>
+        <inputEntry id="ie_lviv_orenda_p"><text>"ЛЬВІВБУДМАКС-ІНВЕСТ, ТЗОВ"</text></inputEntry>
+        <outputEntry id="oe_lviv_orenda_type"><text>"rent"</text></outputEntry>
+        <outputEntry id="oe_lviv_orenda_notes"><text>"місяць оренди визначаю по даті виставлення рахунку"</text></outputEntry>
+      </rule>
+
+      <!-- ═════════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: Сільпо фуд
+           Контрагент 1: Технопростір Плюс
+           Підрозділ:    909
+           ═════════════════════════════════════════════════════════════════ -->
+
+      <!-- 909: "Оплата комунальних за січень 2026 року згідно Договору..." → комунальні -->
+      <rule id="rule_silpo_komunal">
+        <description>Сільпо фуд: Оплата комунальних — комунальні</description>
+        <inputEntry id="ie_silpo_komunal"><text>contains(?, "оплата комунальних")</text></inputEntry>
+        <inputEntry id="ie_silpo_komunal_p"><text>"Сільпо фуд"</text></inputEntry>
+        <outputEntry id="oe_silpo_komunal_type"><text>"utilities"</text></outputEntry>
+        <outputEntry id="oe_silpo_komunal_notes"><text>"деталізація комунальних в окремому документі"</text></outputEntry>
+      </rule>
+
+      <!-- ═════════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: Житомирський меблевий комбінат
+           Контрагент 1: техно простір / Технопростір Плюс
+           Підрозділи:   507-509, 908/602 (909-912/602)
+           ═════════════════════════════════════════════════════════════════ -->
+
+      <!-- 507, 909/602: "Орендна плата Лютий 2026 р." → оренда -->
+      <rule id="rule_zhk_orenda">
+        <description>ЖМК: Орендна плата — оренда</description>
+        <inputEntry id="ie_zhk_orenda"><text>contains(?, "орендна плата")</text></inputEntry>
+        <inputEntry id="ie_zhk_orenda_p"><text>"Житомирський меблевий комбінат"</text></inputEntry>
+        <outputEntry id="oe_zhk_orenda_type"><text>"rent"</text></outputEntry>
+        <outputEntry id="oe_zhk_orenda_notes"><text>""</text></outputEntry>
+      </rule>
+
+      <!-- 508, 910/602: "Рекламні послуги за Лютий 2026 р." → оренда -->
+      <rule id="rule_zhk_reklam">
+        <description>ЖМК: Рекламні послуги — оренда (входить до орендного пакету)</description>
+        <inputEntry id="ie_zhk_reklam"><text>contains(?, "рекламні послуги")</text></inputEntry>
+        <inputEntry id="ie_zhk_reklam_p"><text>"Житомирський меблевий комбінат"</text></inputEntry>
+        <outputEntry id="oe_zhk_reklam_type"><text>"rent"</text></outputEntry>
+        <outputEntry id="oe_zhk_reklam_notes"><text>""</text></outputEntry>
+      </rule>
+
+      <!-- 509, 911/602, 912/602: "Компенсація комунальних послуг за Січень 2026 р." → комунальні -->
+      <rule id="rule_zhk_komunal">
+        <description>ЖМК: Компенсація комунальних послуг — комунальні</description>
+        <inputEntry id="ie_zhk_komunal"><text>contains(?, "компенсація комунальних")</text></inputEntry>
+        <inputEntry id="ie_zhk_komunal_p"><text>"Житомирський меблевий комбінат"</text></inputEntry>
+        <outputEntry id="oe_zhk_komunal_type"><text>"utilities"</text></outputEntry>
+        <outputEntry id="oe_zhk_komunal_notes"><text>""</text></outputEntry>
+      </rule>
+
+      <!-- ═════════════════════════════════════════════════════════════════
+           ЗАГАЛЬНІ ПРАВИЛА (catch-all)
+           Якщо постачальник новий або позиція нестандартна —
+           спрацює загальне правило по ключовому слову
+           ═════════════════════════════════════════════════════════════════ -->
+
+      <!-- Будь-який постачальник: назва містить "оренд" → оренда -->
+      <rule id="rule_fallback_orenda">
+        <description>Загальне: будь-яка позиція зі словом "оренд" — оренда</description>
+        <inputEntry id="ie_fb_orenda"><text>contains(?, "оренд")</text></inputEntry>
+        <inputEntry id="ie_fb_orenda_p"><text></text></inputEntry>
+        <outputEntry id="oe_fb_orenda_type"><text>"rent"</text></outputEntry>
+        <outputEntry id="oe_fb_orenda_notes"><text>"постачальник не знайдений в DMN — перевірте вручну"</text></outputEntry>
+      </rule>
+
+      <!-- Будь-який постачальник: назва містить "комунальн" → комунальні -->
+      <rule id="rule_fallback_komunal">
+        <description>Загальне: будь-яка позиція зі словом "комунальн" — комунальні</description>
+        <inputEntry id="ie_fb_komunal"><text>contains(?, "комунальн")</text></inputEntry>
+        <inputEntry id="ie_fb_komunal_p"><text></text></inputEntry>
+        <outputEntry id="oe_fb_komunal_type"><text>"utilities"</text></outputEntry>
+        <outputEntry id="oe_fb_komunal_notes"><text>"постачальник не знайдений в DMN — перевірте вручну"</text></outputEntry>
+      </rule>
+
+      <!-- Будь-який постачальник: назва містить "експлуатаці" → комунальні -->
+      <rule id="rule_fallback_ekspl">
+        <description>Загальне: будь-яка позиція зі словом "експлуатаці" — комунальні</description>
+        <inputEntry id="ie_fb_ekspl"><text>contains(?, "експлуатаці")</text></inputEntry>
+        <inputEntry id="ie_fb_ekspl_p"><text></text></inputEntry>
+        <outputEntry id="oe_fb_ekspl_type"><text>"utilities"</text></outputEntry>
+        <outputEntry id="oe_fb_ekspl_notes"><text>"постачальник не знайдений в DMN — перевірте вручну"</text></outputEntry>
+      </rule>
+
+      <!-- Будь-який постачальник: назва містить "суборенд" → оренда -->
+      <rule id="rule_fallback_suborenda">
+        <description>Загальне: будь-яка позиція зі словом "суборенд" — оренда</description>
+        <inputEntry id="ie_fb_suborenda"><text>contains(?, "суборенд")</text></inputEntry>
+        <inputEntry id="ie_fb_suborenda_p"><text></text></inputEntry>
+        <outputEntry id="oe_fb_suborenda_type"><text>"rent"</text></outputEntry>
+        <outputEntry id="oe_fb_suborenda_notes"><text>"постачальник не знайдений в DMN — перевірте вручну"</text></outputEntry>
+      </rule>
+
+      <!-- ═════════════════════════════════════════════════════════════════
+           DEFAULT — нічого не підійшло
+           ═════════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_default">
+        <description>Невідома позиція і постачальник — потребує ручної класифікації</description>
+        <inputEntry id="ie_default_line"><text></text></inputEntry>
+        <inputEntry id="ie_default_partner"><text></text></inputEntry>
+        <outputEntry id="oe_default_type"><text>"rent"</text></outputEntry>
+        <outputEntry id="oe_default_notes"><text>"УВАГА: позиція не розпізнана — класифікуйте вручну"</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       DMNDI — візуальне розташування
+       ═══════════════════════════════════════════════════════════════════ -->
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_detail">
+      <dmndi:DMNShape id="DMNShape_invoice_detail" dmnElementRef="invoice-detail-type">
+        <dc:Bounds x="160" y="100" width="200" height="80" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+
+</definitions>
