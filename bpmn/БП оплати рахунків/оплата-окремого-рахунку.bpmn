@@ -2,6 +2,10 @@
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
   <bpmn:collaboration id="Collab_single">
     <bpmn:participant id="Pool_single" name="Оплата окремого рахунку" processRef="Process_single_invoice" />
+    <bpmn:textAnnotation id="TextAnnotation_06jlc85">
+      <bpmn:text>1с</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_1jnlwqd" associationDirection="None" sourceRef="Task_calendar" targetRef="TextAnnotation_06jlc85" />
   </bpmn:collaboration>
   <bpmn:process id="Process_single_invoice" name="Оплата окремого рахунку" isExecutable="true">
     <bpmn:extensionElements>
@@ -17,7 +21,6 @@
         <bpmn:flowNodeRef>End_main</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Camunda" name="Система (Camunda)">
-        <bpmn:flowNodeRef>Task_autofill</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>GW_main_split</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>GW_tp_check</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Timer_payday</bpmn:flowNodeRef>
@@ -28,6 +31,7 @@
         <bpmn:flowNodeRef>ST_create_main</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_calendar</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_service_receipt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1mf4l1i</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Pogodjuvach" name="Погоджувач">
         <bpmn:flowNodeRef>Task_approve</bpmn:flowNodeRef>
@@ -42,12 +46,12 @@
         <bpmn:flowNodeRef>End_break_contract</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Yulia" name="Юля">
-        <bpmn:flowNodeRef>Task_nego_manual</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_nego_manual</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_yulia</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>GW_yulia_decision</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_no_pay</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Timer_yulia_deadline</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_nego_manual</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Dasha" name="Даша (Менеджер з оренди)">
         <bpmn:flowNodeRef>Task_dasha</bpmn:flowNodeRef>
@@ -80,15 +84,8 @@
       <bpmn:incoming>Flow_create_main_done</bpmn:incoming>
       <bpmn:outgoing>Flow_odoo_merge_to_autofill</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:businessRuleTask id="Task_autofill" name="Автозаповнення документа">
-      <bpmn:extensionElements>
-        <zeebe:calledDecision decisionId="decision-1goz4yx" resultVariable="docData" />
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_odoo_merge_to_autofill</bpmn:incoming>
-      <bpmn:outgoing>Flow_autofill_to_main_split</bpmn:outgoing>
-    </bpmn:businessRuleTask>
     <bpmn:parallelGateway id="GW_main_split">
-      <bpmn:incoming>Flow_autofill_to_main_split</bpmn:incoming>
+      <bpmn:incoming>Flow_odoo_merge_to_autofill</bpmn:incoming>
       <bpmn:outgoing>Flow_main_to_calendar</bpmn:outgoing>
       <bpmn:outgoing>Flow_main_to_approve</bpmn:outgoing>
     </bpmn:parallelGateway>
@@ -99,7 +96,7 @@
     </bpmn:exclusiveGateway>
     <bpmn:callActivity id="CA_tp_reissue" name="Перевиставлення оренди (ТП/ТП+)">
       <bpmn:extensionElements>
-        <zeebe:calledElement propagateAllChildVariables="false" />
+        <zeebe:calledElement processId="Process_12nvb3l" propagateAllChildVariables="false" />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_tp_yes</bpmn:incoming>
       <bpmn:outgoing>Flow_tp_done</bpmn:outgoing>
@@ -157,21 +154,6 @@
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_approved_yes</bpmn:incoming>
       <bpmn:outgoing>Flow_contract_to_gw</bpmn:outgoing>
-    </bpmn:userTask>
-    <bpmn:userTask id="Task_nego_manual" name="Ведемо перемовини з ТРЦ">
-      <bpmn:extensionElements>
-        <zeebe:userTask />
-        <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Переговори з &#34; + x_studio_camunda_partner_name, description: &#34;Проведіть переговори щодо умов або зменшення суми рахунку&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
-          <zeebe:output source="= x_studio_camunda_nego_outcome" target="x_studio_camunda_nego_outcome" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_approved_no</bpmn:incoming>
-      <bpmn:incoming>Flow_nego_dasha</bpmn:incoming>
-      <bpmn:outgoing>Flow_nego_manual_end</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:endEvent id="End_nego_manual" name="Переговори завершено">
       <bpmn:incoming>Flow_nego_manual_end</bpmn:incoming>
@@ -232,21 +214,8 @@
       <bpmn:incoming>Flow_0ues5t2</bpmn:incoming>
       <bpmn:outgoing>Flow_pay_to_service</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:serviceTask id="Task_service_receipt" name="Поступлення послуг на основі рахунку">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" />
-        <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {action: &#34;create_service_receipt&#34;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_invoice_type: x_studio_camunda_invoice_type, x_studio_camunda_invoice_file: x_studio_camunda_invoice_file, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_pay_to_service</bpmn:incoming>
-      <bpmn:outgoing>Flow_service_to_end</bpmn:outgoing>
-    </bpmn:serviceTask>
     <bpmn:endEvent id="End_main" name="Рахунок оплачено">
-      <bpmn:incoming>Flow_service_to_end</bpmn:incoming>
+      <bpmn:incoming>Flow_0073gjv</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:exclusiveGateway id="GW_contract_result" name="Погоджено з договору?" default="Flow_contract_no">
       <bpmn:incoming>Flow_contract_to_gw</bpmn:incoming>
@@ -313,8 +282,7 @@
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_create_main_done" sourceRef="ST_create_main" targetRef="GW_odoo_merge" />
-    <bpmn:sequenceFlow id="Flow_odoo_merge_to_autofill" sourceRef="GW_odoo_merge" targetRef="Task_autofill" />
-    <bpmn:sequenceFlow id="Flow_autofill_to_main_split" sourceRef="Task_autofill" targetRef="GW_main_split" />
+    <bpmn:sequenceFlow id="Flow_odoo_merge_to_autofill" sourceRef="GW_odoo_merge" targetRef="GW_main_split" />
     <bpmn:sequenceFlow id="Flow_main_to_calendar" sourceRef="GW_main_split" targetRef="GW_tp_check" />
     <bpmn:sequenceFlow id="Flow_main_to_approve" sourceRef="GW_main_split" targetRef="Task_approve" />
     <bpmn:sequenceFlow id="Flow_tp_yes" name="ТП або ТП+" sourceRef="GW_tp_check" targetRef="CA_tp_reissue">
@@ -353,7 +321,7 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_0ues5t2" sourceRef="CA_nego_self" targetRef="Task_pay" />
     <bpmn:sequenceFlow id="Flow_pay_to_service" sourceRef="Task_pay" targetRef="Task_service_receipt" />
-    <bpmn:sequenceFlow id="Flow_service_to_end" sourceRef="Task_service_receipt" targetRef="End_main" />
+    <bpmn:sequenceFlow id="Flow_service_to_end" sourceRef="Task_service_receipt" targetRef="Activity_1mf4l1i" />
     <bpmn:sequenceFlow id="Flow_contract_no" name="ні" sourceRef="GW_contract_result" targetRef="Task_dmn_nego_who" />
     <bpmn:sequenceFlow id="Flow_nego_self" name="Веде переговори Юля" sourceRef="GW_who_nego" targetRef="CA_nego_self">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_nego_who = "yulia"</bpmn:conditionExpression>
@@ -366,6 +334,39 @@
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= nego_action = "break_contract"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_break_to_end" sourceRef="CA_break_contract" targetRef="End_break_contract" />
+    <bpmn:callActivity id="Task_nego_manual" name="Ведемо перемовини з ТРЦ">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Переговори з &#34; + x_studio_camunda_partner_name, description: &#34;Проведіть переговори щодо умов або зменшення суми рахунку&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="= x_studio_camunda_nego_outcome" target="x_studio_camunda_nego_outcome" />
+        </zeebe:ioMapping>
+        <zeebe:calledElement processId="Process_1ufnrfc" propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_approved_no</bpmn:incoming>
+      <bpmn:incoming>Flow_nego_dasha</bpmn:incoming>
+      <bpmn:outgoing>Flow_nego_manual_end</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:businessRuleTask id="Task_service_receipt" name="ДМН таблиця з статею витрат">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {action: &#34;create_service_receipt&#34;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_invoice_type: x_studio_camunda_invoice_type, x_studio_camunda_invoice_file: x_studio_camunda_invoice_file, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_pay_to_service</bpmn:incoming>
+      <bpmn:outgoing>Flow_service_to_end</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:sequenceFlow id="Flow_0073gjv" sourceRef="Activity_1mf4l1i" targetRef="End_main" />
+    <bpmn:serviceTask id="Activity_1mf4l1i" name="Внести затрати в 1с відповідно до даних які співставилися з ДМН таблицею">
+      <bpmn:incoming>Flow_service_to_end</bpmn:incoming>
+      <bpmn:outgoing>Flow_0073gjv</bpmn:outgoing>
+    </bpmn:serviceTask>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collab_single">
@@ -373,28 +374,28 @@
         <dc:Bounds x="280" y="125" width="2330" height="1030" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Buhgalter_di" bpmnElement="Lane_Buhgalter" isHorizontal="true">
-        <dc:Bounds x="310" y="125" width="2300" height="195" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Camunda_di" bpmnElement="Lane_Camunda" isHorizontal="true">
-        <dc:Bounds x="310" y="320" width="2300" height="140" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Odoo_di" bpmnElement="Lane_Odoo" isHorizontal="true">
-        <dc:Bounds x="310" y="460" width="2300" height="145" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Pogodjuvach_di" bpmnElement="Lane_Pogodjuvach" isHorizontal="true">
-        <dc:Bounds x="310" y="605" width="2300" height="168" />
+      <bpmndi:BPMNShape id="Lane_Dasha_di" bpmnElement="Lane_Dasha" isHorizontal="true">
+        <dc:Bounds x="310" y="985" width="2300" height="170" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Yulia_di" bpmnElement="Lane_Yulia" isHorizontal="true">
         <dc:Bounds x="310" y="773" width="2300" height="212" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Dasha_di" bpmnElement="Lane_Dasha" isHorizontal="true">
-        <dc:Bounds x="310" y="985" width="2300" height="170" />
+      <bpmndi:BPMNShape id="Lane_Pogodjuvach_di" bpmnElement="Lane_Pogodjuvach" isHorizontal="true">
+        <dc:Bounds x="310" y="605" width="2300" height="168" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Odoo_di" bpmnElement="Lane_Odoo" isHorizontal="true">
+        <dc:Bounds x="310" y="460" width="2300" height="145" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Camunda_di" bpmnElement="Lane_Camunda" isHorizontal="true">
+        <dc:Bounds x="310" y="320" width="2300" height="140" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Buhgalter_di" bpmnElement="Lane_Buhgalter" isHorizontal="true">
+        <dc:Bounds x="310" y="125" width="2300" height="195" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
@@ -416,17 +417,13 @@
       <bpmndi:BPMNShape id="GW_odoo_merge_di" bpmnElement="GW_odoo_merge" isMarkerVisible="true">
         <dc:Bounds x="615" y="210" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_autofill_di" bpmnElement="Task_autofill">
-        <dc:Bounds x="710" y="355" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_main_split_di" bpmnElement="GW_main_split">
         <dc:Bounds x="855" y="370" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_tp_check_di" bpmnElement="GW_tp_check" isMarkerVisible="true">
         <dc:Bounds x="955" y="370" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="941" y="348" width="89" height="14" />
+          <dc:Bounds x="886" y="348" width="88" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="CA_tp_reissue_di" bpmnElement="CA_tp_reissue">
@@ -457,10 +454,6 @@
         <dc:Bounds x="1190" y="625" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_nego_manual_di" bpmnElement="Task_nego_manual">
-        <dc:Bounds x="1670" y="785" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_nego_manual_di" bpmnElement="End_nego_manual">
         <dc:Bounds x="1822" y="807" width="36" height="36" />
         <bpmndi:BPMNLabel>
@@ -489,14 +482,10 @@
         <dc:Bounds x="1960" y="195" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_service_receipt_di" bpmnElement="Task_service_receipt">
-        <dc:Bounds x="2130" y="490" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_main_di" bpmnElement="End_main">
         <dc:Bounds x="2282" y="217" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="2276" y="260" width="49" height="27" />
+          <dc:Bounds x="2275" y="179.5" width="49" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_contract_result_di" bpmnElement="GW_contract_result" isMarkerVisible="true">
@@ -508,7 +497,7 @@
       <bpmndi:BPMNShape id="GW_timer_decision_di" bpmnElement="GW_timer_decision" isMarkerVisible="true">
         <dc:Bounds x="1305" y="370" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1365" y="381" width="68" height="27" />
+          <dc:Bounds x="1336" y="326" width="68" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="CA_nego_self_di" bpmnElement="CA_nego_self">
@@ -553,6 +542,16 @@
           <dc:Bounds x="2355" y="755" width="51" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1j8plj7_di" bpmnElement="Task_nego_manual">
+        <dc:Bounds x="1670" y="785" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1d7y9j9_di" bpmnElement="Task_service_receipt">
+        <dc:Bounds x="2130" y="490" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0cel3on_di" bpmnElement="Activity_1mf4l1i">
+        <dc:Bounds x="2250" y="490" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Timer_yulia_deadline_di" bpmnElement="Timer_yulia_deadline">
         <dc:Bounds x="1422" y="847" width="36" height="36" />
         <bpmndi:BPMNLabel>
@@ -583,10 +582,7 @@
       <bpmndi:BPMNEdge id="Flow_odoo_merge_to_autofill_di" bpmnElement="Flow_odoo_merge_to_autofill">
         <di:waypoint x="665" y="235" />
         <di:waypoint x="760" y="235" />
-        <di:waypoint x="760" y="355" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_autofill_to_main_split_di" bpmnElement="Flow_autofill_to_main_split">
-        <di:waypoint x="810" y="395" />
+        <di:waypoint x="760" y="395" />
         <di:waypoint x="855" y="395" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_main_to_calendar_di" bpmnElement="Flow_main_to_calendar">
@@ -602,7 +598,7 @@
         <di:waypoint x="980" y="370" />
         <di:waypoint x="980" y="265" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="985" y="315" width="61" height="14" />
+          <dc:Bounds x="986" y="293" width="60" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_tp_no_di" bpmnElement="Flow_tp_no">
@@ -734,8 +730,7 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_service_to_end_di" bpmnElement="Flow_service_to_end">
         <di:waypoint x="2230" y="530" />
-        <di:waypoint x="2300" y="530" />
-        <di:waypoint x="2300" y="253" />
+        <di:waypoint x="2250" y="530" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_contract_no_di" bpmnElement="Flow_contract_no">
         <di:waypoint x="1425" y="665" />
@@ -763,7 +758,7 @@
         <di:waypoint x="2094" y="630" />
         <di:waypoint x="2172" y="630" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="2059" y="596" width="61" height="27" />
+          <dc:Bounds x="2059" y="576" width="61" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_dmn_break_di" bpmnElement="Flow_dmn_break">
@@ -778,6 +773,18 @@
         <di:waypoint x="2270" y="730" />
         <di:waypoint x="2362" y="730" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0073gjv_di" bpmnElement="Flow_0073gjv">
+        <di:waypoint x="2300" y="490" />
+        <di:waypoint x="2300" y="253" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_1jnlwqd_di" bpmnElement="Association_1jnlwqd">
+        <di:waypoint x="1180" y="560" />
+        <di:waypoint x="1180" y="560" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="TextAnnotation_06jlc85_di" bpmnElement="TextAnnotation_06jlc85">
+        <dc:Bounds x="1180" y="560" width="100" height="26" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>
