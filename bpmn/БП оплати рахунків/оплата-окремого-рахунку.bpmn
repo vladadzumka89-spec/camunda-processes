@@ -351,13 +351,13 @@
     </bpmn:callActivity>
     <bpmn:businessRuleTask id="Task_service_receipt" name="ДМН таблиця з статею витрат">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
           <zeebe:input source="= {action: &#34;create_service_receipt&#34;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_invoice_type: x_studio_camunda_invoice_type, x_studio_camunda_invoice_file: x_studio_camunda_invoice_file, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
+        <zeebe:calledDecision decisionId="utility-expense-classification" />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_pay_to_service</bpmn:incoming>
       <bpmn:outgoing>Flow_service_to_end</bpmn:outgoing>
@@ -777,14 +777,14 @@
         <di:waypoint x="2300" y="490" />
         <di:waypoint x="2300" y="253" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Association_1jnlwqd_di" bpmnElement="Association_1jnlwqd">
-        <di:waypoint x="1180" y="560" />
-        <di:waypoint x="1180" y="560" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="TextAnnotation_06jlc85_di" bpmnElement="TextAnnotation_06jlc85">
         <dc:Bounds x="1180" y="560" width="100" height="26" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_1jnlwqd_di" bpmnElement="Association_1jnlwqd">
+        <di:waypoint x="1180" y="560" />
+        <di:waypoint x="1180" y="560" />
+      </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>
