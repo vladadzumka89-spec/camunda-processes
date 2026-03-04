@@ -70,23 +70,41 @@ class TokenManager:
         return self._token
 
 
-class _BearerTokenInterceptor(grpc.aio.UnaryUnaryClientInterceptor):
-    """gRPC interceptor that injects a Bearer token into insecure channels."""
+class _TokenInjectorMixin:
+    """Shared logic: injects Bearer token into gRPC metadata.
+
+    NOTE: grpc.aio uses if/elif isinstance() dispatch, so a single object
+    implementing both UnaryUnary and UnaryStream will only be registered
+    for the first matching type. We need separate interceptor instances.
+    """
 
     def __init__(self, token_manager: TokenManager) -> None:
         self._token_manager = token_manager
 
-    async def intercept_unary_unary(self, continuation, client_call_details, request):
+    def _inject_token(self, client_call_details):
         metadata = list(client_call_details.metadata or [])
         metadata.append(('authorization', f'Bearer {self._token_manager.token}'))
-        new_details = grpc.aio.ClientCallDetails(
+        return grpc.aio.ClientCallDetails(
             client_call_details.method,
             client_call_details.timeout,
             metadata,
             client_call_details.credentials,
             client_call_details.wait_for_ready,
         )
-        return await continuation(new_details, request)
+
+
+class _UnaryUnaryTokenInterceptor(_TokenInjectorMixin, grpc.aio.UnaryUnaryClientInterceptor):
+    """Injects Bearer token for unary-unary RPCs (CompleteJob, FailJob, etc.)."""
+
+    async def intercept_unary_unary(self, continuation, client_call_details, request):
+        return await continuation(self._inject_token(client_call_details), request)
+
+
+class _UnaryStreamTokenInterceptor(_TokenInjectorMixin, grpc.aio.UnaryStreamClientInterceptor):
+    """Injects Bearer token for unary-stream RPCs (ActivateJobs polling)."""
+
+    async def intercept_unary_stream(self, continuation, client_call_details, request):
+        return await continuation(self._inject_token(client_call_details), request)
 
 
 def _keepalive_options() -> list[tuple]:
@@ -130,9 +148,12 @@ def create_channel(config: ZeebeAuthConfig) -> grpc.aio.Channel:
         logger.info(
             'Using insecure OAuth2 Zeebe channel to %s', config.gateway_address,
         )
-        interceptor = _BearerTokenInterceptor(_token_manager)
+        interceptors = [
+            _UnaryUnaryTokenInterceptor(_token_manager),
+            _UnaryStreamTokenInterceptor(_token_manager),
+        ]
         return grpc.aio.insecure_channel(
-            config.gateway_address, interceptors=[interceptor], options=options,
+            config.gateway_address, interceptors=interceptors, options=options,
         )
 
     # TLS channel with composite credentials (external / cloud)

@@ -1,6 +1,6 @@
 """Invoice OCR handler — extracts data from PDF/JPG/PNG/XLS/XLSX invoices.
 
-Primary: Gemini 3.1 Pro vision (via OpenRouter) for image-based extraction.
+Primary: Gemini 3.1 Flash-Lite vision (via OpenRouter) for image-based extraction.
 Fallback: tesseract OCR + regex parsing.
 
 Task type: invoice-data-extractor
@@ -36,9 +36,9 @@ HTTP_TIMEOUT = int(os.getenv("OCR_HTTP_TIMEOUT", "60"))
 # Gemini via OpenRouter
 OPENROUTER_API_KEY = os.getenv(
     "OPENROUTER_API_KEY",
-    "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",
+    "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",
 )
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "google/gemini-3.1-pro-preview")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "google/gemini-3.1-flash-lite-preview")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 GEMINI_TIMEOUT = int(os.getenv("GEMINI_TIMEOUT", "90"))
 
@@ -89,15 +89,19 @@ _GEMINI_PROMPT = """\
 - partner_name: назва постачальника/орендодавця (без "ФОП", "ТОВ", "Фізична особа-підприємець")
 - invoice_number: номер рахунку (тільки номер, наприклад "170" або "Н0000034572")
 - invoice_date: дата рахунку у форматі "DD місяць YYYY" (наприклад "02 лютого 2026")
-- invoice_line_name: назва послуги/товару (повний текст з таблиці)
+- invoice_line_name: ОБОВ'ЯЗКОВО — повна назва послуги/товару з табличної частини рахунку. \
+Наприклад: "Оренда частини нежитлового приміщення за адресою м.Хмельницький, вул.Молодіжна,6 21-Б, за березень 2026р". \
+Якщо є кілька рядків — бери перший (основний).
 - invoice_amount: фінальна сума до оплати (число, з ПДВ якщо є)
 - invoice_amount_no_vat: сума без ПДВ (число або null)
 - vat_amount: сума ПДВ (число або null)
 - supplier_code: ЄДРПОУ / ДРФО / ІПН постачальника (тільки цифри)
 - contract: номер та дата договору (рядок або null)
 - buyer_name: назва покупця/орендаря (без "ФОП", "ТОВ", "Фізична особа-підприємець")
-- quantity: кількість (число або null)
-- unit: одиниця виміру (м2, шт, послуга, грн тощо, або null)
+- quantity: ОБОВ'ЯЗКОВО — кількість з табличної частини рахунку (число). \
+Наприклад: 470, 1, 12.5. Завжди шукай стовпець "Кількість" в таблиці.
+- unit: ОБОВ'ЯЗКОВО — одиниця виміру з табличної частини (рядок). \
+Наприклад: "м2", "шт", "послуга", "грн", "год", "кг". Завжди шукай у стовпці "Од." або поруч з кількістю.
 
 Правила:
 - Суми повертай як числа (float), НЕ рядки
@@ -105,6 +109,8 @@ _GEMINI_PROMPT = """\
 - Якщо ПДВ є — invoice_amount = сума з ПДВ (Всього із ПДВ)
 - partner_name — постачальник або орендодавець, buyer_name — покупець або орендар
 - Видали юридичну форму з імен: "ФОП", "Фізична особа-підприємець", "ТОВ" тощо
+- quantity, unit, invoice_line_name — НІКОЛИ не повертай null якщо вони є на зображенні. \
+Уважно дивись на табличну частину рахунку (стовпці: №, Товари/послуги, Кількість, Ціна, Сума).
 - Якщо не можеш розпізнати поле — постав null
 
 Поверни ТІЛЬКИ валідний JSON (масив об'єктів якщо на зображенні кілька рахунків, або один об'єкт якщо один).
@@ -746,6 +752,45 @@ def parse_single_invoice(text: str) -> dict:
             item["invoice_line_name"] = svc_name
             break
 
+    # Fallback: шукаємо назву послуги після заголовку таблиці
+    if not item["invoice_line_name"]:
+        table_header_m = re.search(
+            r"(?:Товари|Найменування|Послуги).*?(?:Кількість|К-сть|Ціна)",
+            text, re.IGNORECASE | re.DOTALL,
+        )
+        if table_header_m:
+            after_header = text[table_header_m.end():]
+            for line in after_header.split("\n"):
+                line = line.strip()
+                if not line or re.match(r"^[\d\s.,|:_\-]+$", line):
+                    continue
+                # Фільтруємо заголовки стовпців та сміття OCR
+                if re.match(
+                    r"^(?:Ціна|Сума|ПДВ|без|Од\.|Разом|Всього|Кількість|К-сть|,|\-)",
+                    line, re.IGNORECASE,
+                ):
+                    continue
+                # Рядок не повинен складатися лише з фрагментів заголовків таблиці
+                _header_words = {"ціна", "сума", "пдв", "без", "кількість", "од", "ум", "оса"}
+                words = set(re.findall(r"[а-яіїєґ]+", line.lower()))
+                if words and words.issubset(_header_words):
+                    continue
+                # Фільтруємо суму прописом та службові рядки
+                if re.search(
+                    r"(?:тисяч|гривень|копійок|сімсот|двісті|"
+                    r"виписав|підпис|директор|бухгалтер|печатка|"
+                    r"найменувань|на суму|оплата цього)",
+                    line, re.IGNORECASE,
+                ):
+                    continue
+                if re.search(r"[А-ЯІЇЄҐа-яіїєґ]{3,}", line):
+                    svc_name = re.sub(r"^\d+[.\s]*", "", line)
+                    svc_name = re.sub(r"\s+", " ", svc_name).strip()
+                    # Мінімум 10 символів і хоча б 2 слова — щоб відфільтрувати сміття
+                    if len(svc_name) > 10 and " " in svc_name:
+                        item["invoice_line_name"] = svc_name
+                        break
+
     # --- 7. Суми ---
     razom_m = re.search(r"Разом\s*:?\s*(.+?)$", text, re.MULTILINE)
     vat_m = re.search(r"Сума\s+ПДВ\s*:?\s*(.+?)$", text, re.MULTILINE)
@@ -803,31 +848,62 @@ def parse_single_invoice(text: str) -> dict:
             item["needs_review"] = True
 
     # --- 8. Кількість та одиниця ---
-    # Спершу шукаємо число + одиниця поруч
-    _units_re = r"(м2|м²|м\.кв|кв\.м|шт|послуга|послуг)"
+    # Одиниці виміру: слово має бути повним (не початок іншого слова)
+    _units_re = r"(м2|м²|м\.кв|кв\.м|шт\.?|послуга|послуг|грн|год|кг|компл|рул|уп)(?:\b|[.\s,;)])"
+
+    # Спершу шукаємо число + одиниця поруч (470 м2, 1 шт)
     qty_m = re.search(
         r"(\d+[,.]?\d*)\s*(?:[|])?\s*" + _units_re,
         text_lower,
     )
     if qty_m:
         item["quantity"] = qty_m.group(1).replace(",", ".")
-        unit = qty_m.group(2)
-        if unit in ("м.кв", "кв.м"):
+        unit = qty_m.group(2).rstrip(".")
+        if unit in ("м.кв", "кв.м", "м2", "м²"):
             unit = "м2"
         elif unit.startswith("послуг"):
             unit = "послуга"
         item["unit"] = unit
 
-    # Fallback: одиниця окремо від числа (табличний формат з пробілами)
-    if not item["unit"]:
-        unit_m = re.search(r"\b" + _units_re + r"\b", text_lower)
-        if unit_m:
-            unit = unit_m.group(1)
-            if unit in ("м.кв", "кв.м"):
-                unit = "м2"
-            elif unit.startswith("послуг"):
-                unit = "послуга"
-            item["unit"] = unit
+    # Fallback: шукаємо кількість + одиницю в рядку таблиці (після номенклатури)
+    # Працює тільки якщо знайдено назву послуги і текст після неї містить число+одиницю
+    if not item["quantity"] and item["invoice_line_name"]:
+        svc = item["invoice_line_name"]
+        svc_idx = text_lower.find(svc.lower()[:15])
+        if svc_idx >= 0:
+            after_svc = text_lower[svc_idx:]
+            qty_unit_m = re.search(
+                r"(\d+[,.]?\d*)\s*(?:" + _units_re + r")", after_svc,
+            )
+            if qty_unit_m:
+                raw_qty = qty_unit_m.group(1).replace(",", ".")
+                try:
+                    qty_val = float(raw_qty)
+                    if 0.01 <= qty_val <= 99999:
+                        item["quantity"] = raw_qty
+                        unit = qty_unit_m.group(2)
+                        if unit in ("м.кв", "кв.м", "м2", "м²"):
+                            unit = "м2"
+                        elif unit.startswith("послуг"):
+                            unit = "послуга"
+                        item["unit"] = unit
+                except ValueError:
+                    pass
+
+    # Fallback: одиниця окремо — шукаємо тільки поруч зі знайденою кількістю
+    if not item["unit"] and item["quantity"]:
+        qty_str = item["quantity"]
+        qty_idx = text_lower.find(qty_str)
+        if qty_idx >= 0:
+            vicinity = text_lower[max(0, qty_idx - 10):qty_idx + len(qty_str) + 20]
+            unit_m = re.search(_units_re, vicinity)
+            if unit_m:
+                unit = unit_m.group(1).rstrip(".")
+                if unit in ("м.кв", "кв.м", "м2", "м²"):
+                    unit = "м2"
+                elif unit.startswith("послуг"):
+                    unit = "послуга"
+                item["unit"] = unit
 
     # Якщо є ціна за одиницю і загальна сума — розрахувати кількість
     if not item["quantity"] and item["invoice_amount"] and item["invoice_line_name"]:
