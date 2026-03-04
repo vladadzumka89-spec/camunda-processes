@@ -4,7 +4,12 @@
       "Bash(git rm:*)",
       "Bash(git push:*)",
       "Bash(git pull:*)",
-      "Bash(git revert:*)"
+      "Bash(git revert:*)",
+      "Bash(git checkout --theirs \"bpmn/БП оплати рахунків/test-invoice-extractor.bpmn\" 2>/dev/null; git checkout --ours \"bpmn/БП оплати рахунків/test-invoice-extractor.bpmn\" 2>/dev/null; head -5 \"bpmn/БП оплати рахунків/test-invoice-extractor.bpmn\")",
+      "Bash(git checkout --theirs \"bpmn/БП оплати рахунків/test-invoice-extractor.bpmn\" && head -6 \"bpmn/БП оплати рахунків/test-invoice-extractor.bpmn\")",
+      "Bash(git add \"bpmn/БП оплати рахунків/test-invoice-extractor.bpmn\" && git rebase --continue)",
+      "Bash(GIT_EDITOR=true git rebase --continue)",
+      "Bash(git add -A && GIT_EDITOR=true git rebase --continue)"
     ]
   }
 }
