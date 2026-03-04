@@ -11,11 +11,15 @@
       <bpmn:lane id="Lane_Manager" name="Керівник (ескалація)">
         <bpmn:flowNodeRef>UT_esc_review</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Event_1hxu86j</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_esc_add_file</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_esc_add_file</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Odoo" name="Система (Odoo авто)">
         <bpmn:flowNodeRef>ST_create_main</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>ST_rem_review</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_rem_review</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_rem_add_file</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_rem_add_file</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Camunda" name="Система (Camunda)">
         <bpmn:flowNodeRef>ST_ocr_extract</bpmn:flowNodeRef>
@@ -28,7 +32,6 @@
         <bpmn:flowNodeRef>UT_add_file</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>UT_review_items</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_main</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>BE_rem_review</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>BE_ded_review</bpmn:flowNodeRef>
       </bpmn:lane>
     </bpmn:laneSet>
@@ -104,10 +107,60 @@
     <bpmn:sequenceFlow id="Flow_rem_review_end" sourceRef="ST_rem_review" targetRef="End_rem_review" />
     <bpmn:sequenceFlow id="Flow_ded_review" sourceRef="BE_ded_review" targetRef="UT_esc_review" />
     <bpmn:sequenceFlow id="Flow_ca_to_end" sourceRef="CA_per_invoice" targetRef="End_main" />
-    <bpmn:intermediateCatchEvent id="BE_rem_review" name="Нагадування">
+    <bpmn:boundaryEvent id="BE_rem_add_file" name="Нагадування" cancelActivity="false" attachedToRef="UT_add_file">
+      <bpmn:outgoing>Flow_rem_add_file</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_rem_add_file">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT4H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="BE_ded_add_file" name="Дедлайн" cancelActivity="false" attachedToRef="UT_add_file">
+      <bpmn:outgoing>Flow_ded_add_file</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_ded_add_file">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="ST_rem_add_file" name="Нагадування: завантажити файл">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;⚠️ НАГАДУВАННЯ: Завантажити файл рахунку&#34;, description: &#34;Бухгалтер ще не завантажив файл з рахунками. Будь ласка, завантажте PDF/JPG/PNG/XLS файл.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_add_file</bpmn:incoming>
+      <bpmn:outgoing>Flow_rem_add_file_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_rem_add_file">
+      <bpmn:incoming>Flow_rem_add_file_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="UT_esc_add_file" name="🔴 ЕСКАЛАЦІЯ: Файл рахунку не завантажено">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;🔴 ЕСКАЛАЦІЯ: Файл рахунку не завантажено&#34;, description: &#34;Бухгалтер не завантажив файл з рахунками протягом 3 днів. Потрібне втручання керівника.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_add_file</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_add_file_end</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_esc_add_file">
+      <bpmn:incoming>Flow_esc_add_file_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_rem_add_file" sourceRef="BE_rem_add_file" targetRef="ST_rem_add_file" />
+    <bpmn:sequenceFlow id="Flow_rem_add_file_end" sourceRef="ST_rem_add_file" targetRef="End_rem_add_file" />
+    <bpmn:sequenceFlow id="Flow_ded_add_file" sourceRef="BE_ded_add_file" targetRef="UT_esc_add_file" />
+    <bpmn:sequenceFlow id="Flow_esc_add_file_end" sourceRef="UT_esc_add_file" targetRef="End_esc_add_file" />
+    <bpmn:boundaryEvent id="BE_rem_review" name="Нагадування" cancelActivity="false" attachedToRef="UT_review_items">
       <bpmn:outgoing>Flow_rem_review</bpmn:outgoing>
-      <bpmn:timerEventDefinition id="TimerEventDefinition_0h1pipf" />
-    </bpmn:intermediateCatchEvent>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_0h1pipf">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT4H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
     <bpmn:serviceTask id="ST_rem_review" name="Нагадування: перевірити рахунки">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
@@ -344,6 +397,48 @@
       <bpmndi:BPMNEdge id="Flow_1jlqc82_di" bpmnElement="Flow_1jlqc82">
         <di:waypoint x="1050" y="625" />
         <di:waypoint x="1102" y="625" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="BE_rem_add_file_di" bpmnElement="BE_rem_add_file">
+        <dc:Bounds x="532" y="187" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="517" y="228" width="66" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_add_file_di" bpmnElement="BE_ded_add_file">
+        <dc:Bounds x="617" y="187" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="613" y="228" width="44" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_rem_add_file_di" bpmnElement="ST_rem_add_file">
+        <dc:Bounds x="480" y="455" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_rem_add_file_di" bpmnElement="End_rem_add_file">
+        <dc:Bounds x="617" y="477" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_esc_add_file_di" bpmnElement="UT_esc_add_file">
+        <dc:Bounds x="530" y="585" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_esc_add_file_di" bpmnElement="End_esc_add_file">
+        <dc:Bounds x="682" y="607" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_rem_add_file_di" bpmnElement="Flow_rem_add_file">
+        <di:waypoint x="540" y="220" />
+        <di:waypoint x="540" y="455" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_rem_add_file_end_di" bpmnElement="Flow_rem_add_file_end">
+        <di:waypoint x="580" y="495" />
+        <di:waypoint x="617" y="495" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ded_add_file_di" bpmnElement="Flow_ded_add_file">
+        <di:waypoint x="645" y="220" />
+        <di:waypoint x="645" y="585" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_add_file_end_di" bpmnElement="Flow_esc_add_file_end">
+        <di:waypoint x="630" y="625" />
+        <di:waypoint x="682" y="625" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
