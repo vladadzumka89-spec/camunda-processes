@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_test_invoice"
+                  targetNamespace="http://tut.ua/bpmn/test-invoice"
+                  exporter="Claude Code"
+                  exporterVersion="1.0">
+
+  <bpmn:process id="Process_test_invoice" name="Тест розпізнавання рахунку" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
+
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_system" name="Система (автоматично)">
+        <bpmn:flowNodeRef>Start_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_extract</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_recognized</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_success</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_not_recognized</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- ── START ──────────────────────────────────────────────── -->
+    <bpmn:startEvent id="Start_1" name="Старт">
+      <bpmn:outgoing>Flow_to_extract</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ── EXTRACT INVOICE ────────────────────────────────────── -->
+    <bpmn:serviceTask id="ST_extract" name="Розпізнати рахунок">
+      <bpmn:documentation>Викликає invoice-data-extractor воркер.
+Вхід: x_studio_camunda_invoice_file (base64), file_extension (pdf/png/jpg).
+Вихід: invoice_items, recognized, total_invoices, total_amount.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="invoice-data-extractor" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_extract</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_gw</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── RECOGNIZED? ────────────────────────────────────────── -->
+    <bpmn:exclusiveGateway id="GW_recognized" name="Розпізнано?" default="Flow_not_recognized">
+      <bpmn:incoming>Flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>Flow_recognized</bpmn:outgoing>
+      <bpmn:outgoing>Flow_not_recognized</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ── END: SUCCESS ───────────────────────────────────────── -->
+    <bpmn:endEvent id="End_success" name="Успіх">
+      <bpmn:incoming>Flow_recognized</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── END: NOT RECOGNIZED ────────────────────────────────── -->
+    <bpmn:endEvent id="End_not_recognized" name="Не розпізнано">
+      <bpmn:incoming>Flow_not_recognized</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── SEQUENCE FLOWS ─────────────────────────────────────── -->
+    <bpmn:sequenceFlow id="Flow_to_extract" sourceRef="Start_1" targetRef="ST_extract" />
+    <bpmn:sequenceFlow id="Flow_to_gw" sourceRef="ST_extract" targetRef="GW_recognized" />
+    <bpmn:sequenceFlow id="Flow_recognized" name="Так" sourceRef="GW_recognized" targetRef="End_success">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= recognized = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_not_recognized" name="Ні" sourceRef="GW_recognized" targetRef="End_not_recognized" />
+
+  </bpmn:process>
+
+  <!-- ══════════════════════════════════════════════════════════
+       DIAGRAM (BPMNDiagram)
+       ══════════════════════════════════════════════════════════ -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_test_invoice">
+
+      <!-- Lane -->
+      <bpmndi:BPMNShape id="Lane_system_di" bpmnElement="Lane_system" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="750" height="250" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Start -->
+      <bpmndi:BPMNShape id="Start_1_di" bpmnElement="Start_1">
+        <dc:Bounds x="222" y="192" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="225" y="235" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Service Task: Extract -->
+      <bpmndi:BPMNShape id="ST_extract_di" bpmnElement="ST_extract">
+        <dc:Bounds x="320" y="170" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- XOR Gateway -->
+      <bpmndi:BPMNShape id="GW_recognized_di" bpmnElement="GW_recognized" isMarkerVisible="true">
+        <dc:Bounds x="485" y="185" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="479" y="161" width="62" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- End: Success -->
+      <bpmndi:BPMNShape id="End_success_di" bpmnElement="End_success">
+        <dc:Bounds x="612" y="142" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="613" y="185" width="34" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- End: Not Recognized -->
+      <bpmndi:BPMNShape id="End_not_recognized_di" bpmnElement="End_not_recognized">
+        <dc:Bounds x="612" y="242" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="595" y="285" width="71" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Flows -->
+      <bpmndi:BPMNEdge id="Flow_to_extract_di" bpmnElement="Flow_to_extract">
+        <di:waypoint x="258" y="210" />
+        <di:waypoint x="320" y="210" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_to_gw_di" bpmnElement="Flow_to_gw">
+        <di:waypoint x="420" y="210" />
+        <di:waypoint x="485" y="210" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_recognized_di" bpmnElement="Flow_recognized">
+        <di:waypoint x="510" y="185" />
+        <di:waypoint x="510" y="160" />
+        <di:waypoint x="612" y="160" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="545" y="142" width="19" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_not_recognized_di" bpmnElement="Flow_not_recognized">
+        <di:waypoint x="510" y="235" />
+        <di:waypoint x="510" y="260" />
+        <di:waypoint x="612" y="260" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="545" y="242" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>
