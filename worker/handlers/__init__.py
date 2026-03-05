@@ -6,6 +6,7 @@ from pyzeebe import ZeebeWorker
 
 from ..config import AppConfig
 from ..github_client import GitHubClient
+from ..odoo_client import OdooClient
 from ..ssh import AsyncSSHClient
 from .audit import register_audit_handlers
 from .clickbot import register_clickbot_handlers
@@ -13,6 +14,7 @@ from .deploy import register_deploy_handlers
 from ..http_request_smart import register_http_smart_handlers
 from .github import register_github_handlers
 from .notify import register_notify_handlers
+from .ocr import register_ocr_handlers
 from .sync import register_sync_handlers
 
 
@@ -21,6 +23,7 @@ def register_all_handlers(
     config: AppConfig,
     ssh: AsyncSSHClient,
     github: GitHubClient,
+    odoo: OdooClient,
 ) -> None:
     """Register all task handlers with the Zeebe worker.
 
@@ -35,9 +38,10 @@ def register_all_handlers(
                      git-commit-push, sync-code-to-demo, github-pr-ready
         Audit (1):   audit-analysis
         Clickbot (1): clickbot-test
-        Notify (1):   render-sync-html
+        Notify (2):   send-notification, create-odoo-task
+        OCR (1):      invoice-data-extractor
         HTTP Smart (1): http-request-smart
-    Total: 27 task types
+    Total: 29 task types
     """
     register_http_smart_handlers(worker, config)
     register_deploy_handlers(worker, config, ssh)
@@ -45,4 +49,5 @@ def register_all_handlers(
     register_sync_handlers(worker, config, ssh, github)
     register_audit_handlers(worker, config, ssh)
     register_clickbot_handlers(worker, config, ssh)
-    register_notify_handlers(worker, config)
+    register_notify_handlers(worker, config, odoo)
+    register_ocr_handlers(worker, config)

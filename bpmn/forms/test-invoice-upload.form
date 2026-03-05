@@ -1,0 +1,63 @@
+{
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.8.0",
+  "exporter": {
+    "name": "Claude Code",
+    "version": "1.0.0"
+  },
+  "schemaVersion": 16,
+  "id": "test-invoice-upload",
+  "components": [
+    {
+      "label": "URL файлу рахунку",
+      "type": "textfield",
+      "layout": {
+        "row": "Row_1"
+      },
+      "id": "Field_invoice_file_url",
+      "key": "invoice_file_url",
+      "description": "Вставте пряме посилання на файл рахунку (PDF, PNG, JPG, XLSX)",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Тип файлу",
+      "type": "select",
+      "layout": {
+        "row": "Row_2"
+      },
+      "id": "Field_file_extension",
+      "key": "file_extension",
+      "description": "Оберіть формат завантаженого файлу",
+      "defaultValue": "pdf",
+      "validate": {
+        "required": true
+      },
+      "valuesExpression": null,
+      "values": [
+        {
+          "label": "PDF",
+          "value": "pdf"
+        },
+        {
+          "label": "PNG",
+          "value": "png"
+        },
+        {
+          "label": "JPG",
+          "value": "jpg"
+        },
+        {
+          "label": "XLSX",
+          "value": "xlsx"
+        },
+        {
+          "label": "XLS",
+          "value": "xls"
+        }
+      ]
+    }
+  ],
+  "type": "default"
+}

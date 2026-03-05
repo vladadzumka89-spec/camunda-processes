@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_test_invoice"
+                  targetNamespace="http://tut.ua/bpmn/test-invoice"
+                  exporter="Claude Code"
+                  exporterVersion="1.0">
+
+  <bpmn:process id="Process_test_invoice" name="Тест розпізнавання рахунку" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="2.0" />
+    </bpmn:extensionElements>
+
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_user" name="Користувач">
+        <bpmn:flowNodeRef>Start_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_upload</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_system" name="Система (автоматично)">
+        <bpmn:flowNodeRef>ST_extract</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_recognized</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_success</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_not_recognized</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- ── START ──────────────────────────────────────────────── -->
+    <bpmn:startEvent id="Start_1" name="Старт">
+      <bpmn:outgoing>Flow_to_upload</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ── USER TASK: Upload file URL ────────────────────────── -->
+    <bpmn:userTask id="UT_upload" name="Завантажити файл рахунку">
+      <bpmn:documentation>Користувач вставляє пряме посилання (URL) на файл рахунку та обирає тип файлу.
+Форма відображається у Camunda Tasklist UI.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:formDefinition formId="test-invoice-upload" />
+        <zeebe:ioMapping>
+          <zeebe:output source="= invoice_file_url" target="x_studio_camunda_invoice_file" />
+          <zeebe:output source="= file_extension" target="file_extension" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_upload</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_extract</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ── EXTRACT INVOICE ────────────────────────────────────── -->
+    <bpmn:serviceTask id="ST_extract" name="Розпізнати рахунок">
+      <bpmn:documentation>Викликає invoice-data-extractor воркер.
+Вхід: x_studio_camunda_invoice_file (URL або base64), file_extension (pdf/png/jpg).
+Вихід: invoice_items, recognized, total_invoices, total_amount.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="invoice-data-extractor" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_extract</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_gw</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── RECOGNIZED? ────────────────────────────────────────── -->
+    <bpmn:exclusiveGateway id="GW_recognized" name="Розпізнано?" default="Flow_not_recognized">
+      <bpmn:incoming>Flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>Flow_recognized</bpmn:outgoing>
+      <bpmn:outgoing>Flow_not_recognized</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ── END: SUCCESS ───────────────────────────────────────── -->
+    <bpmn:endEvent id="End_success" name="Успіх">
+      <bpmn:incoming>Flow_recognized</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── END: NOT RECOGNIZED ────────────────────────────────── -->
+    <bpmn:endEvent id="End_not_recognized" name="Не розпізнано">
+      <bpmn:incoming>Flow_not_recognized</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── SEQUENCE FLOWS ─────────────────────────────────────── -->
+    <bpmn:sequenceFlow id="Flow_to_upload" sourceRef="Start_1" targetRef="UT_upload" />
+    <bpmn:sequenceFlow id="Flow_to_extract" sourceRef="UT_upload" targetRef="ST_extract" />
+    <bpmn:sequenceFlow id="Flow_to_gw" sourceRef="ST_extract" targetRef="GW_recognized" />
+    <bpmn:sequenceFlow id="Flow_recognized" name="Так" sourceRef="GW_recognized" targetRef="End_success">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= recognized = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_not_recognized" name="Ні" sourceRef="GW_recognized" targetRef="End_not_recognized" />
+
+  </bpmn:process>
+
+  <!-- ══════════════════════════════════════════════════════════
+       DIAGRAM (BPMNDiagram)
+       ══════════════════════════════════════════════════════════ -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_test_invoice">
+
+      <!-- Lane: Користувач -->
+      <bpmndi:BPMNShape id="Lane_user_di" bpmnElement="Lane_user" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="900" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Lane: Система -->
+      <bpmndi:BPMNShape id="Lane_system_di" bpmnElement="Lane_system" isHorizontal="true">
+        <dc:Bounds x="160" y="280" width="900" height="250" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Start -->
+      <bpmndi:BPMNShape id="Start_1_di" bpmnElement="Start_1">
+        <dc:Bounds x="222" y="167" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="225" y="210" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- User Task: Upload -->
+      <bpmndi:BPMNShape id="UT_upload_di" bpmnElement="UT_upload">
+        <dc:Bounds x="320" y="145" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Service Task: Extract -->
+      <bpmndi:BPMNShape id="ST_extract_di" bpmnElement="ST_extract">
+        <dc:Bounds x="320" y="370" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- XOR Gateway -->
+      <bpmndi:BPMNShape id="GW_recognized_di" bpmnElement="GW_recognized" isMarkerVisible="true">
+        <dc:Bounds x="485" y="385" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="479" y="361" width="62" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- End: Success -->
+      <bpmndi:BPMNShape id="End_success_di" bpmnElement="End_success">
+        <dc:Bounds x="612" y="342" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="613" y="385" width="34" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- End: Not Recognized -->
+      <bpmndi:BPMNShape id="End_not_recognized_di" bpmnElement="End_not_recognized">
+        <dc:Bounds x="612" y="442" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="595" y="485" width="71" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Flows -->
+      <bpmndi:BPMNEdge id="Flow_to_upload_di" bpmnElement="Flow_to_upload">
+        <di:waypoint x="258" y="185" />
+        <di:waypoint x="320" y="185" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_to_extract_di" bpmnElement="Flow_to_extract">
+        <di:waypoint x="370" y="225" />
+        <di:waypoint x="370" y="370" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_to_gw_di" bpmnElement="Flow_to_gw">
+        <di:waypoint x="420" y="410" />
+        <di:waypoint x="485" y="410" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_recognized_di" bpmnElement="Flow_recognized">
+        <di:waypoint x="510" y="385" />
+        <di:waypoint x="510" y="360" />
+        <di:waypoint x="612" y="360" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="545" y="342" width="19" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_not_recognized_di" bpmnElement="Flow_not_recognized">
+        <di:waypoint x="510" y="435" />
+        <di:waypoint x="510" y="460" />
+        <di:waypoint x="612" y="460" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="545" y="442" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>
