@@ -5,7 +5,7 @@
   </bpmn:collaboration>
   <bpmn:process id="Process_invoice_ocr" name="Оплата рахунків оренда та комунальні (OCR)" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="2.0" />
+      <zeebe:versionTag value="1.0" />
     </bpmn:extensionElements>
     <bpmn:laneSet id="LaneSet_1">
       <bpmn:lane id="Lane_Manager" name="Керівник (ескалація)">
