@@ -375,6 +375,59 @@ x_studio_camunda_
 - [ ] Call Activity замість copy-paste для блоків що повторюються
 - [ ] DMN для бізнес-правил (хто погоджує, яка сума, який формат)
 - [ ] `versionTag` оновлено якщо це нова версія процесу
+- [ ] DI координати проходять `python3 bpmn_layout_checker.py <file>` без помилок
+
+---
+
+## Правила візуальної розкладки BPMN (DI)
+
+### Константи розмірів елементів
+
+| Елемент | Ширина x Висота |
+|---------|-----------------|
+| Start/End Event | 36 x 36 |
+| Gateway | 50 x 50 |
+| Service/User Task | 100 x 80 |
+| Boundary Event | 36 x 36 |
+
+### Сітка розміщення
+
+- `POOL_X=80, POOL_Y=16`, `LANE_LABEL_WIDTH=30`, `LANE_X=110`
+- `H_SPACING=150` — мінімальний горизонтальний зазор між правим краєм і лівим наступного
+- `V_PADDING=30` — вертикальний відступ від краю lane до елемента
+- Ширина Pool = `max(2000, rightmost_element_right + H_SPACING + 30)`
+
+### Розрахунок висоти lane
+
+```
+lane_height = max(MIN_HEIGHT, rows * (TASK_H + 40) + 2 * V_PADDING)
+MIN_HEIGHT = 150 (лише events/gateways), 200 (tasks)
+```
+
+### Boundary events
+
+- Нагадування: `x = task_x + 10, y = task_y + task_h - 18` (дно task, лівіше)
+- Дедлайн: `x = task_x + 54, y = task_y + task_h - 18` (дно task, правіше)
+
+### Маршрутизація стрілок (edges)
+
+1. **Горизонтальна (та сама lane, той самий Y):** 2 waypoints — `(source_right, y)` → `(target_left, y)`
+2. **L-форма (та сама lane, різний Y):** 4 waypoints — горизонтально до середини, вертикально, горизонтально
+3. **Z-форма (крос-lane):** 4 waypoints — горизонтально, вертикально, горизонтально
+4. **Зворотній потік:** 6 waypoints — обхід через corridor вище pool (`y = POOL_Y - 20`)
+
+### Автоматична перевірка та виправлення
+
+```bash
+# Перевірити DI розкладку
+python3 bpmn_layout_checker.py <file.bpmn>
+
+# Автоматично переразкласти
+python3 bpmn_auto_layout.py <file.bpmn>                # overwrite
+python3 bpmn_auto_layout.py <file.bpmn> -o output.bpmn # в новий файл
+python3 bpmn_auto_layout.py <file.bpmn> --check        # тільки перевірка
+python3 bpmn_auto_layout.py <file.bpmn> --verbose      # деталі
+```
 
 ---
 
@@ -387,6 +440,7 @@ x_studio_camunda_
 ❌ Поля Odoo без `x_studio_camunda_` префіксу
 ❌ Повторюваний блок copy-paste в кількох процесах замість Call Activity
 ❌ `isExecutable="false"` у головному процесі
+❌ Стрілки з 2 waypoints по діагоналі через інші елементи
 
 ---
 

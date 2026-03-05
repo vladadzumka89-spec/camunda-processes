@@ -17,7 +17,7 @@
     DRG — Decision Requirement Graph
     =================================
 
-    Два рішення пов'язані залежністю:
+    П'ять рішень:
 
       ┌─────────────────────────────────────────────┐
       │  Класифікація комунальних послуг             │
@@ -32,6 +32,22 @@
       │  (invoice-detail-type)                       │
       │  Вхід: назва позиції + постачальник           │
       │  Вихід: тип рахунку (оренда / комунальні)    │
+      └──────────────────┬──────────────────────────┘
+                         │ informationRequirement
+                         ▼
+      ┌─────────────────────────────────────────────┐
+      │  Визначення погоджувача рахунку              │
+      │  (decision-1goz4yx)                          │
+      │  Вхід: тип рахунку + сума                    │
+      │  Вихід: роль погоджувача                     │
+      └─────────────────────────────────────────────┘
+
+    Автономне рішення:
+      ┌─────────────────────────────────────────────┐
+      │  Чи надає ТРЦ деталізацію комунальних?       │
+      │  (supplier-detailization)                    │
+      │  Вхід: назва постачальника                   │
+      │  Вихід: boolean (надає / не надає)           │
       └─────────────────────────────────────────────┘
 
     Як працює в BPMN:
@@ -686,6 +702,175 @@
   </decision>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
+       РІШЕННЯ 3: Визначення погоджувача рахунку
+       Залежить від Рішення 1 (invoice-detail-type → тип рахунку)
+       Вхід:  x_studio_camunda_invoice_type (з invoice-detail-type через DRG)
+              x_studio_camunda_invoice_amount (з процесу)
+       Вихід: approver_role → "manager" | "director" | "accountant"
+
+       ⚠️  ЗАПОВНІТЬ ТАБЛИЦЮ відповідно до реальних правил погодження!
+           Зараз використовуються значення "оренда"/"комунальні" з invoice-detail-type.
+       ═══════════════════════════════════════════════════════════════════════ -->
+
+  <decision id="decision-1goz4yx" name="Визначення погоджувача рахунку">
+
+    <informationRequirement id="ir_detail_to_approver">
+      <requiredDecision href="#invoice-detail-type" />
+    </informationRequirement>
+
+    <decisionTable id="decisionTable_approver" hitPolicy="FIRST">
+
+      <input id="input_invoice_type_approver" label="Тип рахунку">
+        <inputExpression id="inputExpr_invoice_type_approver" typeRef="string">
+          <text>x_studio_camunda_invoice_type</text>
+        </inputExpression>
+        <inputValues id="inputValues_invoice_type_approver">
+          <text>"оренда","комунальні"</text>
+        </inputValues>
+      </input>
+
+      <input id="input_invoice_amount" label="Сума рахунку (грн)">
+        <inputExpression id="inputExpr_invoice_amount" typeRef="double">
+          <text>x_studio_camunda_invoice_amount</text>
+        </inputExpression>
+      </input>
+
+      <output id="output_approver_role"
+              label="Роль погоджувача"
+              name="approver_role"
+              typeRef="string">
+        <outputValues id="outputValues_approver_role">
+          <text>"manager","director","accountant"</text>
+        </outputValues>
+      </output>
+
+      <!-- ⚠️ ЗАПОВНІТЬ правилами для "оренда"/"комунальні" замість "rent"/"utilities" -->
+
+      <!-- Оренда, велика сума (> 50 000 грн) — директор -->
+      <rule id="rule_approver_rent_large">
+        <description>Оренда понад 50 000 грн — погоджує директор</description>
+        <inputEntry id="ie_approver_rent_large_type"><text>"оренда"</text></inputEntry>
+        <inputEntry id="ie_approver_rent_large_amount"><text>&gt; 50000</text></inputEntry>
+        <outputEntry id="oe_approver_rent_large"><text>"director"</text></outputEntry>
+      </rule>
+
+      <!-- Оренда, невелика сума (≤ 50 000 грн) — менеджер -->
+      <rule id="rule_approver_rent_small">
+        <description>Оренда до 50 000 грн — погоджує менеджер</description>
+        <inputEntry id="ie_approver_rent_small_type"><text>"оренда"</text></inputEntry>
+        <inputEntry id="ie_approver_rent_small_amount"><text>&lt;= 50000</text></inputEntry>
+        <outputEntry id="oe_approver_rent_small"><text>"manager"</text></outputEntry>
+      </rule>
+
+      <!-- Комунальні платежі — бухгалтер -->
+      <rule id="rule_approver_utilities">
+        <description>Комунальні платежі — погоджує бухгалтер</description>
+        <inputEntry id="ie_approver_utilities_type"><text>"комунальні"</text></inputEntry>
+        <inputEntry id="ie_approver_utilities_amount"><text></text></inputEntry>
+        <outputEntry id="oe_approver_utilities"><text>"accountant"</text></outputEntry>
+      </rule>
+
+      <!-- За замовчуванням — менеджер -->
+      <rule id="rule_approver_default">
+        <description>Інший тип — погоджує менеджер</description>
+        <inputEntry id="ie_approver_default_type"><text></text></inputEntry>
+        <inputEntry id="ie_approver_default_amount"><text></text></inputEntry>
+        <outputEntry id="oe_approver_default"><text>"manager"</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       РІШЕННЯ 4: Чи надає ТРЦ деталізацію комунальних? (автономне)
+       Вхід:  x_studio_camunda_partner_name — назва постачальника
+       Вихід: x_studio_camunda_provides_detailization → true | false
+
+       ⚠️  ЗАПОВНІТЬ ТАБЛИЦЮ реальними назвами ТРЦ!
+           Зараз placeholder-и для ТРЦ що НЕ надають деталізацію.
+       ═══════════════════════════════════════════════════════════════════════ -->
+
+  <decision id="supplier-detailization" name="Чи надає ТРЦ деталізацію комунальних?">
+    <decisionTable id="dt_supplier_detail" hitPolicy="FIRST">
+
+      <!-- INPUT -->
+      <input id="input_sd_partner_name" label="Назва постачальника">
+        <inputExpression id="ie_sd_partner_name" typeRef="string">
+          <text>x_studio_camunda_partner_name</text>
+        </inputExpression>
+      </input>
+
+      <!-- OUTPUT -->
+      <output id="output_sd_provides_detail"
+              label="Надає деталізацію?"
+              name="x_studio_camunda_provides_detailization"
+              typeRef="boolean" />
+
+      <!-- ═════════════════════════════════════════════════════════════════
+           Постачальники, які НАДАЮТЬ деталізацію
+           ═════════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_sd_silpo">
+        <description>Сільпо фуд — деталізація комунальних в окремому документі</description>
+        <inputEntry id="ie_sd_silpo"><text>"Сільпо фуд"</text></inputEntry>
+        <outputEntry id="oe_sd_silpo"><text>true</text></outputEntry>
+      </rule>
+
+      <rule id="rule_sd_german">
+        <description>Герман Олена Василівна — надає деталізацію</description>
+        <inputEntry id="ie_sd_german"><text>"Герман Олена Василівна"</text></inputEntry>
+        <outputEntry id="oe_sd_german"><text>true</text></outputEntry>
+      </rule>
+
+      <rule id="rule_sd_lvivbudmax">
+        <description>ЛЬВІВБУДМАКС-ІНВЕСТ, ТЗОВ — надає деталізацію</description>
+        <inputEntry id="ie_sd_lvivbudmax"><text>"ЛЬВІВБУДМАКС-ІНВЕСТ, ТЗОВ"</text></inputEntry>
+        <outputEntry id="oe_sd_lvivbudmax"><text>true</text></outputEntry>
+      </rule>
+
+      <rule id="rule_sd_zhk">
+        <description>Житомирський меблевий комбінат — надає деталізацію</description>
+        <inputEntry id="ie_sd_zhk"><text>"Житомирський меблевий комбінат"</text></inputEntry>
+        <outputEntry id="oe_sd_zhk"><text>true</text></outputEntry>
+      </rule>
+
+      <rule id="rule_sd_kroppers">
+        <description>Кропперс груп — надає деталізацію</description>
+        <inputEntry id="ie_sd_kroppers"><text>"Кропперс груп"</text></inputEntry>
+        <outputEntry id="oe_sd_kroppers"><text>true</text></outputEntry>
+      </rule>
+
+      <!-- ═════════════════════════════════════════════════════════════════
+           Постачальники, які НЕ надають деталізацію
+           (placeholder — замінити реальними назвами ТРЦ)
+           ═════════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_sd_no_detail_1">
+        <description>Placeholder 1 — ТРЦ що не надає деталізацію (замінити реальною назвою)</description>
+        <inputEntry id="ie_sd_no_detail_1"><text>"PLACEHOLDER_ТРЦ_1"</text></inputEntry>
+        <outputEntry id="oe_sd_no_detail_1"><text>false</text></outputEntry>
+      </rule>
+
+      <rule id="rule_sd_no_detail_2">
+        <description>Placeholder 2 — ТРЦ що не надає деталізацію (замінити реальною назвою)</description>
+        <inputEntry id="ie_sd_no_detail_2"><text>"PLACEHOLDER_ТРЦ_2"</text></inputEntry>
+        <outputEntry id="oe_sd_no_detail_2"><text>false</text></outputEntry>
+      </rule>
+
+      <!-- ═════════════════════════════════════════════════════════════════
+           DEFAULT — невідомий постачальник, вважаємо що надає
+           ═════════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_sd_default">
+        <description>Невідомий постачальник — за замовчуванням надає деталізацію</description>
+        <inputEntry id="ie_sd_default"><text></text></inputEntry>
+        <outputEntry id="oe_sd_default"><text>true</text></outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
        DMNDI — Decision Requirement Graph (візуальне розташування)
        ═══════════════════════════════════════════════════════════════════════ -->
   <dmndi:DMNDI>
@@ -693,18 +878,34 @@
 
       <!-- Рішення 1 (нижній рівень): Деталізація рахунків -->
       <dmndi:DMNShape id="DMNShape_invoice_detail" dmnElementRef="invoice-detail-type">
-        <dc:Bounds x="260" y="300" width="200" height="80" />
+        <dc:Bounds x="260" y="80" width="200" height="80" />
       </dmndi:DMNShape>
 
-      <!-- Рішення 2 (верхній рівень): Класифікація витрат -->
+      <!-- Рішення 2 (середній рівень): Класифікація витрат -->
       <dmndi:DMNShape id="DMNShape_utility_expense" dmnElementRef="utility-expense-classification">
-        <dc:Bounds x="260" y="100" width="200" height="80" />
+        <dc:Bounds x="260" y="260" width="200" height="80" />
+      </dmndi:DMNShape>
+
+      <!-- Рішення 3 (верхній рівень): Визначення погоджувача -->
+      <dmndi:DMNShape id="DMNShape_approver" dmnElementRef="decision-1goz4yx">
+        <dc:Bounds x="260" y="440" width="200" height="80" />
+      </dmndi:DMNShape>
+
+      <!-- Рішення 4 (автономне, праворуч): Деталізація постачальників -->
+      <dmndi:DMNShape id="DMNShape_supplier_detail" dmnElementRef="supplier-detailization">
+        <dc:Bounds x="560" y="80" width="200" height="80" />
       </dmndi:DMNShape>
 
       <!-- Стрілка залежності: Класифікація витрат ← Деталізація рахунків -->
       <dmndi:DMNEdge id="DMNEdge_ir_invoice_type" dmnElementRef="ir_invoice_type">
-        <di:waypoint x="360" y="300" />
-        <di:waypoint x="360" y="180" />
+        <di:waypoint x="360" y="160" />
+        <di:waypoint x="360" y="260" />
+      </dmndi:DMNEdge>
+
+      <!-- Стрілка залежності: Погоджувач ← Деталізація рахунків -->
+      <dmndi:DMNEdge id="DMNEdge_ir_detail_to_approver" dmnElementRef="ir_detail_to_approver">
+        <di:waypoint x="360" y="160" />
+        <di:waypoint x="360" y="440" />
       </dmndi:DMNEdge>
 
     </dmndi:DMNDiagram>
