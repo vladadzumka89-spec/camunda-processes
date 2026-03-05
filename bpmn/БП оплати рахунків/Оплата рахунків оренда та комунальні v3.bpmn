@@ -5,7 +5,7 @@
   </bpmn:collaboration>
   <bpmn:process id="Process_invoice_ocr" name="Оплата рахунків оренда та комунальні (OCR)" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="1.0" />
+      <zeebe:versionTag value="2.0" />
     </bpmn:extensionElements>
     <bpmn:laneSet id="LaneSet_1">
       <bpmn:lane id="Lane_Manager" name="Керівник (ескалація)">
@@ -181,6 +181,7 @@
           <zeebe:input source="= item.invoice_type" target="x_studio_camunda_invoice_type" />
           <zeebe:input source="= x_studio_camunda_invoice_file" target="x_studio_camunda_invoice_file" />
           <zeebe:input source="= process_instance_key" target="parent_process_instance_key" />
+          <zeebe:output source="= x_studio_camunda_provides_detailization" target="x_studio_camunda_provides_detailization" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_review_to_ca</bpmn:incoming>
