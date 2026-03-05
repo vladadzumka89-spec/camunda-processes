@@ -12,8 +12,8 @@
         <bpmn:flowNodeRef>Start_1</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>ST_rem</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_rem</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>ST_pay</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_pay</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_buhgalter" name="Бухгалтер">
         <bpmn:flowNodeRef>UT_confirm</bpmn:flowNodeRef>
@@ -67,19 +67,6 @@
     <bpmn:endEvent id="End_rem">
       <bpmn:incoming>Flow_rem_end</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:serviceTask id="ST_pay" name="Створити платіжні доручення">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" />
-        <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Створити платіжні доручення за період &#34; + payment_period, description: &#34;Оплати ФОП за період &#34; + payment_period + &#34; підтверджено. Створюємо платіжні доручення.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_confirm_to_pay</bpmn:incoming>
-      <bpmn:outgoing>Flow_pay_to_end</bpmn:outgoing>
-    </bpmn:serviceTask>
     <bpmn:endEvent id="End_1" name="Оплати виконано">
       <bpmn:incoming>Flow_pay_to_end</bpmn:incoming>
     </bpmn:endEvent>
@@ -106,6 +93,19 @@
     <bpmn:sequenceFlow id="Flow_rem_end" sourceRef="ST_rem" targetRef="End_rem" />
     <bpmn:sequenceFlow id="Flow_ded" sourceRef="BE_ded" targetRef="UT_esc" />
     <bpmn:sequenceFlow id="Flow_esc_end" sourceRef="UT_esc" targetRef="End_esc" />
+    <bpmn:serviceTask id="ST_pay" name="Створити платіжні доручення">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Створити платіжні доручення за період &#34; + payment_period, description: &#34;Оплати ФОП за період &#34; + payment_period + &#34; підтверджено. Створюємо платіжні доручення.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_confirm_to_pay</bpmn:incoming>
+      <bpmn:outgoing>Flow_pay_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collab_1">
@@ -113,16 +113,16 @@
         <dc:Bounds x="105" y="80" width="1000" height="480" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_system_di" bpmnElement="Lane_system" isHorizontal="true">
-        <dc:Bounds x="135" y="80" width="970" height="150" />
+      <bpmndi:BPMNShape id="Lane_manager_di" bpmnElement="Lane_manager" isHorizontal="true">
+        <dc:Bounds x="135" y="400" width="970" height="160" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_buhgalter_di" bpmnElement="Lane_buhgalter" isHorizontal="true">
         <dc:Bounds x="135" y="230" width="970" height="170" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_manager_di" bpmnElement="Lane_manager" isHorizontal="true">
-        <dc:Bounds x="135" y="400" width="970" height="160" />
+      <bpmndi:BPMNShape id="Lane_system_di" bpmnElement="Lane_system" isHorizontal="true">
+        <dc:Bounds x="135" y="80" width="970" height="150" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Start_1_di" bpmnElement="Start_1">
@@ -142,10 +142,6 @@
       <bpmndi:BPMNShape id="End_rem_di" bpmnElement="End_rem">
         <dc:Bounds x="622" y="137" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_pay_di" bpmnElement="ST_pay">
-        <dc:Bounds x="700" y="115" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_1_di" bpmnElement="End_1">
         <dc:Bounds x="862" y="137" width="36" height="36" />
         <bpmndi:BPMNLabel>
@@ -159,16 +155,20 @@
       <bpmndi:BPMNShape id="End_esc_di" bpmnElement="End_esc">
         <dc:Bounds x="642" y="462" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="BE_rem_di" bpmnElement="BE_rem">
-        <dc:Bounds x="345" y="257" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="290" y="243" width="66" height="14" />
-        </bpmndi:BPMNLabel>
+      <bpmndi:BPMNShape id="ST_pay_di" bpmnElement="ST_pay">
+        <dc:Bounds x="700" y="110" width="100" height="80" />
+        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BE_ded_di" bpmnElement="BE_ded">
         <dc:Bounds x="395" y="337" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="391" y="378" width="44" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_rem_di" bpmnElement="BE_rem">
+        <dc:Bounds x="345" y="257" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="290" y="243" width="66" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_start_to_confirm_di" bpmnElement="Flow_start_to_confirm">
@@ -180,11 +180,13 @@
       <bpmndi:BPMNEdge id="Flow_confirm_to_pay_di" bpmnElement="Flow_confirm_to_pay">
         <di:waypoint x="430" y="315" />
         <di:waypoint x="630" y="315" />
-        <di:waypoint x="630" y="155" />
-        <di:waypoint x="700" y="155" />
+        <di:waypoint x="630" y="150" />
+        <di:waypoint x="700" y="150" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_pay_to_end_di" bpmnElement="Flow_pay_to_end">
-        <di:waypoint x="800" y="155" />
+        <di:waypoint x="800" y="150" />
+        <di:waypoint x="831" y="150" />
+        <di:waypoint x="831" y="155" />
         <di:waypoint x="862" y="155" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_rem_di" bpmnElement="Flow_rem">
