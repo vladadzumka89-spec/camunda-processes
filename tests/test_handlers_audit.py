@@ -60,7 +60,7 @@ def handlers(kozak_config: AppConfig, mock_ssh: AsyncMock) -> dict:
 
 @pytest.mark.asyncio
 async def test_audit_no_changed_modules(handlers: dict) -> None:
-    result = await handlers["audit-analysis"](changed_modules="")
+    result = await handlers["audit-analysis"](changed_modules="", workspace_dir="/tmp/ws")
     assert result["audit_conflicts"] == 0
     assert result["audit_critical"] == 0
     assert result["audit_warning"] == 0
@@ -87,7 +87,7 @@ async def test_audit_success_with_conflicts(handlers: dict, mock_ssh: AsyncMock)
         _make_ssh_result(stdout=audit_output),  # run script
         _make_ssh_result(),  # rm script
     ]
-    result = await handlers["audit-analysis"](changed_modules="hr, web")
+    result = await handlers["audit-analysis"](changed_modules="hr, web", workspace_dir="/tmp/ws")
     assert result["audit_conflicts"] == 2
     assert result["audit_critical"] == 1
     assert result["audit_warning"] == 1
@@ -102,7 +102,7 @@ async def test_audit_script_failure(handlers: dict, mock_ssh: AsyncMock) -> None
         _make_ssh_result(stdout="", exit_code=1),  # script failed
         _make_ssh_result(),  # rm script
     ]
-    result = await handlers["audit-analysis"](changed_modules="sale")
+    result = await handlers["audit-analysis"](changed_modules="sale", workspace_dir="/tmp/ws")
     assert result["audit_conflicts"] == 0
     assert result["audit_critical"] == 0
 
@@ -115,7 +115,7 @@ async def test_audit_invalid_json(handlers: dict, mock_ssh: AsyncMock) -> None:
         _make_ssh_result(stdout="not valid json{"),  # bad output
         _make_ssh_result(),  # rm script
     ]
-    result = await handlers["audit-analysis"](changed_modules="sale")
+    result = await handlers["audit-analysis"](changed_modules="sale", workspace_dir="/tmp/ws")
     assert result["audit_conflicts"] == 0
     assert "JSON parse error" in result["audit_report"]
 
@@ -128,7 +128,7 @@ async def test_audit_cleanup(handlers: dict, mock_ssh: AsyncMock) -> None:
         _make_ssh_result(stdout="", exit_code=1),  # script failed
         _make_ssh_result(),  # rm script
     ]
-    await handlers["audit-analysis"](changed_modules="sale")
+    await handlers["audit-analysis"](changed_modules="sale", workspace_dir="/tmp/ws")
     # Verify rm -f was called (last ssh.run call)
     last_call = mock_ssh.run.call_args_list[-1]
     assert "rm -f" in last_call[0][1]

@@ -145,7 +145,8 @@ curl -s -X POST "http://10.1.1.61:8088/v2/process-instances" \
     "variables": {
       "task_name": "TASK_NAME",
       "task_description": "TASK_DESCRIPTION",
-      "head_branch": "BRANCH_NAME"
+      "head_branch": "BRANCH_NAME",
+      "odoo_project_id": 237
     }
   }'
 ```

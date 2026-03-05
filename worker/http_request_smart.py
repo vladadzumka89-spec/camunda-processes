@@ -265,13 +265,17 @@ async def create_worker():
 
                 logger.info(f"Success. Status: {response.status_code}")
 
+                result = {"process_instance_key": job.process_instance_key}
+
                 if result_variable_name:
                     if is_task_listener:
                         logger.warning(f"Task Listener detected - skipping variable return to avoid loop")
                         return
 
                     logger.info(f"Returning data into variable: '{result_variable_name}'")
-                    return {result_variable_name: response_body}
+                    result[result_variable_name] = response_body
+
+                return result
 
             except httpx.RequestError as e:
                 logger.error(f"Network error: {e}")
@@ -369,13 +373,17 @@ def register_http_smart_handlers(worker, config=None):
 
                 logger.info(f"Success. Status: {response.status_code}")
 
+                result = {"process_instance_key": job.process_instance_key}
+
                 if result_variable_name:
                     if is_task_listener:
                         logger.warning(f"Task Listener detected - skipping variable return to avoid loop")
                         return
 
                     logger.info(f"Returning data into variable: '{result_variable_name}'")
-                    return {result_variable_name: response_body}
+                    result[result_variable_name] = response_body
+
+                return result
 
             except httpx.RequestError as e:
                 logger.error(f"Network error: {e}")

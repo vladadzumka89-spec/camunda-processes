@@ -151,12 +151,12 @@ Start Event
 | Input | Local variable name | Значення |
 |-------|-------------------|----------|
 | method | `method` | `= "POST"` |
-| url | `url` | `= "https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe"` |
+| url | `url` | `= "http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57"` |
 | headers | `headers` | `= {"Content-Type":"application/json"}` |
 | body | `body` | див. нижче |
 
 ```
-= {name: "<НАЗВА ПРОЦЕСУ>", create_process: true, _model: "project.project", _id: 252}
+= {name: "<НАЗВА ПРОЦЕСУ>", create_process: true, _id: 252}
 ```
 
 ---
@@ -194,7 +194,7 @@ Start Event
 | Input | Local variable name | Значення |
 |-------|-------------------|----------|
 | method | `method` | `= "POST"` |
-| url | `url` | `= "https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe"` |
+| url | `url` | `= "http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57"` |
 | headers | `headers` | `= {"Content-Type":"application/json"}` |
 | body | `body` | див. нижче |
 
@@ -202,8 +202,6 @@ Start Event
 = {
   name: "<назва підзадачі>" + emp.employee_name,
   description: "<опис задачі>",
-  _model: "project.project",
-  _id: 252,
   x_studio_camunda_user_ids: emp.user_id,
   process_instance_key: process_instance_key
 }
@@ -306,7 +304,8 @@ body: = {
 
 | Призначення | URL | Auth |
 |-------------|-----|------|
-| Webhook (створення задач) | `https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50` | — |
+| Webhook (створення задач, prod) | `https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50` | — |
+| Webhook (створення задач, dev) | `http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57` | — |
 | Server Action (дані, списки) | `https://o.tut.ua/api/server-action` | `X-API-Key: 632b5ed6-091f-48db-bd01-1e60aeb10bfc` |
 | Верифікація особи | `https://o.tut.ua/api/verify-person` | `X-API-Key` |
 

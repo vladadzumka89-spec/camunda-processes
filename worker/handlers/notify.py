@@ -1,4 +1,4 @@
-"""Notification handler — creates tasks in Odoo project."""
+"""Render handler — builds complex HTML for upstream-sync Odoo tasks."""
 
 import html
 import logging
@@ -7,7 +7,6 @@ from typing import Any
 from pyzeebe import Job, ZeebeWorker
 
 from ..config import AppConfig
-from ..odoo_client import OdooClient
 
 logger = logging.getLogger(__name__)
 
@@ -132,77 +131,12 @@ def _audit_to_html(md: str) -> str:
 def register_notify_handlers(
     worker: ZeebeWorker,
     config: AppConfig,
-    odoo: OdooClient,
 ) -> None:
-    """Register notification handler."""
+    """Register render-sync-html handler."""
 
-    @worker.task(task_type="send-notification", timeout_ms=30_000)
-    async def send_notification(
+    @worker.task(task_type="render-sync-html", timeout_ms=30_000)
+    async def render_sync_html(
         job: Job,
-        notification_type: str = "info",
-        message_body: str = "",
-        pr_url: str = "",
-        sync_branch: str = "",
-        task_name: str = "",
-        task_description: str = "",
-        process_instance_key: int = 0,
-        **kwargs: Any,
-    ) -> dict:
-        """Create a task in Odoo CI/CD project."""
-        # Extract date code from branch name for task identification
-        branch_code = sync_branch.split("upstream-", 1)[-1] if "upstream-" in sync_branch else ""
-        branch_suffix = f" {branch_code}" if branch_code else ""
-
-        # Use explicit variable from parent (via Call Activity input mapping)
-        # if available, otherwise fall back to job's own process instance key.
-        pik = process_instance_key or job.process_instance_key
-
-        titles = {
-            "staging_ready": "[deploy] Staging готовий до перевірки",
-            "deploy_failed": "[deploy] Деплой провалився",
-            "review_needed": "[review] Потрібна перевірка",
-            "sync_conflicts": "[upstream-sync] Перевірити конфлікти з custom модулями",
-            "sync_start": f"[upstream-sync{branch_suffix}] Upstream Sync | x_camunda:{pik}",
-            "feature_start": task_name or f"[feature] Нова задача | x_camunda:{pik}",
-            "clickbot_report": "[deploy] 🤖 Результати Clickbot тестів",
-            "deploy_error": "[deploy] ❌ Помилка деплою",
-            "sync_error": f"[upstream-sync{branch_suffix}] ❌ Помилка синхронізації",
-            "pipeline_error": "[pipeline] ❌ Помилка пайплайну",
-        }
-        name = titles.get(notification_type, f"[ci] {notification_type}")
-
-        # Only parent-type notifications create a process container
-        is_parent = notification_type in ("sync_start", "feature_start")
-
-        description = ""
-        if notification_type == "feature_start" and task_description:
-            description = task_description
-        else:
-            if sync_branch:
-                repo = config.github.repository
-                branch_url = f"https://github.com/{repo}/tree/{sync_branch}"
-                description += f'<p>🔗 <b>Гілка:</b> <a href="{branch_url}">{sync_branch}</a></p>'
-            if message_body:
-                description += f"<p>{message_body}</p>"
-            if pr_url:
-                description += f'<p>PR: <a href="{pr_url}">{pr_url}</a></p>'
-
-        task_id = odoo.create_task(
-            name=name,
-            description=description,
-            process_instance_key=job.process_instance_key,
-            element_instance_key=job.element_instance_key,
-            bpmn_process_id=job.bpmn_process_id,
-            create_process=is_parent,
-        )
-
-        logger.info("Created Odoo task #%d [%s] (parent=%s)", task_id, notification_type, is_parent)
-        return {"odoo_task_id": task_id}
-
-    @worker.task(task_type="create-odoo-task", timeout_ms=30_000)
-    async def create_odoo_task(
-        job: Job,
-        odoo_task_type: str = "",
         affected_custom_count: int = 0,
         impact_table: str = "",
         audit_report: str = "",
@@ -213,117 +147,93 @@ def register_notify_handlers(
         community_files: int = 0,
         enterprise_files: int = 0,
         current_version: str = "",
-        community_date: str = "",
         enterprise_date: str = "",
         pr_url: str = "",
-        pr_number: int = 0,
         sync_branch: str = "",
-        process_instance_key: int = 0,
         **kwargs: Any,
     ) -> dict:
-        """Create a blocking Odoo task and return its ID for message correlation.
+        """Render complex HTML for upstream-sync Odoo tasks.
 
-        Used with message catch events: process waits until Odoo task is closed,
-        then webhook publishes msg_odoo_task_done with correlation key = odoo_task_id.
+        Returns pre-built name+description for conflict and review tasks.
+        Does NOT create tasks in Odoo — only renders HTML.
         """
         modules_count = len(changed_modules.split(", ")) if changed_modules else 0
-
-        # Extract date code from branch name for task identification
-        # sync/upstream-20260225-111130 → 20260225-111130
         branch_code = sync_branch.split("upstream-", 1)[-1] if "upstream-" in sync_branch else sync_branch
         repo = config.github.repository
         branch_url = f"https://github.com/{repo}/tree/{sync_branch}" if sync_branch else ""
         branch_link = f'<p>🔗 <b>Гілка:</b> <a href="{branch_url}">{sync_branch}</a></p>' if branch_url else ""
 
-        task_configs = {
-            "resolve_conflicts": {
-                "name": f"[upstream-sync {branch_code}] Виправити конфлікти ({affected_custom_count} модулів)",
-                "description": (
-                    branch_link
-                    + f"<h3>Upstream Sync — {current_version} ({enterprise_date})</h3>"
-                    f"<p><b>Змінено файлів:</b> community {community_files}, enterprise {enterprise_files}</p>"
-                    f"<p><b>Audit:</b> {audit_conflicts} конфліктів "
-                    f'(<span style="color:red;font-weight:bold">{audit_critical} critical</span>, '
-                    f'<span style="color:orange">{audit_warning} warning</span>)</p>'
-                    f"<hr/>"
-                    f"<h4>Зачеплені custom модулі ({affected_custom_count})</h4>"
-                    + _impact_to_html(impact_table)
-                    + f"<hr/>"
-                    f"<h4>Audit — конфлікти з upstream</h4>"
-                    + _audit_to_html(audit_report)
-                    + f"<hr/>"
-                    f"<h4>Оновлені модулі ({modules_count})</h4>"
-                    f"<details><summary>Показати повний список</summary>"
-                    f"<p>{'<br/>'.join(html.escape(m.strip()) for m in changed_modules.split(',') if m.strip())}</p>"
-                    f"</details>"
-                    f"<hr/>"
-                    f"<p><b>Що потрібно зробити:</b></p>"
-                    f"<ol>"
-                    f'<li>Переглянути <b style="color:red">critical</b> конфлікти</li>'
-                    f"<li>Виправити зачеплені custom модулі (tut_*)</li>"
-                    f"<li>Закомітити виправлення в репозиторій</li>"
-                    f"<li>Закрити цю задачу — процес продовжить створення PR</li>"
-                    f"</ol>"
-                ),
-            },
-            "review_sync": {
-                "name": f"[upstream-sync {branch_code}] Переглянути аналіз оновлення",
-                "description": (
-                    branch_link
-                    + (f'<p>🔗 <b>PR:</b> <a href="{pr_url}">{pr_url}</a></p>' if pr_url else "")
-                    + f"<h3>Upstream Sync — {current_version} ({enterprise_date})</h3>"
-                    + f"<p><b>Змінено файлів:</b> community {community_files}, enterprise {enterprise_files}</p>"
-                    + (
-                        f"<p><b>Audit:</b> {audit_conflicts} конфліктів "
-                        f'(<span style="color:red;font-weight:bold">{audit_critical} critical</span>, '
-                        f'<span style="color:orange">{audit_warning} warning</span>)</p>'
-                        if audit_conflicts else "<p><b>Audit:</b> конфліктів не знайдено ✅</p>"
-                    )
-                    + f"<hr/>"
-                    f"<h4>Зачеплені custom модулі ({affected_custom_count})</h4>"
-                    + _impact_to_html(impact_table)
-                    + f"<hr/>"
-                    f"<h4>Audit — аналіз конфліктів з upstream</h4>"
-                    + _audit_to_html(audit_report)
-                    + f"<hr/>"
-                    f"<h4>Оновлені модулі ({modules_count})</h4>"
-                    f"<details><summary>Показати повний список</summary>"
-                    f"<p>{'<br/>'.join(html.escape(m.strip()) for m in changed_modules.split(',') if m.strip())}</p>"
-                    f"</details>"
-                    + f"<hr/>"
-                    f"<h4>Що потрібно перевірити</h4>"
-                    f"<ul>"
-                    f"<li>Які модулі оновились та чи всі потрібні</li>"
-                    f"<li>Impact на custom модулі (tut_*)</li>"
-                    f"<li>Результати audit — critical/warning конфлікти</li>"
-                    f"<li>Чи є нові/видалені модулі</li>"
-                    f"</ul>"
-                    + f"<p><b>Після перевірки закрийте цю задачу</b> — процес продовжить merge в staging та деплой.</p>"
-                ),
-            },
+        modules_html = "<br/>".join(
+            html.escape(m.strip()) for m in changed_modules.split(",") if m.strip()
+        )
+
+        conflict_task_name = f"[upstream-sync {branch_code}] Виправити конфлікти ({affected_custom_count} модулів)"
+        conflict_description = (
+            branch_link
+            + f"<h3>Upstream Sync — {current_version} ({enterprise_date})</h3>"
+            f"<p><b>Змінено файлів:</b> community {community_files}, enterprise {enterprise_files}</p>"
+            f"<p><b>Audit:</b> {audit_conflicts} конфліктів "
+            f'(<span style="color:red;font-weight:bold">{audit_critical} critical</span>, '
+            f'<span style="color:orange">{audit_warning} warning</span>)</p>'
+            f"<hr/>"
+            f"<h4>Зачеплені custom модулі ({affected_custom_count})</h4>"
+            + _impact_to_html(impact_table)
+            + f"<hr/>"
+            f"<h4>Audit — конфлікти з upstream</h4>"
+            + _audit_to_html(audit_report)
+            + f"<hr/>"
+            f"<h4>Оновлені модулі ({modules_count})</h4>"
+            f"<details><summary>Показати повний список</summary>"
+            f"<p>{modules_html}</p>"
+            f"</details>"
+            f"<hr/>"
+            f"<p><b>Що потрібно зробити:</b></p>"
+            f"<ol>"
+            f'<li>Переглянути <b style="color:red">critical</b> конфлікти</li>'
+            f"<li>Виправити зачеплені custom модулі (tut_*)</li>"
+            f"<li>Закомітити виправлення в репозиторій</li>"
+            f"<li>Закрити цю задачу — процес продовжить створення PR</li>"
+            f"</ol>"
+        )
+
+        review_task_name = f"[upstream-sync {branch_code}] Переглянути аналіз оновлення"
+        review_description = (
+            branch_link
+            + (f'<p>🔗 <b>PR:</b> <a href="{pr_url}">{pr_url}</a></p>' if pr_url else "")
+            + f"<h3>Upstream Sync — {current_version} ({enterprise_date})</h3>"
+            + f"<p><b>Змінено файлів:</b> community {community_files}, enterprise {enterprise_files}</p>"
+            + (
+                f"<p><b>Audit:</b> {audit_conflicts} конфліктів "
+                f'(<span style="color:red;font-weight:bold">{audit_critical} critical</span>, '
+                f'<span style="color:orange">{audit_warning} warning</span>)</p>'
+                if audit_conflicts else "<p><b>Audit:</b> конфліктів не знайдено ✅</p>"
+            )
+            + f"<hr/>"
+            f"<h4>Зачеплені custom модулі ({affected_custom_count})</h4>"
+            + _impact_to_html(impact_table)
+            + f"<hr/>"
+            f"<h4>Audit — аналіз конфліктів з upstream</h4>"
+            + _audit_to_html(audit_report)
+            + f"<hr/>"
+            f"<h4>Оновлені модулі ({modules_count})</h4>"
+            f"<details><summary>Показати повний список</summary>"
+            f"<p>{modules_html}</p>"
+            f"</details>"
+            + f"<hr/>"
+            f"<h4>Що потрібно перевірити</h4>"
+            f"<ul>"
+            f"<li>Які модулі оновились та чи всі потрібні</li>"
+            f"<li>Impact на custom модулі (tut_*)</li>"
+            f"<li>Результати audit — critical/warning конфлікти</li>"
+            f"<li>Чи є нові/видалені модулі</li>"
+            f"</ul>"
+            + f"<p><b>Після перевірки закрийте цю задачу</b> — процес продовжить merge в staging та деплой.</p>"
+        )
+
+        logger.info("Rendered sync HTML for branch %s", sync_branch)
+        return {
+            "conflict_task_name": conflict_task_name,
+            "conflict_description": conflict_description,
+            "review_task_name": review_task_name,
+            "review_description": review_description,
         }
-
-        cfg = task_configs.get(odoo_task_type, {
-            "name": f"[ci] {odoo_task_type}",
-            "description": f"<p>Task type: {odoo_task_type}</p>",
-        })
-
-        pik = process_instance_key or job.process_instance_key
-        task_id = odoo.create_task(
-            name=cfg["name"],
-            description=cfg["description"],
-            process_instance_key=pik,
-            element_instance_key=job.element_instance_key,
-            bpmn_process_id=job.bpmn_process_id,
-            create_process=False,
-        )
-
-        # Use process_instance_key as correlation key — Odoo webhook may not
-        # return the task ID, but process_instance_key is always available
-        # and stored on the Odoo task for callback matching.
-        correlation_id = str(task_id) if task_id else str(job.process_instance_key)
-        logger.info(
-            "Created blocking Odoo task #%d [%s] — correlation_id=%s",
-            task_id, odoo_task_type, correlation_id,
-        )
-        return {"odoo_task_id": correlation_id}

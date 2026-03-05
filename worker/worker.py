@@ -18,7 +18,6 @@ from .auth import ZeebeAuthConfig, create_channel, get_token_manager
 from .config import AppConfig
 from .github_client import GitHubClient
 from .handlers import register_all_handlers
-from .odoo_client import OdooClient
 from .ssh import AsyncSSHClient
 from .incident_janitor import (
     JANITOR_INTERVAL_SECONDS,
@@ -52,9 +51,11 @@ async def _exception_handler(exc: Exception, job: Job, job_controller: JobContro
             "Job %s [%s] exhausted retries — throwing BPMN Error: %s: %s",
             job.key, job.type, error_code, error_msg,
         )
+        variables = getattr(exc, "variables", None)
         await job_controller.set_error_status(
             message=error_msg,
             error_code=error_code,
+            variables=variables,
         )
     else:
         logger.warning(
@@ -108,9 +109,7 @@ async def create_worker(config: AppConfig) -> ZeebeWorker:
         token=config.github.token,
         deploy_pat=config.github.deploy_pat,
     )
-    odoo = OdooClient(config.odoo)
-
-    register_all_handlers(worker, config=config, ssh=ssh, github=github, odoo=odoo)
+    register_all_handlers(worker, config=config, ssh=ssh, github=github)
 
     # Wrap all registered handlers to track active jobs
     for task in worker.tasks:

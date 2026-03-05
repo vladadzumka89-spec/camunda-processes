@@ -6,7 +6,6 @@ instead of the live server repo, preventing interference with local changes.
 Each process instance gets unique directories to prevent concurrent retry conflicts.
 """
 
-from __future__ import annotations
 
 import ast
 import json
@@ -18,7 +17,7 @@ from zoneinfo import ZoneInfo
 from typing import Any
 
 import httpx
-from pyzeebe import ZeebeWorker
+from pyzeebe import Job, ZeebeWorker
 from ..config import AppConfig
 from ..github_client import GitHubClient
 from ..retry import retry
@@ -685,18 +684,19 @@ def register_sync_handlers(
 
     @worker.task(task_type="merge-feature-to-staging", timeout_ms=180_000)
     async def merge_feature_to_staging(
+        job: Job,
         feature_branch: str = "",
         server_host: str = "",
         repository: str = "",
         **kwargs: Any,
     ) -> dict:
-        """Merge feature branch into staging without -X theirs and push.
+        """Merge feature branch into staging with -X theirs and push.
 
-        Unlike merge-to-staging (which uses -X theirs for upstream sync),
-        this performs a regular merge so conflicts are detected and reported
-        back to the developer via BPMN error boundary event.
+        Uses -X theirs so the feature branch always wins on conflicts.
+        Staging is a temp environment synced nightly from main, so we
+        prioritize getting the feature code deployed for testing.
 
-        Raises RuntimeError on merge conflict (caught as BPMN error).
+        Raises RuntimeError only if merge fails for non-conflict reasons.
         """
         server = config.resolve_server(server_host or "staging")
         repo = repository or config.github.repository
@@ -720,24 +720,39 @@ def register_sync_handlers(
                 check=True, timeout=120,
             )
 
-            # Fetch feature branch
+            # Fetch feature branch and create local ref
             await ssh.run(
                 server,
-                f"cd {workspace} && git fetch origin {feature_branch}",
+                f"cd {workspace} && git fetch origin {feature_branch}:{feature_branch}",
                 check=True, timeout=60,
             )
 
-            # Merge feature into staging (no -X theirs — conflicts must be detected)
+            # Merge feature into staging with -X theirs (feature branch wins).
+            # Staging is a temporary test environment synced nightly from main,
+            # so we always want the feature code to land for testing.
             merge_result = await ssh.run(
                 server,
-                f"cd {workspace} && git merge origin/{feature_branch} --no-edit",
+                f"cd {workspace} && git merge {feature_branch} -X theirs --no-edit",
                 check=False, timeout=60,
             )
 
             if merge_result.exit_code != 0:
+                merge_output = (merge_result.stdout or "").strip()
+                merge_stderr = (merge_result.stderr or "").strip()
+                logger.warning(
+                    "Merge failed (exit %d).\nstdout: %s\nstderr: %s",
+                    merge_result.exit_code, merge_output, merge_stderr,
+                )
+
+                await ssh.run(
+                    server,
+                    f"cd {workspace} && git merge --abort",
+                    check=False, timeout=15,
+                )
+
                 raise RuntimeError(
-                    f"Merge conflict: cannot merge {feature_branch} into staging. "
-                    f"Please rebase your branch on main and resolve conflicts."
+                    f"Merge failed: cannot merge {feature_branch} into staging "
+                    f"even with -X theirs. Output: {merge_output or merge_stderr}"
                 )
 
             # Push merged staging
@@ -752,7 +767,10 @@ def register_sync_handlers(
             # Cleanup workspace
             await ssh.run(server, f"rm -rf {workspace}", check=False)
 
-        return {"staging_merged": True}
+        return {
+            "staging_merged": True,
+            "process_instance_key": job.process_instance_key,
+        }
 
     # ── github-pr-ready ────────────────────────────────────────
 
