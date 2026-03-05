@@ -44,7 +44,7 @@
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="=&#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
           <zeebe:input source="= {name: &#34;Оплата рахунків оренда та комунальні (OCR)&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 236, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
