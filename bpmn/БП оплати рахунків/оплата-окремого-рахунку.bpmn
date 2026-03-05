@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
   <bpmn:collaboration id="Collab_single">
     <bpmn:participant id="Pool_single" name="Оплата окремого рахунку" processRef="Process_single_invoice" />
@@ -94,10 +94,10 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;Рахунок №&quot; + x_studio_camunda_invoice_number + &quot; — &quot; + x_studio_camunda_partner_name + &quot; — &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн&quot;, create_process: true, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_invoice_number: x_studio_camunda_invoice_number, x_studio_camunda_invoice_date: x_studio_camunda_invoice_date, x_studio_camunda_invoice_line_name: x_studio_camunda_invoice_line_name, x_studio_camunda_supplier_code: x_studio_camunda_supplier_code, x_studio_camunda_contract: x_studio_camunda_contract, x_studio_camunda_buyer_name: x_studio_camunda_buyer_name, x_studio_camunda_quantity: x_studio_camunda_quantity, x_studio_camunda_unit: x_studio_camunda_unit}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Рахунок №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + x_studio_camunda_partner_name + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_invoice_number: x_studio_camunda_invoice_number, x_studio_camunda_invoice_date: x_studio_camunda_invoice_date, x_studio_camunda_invoice_line_name: x_studio_camunda_invoice_line_name, x_studio_camunda_supplier_code: x_studio_camunda_supplier_code, x_studio_camunda_contract: x_studio_camunda_contract, x_studio_camunda_buyer_name: x_studio_camunda_buyer_name, x_studio_camunda_quantity: x_studio_camunda_quantity, x_studio_camunda_unit: x_studio_camunda_unit}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_odoo_no_task</bpmn:incoming>
@@ -117,7 +117,6 @@
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_merge_to_classify</bpmn:incoming>
-      <bpmn:outgoing>Flow_classify_to_split</bpmn:outgoing>
     </bpmn:businessRuleTask>
     <bpmn:parallelGateway id="GW_main_split">
       <bpmn:incoming>Flow_not_communal</bpmn:incoming>
@@ -141,10 +140,10 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {action: &quot;add_to_payment_calendar&quot;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_payment_date: x_studio_camunda_payment_date, x_studio_camunda_invoice_type: x_studio_camunda_invoice_type, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {action: &#34;add_to_payment_calendar&#34;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_payment_date: x_studio_camunda_payment_date, x_studio_camunda_invoice_type: x_studio_camunda_invoice_type, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_tp_no</bpmn:incoming>
@@ -162,10 +161,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;Погодити рахунок від &quot; + x_studio_camunda_partner_name, description: &quot;Погодьте або відхиліть рахунок на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн від &quot; + x_studio_camunda_partner_name, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_approver_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Погодити рахунок від &#34; + x_studio_camunda_partner_name, description: &#34;Погодьте або відхиліть рахунок на суму &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн від &#34; + x_studio_camunda_partner_name, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_approver_user_id, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="= x_studio_camunda_approved" target="x_studio_camunda_approved" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -182,10 +181,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;Перевірка договору: &quot; + x_studio_camunda_partner_name, description: &quot;Перевірте відповідність рахунку умовам договору та погодьте або відхиліть&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_approver_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Перевірка договору: &#34; + x_studio_camunda_partner_name, description: &#34;Перевірте відповідність рахунку умовам договору та погодьте або відхиліть&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_approver_user_id, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="= x_studio_camunda_contract_approved" target="x_studio_camunda_contract_approved" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -206,10 +205,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;Рішення по рахунку: &quot; + x_studio_camunda_partner_name, description: &quot;Дедлайн наближається. Рахунок на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн. Підтвердьте оплату або відхиліть&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_yulia_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Рішення по рахунку: &#34; + x_studio_camunda_partner_name, description: &#34;Дедлайн наближається. Рахунок на суму &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн. Підтвердьте оплату або відхиліть&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_yulia_user_id, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="= x_studio_camunda_pay" target="x_studio_camunda_pay" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -225,10 +224,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;Ескалація: оплата рахунку &quot; + x_studio_camunda_partner_name, description: &quot;Юля не прийняла рішення вчасно. Рахунок &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн. Прийміть рішення щодо оплати&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Ескалація: оплата рахунку &#34; + x_studio_camunda_partner_name, description: &#34;Юля не прийняла рішення вчасно. Рахунок &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн. Прийміть рішення щодо оплати&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_yulia_timer_to_dasha</bpmn:incoming>
@@ -238,10 +237,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;Оплатити рахунок: &quot; + x_studio_camunda_partner_name, description: &quot;Виконайте оплату рахунку на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн. Підтвердьте після оплати&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Оплатити рахунок: &#34; + x_studio_camunda_partner_name, description: &#34;Виконайте оплату рахунку на суму &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн. Підтвердьте після оплати&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_timer_to_pay</bpmn:incoming>
@@ -310,10 +309,10 @@
     <bpmn:callActivity id="Task_nego_manual" name="Ведемо перемовини з ТРЦ">
       <bpmn:extensionElements>
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;Переговори з &quot; + x_studio_camunda_partner_name, description: &quot;Проведіть переговори щодо умов або зменшення суми рахунку&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Переговори з &#34; + x_studio_camunda_partner_name, description: &#34;Проведіть переговори щодо умов або зменшення суми рахунку&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="= x_studio_camunda_nego_outcome" target="x_studio_camunda_nego_outcome" />
         </zeebe:ioMapping>
         <zeebe:calledElement processId="Process_1ufnrfc" propagateAllChildVariables="false" />
@@ -325,10 +324,10 @@
     <bpmn:businessRuleTask id="Task_service_receipt" name="ДМН таблиця з статею витрат">
       <bpmn:extensionElements>
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {action: &quot;create_service_receipt&quot;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_invoice_type: x_studio_camunda_invoice_type, x_studio_camunda_invoice_file: x_studio_camunda_invoice_file, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {action: &#34;create_service_receipt&#34;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_invoice_type: x_studio_camunda_invoice_type, x_studio_camunda_invoice_file: x_studio_camunda_invoice_file, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
         <zeebe:calledDecision decisionId="utility-expense-classification" />
       </bpmn:extensionElements>
@@ -345,7 +344,6 @@
         <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P1D</bpmn:timeDuration>
       </bpmn:timerEventDefinition>
     </bpmn:boundaryEvent>
-    
     <bpmn:exclusiveGateway id="GW_is_communal" name="Тип комунальні?" default="Flow_not_communal">
       <bpmn:incoming>Flow_classify_to_communal_check</bpmn:incoming>
       <bpmn:outgoing>Flow_communal_yes</bpmn:outgoing>
@@ -370,10 +368,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;Запросити деталізацію комунальних у &quot; + x_studio_camunda_partner_name, description: &quot;Зверніться до ТРЦ та запросіть деталізацію комунальних послуг для рахунку на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Запросити деталізацію комунальних у &#34; + x_studio_camunda_partner_name, description: &#34;Зверніться до ТРЦ та запросіть деталізацію комунальних послуг для рахунку на суму &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="= x_studio_camunda_detailization_received" target="x_studio_camunda_detailization_received" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -390,10 +388,10 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;⚠️ НАГАДУВАННЯ: Запросити деталізацію у &quot; + x_studio_camunda_partner_name, description: &quot;Бухгалтер ще не отримав деталізацію комунальних від ТРЦ. Будь ласка, повторіть запит.&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;⚠️ НАГАДУВАННЯ: Запросити деталізацію у &#34; + x_studio_camunda_partner_name, description: &#34;Бухгалтер ще не отримав деталізацію комунальних від ТРЦ. Будь ласка, повторіть запит.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_rem_detail</bpmn:incoming>
@@ -412,10 +410,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;🔴 ЕСКАЛАЦІЯ: Деталізація від &quot; + x_studio_camunda_partner_name + &quot; не отримана&quot;, description: &quot;Бухгалтер не отримав деталізацію комунальних протягом 3 днів. Потрібне втручання керівника.&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;🔴 ЕСКАЛАЦІЯ: Деталізація від &#34; + x_studio_camunda_partner_name + &#34; не отримана&#34;, description: &#34;Бухгалтер не отримав деталізацію комунальних протягом 3 днів. Потрібне втручання керівника.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ded_detail</bpmn:incoming>
@@ -429,7 +427,6 @@
       <bpmn:incoming>Flow_no_detail</bpmn:incoming>
       <bpmn:outgoing>Flow_detail_merge_to_split</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    
     <bpmn:exclusiveGateway id="GW_reject_type" name="Тип комунальні?" default="Flow_reject_not_communal">
       <bpmn:incoming>Flow_approved_no</bpmn:incoming>
       <bpmn:outgoing>Flow_reject_communal</bpmn:outgoing>
@@ -454,10 +451,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;Рахунок відхилено (без деталізації): &quot; + x_studio_camunda_partner_name, description: &quot;Регіональний менеджер відхилив комунальний рахунок на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн. ТРЦ не надає деталізацію — зверніться до постачальника для вирішення питання.&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Рахунок відхилено (без деталізації): &#34; + x_studio_camunda_partner_name, description: &#34;Регіональний менеджер відхилив комунальний рахунок на суму &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн. ТРЦ не надає деталізацію — зверніться до постачальника для вирішення питання.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_reject_to_bui</bpmn:incoming>
@@ -473,10 +470,10 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;⚠️ НАГАДУВАННЯ: Вирішити питання з відхиленим рахунком &quot; + x_studio_camunda_partner_name, description: &quot;Рахунок відхилено, ТРЦ не надає деталізацію. Потрібно вирішити питання з постачальником.&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;⚠️ НАГАДУВАННЯ: Вирішити питання з відхиленим рахунком &#34; + x_studio_camunda_partner_name, description: &#34;Рахунок відхилено, ТРЦ не надає деталізацію. Потрібно вирішити питання з постачальником.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_rem_bui</bpmn:incoming>
@@ -495,10 +492,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;🔴 ЕСКАЛАЦІЯ: Відхилений рахунок від &quot; + x_studio_camunda_partner_name + &quot; не вирішено&quot;, description: &quot;Даша не вирішила питання з відхиленим рахунком без деталізації протягом 3 днів. Потрібне втручання керівника.&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;🔴 ЕСКАЛАЦІЯ: Відхилений рахунок від &#34; + x_studio_camunda_partner_name + &#34; не вирішено&#34;, description: &#34;Даша не вирішила питання з відхиленим рахунком без деталізації протягом 3 днів. Потрібне втручання керівника.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ded_bui</bpmn:incoming>
@@ -514,10 +511,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;Запросити деталізацію (рахунок відхилено): &quot; + x_studio_camunda_partner_name, description: &quot;Регіональний менеджер відхилив комунальний рахунок на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн. Запросіть деталізацію у ТРЦ для повторного погодження.&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Запросити деталізацію (рахунок відхилено): &#34; + x_studio_camunda_partner_name, description: &#34;Регіональний менеджер відхилив комунальний рахунок на суму &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн. Запросіть деталізацію у ТРЦ для повторного погодження.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="= x_studio_camunda_detailization_received" target="x_studio_camunda_detailization_received" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -534,10 +531,10 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;⚠️ НАГАДУВАННЯ: Деталізація для відхиленого рахунку &quot; + x_studio_camunda_partner_name, description: &quot;Бухгалтер ще не запросив деталізацію для відхиленого рахунку.&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;⚠️ НАГАДУВАННЯ: Деталізація для відхиленого рахунку &#34; + x_studio_camunda_partner_name, description: &#34;Бухгалтер ще не запросив деталізацію для відхиленого рахунку.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_rem_pih</bpmn:incoming>
@@ -556,10 +553,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="= {name: &quot;🔴 ЕСКАЛАЦІЯ: Деталізація від &quot; + x_studio_camunda_partner_name + &quot; для відхиленого рахунку не отримана&quot;, description: &quot;Бухгалтер не отримав деталізацію для відхиленого рахунку протягом 3 днів. Потрібне втручання керівника.&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;🔴 ЕСКАЛАЦІЯ: Деталізація від &#34; + x_studio_camunda_partner_name + &#34; для відхиленого рахунку не отримана&#34;, description: &#34;Бухгалтер не отримав деталізацію для відхиленого рахунку протягом 3 днів. Потрібне втручання керівника.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ded_pih</bpmn:incoming>
@@ -663,4 +660,694 @@
     <bpmn:sequenceFlow id="Flow_break_to_end" sourceRef="CA_break_contract" targetRef="End_break_contract" />
     <bpmn:sequenceFlow id="Flow_service_to_end" sourceRef="Task_service_receipt" targetRef="Activity_1mf4l1i" />
   </bpmn:process>
-  <bpmndi:BPMNDiagram id="BPMNDiagram_1"><bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collab_single"><bpmndi:BPMNShape id="Pool_single_di" bpmnElement="Pool_single" isHorizontal="true"><dc:Bounds x="80" y="16" width="5172" height="1720" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Lane_Buhgalter_di" bpmnElement="Lane_Buhgalter" isHorizontal="true"><dc:Bounds x="110" y="16" width="5142" height="200" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Lane_Camunda_di" bpmnElement="Lane_Camunda" isHorizontal="true"><dc:Bounds x="110" y="216" width="5142" height="300" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Lane_Odoo_di" bpmnElement="Lane_Odoo" isHorizontal="true"><dc:Bounds x="110" y="516" width="5142" height="300" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Lane_Pogodjuvach_di" bpmnElement="Lane_Pogodjuvach" isHorizontal="true"><dc:Bounds x="110" y="816" width="5142" height="420" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Lane_Yulia_di" bpmnElement="Lane_Yulia" isHorizontal="true"><dc:Bounds x="110" y="1236" width="5142" height="300" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Lane_Dasha_di" bpmnElement="Lane_Dasha" isHorizontal="true"><dc:Bounds x="110" y="1536" width="5142" height="200" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1"><dc:Bounds x="182" y="98" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true"><dc:Bounds x="361" y="91" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_create_main_di" bpmnElement="ST_create_main"><dc:Bounds x="536" y="626" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_odoo_merge_di" bpmnElement="GW_odoo_merge" isMarkerVisible="true"><dc:Bounds x="811" y="91" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_classify_type_di" bpmnElement="ST_classify_type"><dc:Bounds x="986" y="326" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_is_communal_di" bpmnElement="GW_is_communal" isMarkerVisible="true"><dc:Bounds x="1261" y="341" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="BRT_check_detail_di" bpmnElement="BRT_check_detail"><dc:Bounds x="1436" y="326" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_main_split_di" bpmnElement="GW_main_split" isMarkerVisible="true"><dc:Bounds x="2411" y="313" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Timer_payday_di" bpmnElement="Timer_payday"><dc:Bounds x="2418" y="383" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_rem_detail_di" bpmnElement="End_rem_detail"><dc:Bounds x="2418" y="648" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_esc_detail_di" bpmnElement="End_esc_detail"><dc:Bounds x="2418" y="1008" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_detail_check_di" bpmnElement="GW_detail_check" isMarkerVisible="true"><dc:Bounds x="1711" y="341" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_tp_check_di" bpmnElement="GW_tp_check" isMarkerVisible="true"><dc:Bounds x="2611" y="306" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_timer_decision_di" bpmnElement="GW_timer_decision" isMarkerVisible="true"><dc:Bounds x="2611" y="376" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Task_approve_di" bpmnElement="Task_approve"><dc:Bounds x="2586" y="986" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="UT_request_detail_di" bpmnElement="UT_request_detail"><dc:Bounds x="1886" y="76" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_detail_merge_di" bpmnElement="GW_detail_merge" isMarkerVisible="true"><dc:Bounds x="2161" y="341" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Task_calendar_di" bpmnElement="Task_calendar"><dc:Bounds x="2136" y="576" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_rem_detail_di" bpmnElement="ST_rem_detail"><dc:Bounds x="2136" y="676" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="UT_esc_detail_di" bpmnElement="UT_esc_detail"><dc:Bounds x="2136" y="986" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="CA_tp_reissue_di" bpmnElement="CA_tp_reissue"><dc:Bounds x="2836" y="76" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_approved_di" bpmnElement="GW_approved" isMarkerVisible="true"><dc:Bounds x="2861" y="1001" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Task_yulia_di" bpmnElement="Task_yulia"><dc:Bounds x="2836" y="1346" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_reject_type_di" bpmnElement="GW_reject_type" isMarkerVisible="true"><dc:Bounds x="3111" y="341" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Task_approver_contract_di" bpmnElement="Task_approver_contract"><dc:Bounds x="3086" y="986" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_yulia_decision_di" bpmnElement="GW_yulia_decision" isMarkerVisible="true"><dc:Bounds x="3111" y="1361" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Task_dasha_di" bpmnElement="Task_dasha"><dc:Bounds x="3086" y="1596" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Task_pay_di" bpmnElement="Task_pay"><dc:Bounds x="3336" y="76" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="BRT_reject_detail_di" bpmnElement="BRT_reject_detail"><dc:Bounds x="3336" y="326" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_contract_result_di" bpmnElement="GW_contract_result" isMarkerVisible="true"><dc:Bounds x="3361" y="1001" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Task_nego_manual_di" bpmnElement="Task_nego_manual"><dc:Bounds x="3336" y="1318" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_no_pay_di" bpmnElement="End_no_pay"><dc:Bounds x="3368" y="1418" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_reject_route_di" bpmnElement="GW_reject_route" isMarkerVisible="true"><dc:Bounds x="3611" y="291" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Task_dmn_nego_who_di" bpmnElement="Task_dmn_nego_who"><dc:Bounds x="3586" y="361" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Task_service_receipt_di" bpmnElement="Task_service_receipt"><dc:Bounds x="3586" y="626" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_nego_manual_di" bpmnElement="End_nego_manual"><dc:Bounds x="3618" y="1368" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="UT_task_pih_di" bpmnElement="UT_task_pih"><dc:Bounds x="3836" y="76" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Activity_1mf4l1i_di" bpmnElement="Activity_1mf4l1i"><dc:Bounds x="3836" y="626" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_who_nego_di" bpmnElement="GW_who_nego" isMarkerVisible="true"><dc:Bounds x="3861" y="1001" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="UT_task_bui_di" bpmnElement="UT_task_bui"><dc:Bounds x="3836" y="1596" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_main_di" bpmnElement="End_main"><dc:Bounds x="4118" y="98" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_rem_bui_di" bpmnElement="ST_rem_bui"><dc:Bounds x="4086" y="576" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_rem_pih_di" bpmnElement="ST_rem_pih"><dc:Bounds x="4086" y="676" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_bui_done_di" bpmnElement="End_bui_done"><dc:Bounds x="4118" y="908" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="UT_esc_bui_di" bpmnElement="UT_esc_bui"><dc:Bounds x="4086" y="964" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="UT_esc_pih_di" bpmnElement="UT_esc_pih"><dc:Bounds x="4086" y="1064" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="CA_nego_self_di" bpmnElement="CA_nego_self"><dc:Bounds x="4086" y="1596" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_rem_bui_di" bpmnElement="End_rem_bui"><dc:Bounds x="4368" y="620" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_rem_pih_di" bpmnElement="End_rem_pih"><dc:Bounds x="4368" y="676" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_esc_bui_di" bpmnElement="End_esc_bui"><dc:Bounds x="4368" y="930" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_esc_pih_di" bpmnElement="End_esc_pih"><dc:Bounds x="4368" y="986" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Task_dmn_record_di" bpmnElement="Task_dmn_record"><dc:Bounds x="4336" y="1042" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_dmn_decision_di" bpmnElement="GW_dmn_decision" isMarkerVisible="true"><dc:Bounds x="4611" y="1001" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_wait_new_di" bpmnElement="End_wait_new"><dc:Bounds x="4818" y="958" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="CA_break_contract_di" bpmnElement="CA_break_contract"><dc:Bounds x="4786" y="1014" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_break_contract_di" bpmnElement="End_break_contract"><dc:Bounds x="5068" y="1008" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="Timer_yulia_deadline_di" bpmnElement="Timer_yulia_deadline"><dc:Bounds x="2890" y="1408" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="BE_rem_detail_di" bpmnElement="BE_rem_detail"><dc:Bounds x="1896" y="138" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="BE_ded_detail_di" bpmnElement="BE_ded_detail"><dc:Bounds x="1940" y="138" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="BE_rem_bui_di" bpmnElement="BE_rem_bui"><dc:Bounds x="3846" y="1658" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="BE_ded_bui_di" bpmnElement="BE_ded_bui"><dc:Bounds x="3890" y="1658" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="BE_rem_pih_di" bpmnElement="BE_rem_pih"><dc:Bounds x="3846" y="138" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="BE_ded_pih_di" bpmnElement="BE_ded_pih"><dc:Bounds x="3890" y="138" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNEdge id="Flow_start_to_gw_odoo_di" bpmnElement="Flow_start_to_gw_odoo"><di:waypoint x="218" y="116" /><di:waypoint x="361" y="116" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_odoo_no_task_di" bpmnElement="Flow_odoo_no_task"><di:waypoint x="411" y="116" /><di:waypoint x="474" y="116" /><di:waypoint x="474" y="666" /><di:waypoint x="536" y="666" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_odoo_has_task_di" bpmnElement="Flow_odoo_has_task"><di:waypoint x="411" y="116" /><di:waypoint x="811" y="116" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_create_main_done_di" bpmnElement="Flow_create_main_done"><di:waypoint x="636" y="666" /><di:waypoint x="736" y="666" /><di:waypoint x="736" y="116" /><di:waypoint x="811" y="116" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_merge_to_classify_di" bpmnElement="Flow_merge_to_classify"><di:waypoint x="861" y="116" /><di:waypoint x="924" y="116" /><di:waypoint x="924" y="366" /><di:waypoint x="986" y="366" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_classify_to_communal_check_di" bpmnElement="Flow_classify_to_communal_check"><di:waypoint x="1086" y="366" /><di:waypoint x="1261" y="366" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_communal_yes_di" bpmnElement="Flow_communal_yes"><di:waypoint x="1311" y="366" /><di:waypoint x="1436" y="366" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_not_communal_di" bpmnElement="Flow_not_communal"><di:waypoint x="1311" y="366" /><di:waypoint x="1421" y="366" /><di:waypoint x="1421" y="421" /><di:waypoint x="1551" y="421" /><di:waypoint x="1551" y="366" /><di:waypoint x="1696" y="366" /><di:waypoint x="1696" y="406" /><di:waypoint x="1776" y="406" /><di:waypoint x="1776" y="366" /><di:waypoint x="1873" y="366" /><di:waypoint x="1873" y="338" /><di:waypoint x="2411" y="338" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_detail_to_check_di" bpmnElement="Flow_detail_to_check"><di:waypoint x="1536" y="366" /><di:waypoint x="1711" y="366" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_detail_yes_di" bpmnElement="Flow_detail_yes"><di:waypoint x="1761" y="366" /><di:waypoint x="1824" y="366" /><di:waypoint x="1824" y="116" /><di:waypoint x="1886" y="116" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_no_detail_di" bpmnElement="Flow_no_detail"><di:waypoint x="1761" y="366" /><di:waypoint x="2161" y="366" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_detail_received_di" bpmnElement="Flow_detail_received"><di:waypoint x="1986" y="116" /><di:waypoint x="2086" y="116" /><di:waypoint x="2086" y="366" /><di:waypoint x="2161" y="366" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_detail_merge_to_split_di" bpmnElement="Flow_detail_merge_to_split"><di:waypoint x="2211" y="366" /><di:waypoint x="2323" y="366" /><di:waypoint x="2323" y="338" /><di:waypoint x="2411" y="338" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_rem_detail_di" bpmnElement="Flow_rem_detail"><di:waypoint x="1914" y="174" /><di:waypoint x="1914" y="716" /><di:waypoint x="2136" y="716" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_rem_detail_end_di" bpmnElement="Flow_rem_detail_end"><di:waypoint x="2236" y="716" /><di:waypoint x="2327" y="716" /><di:waypoint x="2327" y="666" /><di:waypoint x="2418" y="666" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_ded_detail_di" bpmnElement="Flow_ded_detail"><di:waypoint x="1958" y="174" /><di:waypoint x="1958" y="1026" /><di:waypoint x="2136" y="1026" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_esc_detail_end_di" bpmnElement="Flow_esc_detail_end"><di:waypoint x="2236" y="1026" /><di:waypoint x="2418" y="1026" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_main_to_calendar_di" bpmnElement="Flow_main_to_calendar"><di:waypoint x="2461" y="338" /><di:waypoint x="2536" y="338" /><di:waypoint x="2536" y="331" /><di:waypoint x="2611" y="331" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_main_to_approve_di" bpmnElement="Flow_main_to_approve"><di:waypoint x="2461" y="338" /><di:waypoint x="2536" y="338" /><di:waypoint x="2536" y="1026" /><di:waypoint x="2586" y="1026" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_tp_yes_di" bpmnElement="Flow_tp_yes"><di:waypoint x="2661" y="331" /><di:waypoint x="2748" y="331" /><di:waypoint x="2748" y="116" /><di:waypoint x="2836" y="116" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_tp_no_di" bpmnElement="Flow_tp_no"><di:waypoint x="2661" y="331" /><di:waypoint x="2701" y="331" /><di:waypoint x="2701" y="-19" /><di:waypoint x="2096" y="-19" /><di:waypoint x="2096" y="616" /><di:waypoint x="2136" y="616" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_tp_done_di" bpmnElement="Flow_tp_done"><di:waypoint x="2936" y="116" /><di:waypoint x="2986" y="116" /><di:waypoint x="2986" y="-34" /><di:waypoint x="2086" y="-34" /><di:waypoint x="2086" y="616" /><di:waypoint x="2136" y="616" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_calendar_to_timer_di" bpmnElement="Flow_calendar_to_timer"><di:waypoint x="2236" y="616" /><di:waypoint x="2327" y="616" /><di:waypoint x="2327" y="401" /><di:waypoint x="2418" y="401" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_timer_to_gw_decision_di" bpmnElement="Flow_timer_to_gw_decision"><di:waypoint x="2454" y="401" /><di:waypoint x="2611" y="401" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_approve_to_gw_di" bpmnElement="Flow_approve_to_gw"><di:waypoint x="2686" y="1026" /><di:waypoint x="2861" y="1026" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_approved_yes_di" bpmnElement="Flow_approved_yes"><di:waypoint x="2911" y="1026" /><di:waypoint x="3086" y="1026" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_approved_no_di" bpmnElement="Flow_approved_no"><di:waypoint x="2911" y="1026" /><di:waypoint x="3023" y="1026" /><di:waypoint x="3023" y="366" /><di:waypoint x="3111" y="366" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_reject_communal_di" bpmnElement="Flow_reject_communal"><di:waypoint x="3161" y="366" /><di:waypoint x="3336" y="366" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_reject_not_communal_di" bpmnElement="Flow_reject_not_communal"><di:waypoint x="3161" y="366" /><di:waypoint x="3260" y="366" /><di:waypoint x="3260" y="1358" /><di:waypoint x="3336" y="1358" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_reject_detail_to_route_di" bpmnElement="Flow_reject_detail_to_route"><di:waypoint x="3436" y="366" /><di:waypoint x="3524" y="366" /><di:waypoint x="3524" y="316" /><di:waypoint x="3611" y="316" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_reject_to_bui_di" bpmnElement="Flow_reject_to_bui"><di:waypoint x="3661" y="316" /><di:waypoint x="3748" y="316" /><di:waypoint x="3748" y="1636" /><di:waypoint x="3836" y="1636" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_reject_to_pih_di" bpmnElement="Flow_reject_to_pih"><di:waypoint x="3661" y="316" /><di:waypoint x="3760" y="316" /><di:waypoint x="3760" y="116" /><di:waypoint x="3836" y="116" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_bui_done_di" bpmnElement="Flow_bui_done"><di:waypoint x="3936" y="1636" /><di:waypoint x="4027" y="1636" /><di:waypoint x="4027" y="926" /><di:waypoint x="4118" y="926" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_rem_bui_di" bpmnElement="Flow_rem_bui"><di:waypoint x="3864" y="1694" /><di:waypoint x="3864" y="1714" /><di:waypoint x="4086" y="1714" /><di:waypoint x="4086" y="616" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_rem_bui_end_di" bpmnElement="Flow_rem_bui_end"><di:waypoint x="4186" y="616" /><di:waypoint x="4277" y="616" /><di:waypoint x="4277" y="638" /><di:waypoint x="4368" y="638" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_ded_bui_di" bpmnElement="Flow_ded_bui"><di:waypoint x="3908" y="1694" /><di:waypoint x="3908" y="1714" /><di:waypoint x="4086" y="1714" /><di:waypoint x="4086" y="1004" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_esc_bui_end_di" bpmnElement="Flow_esc_bui_end"><di:waypoint x="4186" y="1004" /><di:waypoint x="4277" y="1004" /><di:waypoint x="4277" y="948" /><di:waypoint x="4368" y="948" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_pih_to_approve_di" bpmnElement="Flow_pih_to_approve"><di:waypoint x="3936" y="116" /><di:waypoint x="3996" y="116" /><di:waypoint x="3996" y="-49" /><di:waypoint x="2526" y="-49" /><di:waypoint x="2526" y="1026" /><di:waypoint x="2586" y="1026" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_rem_pih_di" bpmnElement="Flow_rem_pih"><di:waypoint x="3864" y="174" /><di:waypoint x="3864" y="611" /><di:waypoint x="3951" y="611" /><di:waypoint x="3951" y="716" /><di:waypoint x="3864" y="716" /><di:waypoint x="4086" y="716" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_rem_pih_end_di" bpmnElement="Flow_rem_pih_end"><di:waypoint x="4186" y="716" /><di:waypoint x="4277" y="716" /><di:waypoint x="4277" y="694" /><di:waypoint x="4368" y="694" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_ded_pih_di" bpmnElement="Flow_ded_pih"><di:waypoint x="3908" y="174" /><di:waypoint x="3908" y="611" /><di:waypoint x="3951" y="611" /><di:waypoint x="3951" y="1104" /><di:waypoint x="3908" y="1104" /><di:waypoint x="4086" y="1104" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_esc_pih_end_di" bpmnElement="Flow_esc_pih_end"><di:waypoint x="4186" y="1104" /><di:waypoint x="4277" y="1104" /><di:waypoint x="4277" y="1004" /><di:waypoint x="4368" y="1004" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_contract_to_gw_di" bpmnElement="Flow_contract_to_gw"><di:waypoint x="3186" y="1026" /><di:waypoint x="3361" y="1026" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_nego_manual_end_di" bpmnElement="Flow_nego_manual_end"><di:waypoint x="3436" y="1358" /><di:waypoint x="3527" y="1358" /><di:waypoint x="3527" y="1386" /><di:waypoint x="3618" y="1386" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_nego_self_to_gw_di" bpmnElement="Flow_nego_self_to_gw"><di:waypoint x="4186" y="1636" /><di:waypoint x="4261" y="1636" /><di:waypoint x="4261" y="1082" /><di:waypoint x="4336" y="1082" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_dmn_to_gw_di" bpmnElement="Flow_dmn_to_gw"><di:waypoint x="4436" y="1082" /><di:waypoint x="4524" y="1082" /><di:waypoint x="4524" y="1026" /><di:waypoint x="4611" y="1026" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_timer_to_yulia_di" bpmnElement="Flow_timer_to_yulia"><di:waypoint x="2661" y="401" /><di:waypoint x="2748" y="401" /><di:waypoint x="2748" y="1386" /><di:waypoint x="2836" y="1386" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_yulia_to_gw_di" bpmnElement="Flow_yulia_to_gw"><di:waypoint x="2936" y="1386" /><di:waypoint x="3111" y="1386" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_yulia_yes_di" bpmnElement="Flow_yulia_yes"><di:waypoint x="3161" y="1386" /><di:waypoint x="3248" y="1386" /><di:waypoint x="3248" y="116" /><di:waypoint x="3336" y="116" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_yulia_no_di" bpmnElement="Flow_yulia_no"><di:waypoint x="3161" y="1386" /><di:waypoint x="3276" y="1386" /><di:waypoint x="3276" y="1436" /><di:waypoint x="3368" y="1436" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_yulia_timer_to_dasha_di" bpmnElement="Flow_yulia_timer_to_dasha"><di:waypoint x="2908" y="1444" /><di:waypoint x="2908" y="1636" /><di:waypoint x="3086" y="1636" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_dasha_to_pay_di" bpmnElement="Flow_dasha_to_pay"><di:waypoint x="3186" y="1636" /><di:waypoint x="3821" y="1636" /><di:waypoint x="3821" y="1691" /><di:waypoint x="3831" y="1691" /><di:waypoint x="3831" y="1709" /><di:waypoint x="3897" y="1709" /><di:waypoint x="3941" y="1709" /><di:waypoint x="3941" y="1691" /><di:waypoint x="3897" y="1691" /><di:waypoint x="3875" y="1691" /><di:waypoint x="3875" y="1709" /><di:waypoint x="3941" y="1709" /><di:waypoint x="3941" y="1691" /><di:waypoint x="3951" y="1691" /><di:waypoint x="3951" y="1636" /><di:waypoint x="4086" y="1636" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_dmn_pay_di" bpmnElement="Flow_dmn_pay"><di:waypoint x="4661" y="1026" /><di:waypoint x="4731" y="1026" /><di:waypoint x="4731" y="-64" /><di:waypoint x="3266" y="-64" /><di:waypoint x="3266" y="116" /><di:waypoint x="3336" y="116" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_timer_to_pay_di" bpmnElement="Flow_timer_to_pay"><di:waypoint x="2661" y="401" /><di:waypoint x="3022" y="401" /><di:waypoint x="3022" y="116" /><di:waypoint x="3336" y="116" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_contract_yes_di" bpmnElement="Flow_contract_yes"><di:waypoint x="3411" y="1026" /><di:waypoint x="3491" y="1026" /><di:waypoint x="3491" y="-79" /><di:waypoint x="3256" y="-79" /><di:waypoint x="3256" y="116" /><di:waypoint x="3336" y="116" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_0ues5t2_di" bpmnElement="Flow_0ues5t2"><di:waypoint x="4186" y="1636" /><di:waypoint x="4276" y="1636" /><di:waypoint x="4276" y="-94" /><di:waypoint x="3246" y="-94" /><di:waypoint x="3246" y="116" /><di:waypoint x="3336" y="116" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_pay_to_service_di" bpmnElement="Flow_pay_to_service"><di:waypoint x="3436" y="116" /><di:waypoint x="3511" y="116" /><di:waypoint x="3511" y="666" /><di:waypoint x="3586" y="666" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_0073gjv_di" bpmnElement="Flow_0073gjv"><di:waypoint x="3936" y="666" /><di:waypoint x="4027" y="666" /><di:waypoint x="4027" y="116" /><di:waypoint x="4118" y="116" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_contract_no_di" bpmnElement="Flow_contract_no"><di:waypoint x="3411" y="1026" /><di:waypoint x="3510" y="1026" /><di:waypoint x="3510" y="401" /><di:waypoint x="3586" y="401" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_nego_self_di" bpmnElement="Flow_nego_self"><di:waypoint x="3911" y="1026" /><di:waypoint x="4010" y="1026" /><di:waypoint x="4010" y="1636" /><di:waypoint x="4086" y="1636" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_dmn_nego_who_to_gw_di" bpmnElement="Flow_dmn_nego_who_to_gw"><di:waypoint x="3686" y="401" /><di:waypoint x="3774" y="401" /><di:waypoint x="3774" y="1026" /><di:waypoint x="3861" y="1026" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_nego_dasha_di" bpmnElement="Flow_nego_dasha"><di:waypoint x="3911" y="1026" /><di:waypoint x="4011" y="1026" /><di:waypoint x="4011" y="-109" /><di:waypoint x="3236" y="-109" /><di:waypoint x="3236" y="1358" /><di:waypoint x="3336" y="1358" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_dmn_wait_di" bpmnElement="Flow_dmn_wait"><di:waypoint x="4661" y="1026" /><di:waypoint x="4752" y="1026" /><di:waypoint x="4752" y="976" /><di:waypoint x="4818" y="976" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_dmn_break_di" bpmnElement="Flow_dmn_break"><di:waypoint x="4661" y="1026" /><di:waypoint x="4748" y="1026" /><di:waypoint x="4748" y="1054" /><di:waypoint x="4786" y="1054" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_break_to_end_di" bpmnElement="Flow_break_to_end"><di:waypoint x="4886" y="1054" /><di:waypoint x="4977" y="1054" /><di:waypoint x="4977" y="1026" /><di:waypoint x="5068" y="1026" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_service_to_end_di" bpmnElement="Flow_service_to_end"><di:waypoint x="3686" y="666" /><di:waypoint x="3836" y="666" /></bpmndi:BPMNEdge></bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collab_single">
+      <bpmndi:BPMNShape id="Pool_single_di" bpmnElement="Pool_single" isHorizontal="true">
+        <dc:Bounds x="80" y="16" width="5172" height="1720" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Dasha_di" bpmnElement="Lane_Dasha" isHorizontal="true">
+        <dc:Bounds x="110" y="1536" width="5142" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Yulia_di" bpmnElement="Lane_Yulia" isHorizontal="true">
+        <dc:Bounds x="110" y="1236" width="5142" height="300" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Pogodjuvach_di" bpmnElement="Lane_Pogodjuvach" isHorizontal="true">
+        <dc:Bounds x="110" y="816" width="5142" height="420" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Odoo_di" bpmnElement="Lane_Odoo" isHorizontal="true">
+        <dc:Bounds x="110" y="516" width="5142" height="300" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Camunda_di" bpmnElement="Lane_Camunda" isHorizontal="true">
+        <dc:Bounds x="110" y="216" width="5142" height="300" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Buhgalter_di" bpmnElement="Lane_Buhgalter" isHorizontal="true">
+        <dc:Bounds x="110" y="16" width="5142" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="182" y="98" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true">
+        <dc:Bounds x="361" y="91" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_create_main_di" bpmnElement="ST_create_main">
+        <dc:Bounds x="536" y="626" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_odoo_merge_di" bpmnElement="GW_odoo_merge" isMarkerVisible="true">
+        <dc:Bounds x="811" y="91" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_classify_type_di" bpmnElement="ST_classify_type">
+        <dc:Bounds x="986" y="326" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_main_split_di" bpmnElement="GW_main_split" isMarkerVisible="true">
+        <dc:Bounds x="2411" y="313" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_tp_check_di" bpmnElement="GW_tp_check" isMarkerVisible="true">
+        <dc:Bounds x="2611" y="306" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CA_tp_reissue_di" bpmnElement="CA_tp_reissue">
+        <dc:Bounds x="2836" y="76" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_calendar_di" bpmnElement="Task_calendar">
+        <dc:Bounds x="2136" y="576" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Timer_payday_di" bpmnElement="Timer_payday">
+        <dc:Bounds x="2418" y="383" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_approve_di" bpmnElement="Task_approve">
+        <dc:Bounds x="2586" y="986" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_approved_di" bpmnElement="GW_approved" isMarkerVisible="true">
+        <dc:Bounds x="2861" y="1001" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_approver_contract_di" bpmnElement="Task_approver_contract">
+        <dc:Bounds x="3086" y="986" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_nego_manual_di" bpmnElement="End_nego_manual">
+        <dc:Bounds x="3618" y="1368" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_dmn_record_di" bpmnElement="Task_dmn_record">
+        <dc:Bounds x="4336" y="1042" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_yulia_di" bpmnElement="Task_yulia">
+        <dc:Bounds x="2836" y="1346" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_yulia_decision_di" bpmnElement="GW_yulia_decision" isMarkerVisible="true">
+        <dc:Bounds x="3111" y="1361" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_dasha_di" bpmnElement="Task_dasha">
+        <dc:Bounds x="3086" y="1596" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_pay_di" bpmnElement="Task_pay">
+        <dc:Bounds x="3336" y="76" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_main_di" bpmnElement="End_main">
+        <dc:Bounds x="4118" y="98" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_contract_result_di" bpmnElement="GW_contract_result" isMarkerVisible="true">
+        <dc:Bounds x="3361" y="1001" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_timer_decision_di" bpmnElement="GW_timer_decision" isMarkerVisible="true">
+        <dc:Bounds x="2611" y="376" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CA_nego_self_di" bpmnElement="CA_nego_self">
+        <dc:Bounds x="4086" y="1596" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_dmn_nego_who_di" bpmnElement="Task_dmn_nego_who">
+        <dc:Bounds x="3586" y="361" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_who_nego_di" bpmnElement="GW_who_nego" isMarkerVisible="true">
+        <dc:Bounds x="3861" y="1001" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_no_pay_di" bpmnElement="End_no_pay">
+        <dc:Bounds x="3368" y="1418" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_dmn_decision_di" bpmnElement="GW_dmn_decision" isMarkerVisible="true">
+        <dc:Bounds x="4611" y="1001" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CA_break_contract_di" bpmnElement="CA_break_contract">
+        <dc:Bounds x="4786" y="1014" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_wait_new_di" bpmnElement="End_wait_new">
+        <dc:Bounds x="4818" y="958" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_break_contract_di" bpmnElement="End_break_contract">
+        <dc:Bounds x="5068" y="1008" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_nego_manual_di" bpmnElement="Task_nego_manual">
+        <dc:Bounds x="3336" y="1318" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_service_receipt_di" bpmnElement="Task_service_receipt">
+        <dc:Bounds x="3586" y="626" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1mf4l1i_di" bpmnElement="Activity_1mf4l1i">
+        <dc:Bounds x="3836" y="626" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_is_communal_di" bpmnElement="GW_is_communal" isMarkerVisible="true">
+        <dc:Bounds x="1261" y="341" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BRT_check_detail_di" bpmnElement="BRT_check_detail">
+        <dc:Bounds x="1436" y="326" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_detail_check_di" bpmnElement="GW_detail_check" isMarkerVisible="true">
+        <dc:Bounds x="1711" y="341" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_request_detail_di" bpmnElement="UT_request_detail">
+        <dc:Bounds x="1886" y="76" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_rem_detail_di" bpmnElement="ST_rem_detail">
+        <dc:Bounds x="2136" y="676" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_rem_detail_di" bpmnElement="End_rem_detail">
+        <dc:Bounds x="2418" y="648" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_esc_detail_di" bpmnElement="UT_esc_detail">
+        <dc:Bounds x="2136" y="986" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_esc_detail_di" bpmnElement="End_esc_detail">
+        <dc:Bounds x="2418" y="1008" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_detail_merge_di" bpmnElement="GW_detail_merge" isMarkerVisible="true">
+        <dc:Bounds x="2161" y="341" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_reject_type_di" bpmnElement="GW_reject_type" isMarkerVisible="true">
+        <dc:Bounds x="3111" y="341" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BRT_reject_detail_di" bpmnElement="BRT_reject_detail">
+        <dc:Bounds x="3336" y="326" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_reject_route_di" bpmnElement="GW_reject_route" isMarkerVisible="true">
+        <dc:Bounds x="3611" y="291" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_task_bui_di" bpmnElement="UT_task_bui">
+        <dc:Bounds x="3836" y="1596" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_rem_bui_di" bpmnElement="ST_rem_bui">
+        <dc:Bounds x="4086" y="576" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_rem_bui_di" bpmnElement="End_rem_bui">
+        <dc:Bounds x="4368" y="620" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_esc_bui_di" bpmnElement="UT_esc_bui">
+        <dc:Bounds x="4086" y="964" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_esc_bui_di" bpmnElement="End_esc_bui">
+        <dc:Bounds x="4368" y="930" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_bui_done_di" bpmnElement="End_bui_done">
+        <dc:Bounds x="4118" y="908" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_task_pih_di" bpmnElement="UT_task_pih">
+        <dc:Bounds x="3836" y="76" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_rem_pih_di" bpmnElement="ST_rem_pih">
+        <dc:Bounds x="4086" y="676" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_rem_pih_di" bpmnElement="End_rem_pih">
+        <dc:Bounds x="4368" y="676" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_esc_pih_di" bpmnElement="UT_esc_pih">
+        <dc:Bounds x="4086" y="1064" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_esc_pih_di" bpmnElement="End_esc_pih">
+        <dc:Bounds x="4368" y="986" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_pih_di" bpmnElement="BE_ded_pih">
+        <dc:Bounds x="3890" y="138" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_rem_pih_di" bpmnElement="BE_rem_pih">
+        <dc:Bounds x="3846" y="138" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_bui_di" bpmnElement="BE_ded_bui">
+        <dc:Bounds x="3890" y="1658" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_rem_bui_di" bpmnElement="BE_rem_bui">
+        <dc:Bounds x="3846" y="1658" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_detail_di" bpmnElement="BE_ded_detail">
+        <dc:Bounds x="1940" y="138" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_rem_detail_di" bpmnElement="BE_rem_detail">
+        <dc:Bounds x="1896" y="138" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Timer_yulia_deadline_di" bpmnElement="Timer_yulia_deadline">
+        <dc:Bounds x="2890" y="1408" width="36" height="36" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_start_to_gw_odoo_di" bpmnElement="Flow_start_to_gw_odoo">
+        <di:waypoint x="218" y="116" />
+        <di:waypoint x="361" y="116" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_odoo_no_task_di" bpmnElement="Flow_odoo_no_task">
+        <di:waypoint x="411" y="116" />
+        <di:waypoint x="474" y="116" />
+        <di:waypoint x="474" y="666" />
+        <di:waypoint x="536" y="666" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_odoo_has_task_di" bpmnElement="Flow_odoo_has_task">
+        <di:waypoint x="411" y="116" />
+        <di:waypoint x="811" y="116" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_create_main_done_di" bpmnElement="Flow_create_main_done">
+        <di:waypoint x="636" y="666" />
+        <di:waypoint x="736" y="666" />
+        <di:waypoint x="736" y="116" />
+        <di:waypoint x="811" y="116" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_merge_to_classify_di" bpmnElement="Flow_merge_to_classify">
+        <di:waypoint x="861" y="116" />
+        <di:waypoint x="924" y="116" />
+        <di:waypoint x="924" y="366" />
+        <di:waypoint x="986" y="366" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_classify_to_communal_check_di" bpmnElement="Flow_classify_to_communal_check">
+        <di:waypoint x="1086" y="366" />
+        <di:waypoint x="1261" y="366" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_communal_yes_di" bpmnElement="Flow_communal_yes">
+        <di:waypoint x="1311" y="366" />
+        <di:waypoint x="1436" y="366" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_not_communal_di" bpmnElement="Flow_not_communal">
+        <di:waypoint x="1311" y="366" />
+        <di:waypoint x="1421" y="366" />
+        <di:waypoint x="1421" y="421" />
+        <di:waypoint x="1551" y="421" />
+        <di:waypoint x="1551" y="366" />
+        <di:waypoint x="1696" y="366" />
+        <di:waypoint x="1696" y="406" />
+        <di:waypoint x="1776" y="406" />
+        <di:waypoint x="1776" y="366" />
+        <di:waypoint x="1873" y="366" />
+        <di:waypoint x="1873" y="338" />
+        <di:waypoint x="2411" y="338" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_detail_to_check_di" bpmnElement="Flow_detail_to_check">
+        <di:waypoint x="1536" y="366" />
+        <di:waypoint x="1711" y="366" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_detail_yes_di" bpmnElement="Flow_detail_yes">
+        <di:waypoint x="1761" y="366" />
+        <di:waypoint x="1824" y="366" />
+        <di:waypoint x="1824" y="116" />
+        <di:waypoint x="1886" y="116" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_no_detail_di" bpmnElement="Flow_no_detail">
+        <di:waypoint x="1761" y="366" />
+        <di:waypoint x="2161" y="366" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_detail_received_di" bpmnElement="Flow_detail_received">
+        <di:waypoint x="1986" y="116" />
+        <di:waypoint x="2086" y="116" />
+        <di:waypoint x="2086" y="366" />
+        <di:waypoint x="2161" y="366" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_detail_merge_to_split_di" bpmnElement="Flow_detail_merge_to_split">
+        <di:waypoint x="2211" y="366" />
+        <di:waypoint x="2323" y="366" />
+        <di:waypoint x="2323" y="338" />
+        <di:waypoint x="2411" y="338" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_rem_detail_di" bpmnElement="Flow_rem_detail">
+        <di:waypoint x="1914" y="174" />
+        <di:waypoint x="1914" y="716" />
+        <di:waypoint x="2136" y="716" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_rem_detail_end_di" bpmnElement="Flow_rem_detail_end">
+        <di:waypoint x="2236" y="716" />
+        <di:waypoint x="2327" y="716" />
+        <di:waypoint x="2327" y="666" />
+        <di:waypoint x="2418" y="666" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ded_detail_di" bpmnElement="Flow_ded_detail">
+        <di:waypoint x="1958" y="174" />
+        <di:waypoint x="1958" y="1026" />
+        <di:waypoint x="2136" y="1026" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_detail_end_di" bpmnElement="Flow_esc_detail_end">
+        <di:waypoint x="2236" y="1026" />
+        <di:waypoint x="2418" y="1026" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_main_to_calendar_di" bpmnElement="Flow_main_to_calendar">
+        <di:waypoint x="2461" y="338" />
+        <di:waypoint x="2536" y="338" />
+        <di:waypoint x="2536" y="331" />
+        <di:waypoint x="2611" y="331" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_main_to_approve_di" bpmnElement="Flow_main_to_approve">
+        <di:waypoint x="2461" y="338" />
+        <di:waypoint x="2536" y="338" />
+        <di:waypoint x="2536" y="1026" />
+        <di:waypoint x="2586" y="1026" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_tp_yes_di" bpmnElement="Flow_tp_yes">
+        <di:waypoint x="2661" y="331" />
+        <di:waypoint x="2748" y="331" />
+        <di:waypoint x="2748" y="116" />
+        <di:waypoint x="2836" y="116" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_tp_no_di" bpmnElement="Flow_tp_no">
+        <di:waypoint x="2661" y="331" />
+        <di:waypoint x="2701" y="331" />
+        <di:waypoint x="2701" y="-19" />
+        <di:waypoint x="2096" y="-19" />
+        <di:waypoint x="2096" y="616" />
+        <di:waypoint x="2136" y="616" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_tp_done_di" bpmnElement="Flow_tp_done">
+        <di:waypoint x="2936" y="116" />
+        <di:waypoint x="2986" y="116" />
+        <di:waypoint x="2986" y="-34" />
+        <di:waypoint x="2086" y="-34" />
+        <di:waypoint x="2086" y="616" />
+        <di:waypoint x="2136" y="616" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_calendar_to_timer_di" bpmnElement="Flow_calendar_to_timer">
+        <di:waypoint x="2236" y="616" />
+        <di:waypoint x="2327" y="616" />
+        <di:waypoint x="2327" y="401" />
+        <di:waypoint x="2418" y="401" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_timer_to_gw_decision_di" bpmnElement="Flow_timer_to_gw_decision">
+        <di:waypoint x="2454" y="401" />
+        <di:waypoint x="2611" y="401" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_approve_to_gw_di" bpmnElement="Flow_approve_to_gw">
+        <di:waypoint x="2686" y="1026" />
+        <di:waypoint x="2861" y="1026" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_approved_yes_di" bpmnElement="Flow_approved_yes">
+        <di:waypoint x="2911" y="1026" />
+        <di:waypoint x="3086" y="1026" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_approved_no_di" bpmnElement="Flow_approved_no">
+        <di:waypoint x="2911" y="1026" />
+        <di:waypoint x="3023" y="1026" />
+        <di:waypoint x="3023" y="366" />
+        <di:waypoint x="3111" y="366" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_reject_communal_di" bpmnElement="Flow_reject_communal">
+        <di:waypoint x="3161" y="366" />
+        <di:waypoint x="3336" y="366" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_reject_not_communal_di" bpmnElement="Flow_reject_not_communal">
+        <di:waypoint x="3161" y="366" />
+        <di:waypoint x="3260" y="366" />
+        <di:waypoint x="3260" y="1358" />
+        <di:waypoint x="3336" y="1358" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_reject_detail_to_route_di" bpmnElement="Flow_reject_detail_to_route">
+        <di:waypoint x="3436" y="366" />
+        <di:waypoint x="3524" y="366" />
+        <di:waypoint x="3524" y="316" />
+        <di:waypoint x="3611" y="316" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_reject_to_bui_di" bpmnElement="Flow_reject_to_bui">
+        <di:waypoint x="3661" y="316" />
+        <di:waypoint x="3748" y="316" />
+        <di:waypoint x="3748" y="1636" />
+        <di:waypoint x="3836" y="1636" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_reject_to_pih_di" bpmnElement="Flow_reject_to_pih">
+        <di:waypoint x="3661" y="316" />
+        <di:waypoint x="3760" y="316" />
+        <di:waypoint x="3760" y="116" />
+        <di:waypoint x="3836" y="116" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_bui_done_di" bpmnElement="Flow_bui_done">
+        <di:waypoint x="3936" y="1636" />
+        <di:waypoint x="4027" y="1636" />
+        <di:waypoint x="4027" y="926" />
+        <di:waypoint x="4118" y="926" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_rem_bui_di" bpmnElement="Flow_rem_bui">
+        <di:waypoint x="3864" y="1694" />
+        <di:waypoint x="3864" y="1714" />
+        <di:waypoint x="4086" y="1714" />
+        <di:waypoint x="4086" y="616" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_rem_bui_end_di" bpmnElement="Flow_rem_bui_end">
+        <di:waypoint x="4186" y="616" />
+        <di:waypoint x="4277" y="616" />
+        <di:waypoint x="4277" y="638" />
+        <di:waypoint x="4368" y="638" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ded_bui_di" bpmnElement="Flow_ded_bui">
+        <di:waypoint x="3908" y="1694" />
+        <di:waypoint x="3908" y="1714" />
+        <di:waypoint x="4086" y="1714" />
+        <di:waypoint x="4086" y="1004" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_bui_end_di" bpmnElement="Flow_esc_bui_end">
+        <di:waypoint x="4186" y="1004" />
+        <di:waypoint x="4277" y="1004" />
+        <di:waypoint x="4277" y="948" />
+        <di:waypoint x="4368" y="948" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_pih_to_approve_di" bpmnElement="Flow_pih_to_approve">
+        <di:waypoint x="3936" y="116" />
+        <di:waypoint x="3996" y="116" />
+        <di:waypoint x="3996" y="-49" />
+        <di:waypoint x="2526" y="-49" />
+        <di:waypoint x="2526" y="1026" />
+        <di:waypoint x="2586" y="1026" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_rem_pih_di" bpmnElement="Flow_rem_pih">
+        <di:waypoint x="3864" y="174" />
+        <di:waypoint x="3864" y="611" />
+        <di:waypoint x="3951" y="611" />
+        <di:waypoint x="3951" y="716" />
+        <di:waypoint x="3864" y="716" />
+        <di:waypoint x="4086" y="716" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_rem_pih_end_di" bpmnElement="Flow_rem_pih_end">
+        <di:waypoint x="4186" y="716" />
+        <di:waypoint x="4277" y="716" />
+        <di:waypoint x="4277" y="694" />
+        <di:waypoint x="4368" y="694" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ded_pih_di" bpmnElement="Flow_ded_pih">
+        <di:waypoint x="3908" y="174" />
+        <di:waypoint x="3908" y="611" />
+        <di:waypoint x="3951" y="611" />
+        <di:waypoint x="3951" y="1104" />
+        <di:waypoint x="3908" y="1104" />
+        <di:waypoint x="4086" y="1104" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_pih_end_di" bpmnElement="Flow_esc_pih_end">
+        <di:waypoint x="4186" y="1104" />
+        <di:waypoint x="4277" y="1104" />
+        <di:waypoint x="4277" y="1004" />
+        <di:waypoint x="4368" y="1004" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_contract_to_gw_di" bpmnElement="Flow_contract_to_gw">
+        <di:waypoint x="3186" y="1026" />
+        <di:waypoint x="3361" y="1026" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_nego_manual_end_di" bpmnElement="Flow_nego_manual_end">
+        <di:waypoint x="3436" y="1358" />
+        <di:waypoint x="3527" y="1358" />
+        <di:waypoint x="3527" y="1386" />
+        <di:waypoint x="3618" y="1386" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_nego_self_to_gw_di" bpmnElement="Flow_nego_self_to_gw">
+        <di:waypoint x="4186" y="1636" />
+        <di:waypoint x="4261" y="1636" />
+        <di:waypoint x="4261" y="1082" />
+        <di:waypoint x="4336" y="1082" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_dmn_to_gw_di" bpmnElement="Flow_dmn_to_gw">
+        <di:waypoint x="4436" y="1082" />
+        <di:waypoint x="4524" y="1082" />
+        <di:waypoint x="4524" y="1026" />
+        <di:waypoint x="4611" y="1026" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_timer_to_yulia_di" bpmnElement="Flow_timer_to_yulia">
+        <di:waypoint x="2661" y="401" />
+        <di:waypoint x="2748" y="401" />
+        <di:waypoint x="2748" y="1386" />
+        <di:waypoint x="2836" y="1386" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_yulia_to_gw_di" bpmnElement="Flow_yulia_to_gw">
+        <di:waypoint x="2936" y="1386" />
+        <di:waypoint x="3111" y="1386" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_yulia_yes_di" bpmnElement="Flow_yulia_yes">
+        <di:waypoint x="3161" y="1386" />
+        <di:waypoint x="3180" y="1386" />
+        <di:waypoint x="3180" y="116" />
+        <di:waypoint x="3336" y="116" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3187" y="741" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_yulia_no_di" bpmnElement="Flow_yulia_no">
+        <di:waypoint x="3161" y="1386" />
+        <di:waypoint x="3276" y="1386" />
+        <di:waypoint x="3276" y="1436" />
+        <di:waypoint x="3368" y="1436" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_yulia_timer_to_dasha_di" bpmnElement="Flow_yulia_timer_to_dasha">
+        <di:waypoint x="2908" y="1444" />
+        <di:waypoint x="2908" y="1636" />
+        <di:waypoint x="3086" y="1636" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_dasha_to_pay_di" bpmnElement="Flow_dasha_to_pay">
+        <di:waypoint x="3186" y="1636" />
+        <di:waypoint x="3821" y="1636" />
+        <di:waypoint x="3821" y="1691" />
+        <di:waypoint x="3831" y="1691" />
+        <di:waypoint x="3831" y="1709" />
+        <di:waypoint x="3897" y="1709" />
+        <di:waypoint x="3941" y="1709" />
+        <di:waypoint x="3941" y="1691" />
+        <di:waypoint x="3897" y="1691" />
+        <di:waypoint x="3875" y="1691" />
+        <di:waypoint x="3875" y="1709" />
+        <di:waypoint x="3941" y="1709" />
+        <di:waypoint x="3941" y="1691" />
+        <di:waypoint x="3951" y="1691" />
+        <di:waypoint x="3951" y="1636" />
+        <di:waypoint x="4086" y="1636" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_dmn_pay_di" bpmnElement="Flow_dmn_pay">
+        <di:waypoint x="4661" y="1026" />
+        <di:waypoint x="4731" y="1026" />
+        <di:waypoint x="4731" y="-64" />
+        <di:waypoint x="3266" y="-64" />
+        <di:waypoint x="3266" y="116" />
+        <di:waypoint x="3336" y="116" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_timer_to_pay_di" bpmnElement="Flow_timer_to_pay">
+        <di:waypoint x="2661" y="401" />
+        <di:waypoint x="3022" y="401" />
+        <di:waypoint x="3022" y="116" />
+        <di:waypoint x="3336" y="116" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_contract_yes_di" bpmnElement="Flow_contract_yes">
+        <di:waypoint x="3411" y="1026" />
+        <di:waypoint x="3491" y="1026" />
+        <di:waypoint x="3491" y="-79" />
+        <di:waypoint x="3256" y="-79" />
+        <di:waypoint x="3256" y="116" />
+        <di:waypoint x="3336" y="116" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0ues5t2_di" bpmnElement="Flow_0ues5t2">
+        <di:waypoint x="4186" y="1636" />
+        <di:waypoint x="4276" y="1636" />
+        <di:waypoint x="4276" y="-94" />
+        <di:waypoint x="3246" y="-94" />
+        <di:waypoint x="3246" y="116" />
+        <di:waypoint x="3336" y="116" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_pay_to_service_di" bpmnElement="Flow_pay_to_service">
+        <di:waypoint x="3436" y="116" />
+        <di:waypoint x="3511" y="116" />
+        <di:waypoint x="3511" y="666" />
+        <di:waypoint x="3586" y="666" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0073gjv_di" bpmnElement="Flow_0073gjv">
+        <di:waypoint x="3936" y="666" />
+        <di:waypoint x="4027" y="666" />
+        <di:waypoint x="4027" y="116" />
+        <di:waypoint x="4118" y="116" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_contract_no_di" bpmnElement="Flow_contract_no">
+        <di:waypoint x="3411" y="1026" />
+        <di:waypoint x="3510" y="1026" />
+        <di:waypoint x="3510" y="401" />
+        <di:waypoint x="3586" y="401" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_nego_self_di" bpmnElement="Flow_nego_self">
+        <di:waypoint x="3911" y="1026" />
+        <di:waypoint x="4010" y="1026" />
+        <di:waypoint x="4010" y="1636" />
+        <di:waypoint x="4086" y="1636" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_dmn_nego_who_to_gw_di" bpmnElement="Flow_dmn_nego_who_to_gw">
+        <di:waypoint x="3686" y="401" />
+        <di:waypoint x="3774" y="401" />
+        <di:waypoint x="3774" y="1026" />
+        <di:waypoint x="3861" y="1026" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_nego_dasha_di" bpmnElement="Flow_nego_dasha">
+        <di:waypoint x="3911" y="1026" />
+        <di:waypoint x="4011" y="1026" />
+        <di:waypoint x="4011" y="-109" />
+        <di:waypoint x="3236" y="-109" />
+        <di:waypoint x="3236" y="1358" />
+        <di:waypoint x="3336" y="1358" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_dmn_wait_di" bpmnElement="Flow_dmn_wait">
+        <di:waypoint x="4661" y="1026" />
+        <di:waypoint x="4752" y="1026" />
+        <di:waypoint x="4752" y="976" />
+        <di:waypoint x="4818" y="976" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_dmn_break_di" bpmnElement="Flow_dmn_break">
+        <di:waypoint x="4661" y="1026" />
+        <di:waypoint x="4748" y="1026" />
+        <di:waypoint x="4748" y="1054" />
+        <di:waypoint x="4786" y="1054" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_break_to_end_di" bpmnElement="Flow_break_to_end">
+        <di:waypoint x="4886" y="1054" />
+        <di:waypoint x="4977" y="1054" />
+        <di:waypoint x="4977" y="1026" />
+        <di:waypoint x="5068" y="1026" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_service_to_end_di" bpmnElement="Flow_service_to_end">
+        <di:waypoint x="3686" y="666" />
+        <di:waypoint x="3836" y="666" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
