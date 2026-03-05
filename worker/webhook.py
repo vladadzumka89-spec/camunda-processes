@@ -168,6 +168,7 @@ class WebhookServer:
             "repository": repo_full,
             "base_branch": pr.get('base', {}).get('ref', 'main'),
             "head_branch": pr.get('head', {}).get('ref', ''),
+            "odoo_project_id": self._config.odoo.project_id,
         }
 
         # Inject server configs (required by call_deploy_staging/prod BPMN inputs)
@@ -265,7 +266,7 @@ class WebhookServer:
         )
         # action from JSON body or query param (?action=cancel for Odoo webhook actions)
         action = payload.get('action', request.query.get('action', 'done'))
-        correlation_key = task_id or pik
+        correlation_key = pik or task_id
 
         if not correlation_key:
             return web.Response(status=400, text="Missing task_id or process_instance_key")
@@ -280,13 +281,17 @@ class WebhookServer:
             return await self._cancel_process_instance(pik)
 
         try:
+            # Pass through all variables from Odoo payload (staging_approved, prod_approved, etc.)
+            msg_variables = {"odoo_task_resolved": True}
+            for key in ("staging_approved", "prod_approved", "comment"):
+                if key in payload:
+                    msg_variables[key] = payload[key]
+
             client = self._create_zeebe_client()
             await client.publish_message(
                 name="msg_odoo_task_done",
                 correlation_key=correlation_key,
-                variables={
-                    "odoo_task_resolved": True,
-                },
+                variables=msg_variables,
             )
             logger.info(
                 "Published msg_odoo_task_done correlation_key=%s (task_id=%s, pik=%s)",

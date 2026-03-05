@@ -34,7 +34,7 @@
 
        Job worker types:
          pr-agent-review, merge-feature-to-staging, github-pr-ready,
-         github-comment, send-notification, http-request-smart, rollback
+         github-comment, http-request-smart, rollback
        ═══════════════════════════════════════════════════════════ -->
 
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
@@ -51,10 +51,15 @@
       <zeebe:subscription correlationKey="=string(pr_number)" />
     </bpmn:extensionElements>
   </bpmn:message>
+  <bpmn:message id="Message_odoo_task_done" name="msg_odoo_task_done">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=string(process_instance_key)" />
+    </bpmn:extensionElements>
+  </bpmn:message>
 
   <bpmn:process id="feature-to-production" name="Feature to Production" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="3.0" />
+      <zeebe:versionTag value="4.4" />
     </bpmn:extensionElements>
 
     <!-- ═══════════════════ PHASE 0: /start ═══════════════════ -->
@@ -75,12 +80,18 @@ Camunda REST API створює інстанс процесу з task_name, task
 
     <!-- ── Service Task: Створити задачу в Odoo ────────────── -->
     <bpmn:serviceTask id="task_create_odoo" name="Створити задачу в Odoo">
-      <bpmn:documentation>Створює батьківську задачу в Odoo через Python worker (send-notification).
+      <bpmn:documentation>Створює батьківську задачу в Odoo через http-request-smart.
 Використовує task_name та task_description з процесних змінних.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;feature_start&quot;" target="notification_type" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: if is defined(task_name) and task_name != null and task_name != &quot;&quot; then task_name else &quot;[feature] Нова задача&quot;, description: if is defined(task_description) and task_description != null then task_description else &quot;&quot;, _id: odoo_project_id, create_process: true}" target="body" />
+          <zeebe:input source="=&quot;odoo_response&quot;" target="result_variable_name" />
+          <zeebe:output source="=string(odoo_response.id)" target="odoo_task_id" />
+          <zeebe:output source="=process_instance_key" target="process_instance_key" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_odoo_default</bpmn:incoming>
@@ -158,10 +169,12 @@ Output: review_score, review_comment, has_critical_issues</bpmn:documentation>
 
     <bpmn:serviceTask id="task_send_pr_reminder" name="Нагадати: PR потребує виправлень">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;reminder&quot;" target="notification_type" />
-          <zeebe:input source="=&quot;⏰ Нагадування: PR #&quot; + string(pr_number) + &quot; потребує доопрацювання (score &lt; 7). Виправте зауваження PR-Agent.&quot;" target="message_body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;⏰ Нагадування: PR #&quot; + string(pr_number) + &quot; потребує доопрацювання&quot;, description: &quot;&lt;p&gt;⏰ Нагадування: PR #&quot; + string(pr_number) + &quot; потребує доопрацювання (score &amp;lt; 7). Виправте зауваження PR-Agent.&lt;/p&gt;&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_pr_reminder</bpmn:incoming>
@@ -195,15 +208,30 @@ Output: review_score, review_comment, has_critical_issues</bpmn:documentation>
       <bpmn:errorEventDefinition id="ErrorDef_merge_conflict" />
     </bpmn:boundaryEvent>
 
+    <bpmn:serviceTask id="task_subtask_merge_conflict" name="Підзадача: merge конфлікт">
+      <bpmn:documentation>Створює підзадачу в Odoo: merge конфлікт, потрібен rebase. Містить список конфліктних файлів.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Merge конфлікт: PR #&quot; + string(pr_number) + &quot; — &quot; + head_branch, description: &quot;Не вдалось змержити гілку в staging. Потрібен rebase на main.\n\nКонфліктні файли:\n&quot; + (if is defined(conflict_files) and conflict_files != null and conflict_files != &quot;&quot; then conflict_files else &quot;(не вдалось визначити)&quot;)}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_merge_conflict</bpmn:incoming>
+      <bpmn:outgoing>f_subtask_conflict_to_comment</bpmn:outgoing>
+    </bpmn:serviceTask>
+
     <bpmn:serviceTask id="task_comment_conflict" name="Коментар: merge конфлікт">
       <bpmn:documentation>Публікує коментар на draft PR: merge конфлікт з staging, потрібен rebase на main.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="github-comment" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;⚠️ **Merge конфлікт**: не вдалось змержити `&quot; + head_branch + &quot;` в staging. Виконайте rebase на main та вирішіть конфлікти, потім пушніть зміни.&quot;" target="comment_text" />
+          <zeebe:input source="=&quot;⚠️ **Merge конфлікт**: не вдалось змержити `&quot; + head_branch + &quot;` в staging.\n\nКонфліктні файли:\n```\n&quot; + (if is defined(conflict_files) and conflict_files != null and conflict_files != &quot;&quot; then conflict_files else &quot;(не вдалось визначити)&quot;) + &quot;\n```\n\nВиконайте rebase на main та вирішіть конфлікти, потім пушніть зміни.&quot;" target="comment_text" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>f_merge_conflict</bpmn:incoming>
+      <bpmn:incoming>f_subtask_conflict_to_comment</bpmn:incoming>
       <bpmn:outgoing>f_conflict_to_rework</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -225,7 +253,8 @@ Output: review_score, review_comment, has_critical_issues</bpmn:documentation>
           <zeebe:input source="=staging_repo_dir" target="repo_dir" />
           <zeebe:input source="=true" target="run_smoke_test" />
           <zeebe:input source="=&quot;full&quot;" target="test_mode" />
-          <zeebe:input source="=process_instance_key" target="process_instance_key" />
+          <zeebe:input source="=process_instance_key" target="parent_process_instance_key" />
+          <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
           <zeebe:output source="=modules_updated" target="staging_modules" />
           <zeebe:output source="=smoke_passed" target="staging_smoke" />
           <zeebe:output source="=clickbot_passed" target="clickbot_passed" />
@@ -244,10 +273,12 @@ Output: review_score, review_comment, has_critical_issues</bpmn:documentation>
 
     <bpmn:serviceTask id="task_notify_deploy_fail" name="Повідомити: deploy staging failed">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;deploy_failed&quot;" target="notification_type" />
-          <zeebe:input source="=&quot;❌ Deploy PR #&quot; + string(pr_number) + &quot; на staging провалився.&quot;" target="message_body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;[deploy] ❌ Деплой staging провалився&quot;, description: &quot;&lt;p&gt;❌ Deploy PR #&quot; + string(pr_number) + &quot; на staging провалився.&lt;/p&gt;&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_deploy_fail</bpmn:incoming>
@@ -261,9 +292,9 @@ Output: review_score, review_comment, has_critical_issues</bpmn:documentation>
         <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;Перевірити staging: PR #&quot; + string(pr_number), description: &quot;PR задеплоєно на staging. Clickbot: &quot; + (if clickbot_passed then &quot;passed&quot; else &quot;failed&quot;) + &quot;. Перевірте функціонал.&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="={name: &quot;Перевірити staging: PR #&quot; + string(pr_number), description: &quot;PR задеплоєно на staging. Clickbot: &quot; + (if clickbot_passed then &quot;passed&quot; else &quot;failed&quot;) + &quot;. Перевірте функціонал.&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f04</bpmn:incoming>
@@ -272,23 +303,13 @@ Output: review_score, review_comment, has_critical_issues</bpmn:documentation>
 
     <!-- ═══════════════════ PHASE 3: VERIFICATION ═══════════════════ -->
 
-    <!-- ── USER: VERIFY STAGING ──────────────────────────── -->
-    <bpmn:userTask id="user_verify_staging" name="Перевірити staging">
-      <bpmn:documentation>Техспеціаліст перевіряє функціонал на staging:
-— Фіча працює коректно
-— Немає регресій
-— Clickbot результати (якщо failed — перевірити вручну)
-
-Форма: staging URL, PR опис, clickbot звіт.
-Рішення: Approve / Reject (з коментарем)</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:assignmentDefinition candidateGroups="tech-specialist" />
-        <zeebe:formDefinition formId="verify-staging-form" />
-        <zeebe:taskSchedule dueDate="=now() + duration(&quot;P3D&quot;)" />
-      </bpmn:extensionElements>
+    <!-- ── RECEIVE: VERIFY STAGING (чекає msg_odoo_task_done від Odoo) ── -->
+    <bpmn:receiveTask id="user_verify_staging" name="Перевірити staging" messageRef="Message_odoo_task_done">
+      <bpmn:documentation>Чекає поки техспеціаліст перевірить staging в Odoo і переведе задачу у "Виконано" або "Скасовано".
+Odoo automation надсилає webhook з staging_approved = true/false.</bpmn:documentation>
       <bpmn:incoming>f_subtask_to_verify_staging</bpmn:incoming>
       <bpmn:outgoing>f07</bpmn:outgoing>
-    </bpmn:userTask>
+    </bpmn:receiveTask>
 
     <!-- Boundary: нагадування кожні 4 години -->
     <bpmn:boundaryEvent id="BE_rem_verify_staging" name="Нагадування (4 год)" cancelActivity="false" attachedToRef="user_verify_staging">
@@ -300,10 +321,12 @@ Output: review_score, review_comment, has_critical_issues</bpmn:documentation>
 
     <bpmn:serviceTask id="ST_rem_verify_staging" name="⚠️ Нагадування: перевірте staging">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;reminder&quot;" target="notification_type" />
-          <zeebe:input source="=&quot;⚠️ НАГАДУВАННЯ: Перевірте staging для PR #&quot; + string(pr_number) + &quot;. Задача очікує на перевірку.&quot;" target="message_body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;⚠️ НАГАДУВАННЯ: перевірте staging PR #&quot; + string(pr_number), description: &quot;&lt;p&gt;⚠️ НАГАДУВАННЯ: Перевірте staging для PR #&quot; + string(pr_number) + &quot;. Задача очікує на перевірку.&lt;/p&gt;&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_rem_verify_staging</bpmn:incoming>
@@ -327,9 +350,9 @@ Output: review_score, review_comment, has_critical_issues</bpmn:documentation>
         <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;🔴 ЕСКАЛАЦІЯ: staging не перевірено для PR #&quot; + string(pr_number), description: &quot;Задача перевірки staging не виконана протягом 3 днів. Потрібне втручання керівника.&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="={name: &quot;🔴 ЕСКАЛАЦІЯ: staging не перевірено для PR #&quot; + string(pr_number), description: &quot;Задача перевірки staging не виконана протягом 3 днів. Потрібне втручання керівника.&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_esc_verify_staging</bpmn:incoming>
@@ -419,10 +442,12 @@ Output: second_review_score, second_has_critical</bpmn:documentation>
 
     <bpmn:serviceTask id="task_send_second_reminder" name="Нагадати: 2-ге ревʼю потребує виправлень">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;reminder&quot;" target="notification_type" />
-          <zeebe:input source="=&quot;⏰ Нагадування: PR #&quot; + string(pr_number) + &quot; потребує доопрацювання після 2-го ревʼю (score &lt; 7).&quot;" target="message_body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;⏰ Нагадування: 2-ге ревʼю PR #&quot; + string(pr_number), description: &quot;&lt;p&gt;⏰ Нагадування: PR #&quot; + string(pr_number) + &quot; потребує доопрацювання після 2-го ревʼю (score &amp;lt; 7).&lt;/p&gt;&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_second_reminder</bpmn:incoming>
@@ -456,27 +481,21 @@ Staging пройдено + PR-Agent 2x OK. PR вже не draft.</bpmn:documenta
         <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;Review та merge PR в main: &quot; + pr_title, description: &quot;Staging пройдено + PR-Agent 2x OK. PR вже не draft. Потрібен review та merge PR в main.&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="={name: &quot;Review та merge PR в main: &quot; + pr_title, description: &quot;Staging пройдено + PR-Agent 2x OK. PR вже не draft. Потрібен review та merge PR в main.&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_undraft_to_subtask</bpmn:incoming>
       <bpmn:outgoing>f_subtask_to_merge_main</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- ── USER: MERGE TO MAIN ───────────────────────────── -->
-    <bpmn:userTask id="user_merge_main" name="Review та merge PR в main">
-      <bpmn:documentation>Тімлід переглядає PR і мерджить в main через GitHub.
-PR URL надається у формі.</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:assignmentDefinition candidateGroups="tech-specialist" />
-        <zeebe:formDefinition formId="merge-main-form" />
-        <zeebe:taskSchedule dueDate="=now() + duration(&quot;P3D&quot;)" />
-      </bpmn:extensionElements>
+    <!-- ── RECEIVE: MERGE TO MAIN (чекає msg_odoo_task_done від Odoo) ── -->
+    <bpmn:receiveTask id="user_merge_main" name="Review та merge PR в main" messageRef="Message_odoo_task_done">
+      <bpmn:documentation>Чекає поки тімлід зробить review і merge PR в main, потім завершить задачу в Odoo.</bpmn:documentation>
       <bpmn:incoming>f_subtask_to_merge_main</bpmn:incoming>
       <bpmn:outgoing>f09</bpmn:outgoing>
-    </bpmn:userTask>
+    </bpmn:receiveTask>
 
     <!-- Boundary: нагадування кожні 4 години -->
     <bpmn:boundaryEvent id="BE_rem_merge_main" name="Нагадування (4 год)" cancelActivity="false" attachedToRef="user_merge_main">
@@ -488,10 +507,12 @@ PR URL надається у формі.</bpmn:documentation>
 
     <bpmn:serviceTask id="ST_rem_merge_main" name="⚠️ Нагадування: merge PR в main">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;reminder&quot;" target="notification_type" />
-          <zeebe:input source="=&quot;⚠️ НАГАДУВАННЯ: PR в main очікує review та merge. PR #&quot; + string(pr_number)" target="message_body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;⚠️ НАГАДУВАННЯ: merge PR #&quot; + string(pr_number) + &quot; в main&quot;, description: &quot;&lt;p&gt;⚠️ НАГАДУВАННЯ: PR в main очікує review та merge. PR #&quot; + string(pr_number) + &quot;&lt;/p&gt;&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_rem_merge_main</bpmn:incoming>
@@ -515,9 +536,9 @@ PR URL надається у формі.</bpmn:documentation>
         <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;🔴 ЕСКАЛАЦІЯ: PR в main не змержено для PR #&quot; + string(pr_number), description: &quot;Merge PR в main не виконано протягом 3 днів. Потрібне втручання керівника.&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="={name: &quot;🔴 ЕСКАЛАЦІЯ: PR в main не змержено для PR #&quot; + string(pr_number), description: &quot;Merge PR в main не виконано протягом 3 днів. Потрібне втручання керівника.&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_esc_merge_main</bpmn:incoming>
@@ -527,6 +548,25 @@ PR URL надається у формі.</bpmn:documentation>
     <bpmn:endEvent id="End_esc_merge_main">
       <bpmn:incoming>f_to_End_esc_merge_main</bpmn:incoming>
     </bpmn:endEvent>
+
+    <!-- ── MERGE OK? ──────────────────────────────────────── -->
+    <bpmn:exclusiveGateway id="gw_merge_ok" name="Merge пройдено?" default="f_merge_yes">
+      <bpmn:incoming>f09</bpmn:incoming>
+      <bpmn:outgoing>f_merge_yes</bpmn:outgoing>
+      <bpmn:outgoing>f_merge_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="task_request_merge_rework" name="Коментар: merge відхилено">
+      <bpmn:documentation>Публікує коментар на PR з описом причини відхилення merge.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-comment" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;⚠️ **Merge відхилено**. Будь ласка, виправте та пушніть зміни.&quot;" target="comment_text" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_merge_no</bpmn:incoming>
+      <bpmn:outgoing>f_merge_reject_to_rework</bpmn:outgoing>
+    </bpmn:serviceTask>
 
     <!-- ═══════════════════ PHASE 5: PRODUCTION ═══════════════════ -->
 
@@ -545,7 +585,8 @@ PR URL надається у формі.</bpmn:documentation>
           <zeebe:input source="=production_container" target="container" />
           <zeebe:input source="=production_repo_dir" target="repo_dir" />
           <zeebe:input source="=true" target="run_smoke_test" />
-          <zeebe:input source="=process_instance_key" target="process_instance_key" />
+          <zeebe:input source="=process_instance_key" target="parent_process_instance_key" />
+          <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
           <zeebe:output source="=modules_updated" target="prod_modules" />
           <zeebe:output source="=smoke_passed" target="prod_smoke" />
           <zeebe:output source="=old_commit" target="prod_old_commit" />
@@ -554,7 +595,7 @@ PR URL надається у формі.</bpmn:documentation>
           <zeebe:output source="=clickbot_report" target="prod_clickbot_report" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>f09</bpmn:incoming>
+      <bpmn:incoming>f_merge_yes</bpmn:incoming>
       <bpmn:outgoing>f10</bpmn:outgoing>
     </bpmn:callActivity>
 
@@ -566,10 +607,12 @@ PR URL надається у формі.</bpmn:documentation>
 
     <bpmn:serviceTask id="task_notify_prod_fail" name="Повідомити: deploy production failed">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;deploy_failed&quot;" target="notification_type" />
-          <zeebe:input source="=&quot;❌ Deploy на production провалився. Auto-rollback виконано.\nPR #&quot; + string(pr_number)" target="message_body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;[deploy] ❌ Деплой production провалився&quot;, description: &quot;&lt;p&gt;❌ Deploy на production провалився. Auto-rollback виконано. PR #&quot; + string(pr_number) + &quot;&lt;/p&gt;&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_deploy_prod_fail</bpmn:incoming>
@@ -583,32 +626,22 @@ PR URL надається у формі.</bpmn:documentation>
         <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;Перевірити production: PR #&quot; + string(pr_number), description: &quot;PR задеплоєно на production. Перевірте функціонал.&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="={name: &quot;Перевірити production: PR #&quot; + string(pr_number), description: &quot;PR задеплоєно на production. Перевірте функціонал.&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f10</bpmn:incoming>
       <bpmn:outgoing>f_subtask_to_verify_prod</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- ── USER: VERIFY PRODUCTION ───────────────────────── -->
-    <bpmn:userTask id="user_verify_prod" name="Перевірити production">
-      <bpmn:documentation>Техспеціаліст заходить на o.tut.ua і перевіряє:
-— Сайт працює
-— Фіча задеплоєна коректно
-— Немає регресій
-— tut_core автоочистка кешу спрацювала (браузери перезавантажились)
-
-Рішення: OK / Rollback (з причиною)</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:assignmentDefinition candidateGroups="tech-specialist" />
-        <zeebe:formDefinition formId="verify-prod-form" />
-        <zeebe:taskSchedule dueDate="=now() + duration(&quot;P1D&quot;)" />
-      </bpmn:extensionElements>
+    <!-- ── RECEIVE: VERIFY PRODUCTION (чекає msg_odoo_task_done від Odoo) ── -->
+    <bpmn:receiveTask id="user_verify_prod" name="Перевірити production" messageRef="Message_odoo_task_done">
+      <bpmn:documentation>Чекає поки техспеціаліст перевірить production в Odoo і переведе задачу у "Виконано" або "Скасовано".
+Odoo automation надсилає webhook з prod_approved = true/false.</bpmn:documentation>
       <bpmn:incoming>f_subtask_to_verify_prod</bpmn:incoming>
       <bpmn:outgoing>f11</bpmn:outgoing>
-    </bpmn:userTask>
+    </bpmn:receiveTask>
 
     <!-- Boundary: нагадування кожні 4 години -->
     <bpmn:boundaryEvent id="BE_rem_verify_prod" name="Нагадування (4 год)" cancelActivity="false" attachedToRef="user_verify_prod">
@@ -620,10 +653,12 @@ PR URL надається у формі.</bpmn:documentation>
 
     <bpmn:serviceTask id="ST_rem_verify_prod" name="⚠️ Нагадування: перевірте production">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;reminder&quot;" target="notification_type" />
-          <zeebe:input source="=&quot;⚠️ НАГАДУВАННЯ: Перевірте production для PR #&quot; + string(pr_number) + &quot;. Задача терміново очікує перевірки.&quot;" target="message_body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;⚠️ НАГАДУВАННЯ: перевірте production PR #&quot; + string(pr_number), description: &quot;&lt;p&gt;⚠️ НАГАДУВАННЯ: Перевірте production для PR #&quot; + string(pr_number) + &quot;. Задача терміново очікує перевірки.&lt;/p&gt;&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_rem_verify_prod</bpmn:incoming>
@@ -647,9 +682,9 @@ PR URL надається у формі.</bpmn:documentation>
         <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/67f62d7c-2612-444c-baf3-ad409c769bbe&quot;" target="url" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;🔴 ЕСКАЛАЦІЯ: production не перевірено для PR #&quot; + string(pr_number), description: &quot;Перевірка production не виконана протягом 1 дня. ТЕРМІНОВО потрібне втручання керівника.&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="={name: &quot;🔴 ЕСКАЛАЦІЯ: production не перевірено для PR #&quot; + string(pr_number), description: &quot;Перевірка production не виконана протягом 1 дня. ТЕРМІНОВО потрібне втручання керівника.&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_esc_verify_prod</bpmn:incoming>
@@ -686,10 +721,12 @@ PR URL надається у формі.</bpmn:documentation>
 
     <bpmn:serviceTask id="task_notify_rollback" name="Повідомити: rollback виконано">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;rollback&quot;" target="notification_type" />
-          <zeebe:input source="=&quot;⚠️ Production rollback виконано для PR #&quot; + string(pr_number) + &quot;.\nПричина: &quot; + (if rollback_reason != null then rollback_reason else &quot;відхилено техспецом&quot;)" target="message_body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;⚠️ Production rollback: PR #&quot; + string(pr_number), description: &quot;&lt;p&gt;⚠️ Production rollback виконано для PR #&quot; + string(pr_number) + &quot;. Причина: &quot; + (if rollback_reason != null then rollback_reason else &quot;відхилено техспецом&quot;) + &quot;&lt;/p&gt;&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_rollback_notify</bpmn:incoming>
@@ -747,10 +784,12 @@ Non-interrupting timer нагадує кожні 3 дні.</bpmn:documentation>
 
     <bpmn:serviceTask id="task_send_rework_reminder" name="Нагадати: потрібне виправлення">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;reminder&quot;" target="notification_type" />
-          <zeebe:input source="=&quot;⏰ Нагадування: PR #&quot; + string(pr_number) + &quot; потребує виправлення. Пушніть зміни в гілку &quot; + head_branch + &quot;.&quot;" target="message_body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;⏰ Нагадування: PR #&quot; + string(pr_number) + &quot; потребує виправлення&quot;, description: &quot;&lt;p&gt;⏰ Нагадування: PR #&quot; + string(pr_number) + &quot; потребує виправлення. Пушніть зміни в гілку &quot; + head_branch + &quot;.&lt;/p&gt;&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_rework_reminder</bpmn:incoming>
@@ -788,8 +827,9 @@ Non-interrupting timer нагадує кожні 3 дні.</bpmn:documentation>
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=review_score &gt;= 7 and has_critical_issues = false</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
-    <!-- Merge conflict → comment → rework -->
-    <bpmn:sequenceFlow id="f_merge_conflict" sourceRef="evt_merge_conflict" targetRef="task_comment_conflict" />
+    <!-- Merge conflict → subtask Odoo → comment → rework -->
+    <bpmn:sequenceFlow id="f_merge_conflict" sourceRef="evt_merge_conflict" targetRef="task_subtask_merge_conflict" />
+    <bpmn:sequenceFlow id="f_subtask_conflict_to_comment" sourceRef="task_subtask_merge_conflict" targetRef="task_comment_conflict" />
     <bpmn:sequenceFlow id="f_conflict_to_rework" sourceRef="task_comment_conflict" targetRef="task_comment_rework" />
 
     <!-- Phase 2: CD Staging -->
@@ -826,7 +866,16 @@ Non-interrupting timer нагадує кожні 3 дні.</bpmn:documentation>
 
     <bpmn:sequenceFlow id="f_undraft_to_subtask" sourceRef="task_undraft_pr" targetRef="task_subtask_merge_main" />
     <bpmn:sequenceFlow id="f_subtask_to_merge_main" sourceRef="task_subtask_merge_main" targetRef="user_merge_main" />
-    <bpmn:sequenceFlow id="f09" sourceRef="user_merge_main" targetRef="call_deploy_prod" />
+    <bpmn:sequenceFlow id="f09" sourceRef="user_merge_main" targetRef="gw_merge_ok" />
+
+    <!-- Merge rejected → rework -->
+    <bpmn:sequenceFlow id="f_merge_no" name="Відхилено" sourceRef="gw_merge_ok" targetRef="task_request_merge_rework">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=staging_approved = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_merge_reject_to_rework" sourceRef="task_request_merge_rework" targetRef="task_comment_rework" />
+
+    <!-- Merge approved → deploy prod -->
+    <bpmn:sequenceFlow id="f_merge_yes" name="OK" sourceRef="gw_merge_ok" targetRef="call_deploy_prod" />
 
     <!-- Phase 5: Production -->
     <bpmn:sequenceFlow id="f10" sourceRef="call_deploy_prod" targetRef="task_subtask_verify_prod" />
@@ -885,10 +934,12 @@ Non-interrupting timer нагадує кожні 3 дні.</bpmn:documentation>
       <bpmn:serviceTask id="ST_error_notify_pipeline" name="❌ Створити задачу про помилку в Odoo">
         <bpmn:documentation>Створює підзадачу в Odoo про непередбачену помилку в CI/CD пайплайні з деталями.</bpmn:documentation>
         <bpmn:extensionElements>
-          <zeebe:taskDefinition type="send-notification" retries="2" />
+          <zeebe:taskDefinition type="http-request-smart" retries="2" />
           <zeebe:ioMapping>
-            <zeebe:input source="=&quot;pipeline_error&quot;" target="notification_type" />
-            <zeebe:input source="=&quot;Задача: &quot; + (if is defined(task_name) and task_name != null then task_name else &quot;—&quot;) + &quot;\nГілка: &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;—&quot;) + (if is defined(pr_number) and pr_number != null then &quot;\nPR: #&quot; + string(pr_number) else &quot;&quot;) + &quot;\nКод помилки: &quot; + (if is defined(caught_error_code) and caught_error_code != null then caught_error_code else &quot;—&quot;) + &quot;\nДеталі: &quot; + (if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Невідома помилка&quot;)" target="message_body" />
+            <zeebe:input source="=&quot;POST&quot;" target="method" />
+            <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+            <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+            <zeebe:input source="={name: &quot;[pipeline] ❌ Помилка: &quot; + (if is defined(caught_error_code) and caught_error_code != null then caught_error_code else &quot;unknown&quot;), description: &quot;&lt;p&gt;Задача: &quot; + (if is defined(task_name) and task_name != null then task_name else &quot;—&quot;) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;—&quot;) + (if is defined(pr_number) and pr_number != null then &quot;&lt;br/&gt;PR: #&quot; + string(pr_number) else &quot;&quot;) + &quot;&lt;br/&gt;Код помилки: &quot; + (if is defined(caught_error_code) and caught_error_code != null then caught_error_code else &quot;—&quot;) + &quot;&lt;br/&gt;Деталі: &quot; + (if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Невідома помилка&quot;) + &quot;&lt;/p&gt;&quot;}" target="body" />
           </zeebe:ioMapping>
         </bpmn:extensionElements>
         <bpmn:incoming>f_error_to_notify_pipeline</bpmn:incoming>
@@ -956,8 +1007,12 @@ Non-interrupting timer нагадує кожні 3 дні.</bpmn:documentation>
         <dc:Bounds x="952" y="402" width="36" height="36" />
       </bpmndi:BPMNShape>
 
-      <bpmndi:BPMNShape id="task_comment_conflict_di" bpmnElement="task_comment_conflict">
+      <bpmndi:BPMNShape id="task_subtask_merge_conflict_di" bpmnElement="task_subtask_merge_conflict">
         <dc:Bounds x="890" y="490" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="task_comment_conflict_di" bpmnElement="task_comment_conflict">
+        <dc:Bounds x="890" y="610" width="160" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="call_deploy_staging_di" bpmnElement="call_deploy_staging">
@@ -1001,8 +1056,16 @@ Non-interrupting timer нагадує кожні 3 дні.</bpmn:documentation>
         <dc:Bounds x="2800" y="340" width="160" height="80" />
       </bpmndi:BPMNShape>
 
+      <bpmndi:BPMNShape id="gw_merge_ok_di" bpmnElement="gw_merge_ok" isMarkerVisible="true">
+        <dc:Bounds x="2985" y="355" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="task_request_merge_rework_di" bpmnElement="task_request_merge_rework">
+        <dc:Bounds x="2960" y="470" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
       <bpmndi:BPMNShape id="call_deploy_prod_di" bpmnElement="call_deploy_prod">
-        <dc:Bounds x="3040" y="340" width="160" height="80" />
+        <dc:Bounds x="3120" y="340" width="160" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="evt_deploy_prod_error_di" bpmnElement="evt_deploy_prod_error">
@@ -1221,15 +1284,21 @@ Non-interrupting timer нагадує кожні 3 дні.</bpmn:documentation>
         <di:waypoint x="890" y="380" />
       </bpmndi:BPMNEdge>
 
-      <!-- Merge conflict → Comment conflict -->
+      <!-- Merge conflict → Subtask merge conflict -->
       <bpmndi:BPMNEdge id="f_merge_conflict_di" bpmnElement="f_merge_conflict">
         <di:waypoint x="970" y="438" />
         <di:waypoint x="970" y="490" />
       </bpmndi:BPMNEdge>
 
+      <!-- Subtask merge conflict → Comment conflict -->
+      <bpmndi:BPMNEdge id="f_subtask_conflict_to_comment_di" bpmnElement="f_subtask_conflict_to_comment">
+        <di:waypoint x="970" y="570" />
+        <di:waypoint x="970" y="610" />
+      </bpmndi:BPMNEdge>
+
       <!-- Comment conflict → Comment rework -->
       <bpmndi:BPMNEdge id="f_conflict_to_rework_di" bpmnElement="f_conflict_to_rework">
-        <di:waypoint x="970" y="570" />
+        <di:waypoint x="970" y="690" />
         <di:waypoint x="970" y="700" />
       </bpmndi:BPMNEdge>
 
@@ -1346,16 +1415,35 @@ Non-interrupting timer нагадує кожні 3 дні.</bpmn:documentation>
         <di:waypoint x="2800" y="380" />
       </bpmndi:BPMNEdge>
 
-      <!-- Merge main → Deploy prod -->
+      <!-- Merge main → GW Merge OK -->
       <bpmndi:BPMNEdge id="f09_di" bpmnElement="f09">
         <di:waypoint x="2960" y="380" />
-        <di:waypoint x="3040" y="380" />
+        <di:waypoint x="2985" y="380" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW Merge OK → Deploy prod (OK) -->
+      <bpmndi:BPMNEdge id="f_merge_yes_di" bpmnElement="f_merge_yes">
+        <di:waypoint x="3035" y="380" />
+        <di:waypoint x="3120" y="380" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW Merge OK → Rework (rejected) -->
+      <bpmndi:BPMNEdge id="f_merge_no_di" bpmnElement="f_merge_no">
+        <di:waypoint x="3010" y="405" />
+        <di:waypoint x="3010" y="470" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Merge rework → comment rework -->
+      <bpmndi:BPMNEdge id="f_merge_reject_to_rework_di" bpmnElement="f_merge_reject_to_rework">
+        <di:waypoint x="2960" y="510" />
+        <di:waypoint x="2100" y="510" />
+        <di:waypoint x="2100" y="780" />
       </bpmndi:BPMNEdge>
 
       <!-- Deploy prod → Subtask Verify prod -->
       <bpmndi:BPMNEdge id="f10_di" bpmnElement="f10">
-        <di:waypoint x="3200" y="380" />
         <di:waypoint x="3280" y="380" />
+        <di:waypoint x="3360" y="380" />
       </bpmndi:BPMNEdge>
 
       <!-- Subtask → Verify prod -->

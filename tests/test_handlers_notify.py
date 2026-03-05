@@ -1,4 +1,4 @@
-"""Tests for worker.handlers.notify — Odoo notification handlers."""
+"""Tests for worker.handlers.notify — render-sync-html handler."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def _make_mock_job() -> MagicMock:
     return job
 
 
-def _extract_handlers(config: AppConfig, odoo: MagicMock) -> dict:
+def _extract_handlers(config: AppConfig) -> dict:
     handlers = {}
 
     def task_decorator(task_type: str, **kwargs):
@@ -30,77 +30,134 @@ def _extract_handlers(config: AppConfig, odoo: MagicMock) -> dict:
 
     worker = MagicMock()
     worker.task = task_decorator
-    register_notify_handlers(worker, config, odoo)
+    register_notify_handlers(worker, config)
     return handlers
 
 
 @pytest.fixture
-def handlers(app_config: AppConfig, mock_odoo: MagicMock) -> dict:
-    return _extract_handlers(app_config, mock_odoo)
+def handlers(app_config: AppConfig) -> dict:
+    return _extract_handlers(app_config)
 
 
-# ── send-notification ─────────────────────────────────────
+# ── render-sync-html ─────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_send_notification(handlers: dict, mock_odoo: MagicMock) -> None:
+async def test_render_sync_html_returns_all_fields(handlers: dict) -> None:
     job = _make_mock_job()
-    result = await handlers["send-notification"](
+    result = await handlers["render-sync-html"](
         job=job,
-        notification_type="staging_ready",
-        message_body="All good",
-    )
-    assert result["odoo_task_id"] == 42
-    mock_odoo.create_task.assert_called_once()
-    call_kwargs = mock_odoo.create_task.call_args[1]
-    assert "Staging готовий" in call_kwargs["name"]
-
-
-@pytest.mark.asyncio
-async def test_send_notification_types(handlers: dict, mock_odoo: MagicMock) -> None:
-    job = _make_mock_job()
-    await handlers["send-notification"](job=job, notification_type="staging_ready")
-    name1 = mock_odoo.create_task.call_args[1]["name"]
-    assert "[deploy]" in name1
-
-    mock_odoo.create_task.reset_mock()
-
-    await handlers["send-notification"](job=job, notification_type="deploy_failed")
-    name2 = mock_odoo.create_task.call_args[1]["name"]
-    assert "провалився" in name2
-
-
-# ── create-odoo-task ──────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_create_odoo_task_resolve_conflicts(handlers: dict, mock_odoo: MagicMock) -> None:
-    job = _make_mock_job()
-    result = await handlers["create-odoo-task"](
-        job=job,
-        odoo_task_type="resolve_conflicts",
         affected_custom_count=3,
-        impact_table="| mod | dep |",
+        impact_table="| Custom Module | Affected Dependencies |\n|---|---|\n| tut_core | sale, stock |",
+        audit_report="",
+        audit_conflicts=2,
+        audit_critical=1,
+        audit_warning=1,
+        changed_modules="sale, stock, account",
+        community_files=50,
+        enterprise_files=30,
+        current_version="19.0",
+        enterprise_date="2026-03-01",
+        sync_branch="sync/upstream-20260301-120000",
     )
-    assert result["odoo_task_id"] == "42"
-    call_kwargs = mock_odoo.create_task.call_args[1]
-    assert "3" in call_kwargs["name"]
-    assert "impact" in call_kwargs["description"].lower() or "custom" in call_kwargs["description"].lower()
+    assert "conflict_task_name" in result
+    assert "conflict_description" in result
+    assert "review_task_name" in result
+    assert "review_description" in result
 
 
 @pytest.mark.asyncio
-async def test_create_odoo_task_returns_string_id(handlers: dict, mock_odoo: MagicMock) -> None:
+async def test_render_sync_html_conflict_name(handlers: dict) -> None:
     job = _make_mock_job()
-    mock_odoo.create_task.return_value = 123
-    result = await handlers["create-odoo-task"](job=job, odoo_task_type="review_sync")
-    assert result["odoo_task_id"] == "123"
-    assert isinstance(result["odoo_task_id"], str)
+    result = await handlers["render-sync-html"](
+        job=job,
+        affected_custom_count=5,
+        sync_branch="sync/upstream-20260301-120000",
+    )
+    assert "5 модулів" in result["conflict_task_name"]
+    assert "upstream-sync" in result["conflict_task_name"]
+    assert "20260301-120000" in result["conflict_task_name"]
 
 
 @pytest.mark.asyncio
-async def test_create_odoo_task_zero_id_uses_pik(handlers: dict, mock_odoo: MagicMock) -> None:
-    """When Odoo returns task_id=0, correlation falls back to process_instance_key."""
+async def test_render_sync_html_review_name(handlers: dict) -> None:
     job = _make_mock_job()
-    mock_odoo.create_task.return_value = 0
-    result = await handlers["create-odoo-task"](job=job, odoo_task_type="resolve_conflicts")
-    assert result["odoo_task_id"] == str(job.process_instance_key)
+    result = await handlers["render-sync-html"](
+        job=job,
+        sync_branch="sync/upstream-20260301-120000",
+    )
+    assert "Переглянути аналіз" in result["review_task_name"]
+    assert "20260301-120000" in result["review_task_name"]
+
+
+@pytest.mark.asyncio
+async def test_render_sync_html_conflict_description_has_audit(handlers: dict) -> None:
+    job = _make_mock_job()
+    result = await handlers["render-sync-html"](
+        job=job,
+        audit_conflicts=3,
+        audit_critical=2,
+        audit_warning=1,
+        community_files=100,
+        enterprise_files=50,
+        current_version="19.0",
+        enterprise_date="2026-03-01",
+    )
+    assert "3 конфліктів" in result["conflict_description"]
+    assert "2 critical" in result["conflict_description"]
+    assert "community 100" in result["conflict_description"]
+
+
+@pytest.mark.asyncio
+async def test_render_sync_html_review_description_has_pr_link(handlers: dict) -> None:
+    job = _make_mock_job()
+    result = await handlers["render-sync-html"](
+        job=job,
+        pr_url="https://github.com/tut-ua/odoo-enterprise/pull/42",
+    )
+    assert "pull/42" in result["review_description"]
+    assert "href" in result["review_description"]
+
+
+@pytest.mark.asyncio
+async def test_render_sync_html_no_conflicts_message(handlers: dict) -> None:
+    job = _make_mock_job()
+    result = await handlers["render-sync-html"](
+        job=job,
+        audit_conflicts=0,
+    )
+    assert "конфліктів не знайдено" in result["review_description"]
+
+
+@pytest.mark.asyncio
+async def test_render_sync_html_modules_list(handlers: dict) -> None:
+    job = _make_mock_job()
+    result = await handlers["render-sync-html"](
+        job=job,
+        changed_modules="sale, stock, account",
+    )
+    assert "sale" in result["conflict_description"]
+    assert "stock" in result["conflict_description"]
+    assert "account" in result["conflict_description"]
+
+
+@pytest.mark.asyncio
+async def test_render_sync_html_branch_link(handlers: dict) -> None:
+    job = _make_mock_job()
+    result = await handlers["render-sync-html"](
+        job=job,
+        sync_branch="sync/upstream-20260301-120000",
+    )
+    assert "tut-ua/odoo-enterprise" in result["conflict_description"]
+    assert "sync/upstream-20260301-120000" in result["conflict_description"]
+
+
+@pytest.mark.asyncio
+async def test_render_sync_html_impact_table(handlers: dict) -> None:
+    job = _make_mock_job()
+    result = await handlers["render-sync-html"](
+        job=job,
+        impact_table="| Custom Module | Affected Dependencies |\n|---|---|\n| tut_core | sale, stock |",
+    )
+    assert "tut_core" in result["conflict_description"]
+    assert "sale, stock" in result["conflict_description"]

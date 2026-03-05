@@ -153,7 +153,7 @@ async def test_diff_report_no_changes(handlers: dict, mock_ssh: AsyncMock) -> No
         _make_ssh_result(stdout="0\n"),  # community check
         _make_ssh_result(stdout="0\n"),  # enterprise check
     ]
-    result = await handlers["diff-report"]()
+    result = await handlers["diff-report"](workspace_dir="/tmp/ws")
     assert result["has_changes"] is False
 
 
@@ -168,7 +168,7 @@ async def test_diff_report_with_changes(handlers: dict, mock_ssh: AsyncMock) -> 
         _make_ssh_result(stdout="sale\naccount\n"),  # enterprise module names
         _make_ssh_result(stdout="base\n"),  # community addons
     ]
-    result = await handlers["diff-report"]()
+    result = await handlers["diff-report"](workspace_dir="/tmp/ws")
     assert result["has_changes"] is True
     assert result["enterprise_files"] == 3
     assert "sale" in result["changed_modules"]
@@ -191,7 +191,7 @@ async def test_impact_analysis_finds_affected(handlers: dict, mock_ssh: AsyncMoc
         # read __manifest__.py
         _make_ssh_result(stdout="{'name': 'TUT HR', 'depends': ['hr', 'sale']}"),
     ]
-    result = await handlers["impact-analysis"](changed_modules="sale, account")
+    result = await handlers["impact-analysis"](changed_modules="sale, account", workspace_dir="/tmp/ws")
     assert result["affected_custom_count"] == 1
     assert "tut_hr" in result["impact_table"]
 
@@ -219,6 +219,12 @@ async def test_sync_code_to_demo_success(handlers: dict, mock_ssh: AsyncMock) ->
 # ── merge-feature-to-staging ──────────────────────────────
 
 
+def _make_mock_job(process_instance_key: int = 12345) -> MagicMock:
+    job = MagicMock()
+    job.process_instance_key = process_instance_key
+    return job
+
+
 @pytest.mark.asyncio
 async def test_merge_feature_to_staging_success(handlers: dict, mock_ssh: AsyncMock) -> None:
     mock_ssh.run.side_effect = [
@@ -228,11 +234,14 @@ async def test_merge_feature_to_staging_success(handlers: dict, mock_ssh: AsyncM
         _make_ssh_result(),  # git push
         _make_ssh_result(),  # rm -rf cleanup
     ]
+    job = _make_mock_job(99999)
     result = await handlers["merge-feature-to-staging"](
+        job=job,
         feature_branch="feat/my-feature",
         server_host="staging",
     )
-    assert result == {"staging_merged": True}
+    assert result["staging_merged"] is True
+    assert result["process_instance_key"] == 99999
 
     calls = mock_ssh.run.call_args_list
     # Verify clone command
@@ -240,9 +249,9 @@ async def test_merge_feature_to_staging_success(handlers: dict, mock_ssh: AsyncM
     assert "staging" in calls[0].args[1]
     # Verify fetch
     assert "fetch origin feat/my-feature" in calls[1].args[1]
-    # Verify merge (no -X theirs)
-    assert "merge origin/feat/my-feature --no-edit" in calls[2].args[1]
-    assert "-X theirs" not in calls[2].args[1]
+    # Verify merge with -X theirs (feature branch wins on staging)
+    assert "merge feat/my-feature" in calls[2].args[1]
+    assert "-X theirs" in calls[2].args[1]
     # Verify push
     assert "push" in calls[3].args[1]
 
@@ -253,10 +262,12 @@ async def test_merge_feature_to_staging_conflict(handlers: dict, mock_ssh: Async
         _make_ssh_result(),  # git clone
         _make_ssh_result(),  # git fetch
         _make_ssh_result(exit_code=1, stderr="CONFLICT"),  # git merge (conflict)
+        _make_ssh_result(),  # git merge --abort
         _make_ssh_result(),  # rm -rf cleanup
     ]
-    with pytest.raises(RuntimeError, match="Merge conflict"):
+    with pytest.raises(RuntimeError, match="Merge failed"):
         await handlers["merge-feature-to-staging"](
+            job=_make_mock_job(),
             feature_branch="feat/conflicting",
             server_host="staging",
         )
@@ -265,7 +276,7 @@ async def test_merge_feature_to_staging_conflict(handlers: dict, mock_ssh: Async
 @pytest.mark.asyncio
 async def test_merge_feature_to_staging_missing_branch(handlers: dict) -> None:
     with pytest.raises(ValueError, match="feature_branch is required"):
-        await handlers["merge-feature-to-staging"](feature_branch="")
+        await handlers["merge-feature-to-staging"](job=_make_mock_job(), feature_branch="")
 
 
 # ── github-pr-ready ───────────────────────────────────────

@@ -4,13 +4,11 @@ Source: .github/workflows/pr_agent.yml
 Handles PR-Agent review, merge, comment, and PR creation.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 from typing import Any
 
-from pyzeebe import ZeebeWorker
+from pyzeebe import Job, ZeebeWorker
 
 from ..config import AppConfig
 from ..github_client import GitHubClient
@@ -31,6 +29,7 @@ def register_github_handlers(
 
     @worker.task(task_type="pr-agent-review", timeout_ms=600_000)
     async def pr_agent_review(
+        job: Job,
         pr_number: int,
         pr_url: str,
         repository: str = "",
@@ -51,25 +50,52 @@ def register_github_handlers(
                 break
 
         if pr_agent_server:
-            # Run PR-Agent container on remote server
-            await ssh.run(
-                pr_agent_server,
+            docker_cmd = (
                 f"docker run --rm "
-                f"-e OPENROUTER__KEY='{config.openrouter_api_key}' "
-                f"-e GITHUB_TOKEN='{config.github.token}' "
-                f"-e CONFIG.PR_AGENT_CONFIG_PATH='.pr_agent.toml' "
+                f"-e OPENROUTER.KEY='{config.openrouter_api_key}' "
+                f"-e GITHUB.USER_TOKEN='{config.github.token}' "
+                f"-e CONFIG.MODEL='openrouter/x-ai/grok-code-fast-1' "
                 f"codiumai/pr-agent:latest "
-                f"--pr_url={pr_url} review",
-                timeout=300,
+                f"--pr_url={pr_url} review"
             )
+            logger.info(
+                "Running PR-Agent on %s for PR #%d: %s",
+                pr_agent_server.host, pr_number,
+                docker_cmd.replace(config.openrouter_api_key, "***")
+                          .replace(config.github.token, "***"),
+            )
+            result = await ssh.run(
+                pr_agent_server, docker_cmd, timeout=300,
+            )
+            if not result.success:
+                logger.error(
+                    "PR-Agent failed on %s (exit %d) for PR #%d.\nSTDOUT: %s\nSTDERR: %s",
+                    pr_agent_server.host, result.exit_code, pr_number,
+                    result.stdout[-2000:] if result.stdout else "(empty)",
+                    result.stderr[-2000:] if result.stderr else "(empty)",
+                )
+            else:
+                logger.info(
+                    "PR-Agent completed on %s for PR #%d (exit 0). Output tail: %s",
+                    pr_agent_server.host, pr_number,
+                    result.stdout[-500:] if result.stdout else "(empty)",
+                )
         else:
             logger.warning("No server available for PR-Agent, skipping review execution")
 
         # Parse the review comment
         comment = await github.get_bot_review_comment(repo, pr_number)
         if not comment:
-            logger.warning("No PR-Agent review comment found for PR #%d", pr_number)
-            return {"review_score": 0, "has_critical_issues": False}
+            logger.warning(
+                "No PR-Agent review comment found for PR #%d in %s. "
+                "PR-Agent Docker likely failed — check logs above.",
+                pr_number, repo,
+            )
+            return {
+                "review_score": 0,
+                "has_critical_issues": False,
+                "process_instance_key": job.process_instance_key,
+            }
 
         body = comment.get("body", "")
         score = _parse_review_score(body)
@@ -82,6 +108,7 @@ def register_github_handlers(
         return {
             "review_score": score,
             "has_critical_issues": has_critical,
+            "process_instance_key": job.process_instance_key,
         }
 
     # ── github-merge ───────────────────────────────────────────

@@ -35,7 +35,7 @@
 
   <bpmn:process id="upstream-sync" name="Upstream Sync" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="1.4" />
+      <zeebe:versionTag value="1.6" />
     </bpmn:extensionElements>
 
     <!-- ── START ─────────────────────────────────────────────── -->
@@ -67,12 +67,16 @@ FEEL script task — виконується engine, без worker.</bpmn:documen
 
     <!-- ── CREATE PARENT TASK IN ODOO ──────────────────────────── -->
     <bpmn:serviceTask id="ST_create_sync_task" name="Створити задачу Upstream Sync в Odoo">
-      <bpmn:documentation>Створює батьківську задачу для upstream sync через Python воркер.</bpmn:documentation>
+      <bpmn:documentation>Створює батьківську задачу для upstream sync через http-request-smart.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;sync_start&quot;" target="notification_type" />
-          <zeebe:input source="=&quot;Upstream Sync &quot; + (if is defined(dry_run) and dry_run = true then &quot;[DRY RUN]&quot; else &quot;&quot;)" target="message_body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;[upstream-sync] Upstream Sync&quot; + (if is defined(dry_run) and dry_run = true then &quot; [DRY RUN]&quot; else &quot;&quot;), _id: odoo_project_id, create_process: true}" target="body" />
+          <zeebe:input source="=&quot;odoo_response&quot;" target="result_variable_name" />
+          <zeebe:output source="=string(odoo_response.id)" target="odoo_task_id" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f01</bpmn:incoming>
@@ -212,7 +216,19 @@ Output: sync_branch</bpmn:documentation>
         <zeebe:taskDefinition type="git-commit-push" retries="2" />
       </bpmn:extensionElements>
       <bpmn:incoming>f_not_dry</bpmn:incoming>
-      <bpmn:outgoing>f_commit_to_conflicts</bpmn:outgoing>
+      <bpmn:outgoing>f_commit_to_render</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── RENDER SYNC HTML ──────────────────────────────────── -->
+    <bpmn:serviceTask id="task_render_sync_html" name="Підготувати HTML для задач">
+      <bpmn:documentation>Рендерить складний HTML для Odoo задач (conflict + review).
+Використовує audit report, impact table, список модулів.
+НЕ створює задачі — тільки готує name+description.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="render-sync-html" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_commit_to_render</bpmn:incoming>
+      <bpmn:outgoing>f_render_to_conflicts</bpmn:outgoing>
     </bpmn:serviceTask>
 
     <!-- ── DEPLOY TO DEMO (Call Activity) ──────────────────── -->
@@ -225,7 +241,8 @@ Output: sync_branch</bpmn:documentation>
           <zeebe:input source="=&quot;kozak_demo&quot;" target="server_host" />
           <zeebe:input source="=sync_branch" target="branch" />
           <zeebe:input source="=&quot;full&quot;" target="test_mode" />
-          <zeebe:input source="=process_instance_key" target="process_instance_key" />
+          <zeebe:input source="=process_instance_key" target="parent_process_instance_key" />
+          <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_no_conflicts</bpmn:incoming>
@@ -242,13 +259,18 @@ Output: sync_branch</bpmn:documentation>
 
     <!-- ── NOTIFY: RESOLVE CONFLICTS → Odoo task ────────────── -->
     <bpmn:serviceTask id="task_notify_conflicts" name="Створити задачу: виправити конфлікти">
-      <bpmn:documentation>Створює задачу в Odoo з деталями конфліктів.
+      <bpmn:documentation>Створює задачу в Odoo з деталями конфліктів через http-request-smart.
 Sync branch запушений — розробник пулить на демку і фіксить конфлікти.
 Після виправлення закриває задачу → процес деплоїть демку і продовжується.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="create-odoo-task" retries="2" />
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;resolve_conflicts&quot;" target="odoo_task_type" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: conflict_task_name, description: conflict_description}" target="body" />
+          <zeebe:input source="=&quot;odoo_response&quot;" target="result_variable_name" />
+          <zeebe:output source="=string(odoo_response.id)" target="odoo_task_id" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_has_conflicts</bpmn:incoming>
@@ -275,13 +297,18 @@ Sync branch запушений — розробник пулить на демк
 
     <!-- ── REVIEW SYNC: Odoo task with full analysis ─────── -->
     <bpmn:serviceTask id="ST_review_sync" name="Створити задачу: переглянути аналіз">
-      <bpmn:documentation>Створює блокуючу задачу в Odoo з повним аналізом оновлення:
-impact table, audit report, список змінених модулів.
+      <bpmn:documentation>Створює блокуючу задачу в Odoo з повним аналізом оновлення через http-request-smart.
+Використовує review_task_name та review_description з render-sync-html.
 Процес чекає поки задачу закриють.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="create-odoo-task" retries="2" />
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;review_sync&quot;" target="odoo_task_type" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: review_task_name, description: review_description}" target="body" />
+          <zeebe:input source="=&quot;odoo_response&quot;" target="result_variable_name" />
+          <zeebe:output source="=string(odoo_response.id)" target="odoo_task_id" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_deploy_demo_to_review</bpmn:incoming>
@@ -328,7 +355,8 @@ impact table, audit report, список змінених модулів.
           <zeebe:input source="=&quot;staging&quot;" target="server_host" />
           <zeebe:input source="=&quot;staging&quot;" target="branch" />
           <zeebe:input source="=&quot;full&quot;" target="test_mode" />
-          <zeebe:input source="=process_instance_key" target="process_instance_key" />
+          <zeebe:input source="=process_instance_key" target="parent_process_instance_key" />
+          <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_to_deploy_staging</bpmn:incoming>
@@ -370,7 +398,8 @@ impact table, audit report, список змінених модулів.
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="f_not_dry" sourceRef="gw_dry_run" targetRef="task_commit" />
 
-    <bpmn:sequenceFlow id="f_commit_to_conflicts" sourceRef="task_commit" targetRef="gw_conflicts" />
+    <bpmn:sequenceFlow id="f_commit_to_render" sourceRef="task_commit" targetRef="task_render_sync_html" />
+    <bpmn:sequenceFlow id="f_render_to_conflicts" sourceRef="task_render_sync_html" targetRef="gw_conflicts" />
 
     <bpmn:sequenceFlow id="f_has_conflicts" name="Є конфлікти" sourceRef="gw_conflicts" targetRef="task_notify_conflicts">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=affected_custom_count > 0 or audit_critical > 0</bpmn:conditionExpression>
@@ -402,10 +431,12 @@ impact table, audit report, список змінених модулів.
       <bpmn:serviceTask id="ST_error_notify_sync" name="❌ Створити задачу про помилку в Odoo">
         <bpmn:documentation>Створює підзадачу в Odoo про помилку upstream sync з деталями.</bpmn:documentation>
         <bpmn:extensionElements>
-          <zeebe:taskDefinition type="send-notification" retries="2" />
+          <zeebe:taskDefinition type="http-request-smart" retries="2" />
           <zeebe:ioMapping>
-            <zeebe:input source="=&quot;sync_error&quot;" target="notification_type" />
-            <zeebe:input source="=&quot;Код помилки: &quot; + (if is defined(caught_error_code) and caught_error_code != null then caught_error_code else &quot;—&quot;) + &quot;\nДеталі: &quot; + (if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Невідома помилка&quot;) + &quot;\nГілка: &quot; + (if is defined(upstream_branch) and upstream_branch != null then upstream_branch else &quot;19.0&quot;) + &quot;\nDry run: &quot; + (if is defined(dry_run) and dry_run = true then &quot;так&quot; else &quot;ні&quot;) + (if is defined(sync_branch) and sync_branch != null then &quot;\nSync branch: &quot; + sync_branch else &quot;&quot;)" target="message_body" />
+            <zeebe:input source="=&quot;POST&quot;" target="method" />
+            <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+            <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+            <zeebe:input source="={name: &quot;[upstream-sync] ❌ Помилка синхронізації&quot;, description: &quot;&lt;p&gt;Код помилки: &quot; + (if is defined(caught_error_code) and caught_error_code != null then caught_error_code else &quot;—&quot;) + &quot;&lt;br/&gt;Деталі: &quot; + (if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Невідома помилка&quot;) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(upstream_branch) and upstream_branch != null then upstream_branch else &quot;19.0&quot;) + &quot;&lt;br/&gt;Dry run: &quot; + (if is defined(dry_run) and dry_run = true then &quot;так&quot; else &quot;ні&quot;) + (if is defined(sync_branch) and sync_branch != null then &quot;&lt;br/&gt;Sync branch: &quot; + sync_branch else &quot;&quot;) + &quot;&lt;/p&gt;&quot;}" target="body" />
           </zeebe:ioMapping>
         </bpmn:extensionElements>
         <bpmn:incoming>f_error_to_notify_sync</bpmn:incoming>
@@ -515,59 +546,64 @@ impact table, audit report, список змінених модулів.
         <dc:Bounds x="2260" y="160" width="160" height="80" />
       </bpmndi:BPMNShape>
 
+      <!-- Render Sync HTML -->
+      <bpmndi:BPMNShape id="task_render_sync_html_di" bpmnElement="task_render_sync_html">
+        <dc:Bounds x="2470" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
       <!-- GW Conflicts (before deploy) -->
       <bpmndi:BPMNShape id="gw_conflicts_di" bpmnElement="gw_conflicts" isMarkerVisible="true">
-        <dc:Bounds x="2480" y="175" width="50" height="50" />
+        <dc:Bounds x="2690" y="175" width="50" height="50" />
       </bpmndi:BPMNShape>
 
       <!-- Notify: Resolve Conflicts (service task) -->
       <bpmndi:BPMNShape id="task_notify_conflicts_di" bpmnElement="task_notify_conflicts">
-        <dc:Bounds x="2590" y="80" width="150" height="80" />
+        <dc:Bounds x="2800" y="80" width="150" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Sync code to demo (git only) -->
       <bpmndi:BPMNShape id="ST_sync_code_demo_di" bpmnElement="ST_sync_code_demo">
-        <dc:Bounds x="2780" y="80" width="150" height="80" />
+        <dc:Bounds x="2990" y="80" width="150" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Wait: Conflicts resolved (message catch event) -->
       <bpmndi:BPMNShape id="wait_conflicts_resolved_di" bpmnElement="wait_conflicts_resolved">
-        <dc:Bounds x="2980" y="102" width="36" height="36" />
+        <dc:Bounds x="3190" y="102" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <!-- Deploy to demo (Call Activity) — after conflicts resolved -->
       <bpmndi:BPMNShape id="call_deploy_demo_di" bpmnElement="call_deploy_demo">
-        <dc:Bounds x="3080" y="160" width="160" height="80" />
+        <dc:Bounds x="3290" y="160" width="160" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Review Sync (create Odoo task with full analysis) -->
       <bpmndi:BPMNShape id="ST_review_sync_di" bpmnElement="ST_review_sync">
-        <dc:Bounds x="3300" y="160" width="160" height="80" />
+        <dc:Bounds x="3510" y="160" width="160" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Wait: Review done (message catch) -->
       <bpmndi:BPMNShape id="wait_review_done_di" bpmnElement="wait_review_done">
-        <dc:Bounds x="3522" y="182" width="36" height="36" />
+        <dc:Bounds x="3732" y="182" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <!-- Create PR on GitHub -->
       <bpmndi:BPMNShape id="ST_create_pr_di" bpmnElement="ST_create_pr">
-        <dc:Bounds x="3620" y="160" width="160" height="80" />
+        <dc:Bounds x="3830" y="160" width="160" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Merge to staging -->
       <bpmndi:BPMNShape id="task_merge_staging_di" bpmnElement="task_merge_staging">
-        <dc:Bounds x="3840" y="160" width="160" height="80" />
+        <dc:Bounds x="4050" y="160" width="160" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Deploy to staging (Call Activity) -->
       <bpmndi:BPMNShape id="call_deploy_staging_di" bpmnElement="call_deploy_staging">
-        <dc:Bounds x="4060" y="160" width="160" height="80" />
+        <dc:Bounds x="4270" y="160" width="160" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- End Success -->
       <bpmndi:BPMNShape id="evt_end_success_di" bpmnElement="evt_end_success">
-        <dc:Bounds x="4280" y="182" width="36" height="36" />
+        <dc:Bounds x="4490" y="182" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <!-- Error Event Subprocess -->
@@ -688,78 +724,84 @@ impact table, audit report, список змінених модулів.
         <di:waypoint x="2260" y="200" />
       </bpmndi:BPMNEdge>
 
-      <!-- Commit → GW Conflicts -->
-      <bpmndi:BPMNEdge id="f_commit_to_conflicts_di" bpmnElement="f_commit_to_conflicts">
+      <!-- Commit → Render Sync HTML -->
+      <bpmndi:BPMNEdge id="f_commit_to_render_di" bpmnElement="f_commit_to_render">
         <di:waypoint x="2420" y="200" />
-        <di:waypoint x="2480" y="200" />
+        <di:waypoint x="2470" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Render Sync HTML → GW Conflicts -->
+      <bpmndi:BPMNEdge id="f_render_to_conflicts_di" bpmnElement="f_render_to_conflicts">
+        <di:waypoint x="2630" y="200" />
+        <di:waypoint x="2690" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- Conflicts → Notify (up) -->
       <bpmndi:BPMNEdge id="f_has_conflicts_di" bpmnElement="f_has_conflicts">
-        <di:waypoint x="2505" y="175" />
-        <di:waypoint x="2505" y="120" />
-        <di:waypoint x="2590" y="120" />
+        <di:waypoint x="2715" y="175" />
+        <di:waypoint x="2715" y="120" />
+        <di:waypoint x="2800" y="120" />
       </bpmndi:BPMNEdge>
 
       <!-- No conflicts → Deploy Demo -->
       <bpmndi:BPMNEdge id="f_no_conflicts_di" bpmnElement="f_no_conflicts">
-        <di:waypoint x="2530" y="200" />
-        <di:waypoint x="3080" y="200" />
+        <di:waypoint x="2740" y="200" />
+        <di:waypoint x="3290" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- Notify Conflicts → Sync Code to Demo -->
       <bpmndi:BPMNEdge id="f_notify_to_sync_code_di" bpmnElement="f_notify_to_sync_code">
-        <di:waypoint x="2740" y="120" />
-        <di:waypoint x="2780" y="120" />
+        <di:waypoint x="2950" y="120" />
+        <di:waypoint x="2990" y="120" />
       </bpmndi:BPMNEdge>
 
       <!-- Sync Code to Demo → Wait -->
       <bpmndi:BPMNEdge id="f_sync_code_to_wait_di" bpmnElement="f_sync_code_to_wait">
-        <di:waypoint x="2930" y="120" />
-        <di:waypoint x="2980" y="120" />
+        <di:waypoint x="3140" y="120" />
+        <di:waypoint x="3190" y="120" />
       </bpmndi:BPMNEdge>
 
       <!-- Wait → Deploy Demo (after fix) -->
       <bpmndi:BPMNEdge id="f_after_resolve_di" bpmnElement="f_after_resolve">
-        <di:waypoint x="3016" y="120" />
-        <di:waypoint x="3160" y="120" />
-        <di:waypoint x="3160" y="160" />
+        <di:waypoint x="3226" y="120" />
+        <di:waypoint x="3370" y="120" />
+        <di:waypoint x="3370" y="160" />
       </bpmndi:BPMNEdge>
 
       <!-- Deploy Demo → Review Sync -->
       <bpmndi:BPMNEdge id="f_deploy_demo_to_review_di" bpmnElement="f_deploy_demo_to_review">
-        <di:waypoint x="3240" y="200" />
-        <di:waypoint x="3300" y="200" />
+        <di:waypoint x="3450" y="200" />
+        <di:waypoint x="3510" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- Review Sync → Wait Review -->
       <bpmndi:BPMNEdge id="f_review_to_wait_di" bpmnElement="f_review_to_wait">
-        <di:waypoint x="3460" y="200" />
-        <di:waypoint x="3522" y="200" />
+        <di:waypoint x="3670" y="200" />
+        <di:waypoint x="3732" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- Wait Review → Create PR -->
       <bpmndi:BPMNEdge id="f_review_done_to_create_pr_di" bpmnElement="f_review_done_to_create_pr">
-        <di:waypoint x="3558" y="200" />
-        <di:waypoint x="3620" y="200" />
+        <di:waypoint x="3768" y="200" />
+        <di:waypoint x="3830" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- Create PR → Merge Staging -->
       <bpmndi:BPMNEdge id="f_create_pr_to_merge_di" bpmnElement="f_create_pr_to_merge">
-        <di:waypoint x="3780" y="200" />
-        <di:waypoint x="3840" y="200" />
+        <di:waypoint x="3990" y="200" />
+        <di:waypoint x="4050" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- Merge Staging → Deploy Staging -->
       <bpmndi:BPMNEdge id="f_merge_to_deploy_staging_di" bpmnElement="f_merge_to_deploy_staging">
-        <di:waypoint x="4000" y="200" />
-        <di:waypoint x="4060" y="200" />
+        <di:waypoint x="4210" y="200" />
+        <di:waypoint x="4270" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- Deploy Staging → End -->
       <bpmndi:BPMNEdge id="f_deploy_staging_to_end_di" bpmnElement="f_deploy_staging_to_end">
-        <di:waypoint x="4220" y="200" />
-        <di:waypoint x="4280" y="200" />
+        <di:waypoint x="4430" y="200" />
+        <di:waypoint x="4490" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- Error subprocess edges -->

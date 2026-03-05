@@ -24,7 +24,7 @@
 
   <bpmn:process id="main-to-staging-sync" name="Main to Staging Sync" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="1.0" />
+      <zeebe:versionTag value="1.2" />
     </bpmn:extensionElements>
 
     <!-- ── Timer Start: щоночі ──────────────────────────── -->
@@ -71,6 +71,8 @@
           <zeebe:input source="=&quot;odoo19&quot;" target="container" />
           <zeebe:input source="=&quot;/opt/odoo-enterprise&quot;" target="repo_dir" />
           <zeebe:input source="=false" target="run_smoke_test" />
+          <zeebe:input source="=process_instance_key" target="parent_process_instance_key" />
+          <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_to_deploy</bpmn:incoming>
@@ -86,10 +88,12 @@
     <!-- ── Notify: sync/deploy failed ──────────────────── -->
     <bpmn:serviceTask id="task_notify_fail" name="Повідомити: sync failed">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-notification" retries="2" />
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;sync_warning&quot;" target="notification_type" />
-          <zeebe:input source="=&quot;⚠️ Щонічний sync main → staging не вдався. Потрібна ручна синхронізація.&quot;" target="message_body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;[sync] ⚠️ Щонічний sync main → staging не вдався&quot;, description: &quot;&lt;p&gt;⚠️ Щонічний sync main → staging не вдався. Потрібна ручна синхронізація.&lt;/p&gt;&quot;, create_process: true, _id: odoo_project_id}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_error</bpmn:incoming>

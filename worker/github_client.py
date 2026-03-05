@@ -123,7 +123,11 @@ class GitHubClient:
     async def get_bot_review_comment(
         self, repo: str, pr_number: int, bot_name: str = "github-actions[bot]",
     ) -> dict | None:
-        """Find the latest review comment from a bot on a PR."""
+        """Find the latest PR-Agent review comment on a PR.
+
+        Searches by content ('PR Reviewer Guide') rather than author type,
+        because PR-Agent may post under a regular user account.
+        """
         comments = await self._request(
             "GET",
             f"{API_BASE}/repos/{repo}/issues/{pr_number}/comments",
@@ -131,10 +135,8 @@ class GitHubClient:
         )
 
         for comment in comments:
-            user = comment.get("user", {})
-            if user.get("login") == bot_name or user.get("type") == "Bot":
-                body = comment.get("body", "")
-                if "score" in body.lower() or "review" in body.lower():
-                    return comment
+            body = comment.get("body", "")
+            if "PR Reviewer Guide" in body or "🏅" in body:
+                return comment
 
         return None
