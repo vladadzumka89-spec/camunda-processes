@@ -49,5 +49,5 @@ def register_all_handlers(
     register_sync_handlers(worker, config, ssh, github)
     register_audit_handlers(worker, config, ssh)
     register_clickbot_handlers(worker, config, ssh)
-    register_notify_handlers(worker, config, odoo)
+    register_notify_handlers(worker, config)
     register_ocr_handlers(worker, config)

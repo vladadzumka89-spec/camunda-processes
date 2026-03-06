@@ -136,17 +136,35 @@ git stash pop
 
 Стартуй процес `feature-to-production` через Camunda REST API:
 
+Спочатку отримай OAuth2 token:
 ```bash
-curl -s -X POST "http://10.1.1.61:8088/v2/process-instances" \
+TOKEN=$(curl -s -X POST "http://10.1.1.74:18080/auth/realms/camunda-platform/protocol/openid-connect/token" \
+  -d "grant_type=client_credentials&client_id=orchestration&client_secret=oUV-An_2FED-qYTT" \
+  | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
+```
+
+Потім стартуй процес:
+```bash
+curl -s -X POST "http://10.1.1.74:8088/v2/process-instances" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -u "demo:demo" \
   -d '{
     "processDefinitionId": "feature-to-production",
     "variables": {
       "task_name": "TASK_NAME",
       "task_description": "TASK_DESCRIPTION",
       "head_branch": "BRANCH_NAME",
-      "odoo_project_id": 237
+      "odoo_project_id": 237,
+      "staging_host": "10.1.1.65",
+      "staging_ssh_user": "root",
+      "staging_repo_dir": "/opt/odoo-enterprise",
+      "staging_db": "odoo19",
+      "staging_container": "odoo19",
+      "production_host": "10.1.1.61",
+      "production_ssh_user": "root",
+      "production_repo_dir": "/opt/odoo-enterprise",
+      "production_db": "odoo19",
+      "production_container": "odoo19"
     }
   }'
 ```

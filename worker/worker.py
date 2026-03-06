@@ -18,6 +18,7 @@ from .auth import ZeebeAuthConfig, create_channel, get_token_manager
 from .config import AppConfig
 from .github_client import GitHubClient
 from .handlers import register_all_handlers
+from .odoo_client import OdooClient
 from .ssh import AsyncSSHClient
 from .incident_janitor import (
     JANITOR_INTERVAL_SECONDS,
@@ -109,7 +110,8 @@ async def create_worker(config: AppConfig) -> ZeebeWorker:
         token=config.github.token,
         deploy_pat=config.github.deploy_pat,
     )
-    register_all_handlers(worker, config=config, ssh=ssh, github=github)
+    odoo = OdooClient(config=config.odoo)
+    register_all_handlers(worker, config=config, ssh=ssh, github=github, odoo=odoo)
 
     # Wrap all registered handlers to track active jobs
     for task in worker.tasks:
@@ -171,7 +173,7 @@ async def worker_loop(config: AppConfig, stop_event: asyncio.Event) -> None:
             try:
                 worker_task.result()
             except Exception as exc:
-                logger.error("Worker crashed: %s — restarting in %ds", exc, restart_delay)
+                logger.error("Worker crashed: %s — restarting in %ds", exc, restart_delay, exc_info=True)
 
         except Exception as exc:
             logger.error("Failed to create worker: %s — retrying in %ds", exc, restart_delay)

@@ -30,7 +30,7 @@ class ZeebeAuthConfig:
 
 
 class TokenManager:
-    """Manages OAuth2 tokens for Zeebe connection."""
+    """Manages OAuth2 tokens for Zeebe connection with auto-refresh."""
 
     def __init__(
         self,
@@ -44,9 +44,12 @@ class TokenManager:
         self._token_url = token_url
         self._audience = audience
         self._token: str | None = None
+        self._expires_at: float = 0.0
 
     def refresh_token(self) -> str:
         """Fetch a new OAuth2 token."""
+        import time
+
         import httpx
 
         data = {
@@ -59,13 +62,19 @@ class TokenManager:
 
         resp = httpx.post(self._token_url, data=data, timeout=30.0)
         resp.raise_for_status()
-        self._token = resp.json()['access_token']
-        logger.info('OAuth2 token refreshed successfully')
+        body = resp.json()
+        self._token = body['access_token']
+        # Refresh 30s before expiry to avoid race conditions
+        expires_in = body.get('expires_in', 300)
+        self._expires_at = time.monotonic() + expires_in - 30
+        logger.info('OAuth2 token refreshed successfully (expires in %ds)', expires_in)
         return self._token
 
     @property
     def token(self) -> str:
-        if not self._token:
+        import time
+
+        if not self._token or time.monotonic() >= self._expires_at:
             return self.refresh_token()
         return self._token
 

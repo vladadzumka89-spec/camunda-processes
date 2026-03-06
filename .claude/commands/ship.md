@@ -174,6 +174,44 @@ Body має містити:
 - `## Test plan` — чеклист кроків для тестування
 - Підпис: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
 
+## Крок 5.5: Тригерни Camunda процес (msg_pr_event)
+
+Після створення або оновлення PR — надішли `msg_pr_event` щоб Camunda процес (запущений через `/start`) рушив далі і запустив PR-Agent review.
+
+Отримай номер PR:
+```bash
+PR_NUMBER=$(gh pr view --json number --jq '.number')
+PR_URL=$(gh pr view --json url --jq '.url')
+```
+
+Надішли message correlation:
+```bash
+TOKEN=$(curl -s -X POST "http://10.1.1.74:18080/auth/realms/camunda-platform/protocol/openid-connect/token" \
+  -d "grant_type=client_credentials&client_id=orchestration&client_secret=oUV-An_2FED-qYTT" \
+  | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
+
+curl -s -X POST "http://10.1.1.74:8088/v2/messages/publication" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "msg_pr_event",
+    "correlationKey": "BRANCH_NAME",
+    "variables": {
+      "pr_number": PR_NUMBER,
+      "pr_url": "PR_URL",
+      "pr_title": "PR_TITLE",
+      "pr_author": "tut-ua",
+      "head_branch": "BRANCH_NAME",
+      "base_branch": "main",
+      "repo_full_name": "tut-ua/odoo-enterprise",
+      "pr_action": "opened"
+    },
+    "timeToLive": 3600000
+  }'
+```
+
+Якщо помилка — повідом але продовжуй (PR-Agent можна запустити вручну пізніше).
+
 ## Крок 6: Почекай на review від PR-Agent
 
 Скажи: "⏳ Чекаю на review від PR-Agent (до 3 хвилин)..."
