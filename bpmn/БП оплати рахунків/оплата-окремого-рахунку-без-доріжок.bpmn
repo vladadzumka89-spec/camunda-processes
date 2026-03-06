@@ -1,87 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
-  <bpmn:collaboration id="Collab_single">
-    <bpmn:participant id="Pool_single" name="Оплата окремого рахунку" processRef="Process_single_invoice" />
-    <bpmn:textAnnotation id="TextAnnotation_06jlc85">
-      <bpmn:text>1с</bpmn:text>
-    </bpmn:textAnnotation>
-    <bpmn:association id="Association_1jnlwqd" associationDirection="None" sourceRef="Task_calendar" targetRef="TextAnnotation_06jlc85" />
-  </bpmn:collaboration>
   <bpmn:process id="Process_single_invoice" name="Оплата окремого рахунку" isExecutable="true">
     <bpmn:extensionElements>
       <zeebe:versionTag value="4.0" />
     </bpmn:extensionElements>
-    <bpmn:laneSet id="LaneSet_1">
-      <bpmn:lane id="Lane_Buhgalter" name="Бухгалтер">
-        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_odoo_check</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_odoo_merge</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>CA_tp_reissue</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_pay</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>End_main</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>UT_request_detail</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>UT_task_pih</bpmn:flowNodeRef>
-      </bpmn:lane>
-      <bpmn:lane id="Lane_Camunda" name="Система (Camunda)">
-        <bpmn:flowNodeRef>ST_classify_type</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_is_communal</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>BRT_check_detail</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_detail_check</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_detail_merge</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_main_split</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_tp_check</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Timer_payday</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_timer_decision</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_dmn_nego_who</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_reject_type</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>BRT_reject_detail</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_reject_route</bpmn:flowNodeRef>
-      </bpmn:lane>
-      <bpmn:lane id="Lane_Odoo" name="Система (Odoo авто)">
-        <bpmn:flowNodeRef>ST_create_main</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_calendar</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_service_receipt</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Activity_1mf4l1i</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>ST_rem_detail</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>End_rem_detail</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>ST_rem_bui</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>End_rem_bui</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>ST_rem_pih</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>End_rem_pih</bpmn:flowNodeRef>
-      </bpmn:lane>
-      <bpmn:lane id="Lane_Pogodjuvach" name="Погоджувач">
-        <bpmn:flowNodeRef>Task_approve</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_approved</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_approver_contract</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_dmn_record</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_contract_result</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_who_nego</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_dmn_decision</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>CA_break_contract</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>End_wait_new</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>End_break_contract</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>UT_esc_detail</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>End_esc_detail</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>UT_esc_bui</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>End_esc_bui</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>UT_esc_pih</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>End_esc_pih</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>End_bui_done</bpmn:flowNodeRef>
-      </bpmn:lane>
-      <bpmn:lane id="Lane_Yulia" name="Юля">
-        <bpmn:flowNodeRef>End_nego_manual</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_yulia</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_yulia_decision</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>End_no_pay</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_nego_manual</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Timer_yulia_deadline</bpmn:flowNodeRef>
-      </bpmn:lane>
-      <bpmn:lane id="Lane_Dasha" name="Даша (Менеджер з оренди)">
-        <bpmn:flowNodeRef>Task_dasha</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>CA_nego_self</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>UT_task_bui</bpmn:flowNodeRef>
-      </bpmn:lane>
-    </bpmn:laneSet>
     <bpmn:startEvent id="StartEvent_1" name="Старт">
       <bpmn:outgoing>Flow_start_to_gw_odoo</bpmn:outgoing>
     </bpmn:startEvent>
@@ -94,10 +16,10 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Рахунок №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + x_studio_camunda_partner_name + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_invoice_number: x_studio_camunda_invoice_number, x_studio_camunda_invoice_date: x_studio_camunda_invoice_date, x_studio_camunda_invoice_line_name: x_studio_camunda_invoice_line_name, x_studio_camunda_supplier_code: x_studio_camunda_supplier_code, x_studio_camunda_contract: x_studio_camunda_contract, x_studio_camunda_buyer_name: x_studio_camunda_buyer_name, x_studio_camunda_quantity: x_studio_camunda_quantity, x_studio_camunda_unit: x_studio_camunda_unit}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Рахунок №&quot; + x_studio_camunda_invoice_number + &quot; — &quot; + x_studio_camunda_partner_name + &quot; — &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн&quot;, create_process: true, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_invoice_number: x_studio_camunda_invoice_number, x_studio_camunda_invoice_date: x_studio_camunda_invoice_date, x_studio_camunda_invoice_line_name: x_studio_camunda_invoice_line_name, x_studio_camunda_supplier_code: x_studio_camunda_supplier_code, x_studio_camunda_contract: x_studio_camunda_contract, x_studio_camunda_buyer_name: x_studio_camunda_buyer_name, x_studio_camunda_quantity: x_studio_camunda_quantity, x_studio_camunda_unit: x_studio_camunda_unit}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_odoo_no_task</bpmn:incoming>
@@ -140,10 +62,10 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {action: &#34;add_to_payment_calendar&#34;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_payment_date: x_studio_camunda_payment_date, x_studio_camunda_invoice_type: x_studio_camunda_invoice_type, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {action: &quot;add_to_payment_calendar&quot;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_payment_date: x_studio_camunda_payment_date, x_studio_camunda_invoice_type: x_studio_camunda_invoice_type, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_tp_no</bpmn:incoming>
@@ -161,10 +83,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Погодити рахунок від &#34; + x_studio_camunda_partner_name, description: &#34;Погодьте або відхиліть рахунок на суму &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн від &#34; + x_studio_camunda_partner_name, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_approver_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Погодити рахунок від &quot; + x_studio_camunda_partner_name, description: &quot;Погодьте або відхиліть рахунок на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн від &quot; + x_studio_camunda_partner_name, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_approver_user_id, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="= x_studio_camunda_approved" target="x_studio_camunda_approved" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -181,10 +103,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Перевірка договору: &#34; + x_studio_camunda_partner_name, description: &#34;Перевірте відповідність рахунку умовам договору та погодьте або відхиліть&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_approver_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Перевірка договору: &quot; + x_studio_camunda_partner_name, description: &quot;Перевірте відповідність рахунку умовам договору та погодьте або відхиліть&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_approver_user_id, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="= x_studio_camunda_contract_approved" target="x_studio_camunda_contract_approved" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -205,10 +127,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Рішення по рахунку: &#34; + x_studio_camunda_partner_name, description: &#34;Дедлайн наближається. Рахунок на суму &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн. Підтвердьте оплату або відхиліть&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_yulia_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Рішення по рахунку: &quot; + x_studio_camunda_partner_name, description: &quot;Дедлайн наближається. Рахунок на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн. Підтвердьте оплату або відхиліть&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_yulia_user_id, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="= x_studio_camunda_pay" target="x_studio_camunda_pay" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -224,10 +146,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Ескалація: оплата рахунку &#34; + x_studio_camunda_partner_name, description: &#34;Юля не прийняла рішення вчасно. Рахунок &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн. Прийміть рішення щодо оплати&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Ескалація: оплата рахунку &quot; + x_studio_camunda_partner_name, description: &quot;Юля не прийняла рішення вчасно. Рахунок &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн. Прийміть рішення щодо оплати&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_yulia_timer_to_dasha</bpmn:incoming>
@@ -237,10 +159,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Оплатити рахунок: &#34; + x_studio_camunda_partner_name, description: &#34;Виконайте оплату рахунку на суму &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн. Підтвердьте після оплати&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Оплатити рахунок: &quot; + x_studio_camunda_partner_name, description: &quot;Виконайте оплату рахунку на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн. Підтвердьте після оплати&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_timer_to_pay</bpmn:incoming>
@@ -309,10 +231,10 @@
     <bpmn:callActivity id="Task_nego_manual" name="Ведемо перемовини з ТРЦ">
       <bpmn:extensionElements>
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Переговори з &#34; + x_studio_camunda_partner_name, description: &#34;Проведіть переговори щодо умов або зменшення суми рахунку&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Переговори з &quot; + x_studio_camunda_partner_name, description: &quot;Проведіть переговори щодо умов або зменшення суми рахунку&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="= x_studio_camunda_nego_outcome" target="x_studio_camunda_nego_outcome" />
         </zeebe:ioMapping>
         <zeebe:calledElement processId="Process_1ufnrfc" propagateAllChildVariables="false" />
@@ -324,10 +246,10 @@
     <bpmn:businessRuleTask id="Task_service_receipt" name="ДМН таблиця з статею витрат">
       <bpmn:extensionElements>
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {action: &#34;create_service_receipt&#34;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_invoice_type: x_studio_camunda_invoice_type, x_studio_camunda_invoice_file: x_studio_camunda_invoice_file, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {action: &quot;create_service_receipt&quot;, x_studio_camunda_partner_name: x_studio_camunda_partner_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_invoice_type: x_studio_camunda_invoice_type, x_studio_camunda_invoice_file: x_studio_camunda_invoice_file, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
         <zeebe:calledDecision decisionId="utility-expense-classification" />
       </bpmn:extensionElements>
@@ -368,10 +290,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Запросити деталізацію комунальних у &#34; + x_studio_camunda_partner_name, description: &#34;Зверніться до ТРЦ та запросіть деталізацію комунальних послуг для рахунку на суму &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Запросити деталізацію комунальних у &quot; + x_studio_camunda_partner_name, description: &quot;Зверніться до ТРЦ та запросіть деталізацію комунальних послуг для рахунку на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="= x_studio_camunda_detailization_received" target="x_studio_camunda_detailization_received" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -388,10 +310,10 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;⚠️ НАГАДУВАННЯ: Запросити деталізацію у &#34; + x_studio_camunda_partner_name, description: &#34;Бухгалтер ще не отримав деталізацію комунальних від ТРЦ. Будь ласка, повторіть запит.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;⚠️ НАГАДУВАННЯ: Запросити деталізацію у &quot; + x_studio_camunda_partner_name, description: &quot;Бухгалтер ще не отримав деталізацію комунальних від ТРЦ. Будь ласка, повторіть запит.&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_rem_detail</bpmn:incoming>
@@ -410,10 +332,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;🔴 ЕСКАЛАЦІЯ: Деталізація від &#34; + x_studio_camunda_partner_name + &#34; не отримана&#34;, description: &#34;Бухгалтер не отримав деталізацію комунальних протягом 3 днів. Потрібне втручання керівника.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;🔴 ЕСКАЛАЦІЯ: Деталізація від &quot; + x_studio_camunda_partner_name + &quot; не отримана&quot;, description: &quot;Бухгалтер не отримав деталізацію комунальних протягом 3 днів. Потрібне втручання керівника.&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ded_detail</bpmn:incoming>
@@ -451,10 +373,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Рахунок відхилено (без деталізації): &#34; + x_studio_camunda_partner_name, description: &#34;Регіональний менеджер відхилив комунальний рахунок на суму &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн. ТРЦ не надає деталізацію — зверніться до постачальника для вирішення питання.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Рахунок відхилено (без деталізації): &quot; + x_studio_camunda_partner_name, description: &quot;Регіональний менеджер відхилив комунальний рахунок на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн. ТРЦ не надає деталізацію — зверніться до постачальника для вирішення питання.&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_reject_to_bui</bpmn:incoming>
@@ -470,10 +392,10 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;⚠️ НАГАДУВАННЯ: Вирішити питання з відхиленим рахунком &#34; + x_studio_camunda_partner_name, description: &#34;Рахунок відхилено, ТРЦ не надає деталізацію. Потрібно вирішити питання з постачальником.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;⚠️ НАГАДУВАННЯ: Вирішити питання з відхиленим рахунком &quot; + x_studio_camunda_partner_name, description: &quot;Рахунок відхилено, ТРЦ не надає деталізацію. Потрібно вирішити питання з постачальником.&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_dasha_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_rem_bui</bpmn:incoming>
@@ -492,10 +414,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;🔴 ЕСКАЛАЦІЯ: Відхилений рахунок від &#34; + x_studio_camunda_partner_name + &#34; не вирішено&#34;, description: &#34;Даша не вирішила питання з відхиленим рахунком без деталізації протягом 3 днів. Потрібне втручання керівника.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;🔴 ЕСКАЛАЦІЯ: Відхилений рахунок від &quot; + x_studio_camunda_partner_name + &quot; не вирішено&quot;, description: &quot;Даша не вирішила питання з відхиленим рахунком без деталізації протягом 3 днів. Потрібне втручання керівника.&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ded_bui</bpmn:incoming>
@@ -511,10 +433,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Запросити деталізацію (рахунок відхилено): &#34; + x_studio_camunda_partner_name, description: &#34;Регіональний менеджер відхилив комунальний рахунок на суму &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн. Запросіть деталізацію у ТРЦ для повторного погодження.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Запросити деталізацію (рахунок відхилено): &quot; + x_studio_camunda_partner_name, description: &quot;Регіональний менеджер відхилив комунальний рахунок на суму &quot; + string(x_studio_camunda_invoice_amount) + &quot; грн. Запросіть деталізацію у ТРЦ для повторного погодження.&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="= x_studio_camunda_detailization_received" target="x_studio_camunda_detailization_received" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -531,10 +453,10 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;⚠️ НАГАДУВАННЯ: Деталізація для відхиленого рахунку &#34; + x_studio_camunda_partner_name, description: &#34;Бухгалтер ще не запросив деталізацію для відхиленого рахунку.&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;⚠️ НАГАДУВАННЯ: Деталізація для відхиленого рахунку &quot; + x_studio_camunda_partner_name, description: &quot;Бухгалтер ще не запросив деталізацію для відхиленого рахунку.&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: x_studio_camunda_buhgalter_user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_rem_pih</bpmn:incoming>
@@ -553,10 +475,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;🔴 ЕСКАЛАЦІЯ: Деталізація від &#34; + x_studio_camunda_partner_name + &#34; для відхиленого рахунку не отримана&#34;, description: &#34;Бухгалтер не отримав деталізацію для відхиленого рахунку протягом 3 днів. Потрібне втручання керівника.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;🔴 ЕСКАЛАЦІЯ: Деталізація від &quot; + x_studio_camunda_partner_name + &quot; для відхиленого рахунку не отримана&quot;, description: &quot;Бухгалтер не отримав деталізацію для відхиленого рахунку протягом 3 днів. Потрібне втручання керівника.&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ded_pih</bpmn:incoming>
@@ -661,35 +583,7 @@
     <bpmn:sequenceFlow id="Flow_service_to_end" sourceRef="Task_service_receipt" targetRef="Activity_1mf4l1i" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collab_single">
-      <bpmndi:BPMNShape id="Pool_single_di" bpmnElement="Pool_single" isHorizontal="true">
-        <dc:Bounds x="80" y="16" width="5172" height="1720" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Dasha_di" bpmnElement="Lane_Dasha" isHorizontal="true">
-        <dc:Bounds x="110" y="1536" width="5142" height="200" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Yulia_di" bpmnElement="Lane_Yulia" isHorizontal="true">
-        <dc:Bounds x="110" y="1236" width="5142" height="300" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Pogodjuvach_di" bpmnElement="Lane_Pogodjuvach" isHorizontal="true">
-        <dc:Bounds x="110" y="816" width="5142" height="420" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Odoo_di" bpmnElement="Lane_Odoo" isHorizontal="true">
-        <dc:Bounds x="110" y="516" width="5142" height="300" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Camunda_di" bpmnElement="Lane_Camunda" isHorizontal="true">
-        <dc:Bounds x="110" y="216" width="5142" height="300" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Buhgalter_di" bpmnElement="Lane_Buhgalter" isHorizontal="true">
-        <dc:Bounds x="110" y="16" width="5142" height="200" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_single_invoice">
       <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
         <dc:Bounds x="182" y="98" width="36" height="36" />
         <bpmndi:BPMNLabel />
