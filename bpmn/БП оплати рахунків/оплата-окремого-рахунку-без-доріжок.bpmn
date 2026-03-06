@@ -2,17 +2,59 @@
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
   <bpmn:process id="Process_single_invoice_no_lanes" name="Оплата окремого рахунку (спрощена)" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="1.0" />
+      <zeebe:versionTag value="2.0" />
     </bpmn:extensionElements>
 
     <!-- ===== 1. СТАРТ ===== -->
     <bpmn:startEvent id="StartEvent_1" name="Старт">
-      <bpmn:outgoing>Flow_start_to_gw_odoo</bpmn:outgoing>
+      <bpmn:outgoing>Flow_start_to_upload</bpmn:outgoing>
     </bpmn:startEvent>
 
-    <!-- ===== 2. ПЕРЕВІРКА ODOO ===== -->
+    <!-- ===== 2. ЗАВАНТАЖЕННЯ ФАЙЛУ ===== -->
+    <bpmn:userTask id="UT_upload_file" name="Завантажити файл рахунку">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {name: &quot;Завантажити файл рахунку&quot;, description: &quot;Завантажте файл рахунку (PDF, JPG, PNG, XLS, XLSX)&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="= x_studio_camunda_invoice_file" target="x_studio_camunda_invoice_file" />
+          <zeebe:output source="= x_studio_camunda_file_extension" target="file_extension" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_start_to_upload</bpmn:incoming>
+      <bpmn:outgoing>Flow_upload_to_extract</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ===== 3. РОЗПІЗНАВАННЯ РАХУНКУ (OCR/AI) ===== -->
+    <bpmn:serviceTask id="ST_extract_invoice" name="Розпізнати дані рахунку">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="invoice-data-extractor" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= x_studio_camunda_invoice_file" target="x_studio_camunda_invoice_file" />
+          <zeebe:input source="= file_extension" target="file_extension" />
+          <zeebe:output source="= invoice_items" target="invoice_items" />
+          <zeebe:output source="= recognized" target="recognized" />
+          <zeebe:output source="= if recognized then invoice_items[1].partner_name else null" target="x_studio_camunda_partner_name" />
+          <zeebe:output source="= if recognized then invoice_items[1].invoice_number else null" target="x_studio_camunda_invoice_number" />
+          <zeebe:output source="= if recognized then invoice_items[1].invoice_date else null" target="x_studio_camunda_invoice_date" />
+          <zeebe:output source="= if recognized then invoice_items[1].invoice_line_name else null" target="x_studio_camunda_invoice_line_name" />
+          <zeebe:output source="= if recognized then invoice_items[1].invoice_amount else null" target="x_studio_camunda_invoice_amount" />
+          <zeebe:output source="= if recognized then invoice_items[1].supplier_code else null" target="x_studio_camunda_supplier_code" />
+          <zeebe:output source="= if recognized then invoice_items[1].contract else null" target="x_studio_camunda_contract" />
+          <zeebe:output source="= if recognized then invoice_items[1].buyer_name else null" target="x_studio_camunda_buyer_name" />
+          <zeebe:output source="= if recognized then invoice_items[1].quantity else null" target="x_studio_camunda_quantity" />
+          <zeebe:output source="= if recognized then invoice_items[1].unit else null" target="x_studio_camunda_unit" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_upload_to_extract</bpmn:incoming>
+      <bpmn:outgoing>Flow_extract_to_gw_odoo</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ===== 4. ПЕРЕВІРКА ODOO ===== -->
     <bpmn:exclusiveGateway id="GW_odoo_check" name="Задача в Odoo існує?" default="Flow_odoo_no_task">
-      <bpmn:incoming>Flow_start_to_gw_odoo</bpmn:incoming>
+      <bpmn:incoming>Flow_extract_to_gw_odoo</bpmn:incoming>
       <bpmn:outgoing>Flow_odoo_no_task</bpmn:outgoing>
       <bpmn:outgoing>Flow_odoo_has_task</bpmn:outgoing>
     </bpmn:exclusiveGateway>
@@ -37,7 +79,7 @@
       <bpmn:outgoing>Flow_merge_to_classify</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <!-- ===== 3. КЛАСИФІКАЦІЯ ===== -->
+    <!-- ===== 5. КЛАСИФІКАЦІЯ ===== -->
     <bpmn:businessRuleTask id="ST_classify_type" name="Визначити тип рахунку [DMN]">
       <bpmn:extensionElements>
         <zeebe:calledDecision decisionId="invoice-detail-type" resultVariable="classificationResult" />
@@ -50,7 +92,7 @@
       <bpmn:outgoing>Flow_classify_to_communal_check</bpmn:outgoing>
     </bpmn:businessRuleTask>
 
-    <!-- ===== 4. ПЕРЕВІРКА КОМУНАЛЬНІ ===== -->
+    <!-- ===== 6. ПЕРЕВІРКА КОМУНАЛЬНІ ===== -->
     <bpmn:exclusiveGateway id="GW_is_communal" name="Тип комунальні?" default="Flow_not_communal">
       <bpmn:incoming>Flow_classify_to_communal_check</bpmn:incoming>
       <bpmn:outgoing>Flow_communal_yes</bpmn:outgoing>
@@ -96,7 +138,7 @@
       <bpmn:outgoing>Flow_detail_to_calendar</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <!-- ===== 5. ПЛАТІЖНИЙ КАЛЕНДАР ===== -->
+    <!-- ===== 7. ПЛАТІЖНИЙ КАЛЕНДАР ===== -->
     <bpmn:serviceTask id="Task_calendar" name="Додати суму в платіжний календар">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
@@ -111,7 +153,7 @@
       <bpmn:outgoing>Flow_calendar_to_timer</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- ===== 6. ОЧІКУВАННЯ ДЕДЛАЙНУ ===== -->
+    <!-- ===== 8. ОЧІКУВАННЯ ДЕДЛАЙНУ ===== -->
     <bpmn:intermediateCatchEvent id="Timer_payday" name="Очікуємо дедлайну рахунку">
       <bpmn:incoming>Flow_calendar_to_timer</bpmn:incoming>
       <bpmn:outgoing>Flow_timer_to_approve</bpmn:outgoing>
@@ -120,7 +162,7 @@
       </bpmn:timerEventDefinition>
     </bpmn:intermediateCatchEvent>
 
-    <!-- ===== 7. ПОГОДЖЕННЯ ===== -->
+    <!-- ===== 9. ПОГОДЖЕННЯ ===== -->
     <bpmn:userTask id="Task_approve" name="Погодити рахунок">
       <bpmn:extensionElements>
         <zeebe:userTask />
@@ -142,7 +184,7 @@
       <bpmn:outgoing>Flow_approved_no</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <!-- ===== 8. ОПЛАТА ===== -->
+    <!-- ===== 10. ОПЛАТА ===== -->
     <bpmn:userTask id="Task_pay" name="Оплатити рахунок">
       <bpmn:extensionElements>
         <zeebe:userTask />
@@ -157,7 +199,7 @@
       <bpmn:outgoing>Flow_pay_to_service</bpmn:outgoing>
     </bpmn:userTask>
 
-    <!-- ===== 9. ЗАВЕРШЕННЯ ===== -->
+    <!-- ===== 11. ЗАВЕРШЕННЯ ===== -->
     <bpmn:businessRuleTask id="Task_service_receipt" name="ДМН таблиця з статею витрат">
       <bpmn:extensionElements>
         <zeebe:ioMapping>
@@ -186,7 +228,9 @@
     </bpmn:endEvent>
 
     <!-- ===== SEQUENCE FLOWS ===== -->
-    <bpmn:sequenceFlow id="Flow_start_to_gw_odoo" sourceRef="StartEvent_1" targetRef="GW_odoo_check" />
+    <bpmn:sequenceFlow id="Flow_start_to_upload" sourceRef="StartEvent_1" targetRef="UT_upload_file" />
+    <bpmn:sequenceFlow id="Flow_upload_to_extract" sourceRef="UT_upload_file" targetRef="ST_extract_invoice" />
+    <bpmn:sequenceFlow id="Flow_extract_to_gw_odoo" sourceRef="ST_extract_invoice" targetRef="GW_odoo_check" />
     <bpmn:sequenceFlow id="Flow_odoo_no_task" sourceRef="GW_odoo_check" targetRef="ST_create_main" />
     <bpmn:sequenceFlow id="Flow_odoo_has_task" name="Задача існує" sourceRef="GW_odoo_check" targetRef="GW_odoo_merge">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
@@ -226,204 +270,220 @@
           <dc:Bounds x="164" y="225" width="28" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_upload_file_di" bpmnElement="UT_upload_file">
+        <dc:Bounds x="250" y="160" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_extract_invoice_di" bpmnElement="ST_extract_invoice">
+        <dc:Bounds x="410" y="160" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true">
-        <dc:Bounds x="250" y="175" width="50" height="50" />
+        <dc:Bounds x="570" y="175" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="230" y="145" width="90" height="27" />
+          <dc:Bounds x="550" y="145" width="90" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ST_create_main_di" bpmnElement="ST_create_main">
-        <dc:Bounds x="350" y="280" width="100" height="80" />
+        <dc:Bounds x="670" y="280" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_odoo_merge_di" bpmnElement="GW_odoo_merge" isMarkerVisible="true">
-        <dc:Bounds x="510" y="175" width="50" height="50" />
+        <dc:Bounds x="830" y="175" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ST_classify_type_di" bpmnElement="ST_classify_type">
-        <dc:Bounds x="620" y="160" width="100" height="80" />
+        <dc:Bounds x="940" y="160" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_is_communal_di" bpmnElement="GW_is_communal" isMarkerVisible="true">
-        <dc:Bounds x="780" y="175" width="50" height="50" />
+        <dc:Bounds x="1100" y="175" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="762" y="145" width="86" height="27" />
+          <dc:Bounds x="1082" y="145" width="86" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BRT_check_detail_di" bpmnElement="BRT_check_detail">
-        <dc:Bounds x="890" y="160" width="100" height="80" />
+        <dc:Bounds x="1210" y="160" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_detail_check_di" bpmnElement="GW_detail_check" isMarkerVisible="true">
-        <dc:Bounds x="1050" y="175" width="50" height="50" />
+        <dc:Bounds x="1370" y="175" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1030" y="145" width="90" height="27" />
+          <dc:Bounds x="1350" y="145" width="90" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="UT_request_detail_di" bpmnElement="UT_request_detail">
-        <dc:Bounds x="1150" y="40" width="100" height="80" />
+        <dc:Bounds x="1470" y="40" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_detail_merge_di" bpmnElement="GW_detail_merge" isMarkerVisible="true">
-        <dc:Bounds x="1310" y="175" width="50" height="50" />
+        <dc:Bounds x="1630" y="175" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_calendar_di" bpmnElement="Task_calendar">
-        <dc:Bounds x="1420" y="160" width="100" height="80" />
+        <dc:Bounds x="1740" y="160" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Timer_payday_di" bpmnElement="Timer_payday">
-        <dc:Bounds x="1570" y="182" width="36" height="36" />
+        <dc:Bounds x="1890" y="182" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1545" y="225" width="86" height="27" />
+          <dc:Bounds x="1865" y="225" width="86" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_approve_di" bpmnElement="Task_approve">
-        <dc:Bounds x="1660" y="160" width="100" height="80" />
+        <dc:Bounds x="1980" y="160" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_approved_di" bpmnElement="GW_approved" isMarkerVisible="true">
-        <dc:Bounds x="1820" y="175" width="50" height="50" />
+        <dc:Bounds x="2140" y="175" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1810" y="145" width="70" height="14" />
+          <dc:Bounds x="2130" y="145" width="70" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_pay_di" bpmnElement="Task_pay">
-        <dc:Bounds x="1930" y="160" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_service_receipt_di" bpmnElement="Task_service_receipt">
-        <dc:Bounds x="2090" y="160" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_1mf4l1i_di" bpmnElement="Activity_1mf4l1i">
         <dc:Bounds x="2250" y="160" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_service_receipt_di" bpmnElement="Task_service_receipt">
+        <dc:Bounds x="2410" y="160" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1mf4l1i_di" bpmnElement="Activity_1mf4l1i">
+        <dc:Bounds x="2570" y="160" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_main_di" bpmnElement="End_main">
-        <dc:Bounds x="2412" y="182" width="36" height="36" />
+        <dc:Bounds x="2732" y="182" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="2388" y="225" width="84" height="27" />
+          <dc:Bounds x="2708" y="225" width="84" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_rejected_di" bpmnElement="End_rejected">
-        <dc:Bounds x="1827" y="292" width="36" height="36" />
+        <dc:Bounds x="2147" y="292" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1802" y="335" width="86" height="27" />
+          <dc:Bounds x="2122" y="335" width="86" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
       <!-- EDGES -->
-      <bpmndi:BPMNEdge id="Flow_start_to_gw_odoo_di" bpmnElement="Flow_start_to_gw_odoo">
+      <bpmndi:BPMNEdge id="Flow_start_to_upload_di" bpmnElement="Flow_start_to_upload">
         <di:waypoint x="196" y="200" />
         <di:waypoint x="250" y="200" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_upload_to_extract_di" bpmnElement="Flow_upload_to_extract">
+        <di:waypoint x="350" y="200" />
+        <di:waypoint x="410" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_extract_to_gw_odoo_di" bpmnElement="Flow_extract_to_gw_odoo">
+        <di:waypoint x="510" y="200" />
+        <di:waypoint x="570" y="200" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_odoo_no_task_di" bpmnElement="Flow_odoo_no_task">
-        <di:waypoint x="275" y="225" />
-        <di:waypoint x="275" y="320" />
-        <di:waypoint x="350" y="320" />
+        <di:waypoint x="595" y="225" />
+        <di:waypoint x="595" y="320" />
+        <di:waypoint x="670" y="320" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_odoo_has_task_di" bpmnElement="Flow_odoo_has_task">
-        <di:waypoint x="300" y="200" />
-        <di:waypoint x="510" y="200" />
+        <di:waypoint x="620" y="200" />
+        <di:waypoint x="830" y="200" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="372" y="182" width="66" height="14" />
+          <dc:Bounds x="692" y="182" width="66" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_create_main_done_di" bpmnElement="Flow_create_main_done">
-        <di:waypoint x="450" y="320" />
-        <di:waypoint x="485" y="320" />
-        <di:waypoint x="485" y="200" />
-        <di:waypoint x="510" y="200" />
+        <di:waypoint x="770" y="320" />
+        <di:waypoint x="805" y="320" />
+        <di:waypoint x="805" y="200" />
+        <di:waypoint x="830" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_merge_to_classify_di" bpmnElement="Flow_merge_to_classify">
-        <di:waypoint x="560" y="200" />
-        <di:waypoint x="620" y="200" />
+        <di:waypoint x="880" y="200" />
+        <di:waypoint x="940" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_classify_to_communal_check_di" bpmnElement="Flow_classify_to_communal_check">
-        <di:waypoint x="720" y="200" />
-        <di:waypoint x="780" y="200" />
+        <di:waypoint x="1040" y="200" />
+        <di:waypoint x="1100" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_communal_yes_di" bpmnElement="Flow_communal_yes">
-        <di:waypoint x="830" y="200" />
-        <di:waypoint x="890" y="200" />
+        <di:waypoint x="1150" y="200" />
+        <di:waypoint x="1210" y="200" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="833" y="182" width="56" height="14" />
+          <dc:Bounds x="1153" y="182" width="56" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_not_communal_di" bpmnElement="Flow_not_communal">
-        <di:waypoint x="805" y="225" />
-        <di:waypoint x="805" y="270" />
-        <di:waypoint x="1335" y="270" />
-        <di:waypoint x="1335" y="225" />
+        <di:waypoint x="1125" y="225" />
+        <di:waypoint x="1125" y="270" />
+        <di:waypoint x="1655" y="270" />
+        <di:waypoint x="1655" y="225" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1050" y="252" width="36" height="14" />
+          <dc:Bounds x="1370" y="252" width="36" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_detail_to_check_di" bpmnElement="Flow_detail_to_check">
-        <di:waypoint x="990" y="200" />
-        <di:waypoint x="1050" y="200" />
+        <di:waypoint x="1310" y="200" />
+        <di:waypoint x="1370" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_detail_yes_di" bpmnElement="Flow_detail_yes">
-        <di:waypoint x="1075" y="175" />
-        <di:waypoint x="1075" y="80" />
-        <di:waypoint x="1150" y="80" />
+        <di:waypoint x="1395" y="175" />
+        <di:waypoint x="1395" y="80" />
+        <di:waypoint x="1470" y="80" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1082" y="123" width="28" height="14" />
+          <dc:Bounds x="1402" y="123" width="28" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_no_detail_di" bpmnElement="Flow_no_detail">
-        <di:waypoint x="1100" y="200" />
-        <di:waypoint x="1310" y="200" />
+        <di:waypoint x="1420" y="200" />
+        <di:waypoint x="1630" y="200" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1183" y="182" width="44" height="14" />
+          <dc:Bounds x="1503" y="182" width="44" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_detail_received_di" bpmnElement="Flow_detail_received">
-        <di:waypoint x="1250" y="80" />
-        <di:waypoint x="1285" y="80" />
-        <di:waypoint x="1285" y="200" />
-        <di:waypoint x="1310" y="200" />
+        <di:waypoint x="1570" y="80" />
+        <di:waypoint x="1605" y="80" />
+        <di:waypoint x="1605" y="200" />
+        <di:waypoint x="1630" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_detail_to_calendar_di" bpmnElement="Flow_detail_to_calendar">
-        <di:waypoint x="1360" y="200" />
-        <di:waypoint x="1420" y="200" />
+        <di:waypoint x="1680" y="200" />
+        <di:waypoint x="1740" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_calendar_to_timer_di" bpmnElement="Flow_calendar_to_timer">
-        <di:waypoint x="1520" y="200" />
-        <di:waypoint x="1570" y="200" />
+        <di:waypoint x="1840" y="200" />
+        <di:waypoint x="1890" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_timer_to_approve_di" bpmnElement="Flow_timer_to_approve">
-        <di:waypoint x="1606" y="200" />
-        <di:waypoint x="1660" y="200" />
+        <di:waypoint x="1926" y="200" />
+        <di:waypoint x="1980" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_approve_to_gw_di" bpmnElement="Flow_approve_to_gw">
-        <di:waypoint x="1760" y="200" />
-        <di:waypoint x="1820" y="200" />
+        <di:waypoint x="2080" y="200" />
+        <di:waypoint x="2140" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_approved_yes_di" bpmnElement="Flow_approved_yes">
-        <di:waypoint x="1870" y="200" />
-        <di:waypoint x="1930" y="200" />
+        <di:waypoint x="2190" y="200" />
+        <di:waypoint x="2250" y="200" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1893" y="182" width="17" height="14" />
+          <dc:Bounds x="2213" y="182" width="17" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_approved_no_di" bpmnElement="Flow_approved_no">
-        <di:waypoint x="1845" y="225" />
-        <di:waypoint x="1845" y="292" />
+        <di:waypoint x="2165" y="225" />
+        <di:waypoint x="2165" y="292" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1852" y="253" width="10" height="14" />
+          <dc:Bounds x="2172" y="253" width="10" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_pay_to_service_di" bpmnElement="Flow_pay_to_service">
-        <di:waypoint x="2030" y="200" />
-        <di:waypoint x="2090" y="200" />
+        <di:waypoint x="2350" y="200" />
+        <di:waypoint x="2410" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_service_to_end_di" bpmnElement="Flow_service_to_end">
-        <di:waypoint x="2190" y="200" />
-        <di:waypoint x="2250" y="200" />
+        <di:waypoint x="2510" y="200" />
+        <di:waypoint x="2570" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_close_to_end_di" bpmnElement="Flow_close_to_end">
-        <di:waypoint x="2350" y="200" />
-        <di:waypoint x="2412" y="200" />
+        <di:waypoint x="2670" y="200" />
+        <di:waypoint x="2732" y="200" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
