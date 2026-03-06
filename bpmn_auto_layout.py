@@ -37,14 +37,14 @@ GATEWAY_W, GATEWAY_H = 50, 50
 TASK_W, TASK_H = 100, 80
 BOUNDARY_W, BOUNDARY_H = 36, 36
 
-# Grid
-POOL_X, POOL_Y = 80, 16
+# Grid (compact, matching reference Camunda Modeler style)
+POOL_X, POOL_Y = 105, 90
 LANE_LABEL_WIDTH = 30
-LANE_X = POOL_X + LANE_LABEL_WIDTH  # 110
-H_SPACING = 150  # min horizontal gap between right edge and left of next
+LANE_X = POOL_X + LANE_LABEL_WIDTH  # 135
+H_SPACING = 80   # min horizontal gap (compact but room for collision avoidance)
 V_PADDING = 30   # vertical padding from lane edge to element
-MIN_LANE_HEIGHT_EVENTS = 150
-MIN_LANE_HEIGHT_TASKS = 200
+MIN_LANE_HEIGHT_EVENTS = 130
+MIN_LANE_HEIGHT_TASKS = 170
 
 # Boundary event offsets relative to parent task
 # Reminder: left edge at task_x + 10, right edge at task_x + 46
@@ -376,9 +376,9 @@ def compute_coordinates(layers_by_num, elements, boundary_map, lane_map,
             tag = elements[n].tag if n in elements else ''
             w, _ = element_size(tag)
             max_w = max(max_w, w)
-        current_x += max_w + H_SPACING
+        current_x += max(max_w, EVENT_W) + H_SPACING
 
-    pool_width = max(2000, current_x + 30 - POOL_X)
+    pool_width = current_x + 30 - POOL_X
 
     # Place each node
     for layer_num, nodes in layers_by_num.items():
@@ -467,15 +467,22 @@ def compute_coordinates(layers_by_num, elements, boundary_map, lane_map,
 # ─── Edge routing ────────────────────────────────────────────────────────────
 
 def route_edges(flows, positions, elements, boundary_map, lane_map, lane_geometry, verbose=False):
-    """Route edges orthogonally. Returns list of (flow_id, [(x,y), ...])."""
+    """Route edges orthogonally using compact Camunda Modeler style.
+    Patterns (from reference):
+      - Same lane, same Y: 2wp straight horizontal
+      - Same lane, different Y: 3wp L-shape (vertical then horizontal)
+      - Cross-lane forward: 3-4wp (right, down/up, right)
+      - Backward: 3wp (right to far-right, up/down to target Y, left to target)
+      - Boundary event: 2wp vertical or 3wp L-shape
+    """
     routed = []
     all_rects = {}
     for eid, (x, y, w, h) in positions.items():
         all_rects[eid] = Rect(x, y, w, h)
 
-    backward_idx = 0  # counter for jittering backward flow corridors
-    source_fan_out = defaultdict(int)  # src_id -> count of edges already routed from it
-    target_fan_in = defaultdict(int)   # tgt_id -> count of edges already routed to it
+    backward_idx = 0
+    source_fan_out = defaultdict(int)
+    target_fan_in = defaultdict(int)
 
     for flow in flows:
         src_id = flow.source_ref
@@ -484,10 +491,22 @@ def route_edges(flows, positions, elements, boundary_map, lane_map, lane_geometr
         if src_id not in positions or tgt_id not in positions:
             continue
 
+        # Fan-out jitter
+        fan_idx = max(source_fan_out[src_id], target_fan_in[tgt_id])
+        source_fan_out[src_id] += 1
+        target_fan_in[tgt_id] += 1
+        fan_jitter = fan_idx * 15
+
+        # Boundary event source: start from bottom center
+        if src_id in boundary_map:
+            waypoints = _route_from_boundary(src_id, tgt_id, positions, fan_jitter)
+            waypoints = avoid_collisions(waypoints, src_id, tgt_id, boundary_map, all_rects)
+            routed.append((flow.id, waypoints))
+            continue
+
         sx, sy, sw, sh = positions[src_id]
         tx, ty, tw, th = positions[tgt_id]
 
-        # Source connection point (right center for forward, left for backward)
         src_right = sx + sw
         src_cy = sy + sh / 2
         tgt_left = tx
@@ -496,29 +515,25 @@ def route_edges(flows, positions, elements, boundary_map, lane_map, lane_geometr
         src_lane = lane_map.get(src_id, '')
         tgt_lane = lane_map.get(tgt_id, '')
 
-        # Fan-out/fan-in jitter: offset mid_x for multiple edges from same source or to same target
-        fan_idx = max(source_fan_out[src_id], target_fan_in[tgt_id])
-        source_fan_out[src_id] += 1
-        target_fan_in[tgt_id] += 1
-        fan_jitter = fan_idx * 12  # 12px offset per additional edge
+        is_forward = tx > sx + sw - 10
 
-        # Forward flow (left to right)
-        if tx > sx + sw - 10:
+        if is_forward:
             if src_lane == tgt_lane and abs(src_cy - tgt_cy) < 5:
-                # Same lane, same Y -> straight horizontal
+                # Same lane, same Y → 2wp straight horizontal
                 waypoints = [(src_right, src_cy), (tgt_left, tgt_cy)]
             elif src_lane == tgt_lane:
-                # Same lane, different Y -> L-shape
-                mid_x = (src_right + tgt_left) / 2 + fan_jitter
+                # Same lane, different Y → 3wp L-shape
+                # Go right from source, then vertical to target Y
+                exit_x = src_right + 30 + fan_jitter
                 waypoints = [
                     (src_right, src_cy),
-                    (mid_x, src_cy),
-                    (mid_x, tgt_cy),
+                    (exit_x, src_cy),
+                    (exit_x, tgt_cy),
                     (tgt_left, tgt_cy),
                 ]
             else:
-                # Cross-lane -> Z-shape (3 waypoints)
-                mid_x = (src_right + tgt_left) / 2 + fan_jitter
+                # Cross-lane → 4wp Z-shape (compact mid-corridor)
+                mid_x = src_right + 30 + fan_jitter
                 waypoints = [
                     (src_right, src_cy),
                     (mid_x, src_cy),
@@ -526,49 +541,19 @@ def route_edges(flows, positions, elements, boundary_map, lane_map, lane_geometr
                     (tgt_left, tgt_cy),
                 ]
         else:
-            # Backward flow (right to left) -> route above pool with jitter
+            # Backward flow → route above pool via corridor (avoids crossing elements)
             backward_idx += 1
-            corridor_y = POOL_Y - 20 - (backward_idx * 15)
-            h_offset = 30 + (backward_idx * 10)
+            corridor_y = POOL_Y - 10 - (backward_idx * 12)
             waypoints = [
                 (src_right, src_cy),
-                (src_right + h_offset, src_cy),
-                (src_right + h_offset, corridor_y),
-                (tgt_left - h_offset, corridor_y),
-                (tgt_left - h_offset, tgt_cy),
+                (src_right + 20, src_cy),
+                (src_right + 20, corridor_y),
+                (tgt_left - 20, corridor_y),
+                (tgt_left - 20, tgt_cy),
                 (tgt_left, tgt_cy),
             ]
 
-        # For boundary event sources: start from bottom of boundary event
-        if src_id in boundary_map:
-            bx, by, bw, bh = positions[src_id]
-            src_bottom_cx = bx + bw / 2
-            src_bottom_y = by + bh
-
-            if tgt_id in positions:
-                tx2, ty2, tw2, th2 = positions[tgt_id]
-                tgt_left2 = tx2
-                tgt_cy2 = ty2 + th2 / 2
-
-                # Route down from boundary, then to target
-                if abs(src_bottom_cx - tgt_left2) < 20:
-                    waypoints = [
-                        (src_bottom_cx, src_bottom_y),
-                        (src_bottom_cx, tgt_cy2),
-                        (tgt_left2, tgt_cy2),
-                    ]
-                else:
-                    mid_y = max(src_bottom_y + 20, tgt_cy2)
-                    waypoints = [
-                        (src_bottom_cx, src_bottom_y),
-                        (src_bottom_cx, mid_y),
-                        (tgt_left2, mid_y),
-                        (tgt_left2, tgt_cy2),
-                    ]
-
-        # Simple collision avoidance: check if middle segments cross other shapes
         waypoints = avoid_collisions(waypoints, src_id, tgt_id, boundary_map, all_rects)
-
         routed.append((flow.id, waypoints))
 
     if verbose:
@@ -577,74 +562,94 @@ def route_edges(flows, positions, elements, boundary_map, lane_map, lane_geometr
     return routed
 
 
+def _route_from_boundary(src_id, tgt_id, positions, fan_jitter):
+    """Route edge from boundary event (bottom center) to target.
+    Uses L-shape routing with offset to avoid crossing elements."""
+    bx, by, bw, bh = positions[src_id]
+    tx, ty, tw, th = positions[tgt_id]
+
+    src_cx = bx + bw / 2
+    src_bottom = by + bh
+    tgt_left = tx
+    tgt_cy = ty + th / 2
+
+    # Offset the vertical corridor to the right of both source and target
+    # to avoid crossing elements in between
+    corridor_x = max(src_cx, tgt_left + tw) + 20 + fan_jitter
+
+    # If target is in the same vertical area and close: 2wp vertical
+    if abs(src_cx - (tgt_left + tw / 2)) < 20 and abs(by - ty) < 200:
+        return [
+            (src_cx, src_bottom),
+            (src_cx, tgt_cy),
+        ]
+
+    # L-shape: down from boundary, then horizontal to target
+    return [
+        (src_cx, src_bottom),
+        (src_cx, tgt_cy),
+        (tgt_left, tgt_cy),
+    ]
+
+
 def avoid_collisions(waypoints, src_id, tgt_id, boundary_map, all_rects):
-    """Simple collision avoidance: if a segment crosses a shape, add a detour."""
+    """Collision avoidance: for each segment, check if it crosses a shape.
+    For vertical segments: shift X to the right of the colliding shape.
+    For horizontal segments: shift Y above/below the colliding shape.
+    Single pass — no iterative detours to avoid explosion."""
     excluded = {src_id, tgt_id}
     if src_id in boundary_map:
         excluded.add(boundary_map[src_id])
     if tgt_id in boundary_map:
         excluded.add(boundary_map[tgt_id])
 
-    # Exclude lanes, pools
     collidable = {k: v for k, v in all_rects.items()
                   if k not in excluded
                   and not k.startswith('Lane_')
                   and not k.startswith('Pool_')
                   and not k.startswith('TextAnnotation_')}
 
-    # Check each segment
-    max_iterations = 3
-    for iteration in range(max_iterations):
-        collision_found = False
-        new_waypoints = [waypoints[0]]
+    new_waypoints = [waypoints[0]]
+    for seg_idx in range(len(waypoints) - 1):
+        p1 = waypoints[seg_idx] if seg_idx == 0 else new_waypoints[-1]
+        p2 = waypoints[seg_idx + 1]
 
-        for seg_idx in range(len(waypoints) - 1):
-            p1 = waypoints[seg_idx]
-            p2 = waypoints[seg_idx + 1]
+        # Find first collision
+        collider = None
+        for eid, rect in collidable.items():
+            shrunk = Rect(rect.x + 3, rect.y + 3, rect.width - 6, rect.height - 6)
+            if shrunk.width > 0 and shrunk.height > 0 and line_intersects_rect(p1, p2, shrunk):
+                collider = (eid, rect)
+                break
 
-            colliding_shape = None
-            for eid, rect in collidable.items():
-                shrunk = Rect(rect.x + 3, rect.y + 3, rect.width - 6, rect.height - 6)
-                if shrunk.width > 0 and shrunk.height > 0 and line_intersects_rect(p1, p2, shrunk):
-                    colliding_shape = (eid, rect)
-                    break
+        if collider:
+            eid, rect = collider
+            is_vertical = abs(p1[0] - p2[0]) < 2
+            is_horizontal = abs(p1[1] - p2[1]) < 2
 
-            if colliding_shape:
-                collision_found = True
-                eid, rect = colliding_shape
-                # Detour around the shape
-                margin = 15
-                # Determine if we should go above or below
+            if is_vertical:
+                # Shift X to the right of colliding shape
+                new_x = rect.right + 15
+                new_waypoints.append((new_x, p1[1]))
+                new_waypoints.append((new_x, p2[1]))
+            elif is_horizontal:
+                # Shift Y above or below colliding shape
                 mid_y = (p1[1] + p2[1]) / 2
-                if mid_y < rect.center_y:
-                    # Go above
-                    detour_y = rect.y - margin
+                if mid_y <= rect.center_y:
+                    new_y = rect.y - 15
                 else:
-                    # Go below
-                    detour_y = rect.bottom + margin
+                    new_y = rect.bottom + 15
+                new_waypoints.append((p1[0], new_y))
+                new_waypoints.append((p2[0], new_y))
+            else:
+                # Diagonal — just keep it
+                pass
 
-                # Insert detour points
-                if abs(p1[0] - p2[0]) < 1:
-                    # Vertical segment -> add horizontal detour
-                    detour_x = rect.right + margin
-                    new_waypoints.append((p1[0], detour_y))
-                    new_waypoints.append((detour_x, detour_y))
-                    new_waypoints.append((detour_x, p2[1]))
-                else:
-                    # Horizontal or diagonal -> add vertical detour
-                    new_waypoints.append((rect.x - margin, p1[1]))
-                    new_waypoints.append((rect.x - margin, detour_y))
-                    new_waypoints.append((rect.right + margin, detour_y))
-                    new_waypoints.append((rect.right + margin, p2[1]))
-            new_waypoints.append(p2)
+        new_waypoints.append(p2)
 
-        waypoints = new_waypoints
-        if not collision_found:
-            break
-
-    # Deduplicate consecutive identical waypoints
-    cleaned = [waypoints[0]]
-    for wp in waypoints[1:]:
+    # Deduplicate consecutive identical or very close waypoints
+    cleaned = [new_waypoints[0]]
+    for wp in new_waypoints[1:]:
         if abs(wp[0] - cleaned[-1][0]) > 0.5 or abs(wp[1] - cleaned[-1][1]) > 0.5:
             cleaned.append(wp)
     return cleaned
