@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions
+  xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+  xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+  xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+  id="Definitions_CheckFields"
+  name="Перевірка обов'язкових полів"
+  namespace="http://camunda.org/schema/1.0/dmn"
+  exporter="Camunda Modeler"
+  exporterVersion="5.16.0"
+  modeler:executionPlatform="Camunda Cloud"
+  modeler:executionPlatformVersion="8.8.0">
+
+  <decision id="check-required-fields" name="Чи є всі дані по працівнику">
+
+    <decisionTable id="DecisionTable_1" hitPolicy="FIRST">
+
+      <!-- INPUT: одне поле — FEEL-вираз що перевіряє ВСІ обов'язкові поля -->
+      <input id="Input_1" label="Всі дані заповнені?">
+        <inputExpression id="InputExpression_1" typeRef="boolean">
+          <text>
+x_studio_camunda_field_1 != null
+and x_studio_camunda_field_2 != null
+and x_studio_camunda_field_3 != null
+and x_studio_camunda_field_4 != null
+and x_studio_camunda_field_5 != null
+and x_studio_camunda_field_6 != null
+and x_studio_camunda_field_7 != null
+and x_studio_camunda_field_8 != null
+and x_studio_camunda_field_9 != null
+and x_studio_camunda_field_10 != null
+and x_studio_camunda_field_11 != null
+and x_studio_camunda_field_12 != null
+and x_studio_camunda_field_13 != null
+and x_studio_camunda_field_14 != null
+and x_studio_camunda_field_15 != null
+and x_studio_camunda_field_16 != null
+and x_studio_camunda_field_17 != null
+and x_studio_camunda_field_18 != null
+and x_studio_camunda_field_19 != null
+          </text>
+        </inputExpression>
+      </input>
+
+      <!-- OUTPUT: результат перевірки -->
+      <output id="Output_1" label="Всі дані заповнені" name="allDataComplete" typeRef="boolean" />
+
+      <!-- Правило 1: якщо хоча б одне поле пусте → false -->
+      <rule id="Rule_1">
+        <inputEntry id="InputEntry_1_1">
+          <text>false</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_1_1">
+          <text>false</text>
+        </outputEntry>
+      </rule>
+
+      <!-- Правило 2 (default): всі поля заповнені → true -->
+      <rule id="Rule_2">
+        <inputEntry id="InputEntry_2_1">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_2_1">
+          <text>true</text>
+        </outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <!-- DIAGRAM -->
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram>
+      <dmndi:DMNShape dmnElementRef="check-required-fields">
+        <dc:Bounds height="80" width="180" x="160" y="100" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+
+</definitions>
