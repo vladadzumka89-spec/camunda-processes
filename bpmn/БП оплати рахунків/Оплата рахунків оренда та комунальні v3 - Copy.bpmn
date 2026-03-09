@@ -116,7 +116,7 @@
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;⚠️ НАГАДУВАННЯ: Перевірити розпізнані рахунки&#34;, description: &#34;OCR розпізнав рахунки, але бухгалтер ще не перевірив результат. Будь ласка, перевірте та підтвердьте дані.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= {name: &#34;⚠️ НАГАДУВАННЯ: Перевірити розпізнані рахунки&#34;, description: &#34;OCR розпізнав рахунки, але бухгалтер ще не перевірив результат. Будь ласка, перевірте та підтвердьте дані.&#34;, _model: &#34;project.project&#34;, _id: 236, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_rem_review</bpmn:incoming>
