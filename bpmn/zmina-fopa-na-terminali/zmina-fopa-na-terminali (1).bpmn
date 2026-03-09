@@ -1,0 +1,1057 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Зміна ФОПа на терміналі" processRef="Process_zmina_fopa" />
+    <bpmn:textAnnotation id="TextAnnotation_14vjv95">
+      <bpmn:text>керівник</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="TextAnnotation_19agiw1">
+      <bpmn:text>бух</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="TextAnnotation_06wg50x">
+      <bpmn:text>бух</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="TextAnnotation_1inine8">
+      <bpmn:text>адмін</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="TextAnnotation_07ji5g9">
+      <bpmn:text>адмін</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_1o0x9bk" associationDirection="None" sourceRef="UT_print_documents" targetRef="TextAnnotation_1inine8" />
+    <bpmn:association id="Association_1i4c9fp" associationDirection="None" sourceRef="UT_process_journals" targetRef="TextAnnotation_07ji5g9" />
+    <bpmn:association id="Association_0edjhg0" associationDirection="None" sourceRef="UT_send_journals" targetRef="TextAnnotation_06wg50x" />
+    <bpmn:association id="Association_15j6xep" associationDirection="None" sourceRef="UT_fill_replace" targetRef="TextAnnotation_19agiw1" />
+    <bpmn:association id="Association_0joemsn" associationDirection="None" sourceRef="UT_change_fop" targetRef="TextAnnotation_14vjv95" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_zmina_fopa" name="Зміна ФОПа на терміналі" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_1ju00ex" name="Система (автоматично)" />
+      <bpmn:lane id="Lane_system" name="Оду">
+        <bpmn:flowNodeRef>GW_odoo_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_create_main</bpmn:flowNodeRef>
+        <bpmn:childLaneSet id="LaneSet_1hlyu82" />
+      </bpmn:lane>
+      <bpmn:lane id="Lane_bukhhalter" name="Бухгалтер">
+        <bpmn:flowNodeRef>GW_parallel_start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_check_kveds</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_kveds_exist</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_add_kveds</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_to_exists</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_report_prro1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_check_ekey</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_report_20opp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_to_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_ekey_exist</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_create_key</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_report_prro5</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_check_license</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_license_exist</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_order_license</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_webcheck_data</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_submit_terminal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_date_reconnection</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_date_actual</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_date_wait</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_specify_date</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_wait</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_admin_mahazyn" name="Буй Даря">
+        <bpmn:flowNodeRef>UT_write_sublease</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_submit_fop_letter</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_landlord_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_05ww75o</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0ion9ln</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_0wqycba</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0mc4wfw</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_sign_terminal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_review_date</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_change_fop</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_fill_replace</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_docs_parallel_start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_send_journals</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_add_documents</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_inform_manager</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_print_documents</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_process_journals</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_final</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_rehionalnyi" name="Регіональний керівник" />
+    </bpmn:laneSet>
+    <bpmn:exclusiveGateway id="GW_odoo_check" name="Задача в Odoo існує?" default="Flow_odoo_skip">
+      <bpmn:incoming>Flow_start_to_check</bpmn:incoming>
+      <bpmn:outgoing>Flow_odoo_skip</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1ftq4es</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_start_to_check</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="GW_odoo_merge">
+      <bpmn:incoming>Flow_1xboo2d</bpmn:incoming>
+      <bpmn:incoming>Flow_1ftq4es</bpmn:incoming>
+      <bpmn:outgoing>Flow_merge_to_parallel</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="ST_create_main" name="Створити головне завдання">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Зміна ФОПа на терміналі&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_odoo_skip</bpmn:incoming>
+      <bpmn:outgoing>Flow_1xboo2d</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:parallelGateway id="GW_parallel_start">
+      <bpmn:incoming>Flow_merge_to_parallel</bpmn:incoming>
+      <bpmn:outgoing>Flow_parallel_to_branchA</bpmn:outgoing>
+      <bpmn:outgoing>Flow_parallel_to_branchB</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="UT_write_sublease" name="Написати орендодавцю лист-погодження суборенди">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Написати орендодавцю лист-погодження суборенди&#34;, description: &#34;Написати лист орендодавцю для погодження суборенди при зміні ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_parallel_to_branchA</bpmn:incoming>
+      <bpmn:outgoing>Flow_sublease_to_submit</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_check_kveds" name="Кведи для роздрібної торгівлі є?">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Кведи для роздрібної торгівлі є?&#34;, description: &#34;Перевірити наявність КВЕДів для роздрібної торгівлі у нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_parallel_to_branchB</bpmn:incoming>
+      <bpmn:outgoing>Flow_1m4m44v</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="GW_kveds_exist" name="Кведи наявні?" default="Flow_kveds_no">
+      <bpmn:incoming>Flow_1m4m44v</bpmn:incoming>
+      <bpmn:outgoing>Flow_kveds_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_kveds_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="UT_add_kveds" name="Внести кведи для нового ФОПа">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Внести кведи для нового ФОПа&#34;, description: &#34;Додати необхідні КВЕДи для роздрібної торгівлі&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_kveds_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_09nn3a8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="GW_to_exists" name="Наявне ТО у підрозділу?" default="Flow_to_no">
+      <bpmn:incoming>Flow_kveds_yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_to_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="UT_report_prro1" name="Подати звіт 1 ПРРО на нового ФОПа">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Подати звіт 1 ПРРО на нового ФОПа&#34;, description: &#34;Подати звіт форма 1 ПРРО на нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_20opp_to_prro1</bpmn:incoming>
+      <bpmn:incoming>Flow_to_yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_prro1_to_ekey</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_check_ekey" name="Електронний ключ наявний?">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Електронний ключ наявний?&#34;, description: &#34;Перевірити наявність електронного ключа для нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_prro1_to_ekey</bpmn:incoming>
+      <bpmn:incoming>Flow_to_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_ekey_to_gw</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1p1zzv4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_report_20opp" name="Подати звіт на 20 ОПП">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Подати звіт на 20 ОПП&#34;, description: &#34;Подати звіт на форму 20 ОПП для нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_merge_to_20opp</bpmn:incoming>
+      <bpmn:incoming>Flow_09nn3a8</bpmn:incoming>
+      <bpmn:outgoing>Flow_20opp_to_prro1</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:inclusiveGateway id="GW_to_merge">
+      <bpmn:incoming>Flow_1p1zzv4</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_merge_to_20opp</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:exclusiveGateway id="GW_ekey_exist" name="Наявний ел. ключ?" default="Flow_03uztar">
+      <bpmn:incoming>Flow_ekey_to_gw</bpmn:incoming>
+      <bpmn:outgoing>Flow_03uztar</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1bqtqn7</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="UT_create_key" name="Створити ключ в Приват 24">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Створити ключ в Приват 24&#34;, description: &#34;Створити новий електронний ключ через Приват 24&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_03uztar</bpmn:incoming>
+      <bpmn:outgoing>Flow_1krmeav</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_report_prro5" name="Подаємо звіт 5 пРРО на новий ключ касира">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Подаємо звіт 5 пРРО на новий ключ касира&#34;, description: &#34;Подати звіт форма 5 пРРО на новий ключ касира&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1bqtqn7</bpmn:incoming>
+      <bpmn:incoming>Flow_1krmeav</bpmn:incoming>
+      <bpmn:outgoing>Flow_prro5_to_license</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_submit_fop_letter" name="Подати лист на погодження ФОПа орендодавцю">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Подати лист на погодження ФОПа орендодавцю&#34;, description: &#34;Подати підготовлений лист на погодження зміни ФОПа орендодавцю&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_sublease_to_submit</bpmn:incoming>
+      <bpmn:outgoing>Flow_submit_to_landlord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_landlord_check" name="Погоджено орендодавцем?">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Погоджено орендодавцем?&#34;, description: &#34;Перевірити чи орендодавець погодив зміну ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_submit_to_landlord</bpmn:incoming>
+      <bpmn:outgoing>Flow_0lne2q4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_05ww75o" default="Flow_1d59lvr">
+      <bpmn:incoming>Flow_0lne2q4</bpmn:incoming>
+      <bpmn:outgoing>Flow_1d59lvr</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0g4ijl0</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Activity_0ion9ln" name="Погоджено суборенду">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0g4ijl0</bpmn:incoming>
+      <bpmn:outgoing>Flow_18m86zu</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="Event_0wqycba">
+      <bpmn:incoming>Flow_114csmb</bpmn:incoming>
+      <bpmn:incoming>Flow_18m86zu</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Activity_0mc4wfw" name="Не погоджено орендодавцем">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1d59lvr</bpmn:incoming>
+      <bpmn:outgoing>Flow_114csmb</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_check_license" name="Ліцензія наявна?">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Ліцензія наявна?&#34;, description: &#34;Перевірити наявність ліцензії для нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_prro5_to_license</bpmn:incoming>
+      <bpmn:outgoing>Flow_license_to_gw</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="GW_license_exist" name="Ліцензія є?" default="Flow_0cwtrhj">
+      <bpmn:incoming>Flow_license_to_gw</bpmn:incoming>
+      <bpmn:outgoing>Flow_0cwtrhj</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0br1dqd</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="UT_order_license" name="Замовити нову ліцензію">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Замовити нову ліцензію&#34;, description: &#34;Замовити нову ліцензію для нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0cwtrhj</bpmn:incoming>
+      <bpmn:outgoing>Flow_15k3diy</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_webcheck_data" name="Внести дані у Вебчек по новому пРРО">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Внести дані у Вебчек по новому пРРО&#34;, description: &#34;Внести дані нового ФОПа у систему Вебчек по новому пРРО&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_15k3diy</bpmn:incoming>
+      <bpmn:incoming>Flow_0br1dqd</bpmn:incoming>
+      <bpmn:outgoing>Flow_webcheck_to_terminal</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_submit_terminal" name="Подати заявку в Приват 24 на передачу терміналу новому ФОПу">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Подати заявку в Приват 24 на передачу терміналу новому ФОПу&#34;, description: &#34;Подати заявку в Приват 24 на передачу терміналу новому ФОПу&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_webcheck_to_terminal</bpmn:incoming>
+      <bpmn:outgoing>Flow_terminal_to_sign</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_sign_terminal" name="Підписати заявку на прийом терміналу">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Підписати заявку на прийом терміналу&#34;, description: &#34;Підписати заявку на прийом терміналу на новий ФОП&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_terminal_to_sign</bpmn:incoming>
+      <bpmn:outgoing>Flow_sign_to_merge</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_date_reconnection" name="Отримати дату перепідключення">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Отримати дату перепідключення&#34;, description: &#34;Отримати та зафіксувати дату перепідключення терміналу&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_sign_to_merge</bpmn:incoming>
+      <bpmn:outgoing>Flow_date_to_gw_actual</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="GW_date_actual" name="Дата перепідключення актуальна?" default="Flow_date_actual_no">
+      <bpmn:incoming>Flow_date_to_gw_actual</bpmn:incoming>
+      <bpmn:incoming>Flow_review_to_gw_actual</bpmn:incoming>
+      <bpmn:outgoing>Flow_date_actual_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_date_actual_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="GW_date_wait" name="Дата настала?" default="Flow_date_not_arrived">
+      <bpmn:incoming>Flow_date_actual_yes</bpmn:incoming>
+      <bpmn:incoming>Flow_timer_to_gw_wait</bpmn:incoming>
+      <bpmn:outgoing>Flow_date_not_arrived</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1r75lnl</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="UT_specify_date" name="Вказати вірну дату">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Вказати вірну дату&#34;, description: &#34;Вказати коректну дату перепідключення терміналу&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_date_actual_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_specify_to_review</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_review_date" name="Ознайомитися із новою датою переключення">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Ознайомитися із новою датою переключення&#34;, description: &#34;Ознайомитися із оновленою датою переключення терміналу&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_specify_to_review</bpmn:incoming>
+      <bpmn:outgoing>Flow_review_to_gw_actual</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0on7aqx</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_change_fop" name="Заміна ФОПа на терміналі">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Заміна ФОПа на терміналі&#34;, description: &#34;Виконати заміну ФОПа на платіжному терміналі&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0on7aqx</bpmn:incoming>
+      <bpmn:incoming>Flow_1r75lnl</bpmn:incoming>
+      <bpmn:outgoing>Flow_change_to_fill</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_fill_replace" name="Заповнити і замінити усі налаштування на новий ФОП">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Заповнити і замінити усі налаштування на новий ФОП&#34;, description: &#34;Заповнити і замінити усі налаштування терміналу на новий ФОП&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_change_to_fill</bpmn:incoming>
+      <bpmn:outgoing>Flow_fill_to_docs_parallel</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="GW_docs_parallel_start">
+      <bpmn:incoming>Flow_fill_to_docs_parallel</bpmn:incoming>
+      <bpmn:outgoing>Flow_docs_to_inform</bpmn:outgoing>
+      <bpmn:outgoing>Flow_docs_to_add_docs</bpmn:outgoing>
+      <bpmn:outgoing>Flow_docs_to_send_journals</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="UT_send_journals" name="Надіслати журнали з ОП та ПБ на магазин">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Надіслати журнали з ОП та ПБ на магазин&#34;, description: &#34;Фізично надіслати нові журнали з охорони праці та пожежної безпеки оформлені на нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_docs_to_send_journals</bpmn:incoming>
+      <bpmn:outgoing>Flow_journals_to_process</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_add_documents" name="Додати документи на нового ФОПа для Куточка споживача">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Додати документи на нового ФОПа для Куточка споживача&#34;, description: &#34;Додати документи на нового ФОПа які необхідно надрукувати для Куточка споживача&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_docs_to_add_docs</bpmn:incoming>
+      <bpmn:outgoing>Flow_add_docs_to_print</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_inform_manager" name="Інформування керівника про зміну ФОПа">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Інформування керівника про зміну ФОПа&#34;, description: &#34;Задача про зміну ФОПа для інформування та контролю зміни документів&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_docs_to_inform</bpmn:incoming>
+      <bpmn:outgoing>Flow_1cgkjyh</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_print_documents" name="Друк документів для Куточка споживача">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Друк документів для Куточка споживача&#34;, description: &#34;Надрукувати документи для Куточка споживача: перелік документів та дані нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_add_docs_to_print</bpmn:incoming>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_process_journals" name="Оформлення журналів за інструкцією">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Оформлення журналів за інструкцією&#34;, description: &#34;Прийняти журнали з охорони праці та пожежної безпеки та оформити відповідно до інструкцій&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_journals_to_process</bpmn:incoming>
+      <bpmn:incoming>Flow_1cgkjyh</bpmn:incoming>
+      <bpmn:outgoing>Flow_process_to_merge</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_final" name="Процес завершено">
+      <bpmn:incoming>Flow_process_to_merge</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateCatchEvent id="Timer_wait" name="Чекаємо дати перепідключення">
+      <bpmn:incoming>Flow_date_not_arrived</bpmn:incoming>
+      <bpmn:outgoing>Flow_timer_to_gw_wait</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TD_timer_wait">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT24H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:sequenceFlow id="Flow_start_to_check" sourceRef="StartEvent_1" targetRef="GW_odoo_check" />
+    <bpmn:sequenceFlow id="Flow_odoo_skip" sourceRef="GW_odoo_check" targetRef="ST_create_main" />
+    <bpmn:sequenceFlow id="Flow_1ftq4es" sourceRef="GW_odoo_check" targetRef="GW_odoo_merge" />
+    <bpmn:sequenceFlow id="Flow_1xboo2d" sourceRef="ST_create_main" targetRef="GW_odoo_merge" />
+    <bpmn:sequenceFlow id="Flow_merge_to_parallel" sourceRef="GW_odoo_merge" targetRef="GW_parallel_start" />
+    <bpmn:sequenceFlow id="Flow_parallel_to_branchA" sourceRef="GW_parallel_start" targetRef="UT_write_sublease" />
+    <bpmn:sequenceFlow id="Flow_parallel_to_branchB" sourceRef="GW_parallel_start" targetRef="UT_check_kveds" />
+    <bpmn:sequenceFlow id="Flow_sublease_to_submit" sourceRef="UT_write_sublease" targetRef="UT_submit_fop_letter" />
+    <bpmn:sequenceFlow id="Flow_1m4m44v" sourceRef="UT_check_kveds" targetRef="GW_kveds_exist" />
+    <bpmn:sequenceFlow id="Flow_kveds_yes" sourceRef="GW_kveds_exist" targetRef="GW_to_exists">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_kveds_exist = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_kveds_no" sourceRef="GW_kveds_exist" targetRef="UT_add_kveds" />
+    <bpmn:sequenceFlow id="Flow_09nn3a8" sourceRef="UT_add_kveds" targetRef="UT_report_20opp" />
+    <bpmn:sequenceFlow id="Flow_to_yes" sourceRef="GW_to_exists" targetRef="UT_report_prro1">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_to_exists = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_to_no" sourceRef="GW_to_exists" targetRef="UT_check_ekey" />
+    <bpmn:sequenceFlow id="Flow_20opp_to_prro1" sourceRef="UT_report_20opp" targetRef="UT_report_prro1" />
+    <bpmn:sequenceFlow id="Flow_prro1_to_ekey" sourceRef="UT_report_prro1" targetRef="UT_check_ekey" />
+    <bpmn:sequenceFlow id="Flow_ekey_to_gw" sourceRef="UT_check_ekey" targetRef="GW_ekey_exist" />
+    <bpmn:sequenceFlow id="Flow_1p1zzv4" sourceRef="UT_check_ekey" targetRef="GW_to_merge" />
+    <bpmn:sequenceFlow id="Flow_to_merge_to_20opp" sourceRef="GW_to_merge" targetRef="UT_report_20opp" />
+    <bpmn:sequenceFlow id="Flow_1bqtqn7" sourceRef="GW_ekey_exist" targetRef="UT_report_prro5" />
+    <bpmn:sequenceFlow id="Flow_03uztar" sourceRef="GW_ekey_exist" targetRef="UT_create_key" />
+    <bpmn:sequenceFlow id="Flow_1krmeav" sourceRef="UT_create_key" targetRef="UT_report_prro5" />
+    <bpmn:sequenceFlow id="Flow_prro5_to_license" sourceRef="UT_report_prro5" targetRef="UT_check_license" />
+    <bpmn:sequenceFlow id="Flow_submit_to_landlord" sourceRef="UT_submit_fop_letter" targetRef="UT_landlord_check" />
+    <bpmn:sequenceFlow id="Flow_0lne2q4" sourceRef="UT_landlord_check" targetRef="Gateway_05ww75o" />
+    <bpmn:sequenceFlow id="Flow_1d59lvr" sourceRef="Gateway_05ww75o" targetRef="Activity_0mc4wfw" />
+    <bpmn:sequenceFlow id="Flow_0g4ijl0" sourceRef="Gateway_05ww75o" targetRef="Activity_0ion9ln" />
+    <bpmn:sequenceFlow id="Flow_18m86zu" sourceRef="Activity_0ion9ln" targetRef="Event_0wqycba" />
+    <bpmn:sequenceFlow id="Flow_114csmb" sourceRef="Activity_0mc4wfw" targetRef="Event_0wqycba" />
+    <bpmn:sequenceFlow id="Flow_license_to_gw" sourceRef="UT_check_license" targetRef="GW_license_exist" />
+    <bpmn:sequenceFlow id="Flow_0cwtrhj" sourceRef="GW_license_exist" targetRef="UT_order_license" />
+    <bpmn:sequenceFlow id="Flow_0br1dqd" sourceRef="GW_license_exist" targetRef="UT_webcheck_data" />
+    <bpmn:sequenceFlow id="Flow_15k3diy" sourceRef="UT_order_license" targetRef="UT_webcheck_data" />
+    <bpmn:sequenceFlow id="Flow_webcheck_to_terminal" sourceRef="UT_webcheck_data" targetRef="UT_submit_terminal" />
+    <bpmn:sequenceFlow id="Flow_terminal_to_sign" sourceRef="UT_submit_terminal" targetRef="UT_sign_terminal" />
+    <bpmn:sequenceFlow id="Flow_sign_to_merge" sourceRef="UT_sign_terminal" targetRef="UT_date_reconnection" />
+    <bpmn:sequenceFlow id="Flow_date_to_gw_actual" sourceRef="UT_date_reconnection" targetRef="GW_date_actual" />
+    <bpmn:sequenceFlow id="Flow_review_to_gw_actual" sourceRef="UT_review_date" targetRef="GW_date_actual" />
+    <bpmn:sequenceFlow id="Flow_date_actual_yes" sourceRef="GW_date_actual" targetRef="GW_date_wait">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_date_actual = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_date_actual_no" sourceRef="GW_date_actual" targetRef="UT_specify_date" />
+    <bpmn:sequenceFlow id="Flow_timer_to_gw_wait" sourceRef="Timer_wait" targetRef="GW_date_wait" />
+    <bpmn:sequenceFlow id="Flow_date_not_arrived" sourceRef="GW_date_wait" targetRef="Timer_wait" />
+    <bpmn:sequenceFlow id="Flow_1r75lnl" sourceRef="GW_date_wait" targetRef="UT_change_fop" />
+    <bpmn:sequenceFlow id="Flow_specify_to_review" sourceRef="UT_specify_date" targetRef="UT_review_date" />
+    <bpmn:sequenceFlow id="Flow_0on7aqx" sourceRef="UT_review_date" targetRef="UT_change_fop" />
+    <bpmn:sequenceFlow id="Flow_change_to_fill" sourceRef="UT_change_fop" targetRef="UT_fill_replace" />
+    <bpmn:sequenceFlow id="Flow_fill_to_docs_parallel" sourceRef="UT_fill_replace" targetRef="GW_docs_parallel_start" />
+    <bpmn:sequenceFlow id="Flow_docs_to_inform" sourceRef="GW_docs_parallel_start" targetRef="UT_inform_manager" />
+    <bpmn:sequenceFlow id="Flow_docs_to_add_docs" sourceRef="GW_docs_parallel_start" targetRef="UT_add_documents" />
+    <bpmn:sequenceFlow id="Flow_docs_to_send_journals" sourceRef="GW_docs_parallel_start" targetRef="UT_send_journals" />
+    <bpmn:sequenceFlow id="Flow_journals_to_process" sourceRef="UT_send_journals" targetRef="UT_process_journals" />
+    <bpmn:sequenceFlow id="Flow_add_docs_to_print" sourceRef="UT_add_documents" targetRef="UT_print_documents" />
+    <bpmn:sequenceFlow id="Flow_1cgkjyh" sourceRef="UT_inform_manager" targetRef="UT_process_journals" />
+    <bpmn:sequenceFlow id="Flow_process_to_merge" sourceRef="UT_process_journals" targetRef="End_final" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_1">
+      <bpmndi:BPMNShape id="Participant_1_di" bpmnElement="Participant_1" isHorizontal="true">
+        <dc:Bounds x="-834" y="-1160" width="3738" height="1495" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_rehionalnyi_di" bpmnElement="Lane_rehionalnyi" isHorizontal="true">
+        <dc:Bounds x="-804" y="115" width="3708" height="220" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_admin_mahazyn_di" bpmnElement="Lane_admin_mahazyn" isHorizontal="true">
+        <dc:Bounds x="-804" y="-195" width="3708" height="310" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_bukhhalter_di" bpmnElement="Lane_bukhhalter" isHorizontal="true">
+        <dc:Bounds x="-804" y="-615" width="3708" height="420" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_system_di" bpmnElement="Lane_system" isHorizontal="true">
+        <dc:Bounds x="-804" y="-795" width="3708" height="180" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_1ju00ex_di" bpmnElement="Lane_1ju00ex" isHorizontal="true">
+        <dc:Bounds x="-804" y="-1160" width="3708" height="365" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true">
+        <dc:Bounds x="-644" y="-730" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="-657" y="-670" width="77" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="-747" y="-723" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_odoo_merge_di" bpmnElement="GW_odoo_merge" isMarkerVisible="true">
+        <dc:Bounds x="-371" y="-730" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_create_main_di" bpmnElement="ST_create_main">
+        <dc:Bounds x="-556" y="-745" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_parallel_start_di" bpmnElement="GW_parallel_start">
+        <dc:Bounds x="-371" y="-480" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_write_sublease_di" bpmnElement="UT_write_sublease">
+        <dc:Bounds x="-296" y="-155" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_check_kveds_di" bpmnElement="UT_check_kveds">
+        <dc:Bounds x="-266" y="-495" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_kveds_exist_di" bpmnElement="GW_kveds_exist" isMarkerVisible="true">
+        <dc:Bounds x="-111" y="-480" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="-173" y="-512" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_add_kveds_di" bpmnElement="UT_add_kveds">
+        <dc:Bounds x="-66" y="-405" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_to_exists_di" bpmnElement="GW_to_exists" isMarkerVisible="true">
+        <dc:Bounds x="-31" y="-530" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="-39" y="-470" width="66" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_report_prro1_di" bpmnElement="UT_report_prro1">
+        <dc:Bounds x="74" y="-545" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_check_ekey_di" bpmnElement="UT_check_ekey">
+        <dc:Bounds x="234" y="-545" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_report_20opp_di" bpmnElement="UT_report_20opp">
+        <dc:Bounds x="74" y="-405" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0dha9q0_di" bpmnElement="GW_to_merge">
+        <dc:Bounds x="259" y="-390" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_ekey_exist_di" bpmnElement="GW_ekey_exist" isMarkerVisible="true">
+        <dc:Bounds x="419" y="-530" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="346" y="-549" width="63" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_create_key_di" bpmnElement="UT_create_key">
+        <dc:Bounds x="474" y="-405" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_report_prro5_di" bpmnElement="UT_report_prro5">
+        <dc:Bounds x="614" y="-405" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_submit_fop_letter_di" bpmnElement="UT_submit_fop_letter">
+        <dc:Bounds x="-136" y="-155" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_landlord_check_di" bpmnElement="UT_landlord_check">
+        <dc:Bounds x="4" y="-155" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_05ww75o_di" bpmnElement="Gateway_05ww75o" isMarkerVisible="true">
+        <dc:Bounds x="159" y="-140" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_01hthbu_di" bpmnElement="Activity_0ion9ln">
+        <dc:Bounds x="234" y="-185" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0wqycba_di" bpmnElement="Event_0wqycba">
+        <dc:Bounds x="376" y="-113" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_13fas16_di" bpmnElement="Activity_0mc4wfw">
+        <dc:Bounds x="234" y="-75" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_check_license_di" bpmnElement="UT_check_license">
+        <dc:Bounds x="744" y="-405" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_license_exist_di" bpmnElement="GW_license_exist" isMarkerVisible="true">
+        <dc:Bounds x="889" y="-390" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="886" y="-414" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_order_license_di" bpmnElement="UT_order_license">
+        <dc:Bounds x="954" y="-315" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_webcheck_data_di" bpmnElement="UT_webcheck_data">
+        <dc:Bounds x="1074" y="-405" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_submit_terminal_di" bpmnElement="UT_submit_terminal">
+        <dc:Bounds x="1224" y="-405" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_sign_terminal_di" bpmnElement="UT_sign_terminal">
+        <dc:Bounds x="1324" y="-155" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_date_reconnection_di" bpmnElement="UT_date_reconnection">
+        <dc:Bounds x="1444" y="-405" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_date_actual_di" bpmnElement="GW_date_actual" isMarkerVisible="true">
+        <dc:Bounds x="1609" y="-390" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1560" y="-345" width="89" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_date_wait_di" bpmnElement="GW_date_wait" isMarkerVisible="true">
+        <dc:Bounds x="1669" y="-520" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1658" y="-542" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_specify_date_di" bpmnElement="UT_specify_date">
+        <dc:Bounds x="1774" y="-405" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_review_date_di" bpmnElement="UT_review_date">
+        <dc:Bounds x="1864" y="-185" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_change_fop_di" bpmnElement="UT_change_fop">
+        <dc:Bounds x="2004" y="-185" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_fill_replace_di" bpmnElement="UT_fill_replace">
+        <dc:Bounds x="2144" y="-185" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_docs_parallel_start_di" bpmnElement="GW_docs_parallel_start">
+        <dc:Bounds x="2319" y="-70" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_send_journals_di" bpmnElement="UT_send_journals">
+        <dc:Bounds x="2394" y="-185" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_add_documents_di" bpmnElement="UT_add_documents">
+        <dc:Bounds x="2394" y="-85" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_inform_manager_di" bpmnElement="UT_inform_manager">
+        <dc:Bounds x="2394" y="25" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_print_documents_di" bpmnElement="UT_print_documents">
+        <dc:Bounds x="2544" y="-85" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_process_journals_di" bpmnElement="UT_process_journals">
+        <dc:Bounds x="2684" y="-85" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_final_di" bpmnElement="End_final">
+        <dc:Bounds x="2836" y="-63" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2827" y="-27" width="56" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Timer_wait_di" bpmnElement="Timer_wait">
+        <dc:Bounds x="1726" y="-463" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1770" y="-469" width="89" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_start_to_check_di" bpmnElement="Flow_start_to_check">
+        <di:waypoint x="-711" y="-705" />
+        <di:waypoint x="-644" y="-705" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_odoo_skip_di" bpmnElement="Flow_odoo_skip">
+        <di:waypoint x="-594" y="-705" />
+        <di:waypoint x="-556" y="-705" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ftq4es_di" bpmnElement="Flow_1ftq4es">
+        <di:waypoint x="-619" y="-730" />
+        <di:waypoint x="-619" y="-775" />
+        <di:waypoint x="-346" y="-775" />
+        <di:waypoint x="-346" y="-730" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1xboo2d_di" bpmnElement="Flow_1xboo2d">
+        <di:waypoint x="-456" y="-705" />
+        <di:waypoint x="-371" y="-705" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_merge_to_parallel_di" bpmnElement="Flow_merge_to_parallel">
+        <di:waypoint x="-346" y="-680" />
+        <di:waypoint x="-346" y="-480" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_parallel_to_branchA_di" bpmnElement="Flow_parallel_to_branchA">
+        <di:waypoint x="-346" y="-430" />
+        <di:waypoint x="-346" y="-115" />
+        <di:waypoint x="-296" y="-115" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_parallel_to_branchB_di" bpmnElement="Flow_parallel_to_branchB">
+        <di:waypoint x="-321" y="-455" />
+        <di:waypoint x="-266" y="-455" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_sublease_to_submit_di" bpmnElement="Flow_sublease_to_submit">
+        <di:waypoint x="-196" y="-115" />
+        <di:waypoint x="-136" y="-115" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1m4m44v_di" bpmnElement="Flow_1m4m44v">
+        <di:waypoint x="-166" y="-455" />
+        <di:waypoint x="-111" y="-455" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_kveds_yes_di" bpmnElement="Flow_kveds_yes">
+        <di:waypoint x="-86" y="-480" />
+        <di:waypoint x="-86" y="-505" />
+        <di:waypoint x="-31" y="-505" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_kveds_no_di" bpmnElement="Flow_kveds_no">
+        <di:waypoint x="-86" y="-430" />
+        <di:waypoint x="-86" y="-365" />
+        <di:waypoint x="-66" y="-365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_09nn3a8_di" bpmnElement="Flow_09nn3a8">
+        <di:waypoint x="34" y="-365" />
+        <di:waypoint x="74" y="-365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_yes_di" bpmnElement="Flow_to_yes">
+        <di:waypoint x="19" y="-505" />
+        <di:waypoint x="74" y="-505" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_no_di" bpmnElement="Flow_to_no">
+        <di:waypoint x="-6" y="-530" />
+        <di:waypoint x="-6" y="-595" />
+        <di:waypoint x="284" y="-595" />
+        <di:waypoint x="284" y="-545" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_20opp_to_prro1_di" bpmnElement="Flow_20opp_to_prro1">
+        <di:waypoint x="124" y="-405" />
+        <di:waypoint x="124" y="-465" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_prro1_to_ekey_di" bpmnElement="Flow_prro1_to_ekey">
+        <di:waypoint x="174" y="-505" />
+        <di:waypoint x="234" y="-505" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ekey_to_gw_di" bpmnElement="Flow_ekey_to_gw">
+        <di:waypoint x="334" y="-505" />
+        <di:waypoint x="419" y="-505" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1p1zzv4_di" bpmnElement="Flow_1p1zzv4">
+        <di:waypoint x="284" y="-465" />
+        <di:waypoint x="284" y="-390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_merge_to_20opp_di" bpmnElement="Flow_to_merge_to_20opp">
+        <di:waypoint x="259" y="-365" />
+        <di:waypoint x="174" y="-365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1bqtqn7_di" bpmnElement="Flow_1bqtqn7">
+        <di:waypoint x="469" y="-505" />
+        <di:waypoint x="664" y="-505" />
+        <di:waypoint x="664" y="-405" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_03uztar_di" bpmnElement="Flow_03uztar">
+        <di:waypoint x="444" y="-480" />
+        <di:waypoint x="444" y="-365" />
+        <di:waypoint x="474" y="-365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1krmeav_di" bpmnElement="Flow_1krmeav">
+        <di:waypoint x="574" y="-365" />
+        <di:waypoint x="614" y="-365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_prro5_to_license_di" bpmnElement="Flow_prro5_to_license">
+        <di:waypoint x="714" y="-365" />
+        <di:waypoint x="744" y="-365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_submit_to_landlord_di" bpmnElement="Flow_submit_to_landlord">
+        <di:waypoint x="-36" y="-115" />
+        <di:waypoint x="4" y="-115" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0lne2q4_di" bpmnElement="Flow_0lne2q4">
+        <di:waypoint x="104" y="-115" />
+        <di:waypoint x="159" y="-115" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1d59lvr_di" bpmnElement="Flow_1d59lvr">
+        <di:waypoint x="184" y="-90" />
+        <di:waypoint x="184" y="-35" />
+        <di:waypoint x="234" y="-35" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0g4ijl0_di" bpmnElement="Flow_0g4ijl0">
+        <di:waypoint x="184" y="-140" />
+        <di:waypoint x="184" y="-165" />
+        <di:waypoint x="234" y="-165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_18m86zu_di" bpmnElement="Flow_18m86zu">
+        <di:waypoint x="334" y="-145" />
+        <di:waypoint x="394" y="-145" />
+        <di:waypoint x="394" y="-113" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_114csmb_di" bpmnElement="Flow_114csmb">
+        <di:waypoint x="334" y="-35" />
+        <di:waypoint x="394" y="-35" />
+        <di:waypoint x="394" y="-77" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_license_to_gw_di" bpmnElement="Flow_license_to_gw">
+        <di:waypoint x="844" y="-365" />
+        <di:waypoint x="889" y="-365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0cwtrhj_di" bpmnElement="Flow_0cwtrhj">
+        <di:waypoint x="914" y="-340" />
+        <di:waypoint x="914" y="-275" />
+        <di:waypoint x="954" y="-275" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0br1dqd_di" bpmnElement="Flow_0br1dqd">
+        <di:waypoint x="939" y="-365" />
+        <di:waypoint x="1074" y="-365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_15k3diy_di" bpmnElement="Flow_15k3diy">
+        <di:waypoint x="1054" y="-275" />
+        <di:waypoint x="1124" y="-275" />
+        <di:waypoint x="1124" y="-325" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_webcheck_to_terminal_di" bpmnElement="Flow_webcheck_to_terminal">
+        <di:waypoint x="1174" y="-365" />
+        <di:waypoint x="1224" y="-365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_terminal_to_sign_di" bpmnElement="Flow_terminal_to_sign">
+        <di:waypoint x="1274" y="-325" />
+        <di:waypoint x="1274" y="-115" />
+        <di:waypoint x="1324" y="-115" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_sign_to_merge_di" bpmnElement="Flow_sign_to_merge">
+        <di:waypoint x="1424" y="-115" />
+        <di:waypoint x="1494" y="-115" />
+        <di:waypoint x="1494" y="-325" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_date_to_gw_actual_di" bpmnElement="Flow_date_to_gw_actual">
+        <di:waypoint x="1544" y="-365" />
+        <di:waypoint x="1609" y="-365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_review_to_gw_actual_di" bpmnElement="Flow_review_to_gw_actual">
+        <di:waypoint x="1864" y="-145" />
+        <di:waypoint x="1634" y="-145" />
+        <di:waypoint x="1634" y="-340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_date_actual_yes_di" bpmnElement="Flow_date_actual_yes">
+        <di:waypoint x="1634" y="-390" />
+        <di:waypoint x="1634" y="-495" />
+        <di:waypoint x="1669" y="-495" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_date_actual_no_di" bpmnElement="Flow_date_actual_no">
+        <di:waypoint x="1659" y="-365" />
+        <di:waypoint x="1774" y="-365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_timer_to_gw_wait_di" bpmnElement="Flow_timer_to_gw_wait">
+        <di:waypoint x="1744" y="-463" />
+        <di:waypoint x="1744" y="-495" />
+        <di:waypoint x="1719" y="-495" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_date_not_arrived_di" bpmnElement="Flow_date_not_arrived">
+        <di:waypoint x="1694" y="-470" />
+        <di:waypoint x="1694" y="-445" />
+        <di:waypoint x="1726" y="-445" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1r75lnl_di" bpmnElement="Flow_1r75lnl">
+        <di:waypoint x="1719" y="-495" />
+        <di:waypoint x="2054" y="-495" />
+        <di:waypoint x="2054" y="-185" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_specify_to_review_di" bpmnElement="Flow_specify_to_review">
+        <di:waypoint x="1874" y="-365" />
+        <di:waypoint x="1894" y="-365" />
+        <di:waypoint x="1894" y="-185" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0on7aqx_di" bpmnElement="Flow_0on7aqx">
+        <di:waypoint x="1964" y="-145" />
+        <di:waypoint x="2004" y="-145" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_change_to_fill_di" bpmnElement="Flow_change_to_fill">
+        <di:waypoint x="2104" y="-145" />
+        <di:waypoint x="2144" y="-145" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_fill_to_docs_parallel_di" bpmnElement="Flow_fill_to_docs_parallel">
+        <di:waypoint x="2244" y="-145" />
+        <di:waypoint x="2294" y="-145" />
+        <di:waypoint x="2294" y="-45" />
+        <di:waypoint x="2319" y="-45" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_docs_to_inform_di" bpmnElement="Flow_docs_to_inform">
+        <di:waypoint x="2344" y="-20" />
+        <di:waypoint x="2344" y="65" />
+        <di:waypoint x="2394" y="65" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_docs_to_add_docs_di" bpmnElement="Flow_docs_to_add_docs">
+        <di:waypoint x="2369" y="-45" />
+        <di:waypoint x="2394" y="-45" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_docs_to_send_journals_di" bpmnElement="Flow_docs_to_send_journals">
+        <di:waypoint x="2344" y="-70" />
+        <di:waypoint x="2344" y="-145" />
+        <di:waypoint x="2394" y="-145" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_journals_to_process_di" bpmnElement="Flow_journals_to_process">
+        <di:waypoint x="2494" y="-145" />
+        <di:waypoint x="2734" y="-145" />
+        <di:waypoint x="2734" y="-85" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_add_docs_to_print_di" bpmnElement="Flow_add_docs_to_print">
+        <di:waypoint x="2494" y="-45" />
+        <di:waypoint x="2544" y="-45" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1cgkjyh_di" bpmnElement="Flow_1cgkjyh">
+        <di:waypoint x="2494" y="65" />
+        <di:waypoint x="2734" y="65" />
+        <di:waypoint x="2734" y="-5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_process_to_merge_di" bpmnElement="Flow_process_to_merge">
+        <di:waypoint x="2784" y="-45" />
+        <di:waypoint x="2836" y="-45" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_1o0x9bk_di" bpmnElement="Association_1o0x9bk">
+        <di:waypoint x="2607" y="-85" />
+        <di:waypoint x="2615" y="-110" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_1i4c9fp_di" bpmnElement="Association_1i4c9fp">
+        <di:waypoint x="2726" y="-85" />
+        <di:waypoint x="2723" y="-100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_0edjhg0_di" bpmnElement="Association_0edjhg0">
+        <di:waypoint x="2464" y="-185" />
+        <di:waypoint x="2473" y="-200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_15j6xep_di" bpmnElement="Association_15j6xep">
+        <di:waypoint x="2224" y="-185" />
+        <di:waypoint x="2228" y="-190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_0joemsn_di" bpmnElement="Association_0joemsn">
+        <di:waypoint x="2086" y="-185" />
+        <di:waypoint x="2099" y="-200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="TextAnnotation_1inine8_di" bpmnElement="TextAnnotation_1inine8">
+        <dc:Bounds x="2570" y="-140" width="100" height="30" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_07ji5g9_di" bpmnElement="TextAnnotation_07ji5g9">
+        <dc:Bounds x="2670" y="-130" width="100" height="30" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_06wg50x_di" bpmnElement="TextAnnotation_06wg50x">
+        <dc:Bounds x="2430" y="-230" width="100" height="30" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_19agiw1_di" bpmnElement="TextAnnotation_19agiw1">
+        <dc:Bounds x="2190" y="-220" width="100" height="30" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_14vjv95_di" bpmnElement="TextAnnotation_14vjv95">
+        <dc:Bounds x="2060" y="-230" width="100" height="30" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
