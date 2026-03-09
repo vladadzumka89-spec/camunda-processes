@@ -59,7 +59,7 @@
     </bpmn:exclusiveGateway>
     <bpmn:userTask id="UT_add_file" name="Завантажити файл рахунку">
       <bpmn:extensionElements>
-        <zeebe:userTask />
+        <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
@@ -74,7 +74,7 @@
     </bpmn:userTask>
     <bpmn:userTask id="UT_review_items" name="Перевірити розпізнані рахунки">
       <bpmn:extensionElements>
-        <zeebe:userTask />
+        <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
@@ -133,7 +133,7 @@
     </bpmn:endEvent>
     <bpmn:userTask id="UT_esc_review" name=" ЕСКАЛАЦІЯ: Перевірка рахунків не виконана">
       <bpmn:extensionElements>
-        <zeebe:userTask />
+        <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
