@@ -1,5 +1,5 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+<?xml version='1.0' encoding='UTF-8'?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
   <bpmn:collaboration id="Collaboration_1">
     <bpmn:participant id="Participant_1" name="Зміна ФОПа на терміналі" processRef="Process_zmina_fopa" />
     <bpmn:textAnnotation id="TextAnnotation_14vjv95">
@@ -45,7 +45,6 @@
         <bpmn:flowNodeRef>UT_report_prro1</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>UT_check_ekey</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>UT_report_20opp</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_to_merge</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>GW_ekey_exist</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>UT_create_key</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>UT_report_prro5</bpmn:flowNodeRef>
@@ -64,10 +63,6 @@
         <bpmn:flowNodeRef>UT_write_sublease</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>UT_submit_fop_letter</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>UT_landlord_check</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Gateway_05ww75o</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Activity_0ion9ln</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Event_0wqycba</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Activity_0mc4wfw</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>UT_sign_terminal</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>UT_review_date</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>UT_change_fop</bpmn:flowNodeRef>
@@ -79,7 +74,7 @@
         <bpmn:flowNodeRef>UT_print_documents</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>UT_process_journals</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_final</bpmn:flowNodeRef>
-      </bpmn:lane>
+      <bpmn:flowNodeRef>GW_parallel_merge</bpmn:flowNodeRef><bpmn:flowNodeRef>GW_landlord_result</bpmn:flowNodeRef><bpmn:flowNodeRef>End_not_approved</bpmn:flowNodeRef><bpmn:flowNodeRef>GW_docs_merge</bpmn:flowNodeRef></bpmn:lane>
       <bpmn:lane id="Lane_rehionalnyi" name="Регіональний керівник" />
     </bpmn:laneSet>
     <bpmn:exclusiveGateway id="GW_odoo_check" name="Задача в Odoo існує?" default="Flow_odoo_skip">
@@ -99,10 +94,10 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Зміна ФОПа на терміналі&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Зміна ФОПа на терміналі&quot;, create_process: true, _model: &quot;project.project&quot;, _id: 252}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_odoo_skip</bpmn:incoming>
@@ -117,10 +112,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Написати орендодавцю лист-погодження суборенди&#34;, description: &#34;Написати лист орендодавцю для погодження суборенди при зміні ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Написати орендодавцю лист-погодження суборенди&quot;, description: &quot;Написати лист орендодавцю для погодження суборенди при зміні ФОПа&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_parallel_to_branchA</bpmn:incoming>
@@ -130,10 +125,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Кведи для роздрібної торгівлі є?&#34;, description: &#34;Перевірити наявність КВЕДів для роздрібної торгівлі у нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Кведи для роздрібної торгівлі є?&quot;, description: &quot;Перевірити наявність КВЕДів для роздрібної торгівлі у нового ФОПа&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_parallel_to_branchB</bpmn:incoming>
@@ -148,10 +143,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Внести кведи для нового ФОПа&#34;, description: &#34;Додати необхідні КВЕДи для роздрібної торгівлі&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Внести кведи для нового ФОПа&quot;, description: &quot;Додати необхідні КВЕДи для роздрібної торгівлі&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_kveds_no</bpmn:incoming>
@@ -166,10 +161,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Подати звіт 1 ПРРО на нового ФОПа&#34;, description: &#34;Подати звіт форма 1 ПРРО на нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Подати звіт 1 ПРРО на нового ФОПа&quot;, description: &quot;Подати звіт форма 1 ПРРО на нового ФОПа&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_20opp_to_prro1</bpmn:incoming>
@@ -180,35 +175,29 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Електронний ключ наявний?&#34;, description: &#34;Перевірити наявність електронного ключа для нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Електронний ключ наявний?&quot;, description: &quot;Перевірити наявність електронного ключа для нового ФОПа&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_prro1_to_ekey</bpmn:incoming>
       <bpmn:incoming>Flow_to_no</bpmn:incoming>
       <bpmn:outgoing>Flow_ekey_to_gw</bpmn:outgoing>
-      <bpmn:outgoing>Flow_1p1zzv4</bpmn:outgoing>
-    </bpmn:userTask>
+      </bpmn:userTask>
     <bpmn:userTask id="UT_report_20opp" name="Подати звіт на 20 ОПП">
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Подати звіт на 20 ОПП&#34;, description: &#34;Подати звіт на форму 20 ОПП для нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Подати звіт на 20 ОПП&quot;, description: &quot;Подати звіт на форму 20 ОПП для нового ФОПа&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_to_merge_to_20opp</bpmn:incoming>
       <bpmn:incoming>Flow_09nn3a8</bpmn:incoming>
       <bpmn:outgoing>Flow_20opp_to_prro1</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:inclusiveGateway id="GW_to_merge">
-      <bpmn:incoming>Flow_1p1zzv4</bpmn:incoming>
-      <bpmn:outgoing>Flow_to_merge_to_20opp</bpmn:outgoing>
-    </bpmn:inclusiveGateway>
     <bpmn:exclusiveGateway id="GW_ekey_exist" name="Наявний ел. ключ?" default="Flow_03uztar">
       <bpmn:incoming>Flow_ekey_to_gw</bpmn:incoming>
       <bpmn:outgoing>Flow_03uztar</bpmn:outgoing>
@@ -218,10 +207,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Створити ключ в Приват 24&#34;, description: &#34;Створити новий електронний ключ через Приват 24&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Створити ключ в Приват 24&quot;, description: &quot;Створити новий електронний ключ через Приват 24&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_03uztar</bpmn:incoming>
@@ -231,10 +220,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Подаємо звіт 5 пРРО на новий ключ касира&#34;, description: &#34;Подати звіт форма 5 пРРО на новий ключ касира&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Подаємо звіт 5 пРРО на новий ключ касира&quot;, description: &quot;Подати звіт форма 5 пРРО на новий ключ касира&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1bqtqn7</bpmn:incoming>
@@ -245,10 +234,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Подати лист на погодження ФОПа орендодавцю&#34;, description: &#34;Подати підготовлений лист на погодження зміни ФОПа орендодавцю&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Подати лист на погодження ФОПа орендодавцю&quot;, description: &quot;Подати підготовлений лист на погодження зміни ФОПа орендодавцю&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_sublease_to_submit</bpmn:incoming>
@@ -258,46 +247,22 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Погоджено орендодавцем?&#34;, description: &#34;Перевірити чи орендодавець погодив зміну ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Погоджено орендодавцем?&quot;, description: &quot;Перевірити чи орендодавець погодив зміну ФОПа&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_submit_to_landlord</bpmn:incoming>
-      <bpmn:outgoing>Flow_0lne2q4</bpmn:outgoing>
-    </bpmn:userTask>
-    <bpmn:exclusiveGateway id="Gateway_05ww75o" default="Flow_1d59lvr">
-      <bpmn:incoming>Flow_0lne2q4</bpmn:incoming>
-      <bpmn:outgoing>Flow_1d59lvr</bpmn:outgoing>
-      <bpmn:outgoing>Flow_0g4ijl0</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-    <bpmn:userTask id="Activity_0ion9ln" name="Погоджено суборенду">
-      <bpmn:extensionElements>
-        <zeebe:userTask />
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_0g4ijl0</bpmn:incoming>
-      <bpmn:outgoing>Flow_18m86zu</bpmn:outgoing>
-    </bpmn:userTask>
-    <bpmn:endEvent id="Event_0wqycba">
-      <bpmn:incoming>Flow_114csmb</bpmn:incoming>
-      <bpmn:incoming>Flow_18m86zu</bpmn:incoming>
-    </bpmn:endEvent>
-    <bpmn:userTask id="Activity_0mc4wfw" name="Не погоджено орендодавцем">
-      <bpmn:extensionElements>
-        <zeebe:userTask />
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_1d59lvr</bpmn:incoming>
-      <bpmn:outgoing>Flow_114csmb</bpmn:outgoing>
-    </bpmn:userTask>
+      <bpmn:outgoing>Flow_landlord_to_merge</bpmn:outgoing></bpmn:userTask>
     <bpmn:userTask id="UT_check_license" name="Ліцензія наявна?">
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Ліцензія наявна?&#34;, description: &#34;Перевірити наявність ліцензії для нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Ліцензія наявна?&quot;, description: &quot;Перевірити наявність ліцензії для нового ФОПа&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_prro5_to_license</bpmn:incoming>
@@ -312,10 +277,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Замовити нову ліцензію&#34;, description: &#34;Замовити нову ліцензію для нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Замовити нову ліцензію&quot;, description: &quot;Замовити нову ліцензію для нового ФОПа&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0cwtrhj</bpmn:incoming>
@@ -325,10 +290,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Внести дані у Вебчек по новому пРРО&#34;, description: &#34;Внести дані нового ФОПа у систему Вебчек по новому пРРО&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Внести дані у Вебчек по новому пРРО&quot;, description: &quot;Внести дані нового ФОПа у систему Вебчек по новому пРРО&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_15k3diy</bpmn:incoming>
@@ -339,10 +304,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Подати заявку в Приват 24 на передачу терміналу новому ФОПу&#34;, description: &#34;Подати заявку в Приват 24 на передачу терміналу новому ФОПу&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Подати заявку в Приват 24 на передачу терміналу новому ФОПу&quot;, description: &quot;Подати заявку в Приват 24 на передачу терміналу новому ФОПу&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_webcheck_to_terminal</bpmn:incoming>
@@ -352,28 +317,26 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Підписати заявку на прийом терміналу&#34;, description: &#34;Підписати заявку на прийом терміналу на новий ФОП&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Підписати заявку на прийом терміналу&quot;, description: &quot;Підписати заявку на прийом терміналу на новий ФОП&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_terminal_to_sign</bpmn:incoming>
-      <bpmn:outgoing>Flow_sign_to_merge</bpmn:outgoing>
-    </bpmn:userTask>
+      <bpmn:outgoing>Flow_sign_to_par_merge</bpmn:outgoing></bpmn:userTask>
     <bpmn:userTask id="UT_date_reconnection" name="Отримати дату перепідключення">
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Отримати дату перепідключення&#34;, description: &#34;Отримати та зафіксувати дату перепідключення терміналу&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Отримати дату перепідключення&quot;, description: &quot;Отримати та зафіксувати дату перепідключення терміналу&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_sign_to_merge</bpmn:incoming>
       <bpmn:outgoing>Flow_date_to_gw_actual</bpmn:outgoing>
-    </bpmn:userTask>
+    <bpmn:incoming>Flow_approved_yes</bpmn:incoming></bpmn:userTask>
     <bpmn:exclusiveGateway id="GW_date_actual" name="Дата перепідключення актуальна?" default="Flow_date_actual_no">
       <bpmn:incoming>Flow_date_to_gw_actual</bpmn:incoming>
       <bpmn:incoming>Flow_review_to_gw_actual</bpmn:incoming>
@@ -390,10 +353,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Вказати вірну дату&#34;, description: &#34;Вказати коректну дату перепідключення терміналу&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Вказати вірну дату&quot;, description: &quot;Вказати коректну дату перепідключення терміналу&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_date_actual_no</bpmn:incoming>
@@ -403,27 +366,25 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Ознайомитися із новою датою переключення&#34;, description: &#34;Ознайомитися із оновленою датою переключення терміналу&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Ознайомитися із новою датою переключення&quot;, description: &quot;Ознайомитися із оновленою датою переключення терміналу&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_specify_to_review</bpmn:incoming>
       <bpmn:outgoing>Flow_review_to_gw_actual</bpmn:outgoing>
-      <bpmn:outgoing>Flow_0on7aqx</bpmn:outgoing>
-    </bpmn:userTask>
+      </bpmn:userTask>
     <bpmn:userTask id="UT_change_fop" name="Заміна ФОПа на терміналі">
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Заміна ФОПа на терміналі&#34;, description: &#34;Виконати заміну ФОПа на платіжному терміналі&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Заміна ФОПа на терміналі&quot;, description: &quot;Виконати заміну ФОПа на платіжному терміналі&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_0on7aqx</bpmn:incoming>
       <bpmn:incoming>Flow_1r75lnl</bpmn:incoming>
       <bpmn:outgoing>Flow_change_to_fill</bpmn:outgoing>
     </bpmn:userTask>
@@ -431,10 +392,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Заповнити і замінити усі налаштування на новий ФОП&#34;, description: &#34;Заповнити і замінити усі налаштування терміналу на новий ФОП&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Заповнити і замінити усі налаштування на новий ФОП&quot;, description: &quot;Заповнити і замінити усі налаштування терміналу на новий ФОП&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_change_to_fill</bpmn:incoming>
@@ -450,10 +411,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Надіслати журнали з ОП та ПБ на магазин&#34;, description: &#34;Фізично надіслати нові журнали з охорони праці та пожежної безпеки оформлені на нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Надіслати журнали з ОП та ПБ на магазин&quot;, description: &quot;Фізично надіслати нові журнали з охорони праці та пожежної безпеки оформлені на нового ФОПа&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_docs_to_send_journals</bpmn:incoming>
@@ -463,10 +424,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Додати документи на нового ФОПа для Куточка споживача&#34;, description: &#34;Додати документи на нового ФОПа які необхідно надрукувати для Куточка споживача&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Додати документи на нового ФОПа для Куточка споживача&quot;, description: &quot;Додати документи на нового ФОПа які необхідно надрукувати для Куточка споживача&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_docs_to_add_docs</bpmn:incoming>
@@ -476,44 +437,40 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Інформування керівника про зміну ФОПа&#34;, description: &#34;Задача про зміну ФОПа для інформування та контролю зміни документів&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Інформування керівника про зміну ФОПа&quot;, description: &quot;Задача про зміну ФОПа для інформування та контролю зміни документів&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_docs_to_inform</bpmn:incoming>
-      <bpmn:outgoing>Flow_1cgkjyh</bpmn:outgoing>
-    </bpmn:userTask>
+      <bpmn:outgoing>Flow_inform_to_docs_merge</bpmn:outgoing></bpmn:userTask>
     <bpmn:userTask id="UT_print_documents" name="Друк документів для Куточка споживача">
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Друк документів для Куточка споживача&#34;, description: &#34;Надрукувати документи для Куточка споживача: перелік документів та дані нового ФОПа&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Друк документів для Куточка споживача&quot;, description: &quot;Надрукувати документи для Куточка споживача: перелік документів та дані нового ФОПа&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_add_docs_to_print</bpmn:incoming>
-    </bpmn:userTask>
+    <bpmn:outgoing>Flow_print_to_docs_merge</bpmn:outgoing></bpmn:userTask>
     <bpmn:userTask id="UT_process_journals" name="Оформлення журналів за інструкцією">
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Оформлення журналів за інструкцією&#34;, description: &#34;Прийняти журнали з охорони праці та пожежної безпеки та оформити відповідно до інструкцій&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Оформлення журналів за інструкцією&quot;, description: &quot;Прийняти журнали з охорони праці та пожежної безпеки та оформити відповідно до інструкцій&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_journals_to_process</bpmn:incoming>
-      <bpmn:incoming>Flow_1cgkjyh</bpmn:incoming>
-      <bpmn:outgoing>Flow_process_to_merge</bpmn:outgoing>
-    </bpmn:userTask>
+      <bpmn:outgoing>Flow_journals_to_docs_merge</bpmn:outgoing></bpmn:userTask>
     <bpmn:endEvent id="End_final" name="Процес завершено">
-      <bpmn:incoming>Flow_process_to_merge</bpmn:incoming>
-    </bpmn:endEvent>
+      <bpmn:incoming>Flow_docs_merge_to_end</bpmn:incoming></bpmn:endEvent>
     <bpmn:intermediateCatchEvent id="Timer_wait" name="Чекаємо дати перепідключення">
       <bpmn:incoming>Flow_date_not_arrived</bpmn:incoming>
       <bpmn:outgoing>Flow_timer_to_gw_wait</bpmn:outgoing>
@@ -542,25 +499,17 @@
     <bpmn:sequenceFlow id="Flow_20opp_to_prro1" sourceRef="UT_report_20opp" targetRef="UT_report_prro1" />
     <bpmn:sequenceFlow id="Flow_prro1_to_ekey" sourceRef="UT_report_prro1" targetRef="UT_check_ekey" />
     <bpmn:sequenceFlow id="Flow_ekey_to_gw" sourceRef="UT_check_ekey" targetRef="GW_ekey_exist" />
-    <bpmn:sequenceFlow id="Flow_1p1zzv4" sourceRef="UT_check_ekey" targetRef="GW_to_merge" />
-    <bpmn:sequenceFlow id="Flow_to_merge_to_20opp" sourceRef="GW_to_merge" targetRef="UT_report_20opp" />
     <bpmn:sequenceFlow id="Flow_1bqtqn7" sourceRef="GW_ekey_exist" targetRef="UT_report_prro5" />
     <bpmn:sequenceFlow id="Flow_03uztar" sourceRef="GW_ekey_exist" targetRef="UT_create_key" />
     <bpmn:sequenceFlow id="Flow_1krmeav" sourceRef="UT_create_key" targetRef="UT_report_prro5" />
     <bpmn:sequenceFlow id="Flow_prro5_to_license" sourceRef="UT_report_prro5" targetRef="UT_check_license" />
     <bpmn:sequenceFlow id="Flow_submit_to_landlord" sourceRef="UT_submit_fop_letter" targetRef="UT_landlord_check" />
-    <bpmn:sequenceFlow id="Flow_0lne2q4" sourceRef="UT_landlord_check" targetRef="Gateway_05ww75o" />
-    <bpmn:sequenceFlow id="Flow_1d59lvr" sourceRef="Gateway_05ww75o" targetRef="Activity_0mc4wfw" />
-    <bpmn:sequenceFlow id="Flow_0g4ijl0" sourceRef="Gateway_05ww75o" targetRef="Activity_0ion9ln" />
-    <bpmn:sequenceFlow id="Flow_18m86zu" sourceRef="Activity_0ion9ln" targetRef="Event_0wqycba" />
-    <bpmn:sequenceFlow id="Flow_114csmb" sourceRef="Activity_0mc4wfw" targetRef="Event_0wqycba" />
     <bpmn:sequenceFlow id="Flow_license_to_gw" sourceRef="UT_check_license" targetRef="GW_license_exist" />
     <bpmn:sequenceFlow id="Flow_0cwtrhj" sourceRef="GW_license_exist" targetRef="UT_order_license" />
     <bpmn:sequenceFlow id="Flow_0br1dqd" sourceRef="GW_license_exist" targetRef="UT_webcheck_data" />
     <bpmn:sequenceFlow id="Flow_15k3diy" sourceRef="UT_order_license" targetRef="UT_webcheck_data" />
     <bpmn:sequenceFlow id="Flow_webcheck_to_terminal" sourceRef="UT_webcheck_data" targetRef="UT_submit_terminal" />
     <bpmn:sequenceFlow id="Flow_terminal_to_sign" sourceRef="UT_submit_terminal" targetRef="UT_sign_terminal" />
-    <bpmn:sequenceFlow id="Flow_sign_to_merge" sourceRef="UT_sign_terminal" targetRef="UT_date_reconnection" />
     <bpmn:sequenceFlow id="Flow_date_to_gw_actual" sourceRef="UT_date_reconnection" targetRef="GW_date_actual" />
     <bpmn:sequenceFlow id="Flow_review_to_gw_actual" sourceRef="UT_review_date" targetRef="GW_date_actual" />
     <bpmn:sequenceFlow id="Flow_date_actual_yes" sourceRef="GW_date_actual" targetRef="GW_date_wait">
@@ -571,7 +520,6 @@
     <bpmn:sequenceFlow id="Flow_date_not_arrived" sourceRef="GW_date_wait" targetRef="Timer_wait" />
     <bpmn:sequenceFlow id="Flow_1r75lnl" sourceRef="GW_date_wait" targetRef="UT_change_fop" />
     <bpmn:sequenceFlow id="Flow_specify_to_review" sourceRef="UT_specify_date" targetRef="UT_review_date" />
-    <bpmn:sequenceFlow id="Flow_0on7aqx" sourceRef="UT_review_date" targetRef="UT_change_fop" />
     <bpmn:sequenceFlow id="Flow_change_to_fill" sourceRef="UT_change_fop" targetRef="UT_fill_replace" />
     <bpmn:sequenceFlow id="Flow_fill_to_docs_parallel" sourceRef="UT_fill_replace" targetRef="GW_docs_parallel_start" />
     <bpmn:sequenceFlow id="Flow_docs_to_inform" sourceRef="GW_docs_parallel_start" targetRef="UT_inform_manager" />
@@ -579,9 +527,7 @@
     <bpmn:sequenceFlow id="Flow_docs_to_send_journals" sourceRef="GW_docs_parallel_start" targetRef="UT_send_journals" />
     <bpmn:sequenceFlow id="Flow_journals_to_process" sourceRef="UT_send_journals" targetRef="UT_process_journals" />
     <bpmn:sequenceFlow id="Flow_add_docs_to_print" sourceRef="UT_add_documents" targetRef="UT_print_documents" />
-    <bpmn:sequenceFlow id="Flow_1cgkjyh" sourceRef="UT_inform_manager" targetRef="UT_process_journals" />
-    <bpmn:sequenceFlow id="Flow_process_to_merge" sourceRef="UT_process_journals" targetRef="End_final" />
-  </bpmn:process>
+    <bpmn:parallelGateway id="GW_parallel_merge"><bpmn:incoming>Flow_landlord_to_merge</bpmn:incoming><bpmn:incoming>Flow_sign_to_par_merge</bpmn:incoming><bpmn:outgoing>Flow_par_merge_to_check</bpmn:outgoing></bpmn:parallelGateway><bpmn:exclusiveGateway id="GW_landlord_result" name="Орендодавець погодив?" default="Flow_not_approved"><bpmn:incoming>Flow_par_merge_to_check</bpmn:incoming><bpmn:outgoing>Flow_approved_yes</bpmn:outgoing><bpmn:outgoing>Flow_not_approved</bpmn:outgoing></bpmn:exclusiveGateway><bpmn:endEvent id="End_not_approved" name="Не погоджено орендодавцем"><bpmn:incoming>Flow_not_approved</bpmn:incoming></bpmn:endEvent><bpmn:sequenceFlow id="Flow_landlord_to_merge" sourceRef="UT_landlord_check" targetRef="GW_parallel_merge" /><bpmn:sequenceFlow id="Flow_sign_to_par_merge" sourceRef="UT_sign_terminal" targetRef="GW_parallel_merge" /><bpmn:sequenceFlow id="Flow_par_merge_to_check" sourceRef="GW_parallel_merge" targetRef="GW_landlord_result" /><bpmn:sequenceFlow id="Flow_approved_yes" sourceRef="GW_landlord_result" targetRef="UT_date_reconnection" name="Так"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_landlord_approved = true</bpmn:conditionExpression></bpmn:sequenceFlow><bpmn:sequenceFlow id="Flow_not_approved" sourceRef="GW_landlord_result" targetRef="End_not_approved" /><bpmn:parallelGateway id="GW_docs_merge"><bpmn:incoming>Flow_inform_to_docs_merge</bpmn:incoming><bpmn:incoming>Flow_journals_to_docs_merge</bpmn:incoming><bpmn:incoming>Flow_print_to_docs_merge</bpmn:incoming><bpmn:outgoing>Flow_docs_merge_to_end</bpmn:outgoing></bpmn:parallelGateway><bpmn:sequenceFlow id="Flow_inform_to_docs_merge" sourceRef="UT_inform_manager" targetRef="GW_docs_merge" /><bpmn:sequenceFlow id="Flow_journals_to_docs_merge" sourceRef="UT_process_journals" targetRef="GW_docs_merge" /><bpmn:sequenceFlow id="Flow_print_to_docs_merge" sourceRef="UT_print_documents" targetRef="GW_docs_merge" /><bpmn:sequenceFlow id="Flow_docs_merge_to_end" sourceRef="GW_docs_merge" targetRef="End_final" /></bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_1">
       <bpmndi:BPMNShape id="Participant_1_di" bpmnElement="Participant_1" isHorizontal="true">
@@ -656,9 +602,6 @@
         <dc:Bounds x="74" y="-405" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_0dha9q0_di" bpmnElement="GW_to_merge">
-        <dc:Bounds x="259" y="-390" width="50" height="50" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="GW_ekey_exist_di" bpmnElement="GW_ekey_exist" isMarkerVisible="true">
         <dc:Bounds x="419" y="-530" width="50" height="50" />
         <bpmndi:BPMNLabel>
@@ -676,18 +619,6 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="UT_landlord_check_di" bpmnElement="UT_landlord_check">
         <dc:Bounds x="4" y="-155" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_05ww75o_di" bpmnElement="Gateway_05ww75o" isMarkerVisible="true">
-        <dc:Bounds x="159" y="-140" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_01hthbu_di" bpmnElement="Activity_0ion9ln">
-        <dc:Bounds x="234" y="-185" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_0wqycba_di" bpmnElement="Event_0wqycba">
-        <dc:Bounds x="376" y="-113" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_13fas16_di" bpmnElement="Activity_0mc4wfw">
-        <dc:Bounds x="234" y="-75" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="UT_check_license_di" bpmnElement="UT_check_license">
         <dc:Bounds x="744" y="-405" width="100" height="80" />
@@ -842,14 +773,6 @@
         <di:waypoint x="334" y="-505" />
         <di:waypoint x="419" y="-505" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1p1zzv4_di" bpmnElement="Flow_1p1zzv4">
-        <di:waypoint x="284" y="-465" />
-        <di:waypoint x="284" y="-390" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_to_merge_to_20opp_di" bpmnElement="Flow_to_merge_to_20opp">
-        <di:waypoint x="259" y="-365" />
-        <di:waypoint x="174" y="-365" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_1bqtqn7_di" bpmnElement="Flow_1bqtqn7">
         <di:waypoint x="469" y="-505" />
         <di:waypoint x="664" y="-505" />
@@ -871,30 +794,6 @@
       <bpmndi:BPMNEdge id="Flow_submit_to_landlord_di" bpmnElement="Flow_submit_to_landlord">
         <di:waypoint x="-36" y="-115" />
         <di:waypoint x="4" y="-115" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0lne2q4_di" bpmnElement="Flow_0lne2q4">
-        <di:waypoint x="104" y="-115" />
-        <di:waypoint x="159" y="-115" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1d59lvr_di" bpmnElement="Flow_1d59lvr">
-        <di:waypoint x="184" y="-90" />
-        <di:waypoint x="184" y="-35" />
-        <di:waypoint x="234" y="-35" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0g4ijl0_di" bpmnElement="Flow_0g4ijl0">
-        <di:waypoint x="184" y="-140" />
-        <di:waypoint x="184" y="-165" />
-        <di:waypoint x="234" y="-165" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_18m86zu_di" bpmnElement="Flow_18m86zu">
-        <di:waypoint x="334" y="-145" />
-        <di:waypoint x="394" y="-145" />
-        <di:waypoint x="394" y="-113" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_114csmb_di" bpmnElement="Flow_114csmb">
-        <di:waypoint x="334" y="-35" />
-        <di:waypoint x="394" y="-35" />
-        <di:waypoint x="394" y="-77" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_license_to_gw_di" bpmnElement="Flow_license_to_gw">
         <di:waypoint x="844" y="-365" />
@@ -922,11 +821,6 @@
         <di:waypoint x="1274" y="-325" />
         <di:waypoint x="1274" y="-115" />
         <di:waypoint x="1324" y="-115" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_sign_to_merge_di" bpmnElement="Flow_sign_to_merge">
-        <di:waypoint x="1424" y="-115" />
-        <di:waypoint x="1494" y="-115" />
-        <di:waypoint x="1494" y="-325" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_date_to_gw_actual_di" bpmnElement="Flow_date_to_gw_actual">
         <di:waypoint x="1544" y="-365" />
@@ -966,10 +860,6 @@
         <di:waypoint x="1894" y="-365" />
         <di:waypoint x="1894" y="-185" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0on7aqx_di" bpmnElement="Flow_0on7aqx">
-        <di:waypoint x="1964" y="-145" />
-        <di:waypoint x="2004" y="-145" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_change_to_fill_di" bpmnElement="Flow_change_to_fill">
         <di:waypoint x="2104" y="-145" />
         <di:waypoint x="2144" y="-145" />
@@ -1002,15 +892,6 @@
       <bpmndi:BPMNEdge id="Flow_add_docs_to_print_di" bpmnElement="Flow_add_docs_to_print">
         <di:waypoint x="2494" y="-45" />
         <di:waypoint x="2544" y="-45" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1cgkjyh_di" bpmnElement="Flow_1cgkjyh">
-        <di:waypoint x="2494" y="65" />
-        <di:waypoint x="2734" y="65" />
-        <di:waypoint x="2734" y="-5" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_process_to_merge_di" bpmnElement="Flow_process_to_merge">
-        <di:waypoint x="2784" y="-45" />
-        <di:waypoint x="2836" y="-45" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_1o0x9bk_di" bpmnElement="Association_1o0x9bk">
         <di:waypoint x="2607" y="-85" />
@@ -1052,6 +933,6 @@
         <dc:Bounds x="2060" y="-230" width="100" height="30" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-    </bpmndi:BPMNPlane>
+    <bpmndi:BPMNShape id="GW_parallel_merge_di" bpmnElement="GW_parallel_merge" isMarkerVisible="true"><dc:Bounds x="1504" y="-140" width="50" height="50" /></bpmndi:BPMNShape><bpmndi:BPMNShape id="GW_landlord_result_di" bpmnElement="GW_landlord_result" isMarkerVisible="true"><dc:Bounds x="1634" y="-140" width="50" height="50" /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_not_approved_di" bpmnElement="End_not_approved"><dc:Bounds x="1641" y="-25" width="36" height="36" /></bpmndi:BPMNShape><bpmndi:BPMNEdge id="Flow_landlord_to_merge_di" bpmnElement="Flow_landlord_to_merge"><di:waypoint x="1424" y="-215" /><di:waypoint x="1529" y="-115" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_sign_to_par_merge_di" bpmnElement="Flow_sign_to_par_merge"><di:waypoint x="1424" y="-115" /><di:waypoint x="1504" y="-115" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_par_merge_to_check_di" bpmnElement="Flow_par_merge_to_check"><di:waypoint x="1554" y="-115" /><di:waypoint x="1634" y="-115" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_approved_yes_di" bpmnElement="Flow_approved_yes"><di:waypoint x="1684" y="-115" /><di:waypoint x="1784" y="-115" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_not_approved_di" bpmnElement="Flow_not_approved"><di:waypoint x="1659" y="-90" /><di:waypoint x="1659" y="-25" /></bpmndi:BPMNEdge><bpmndi:BPMNShape id="GW_docs_merge_di" bpmnElement="GW_docs_merge" isMarkerVisible="true"><dc:Bounds x="2756" y="-70" width="50" height="50" /></bpmndi:BPMNShape><bpmndi:BPMNEdge id="Flow_inform_to_docs_merge_di" bpmnElement="Flow_inform_to_docs_merge"><di:waypoint x="2706" y="-45" /><di:waypoint x="2756" y="-45" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_journals_to_docs_merge_di" bpmnElement="Flow_journals_to_docs_merge"><di:waypoint x="2706" y="-103" /><di:waypoint x="2781" y="-70" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_print_to_docs_merge_di" bpmnElement="Flow_print_to_docs_merge"><di:waypoint x="2706" y="7" /><di:waypoint x="2781" y="-20" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="Flow_docs_merge_to_end_di" bpmnElement="Flow_docs_merge_to_end"><di:waypoint x="2806" y="-45" /><di:waypoint x="2836" y="-45" /></bpmndi:BPMNEdge></bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>
