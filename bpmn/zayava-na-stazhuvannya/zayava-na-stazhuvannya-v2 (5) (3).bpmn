@@ -255,7 +255,7 @@
     <bpmn:userTask id="Activity_1hed96f" name="Працевлаштовуємо працівника офіційно?">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Працевлаштовуємо працівника офіційно?&quot;, description: &quot;Вкажіть умови оформлення: офіційне (так/ні), посада (driver/admin/інша), ФОП (так/ні)&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_official_employment: null, x_studio_camunda_position: null, x_studio_camunda_is_fop: null, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_decision_continue</bpmn:incoming>
       <bpmn:outgoing>Flow_to_inc_gw</bpmn:outgoing>
       <bpmn:outgoing>Flow_0854gd9</bpmn:outgoing>
@@ -538,7 +538,7 @@
     <bpmn:userTask id="Activity_1jq8k7f" name="Чи потрібно працівнику ОЗ?">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Чи потрібно працівнику ОЗ?&quot;, description: &quot;Вкажіть чи потрібно видати основні засоби новому працівнику (так/ні)&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_needs_oz: null, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_merge_to_0am1peg</bpmn:incoming>
       <bpmn:outgoing>Flow_1l7bk1z</bpmn:outgoing>
     </bpmn:userTask>
