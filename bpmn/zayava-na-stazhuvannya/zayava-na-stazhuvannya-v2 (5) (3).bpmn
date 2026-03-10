@@ -84,28 +84,28 @@
     <bpmn:userTask id="Activity_1knnpn9" name="Вкажи контактні дані">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Вкажи контактні дані&quot;, description: &quot;Заповніть контактні дані нового стажиста&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_1wcwqge</bpmn:incoming>
       <bpmn:outgoing>Flow_0e1frh4</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:userTask id="Activity_1l1x0hv" name="Підписати журнали інструктажів для *ПІБ* нового працівника *дата прийому*&quot;">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Підписати журнали інструктажів&quot;, description: &quot;Підпишіть журнали інструктажів для нового працівника&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_19494i0</bpmn:incoming>
       <bpmn:outgoing>Flow_13fszm6</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:userTask id="Activity_1aumnaz" name="Надати доступи до видачі кредитів">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Надати доступи до видачі кредитів&quot;, description: &quot;Надайте доступи до видачі кредитів на суму 500&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_17jzgjl</bpmn:incoming>
       <bpmn:outgoing>Flow_054lv73</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:userTask id="Activity_1i8rce0" name="Налаштувати вхід в Dubidoc за допомогою робочої пошти">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Налаштувати вхід в Dubidoc&quot;, description: &quot;Налаштуйте вхід в Dubidoc за допомогою робочої пошти&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_0en5aao</bpmn:incoming>
       <bpmn:outgoing>Flow_0kunm1a</bpmn:outgoing>
     </bpmn:userTask>
@@ -154,7 +154,7 @@
     <bpmn:userTask id="Activity_1vhn1tf" name="Ознайомитися з коментарем">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Ознайомитися з коментарем&quot;, description: &quot;Ознайомтесь з коментарем рекрутера та підтвердіть&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_142fxqm</bpmn:incoming>
       <bpmn:outgoing>Flow_13n4gsf</bpmn:outgoing>
     </bpmn:userTask>
@@ -171,35 +171,35 @@
     <bpmn:userTask id="Activity_14r0q30" name="Провести іспит-знайомство з стажером">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Провести іспит-знайомство з стажером&quot;, description: &quot;Проведіть іспит-знайомство та залиште коментар щодо результату&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_143izeq</bpmn:incoming>
       <bpmn:outgoing>Flow_142fxqm</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:userTask id="Activity_18szs5a" name="Проставити ставку для працівника">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Проставити ставку для працівника&quot;, description: &quot;Проставте ставку для працівника в системі&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key, x_studio_camunda_credit_access_500: null}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_0zdw56l</bpmn:incoming>
       <bpmn:outgoing>Flow_0s1fyfr</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:userTask id="Activity_0g0xrqb" name="Перевірити вірність оформлення телеграм">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Перевірити вірність оформлення телеграм&quot;, description: &quot;Перевірте правильність оформлення Telegram-акаунту працівника&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_003wz6g</bpmn:incoming>
       <bpmn:outgoing>Flow_1ts18c3</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:userTask id="Activity_0pyk5en" name="Проінформувати людину про офіційний прийом">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Проінформувати людину про офіційний прийом&quot;, description: &quot;Повідомте працівника про умови та дату офіційного прийому&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_0hczsie</bpmn:incoming>
       <bpmn:outgoing>Flow_1wyoz59</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:userTask id="Activity_1gz6dh7" name="Додати працівника в чати">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Додати працівника в чати&quot;, description: &quot;Додайте нового працівника до відповідних робочих чатів&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_0i1pcvp</bpmn:incoming>
       <bpmn:outgoing>Flow_0hczsie</bpmn:outgoing>
     </bpmn:userTask>
@@ -255,7 +255,7 @@
     <bpmn:userTask id="Activity_1hed96f" name="Працевлаштовуємо працівника офіційно?">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Працевлаштовуємо працівника офіційно?&quot;, description: &quot;Вкажіть умови оформлення: офіційне (так/ні), посада (driver/admin/інша), ФОП (так/ні)&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_official_employment: null, x_studio_camunda_position: null, x_studio_camunda_is_fop: null, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Працевлаштовуємо працівника офіційно?&quot;, description: &quot;Вкажіть: офіційне оформлення (так/ні), посада (driver/admin/інша), ФОП (так/ні), доступ до кредитів 500 (так/ні)&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_official_employment: null, x_studio_camunda_position: null, x_studio_camunda_is_fop: null, x_studio_camunda_credit_access_500: null, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_decision_continue</bpmn:incoming>
       <bpmn:outgoing>Flow_to_inc_gw</bpmn:outgoing>
       <bpmn:outgoing>Flow_0854gd9</bpmn:outgoing>
@@ -353,7 +353,7 @@
     <bpmn:userTask id="Activity_1prbsyy" name="Внести решту даних по працівнику">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Внести решту даних по працівнику&quot;, description: &quot;Внесіть всі дані по працівнику в систему&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_173vlty</bpmn:incoming>
       <bpmn:outgoing>Flow_170st20</bpmn:outgoing>
     </bpmn:userTask>
@@ -384,7 +384,7 @@
     <bpmn:userTask id="Activity_1mi4136" name="Чи прийшов працівник на стажування">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Чи прийшов працівник на стажування&quot;, description: &quot;Зафіксуйте факт появи або неявки працівника на стажування&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key, x_studio_camunda_employee_arrived: null}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_0gpf9q8</bpmn:incoming>
       <bpmn:outgoing>Flow_083d9jf</bpmn:outgoing>
     </bpmn:userTask>
@@ -416,7 +416,7 @@
     <bpmn:userTask id="Activity_1cw099t" name="Приймаємо працівника в внутрішньому обліку?">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Приймаємо працівника в внутрішньому обліку?&quot;, description: &quot;Прийміть рішення щодо прийому працівника у внутрішній облік&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_0309jcu</bpmn:incoming>
       <bpmn:outgoing>Flow_1gxtapo</bpmn:outgoing>
     </bpmn:userTask>
@@ -427,7 +427,7 @@
     <bpmn:userTask id="Activity_1r42sgq" name="Закрити доступи">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Закрити доступи&quot;, description: &quot;Закрийте всі доступи для працівника що звільняється&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_0lohuzx</bpmn:incoming>
       <bpmn:outgoing>Flow_1bhvuz2</bpmn:outgoing>
     </bpmn:userTask>
@@ -451,7 +451,7 @@
     <bpmn:userTask id="Activity_15o6pq5" name="Видалити з чатів">
       <bpmn:extensionElements>
         <zeebe:userTask />
-      </bpmn:extensionElements>
+      <zeebe:ioMapping><zeebe:input source="=&quot;POST&quot;" target="method" /><zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" /><zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" /><zeebe:input source="={name: &quot;Видалити з чатів&quot;, description: &quot;Видаліть працівника з усіх робочих чатів&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" /></zeebe:ioMapping></bpmn:extensionElements>
       <bpmn:incoming>Flow_1obaitj</bpmn:incoming>
       <bpmn:outgoing>Flow_1fv92w4</bpmn:outgoing>
     </bpmn:userTask>
