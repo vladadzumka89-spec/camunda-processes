@@ -1,5 +1,5 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+<?xml version='1.0' encoding='UTF-8'?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
   <bpmn:collaboration id="Collaboration_1">
     <bpmn:participant id="Participant_1" name="Заява на стажування" processRef="Process_13xdec3" />
   </bpmn:collaboration>
@@ -88,7 +88,7 @@
       <bpmn:incoming>Flow_1wcwqge</bpmn:incoming>
       <bpmn:outgoing>Flow_0e1frh4</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:userTask id="Activity_1l1x0hv" name="Підписати журнали інструктажів для *ПІБ* нового працівника *дата прийому*&#34;">
+    <bpmn:userTask id="Activity_1l1x0hv" name="Підписати журнали інструктажів для *ПІБ* нового працівника *дата прийому*&quot;">
       <bpmn:extensionElements>
         <zeebe:userTask />
       </bpmn:extensionElements>
@@ -123,12 +123,12 @@
       <bpmn:incoming>Flow_0ii7gru</bpmn:incoming>
       <bpmn:outgoing>Flow_1los5zm</bpmn:outgoing>
     </bpmn:callActivity>
-    <bpmn:exclusiveGateway id="Gateway_1hab3fr" name="Посада адмін?">
+    <bpmn:exclusiveGateway id="Gateway_1hab3fr" name="Посада адмін?" default="Flow_1niyrov">
       <bpmn:incoming>Flow_10xw1vy</bpmn:incoming>
       <bpmn:outgoing>Flow_0ii7gru</bpmn:outgoing>
       <bpmn:outgoing>Flow_1niyrov</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:exclusiveGateway id="Gateway_12gvzyo" name="500?">
+    <bpmn:exclusiveGateway id="Gateway_12gvzyo" name="500?" default="Flow_0v8zv1w">
       <bpmn:incoming>Flow_1los5zm</bpmn:incoming>
       <bpmn:incoming>Flow_1niyrov</bpmn:incoming>
       <bpmn:outgoing>Flow_0v8zv1w</bpmn:outgoing>
@@ -207,10 +207,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Очікуємо рішення працівника&#34;, description: &#34;Працівник приймає рішення. Натисніть Готово щоб пропустити очікування.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Очікуємо рішення працівника&quot;, description: &quot;Працівник приймає рішення. Натисніть Готово щоб пропустити очікування.&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1wyoz59</bpmn:incoming>
@@ -221,7 +221,7 @@
       <bpmn:outgoing>Flow_decision_continue</bpmn:outgoing>
       <bpmn:outgoing>Flow_decision_reject</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:exclusiveGateway id="Gateway_0csfm75">
+    <bpmn:exclusiveGateway id="Gateway_0csfm75" default="Flow_0fr85bt">
       <bpmn:incoming>Flow_0854gd9</bpmn:incoming>
       <bpmn:outgoing>Flow_0en5aao</bpmn:outgoing>
       <bpmn:outgoing>Flow_0fr85bt</bpmn:outgoing>
@@ -268,10 +268,10 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Кандидат не підійшов, не прийшов: &#34; + emp.employee_name, description: &#34;Повідомити про відмову кандидата&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: emp.user_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Кандидат не підійшов, не прийшов: &quot; + emp.employee_name, description: &quot;Повідомити про відмову кандидата&quot;, _model: &quot;project.project&quot;, _id: 252, x_studio_camunda_user_ids: emp.user_id, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_00med7b</bpmn:incoming>
@@ -297,10 +297,10 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Заява на стажування&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;Заява на стажування&quot;, create_process: true, _model: &quot;project.project&quot;, _id: 252}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_odoo_default</bpmn:incoming>
@@ -309,7 +309,7 @@
     <bpmn:endEvent id="Event_verify_end">
       <bpmn:incoming>Flow_decision_reject</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:exclusiveGateway id="Gateway_1yjk0cn" name="Посада водій?">
+    <bpmn:exclusiveGateway id="Gateway_1yjk0cn" name="Посада водій?" default="Flow_0h8sgxw">
       <bpmn:incoming>Flow_0fr85bt</bpmn:incoming>
       <bpmn:incoming>Flow_0228opb</bpmn:incoming>
       <bpmn:outgoing>Flow_02gc5k5</bpmn:outgoing>
@@ -327,7 +327,7 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="do3-feature" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;Прийом&#34;" target="featureCode" />
+          <zeebe:input source="=&quot;Прийом&quot;" target="featureCode" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_163pitc</bpmn:incoming>
@@ -337,12 +337,12 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="do3-feature" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;СтворитиФізОсобу&#34;" target="featureCode" />
-          <zeebe:input source="=&#34;DO3&#34;" target="database" />
+          <zeebe:input source="=&quot;СтворитиФізОсобу&quot;" target="featureCode" />
+          <zeebe:input source="=&quot;DO3&quot;" target="database" />
           <zeebe:input source="=x_studio_camunda_surname" target="прізвище" />
           <zeebe:input source="=x_studio_camunda_first_name" target="імя" />
           <zeebe:input source="=x_studio_camunda_patronymic" target="поБатькові" />
-          <zeebe:input source="={&#10;  featureCode: &#34;СтворитиФізОсобу&#34;,&#10;  database: &#34;DO3&#34;,&#10;  прізвище: x_studio_camunda_surname,&#10;  імя: x_studio_camunda_first_name,&#10;  поБатькові: x_studio_camunda_patronymic&#10;}" target="body" />
+          <zeebe:input source="={&#10;  featureCode: &quot;СтворитиФізОсобу&quot;,&#10;  database: &quot;DO3&quot;,&#10;  прізвище: x_studio_camunda_surname,&#10;  імя: x_studio_camunda_first_name,&#10;  поБатькові: x_studio_camunda_patronymic&#10;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_14g6loc</bpmn:incoming>
@@ -366,10 +366,10 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/api/server-action&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;, &#34;X-API-Key&#34;:&#34;632b5ed6-091f-48db-bd01-1e60aeb10bfc&#34;}" target="headers" />
-          <zeebe:input source="={&#34;action_identifier&#34;: &#34;check_employee_data_completeness&#34;, &#34;context&#34;: {}, &#34;payload&#34;: {}}" target="body" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://o.tut.ua/api/server-action&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;, &quot;X-API-Key&quot;:&quot;632b5ed6-091f-48db-bd01-1e60aeb10bfc&quot;}" target="headers" />
+          <zeebe:input source="={&quot;action_identifier&quot;: &quot;check_employee_data_completeness&quot;, &quot;context&quot;: {}, &quot;payload&quot;: {}}" target="body" />
           <zeebe:output source="= result.data.all_fields_complete" target="all_data_present" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -395,7 +395,7 @@
         <bpmn:timeDate xsi:type="bpmn:tFormalExpression" />
       </bpmn:timerEventDefinition>
     </bpmn:intermediateCatchEvent>
-    <bpmn:exclusiveGateway id="Gateway_1lixlva">
+    <bpmn:exclusiveGateway id="Gateway_1lixlva" default="Flow_0tzmjjx">
       <bpmn:incoming>Flow_1l7bk1z</bpmn:incoming>
       <bpmn:outgoing>Flow_1x0bpj9</bpmn:outgoing>
       <bpmn:outgoing>Flow_0tzmjjx</bpmn:outgoing>
@@ -434,7 +434,7 @@
     <bpmn:userTask id="Activity_0grozq4" name="Створити користувача в ЄРП">
       <bpmn:extensionElements>
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;СтворитиКористувача&#34;" target="featureCode" />
+          <zeebe:input source="=&quot;СтворитиКористувача&quot;" target="featureCode" />
         </zeebe:ioMapping>
         <zeebe:userTask />
       </bpmn:extensionElements>
@@ -464,17 +464,17 @@
     <bpmn:sequenceFlow id="Flow_0e1frh4" sourceRef="Activity_1knnpn9" targetRef="Gateway_0kwn5gi" />
     <bpmn:sequenceFlow id="Flow_19494i0" sourceRef="Gateway_16wrue9" targetRef="Activity_1l1x0hv" />
     <bpmn:sequenceFlow id="Flow_13fszm6" sourceRef="Activity_1l1x0hv" targetRef="Gateway_0kwn5gi" />
-    <bpmn:sequenceFlow id="Flow_17jzgjl" name="так" sourceRef="Gateway_12gvzyo" targetRef="Activity_1aumnaz" />
-    <bpmn:sequenceFlow id="Flow_0en5aao" name="так" sourceRef="Gateway_0csfm75" targetRef="Activity_1i8rce0" />
+    <bpmn:sequenceFlow id="Flow_17jzgjl" name="так" sourceRef="Gateway_12gvzyo" targetRef="Activity_1aumnaz"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_credit_access_500 = true</bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0en5aao" name="так" sourceRef="Gateway_0csfm75" targetRef="Activity_1i8rce0"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_official_employment = true</bpmn:conditionExpression></bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_0kunm1a" sourceRef="Activity_1i8rce0" targetRef="Activity_0odd8s6" />
-    <bpmn:sequenceFlow id="Flow_1x0bpj9" name="Так" sourceRef="Gateway_1lixlva" targetRef="Activity_1c0jbtk" />
+    <bpmn:sequenceFlow id="Flow_1x0bpj9" name="Так" sourceRef="Gateway_1lixlva" targetRef="Activity_1c0jbtk"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_needs_oz = true</bpmn:conditionExpression></bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_14g6loc" sourceRef="Activity_1c0jbtk" targetRef="Activity_0tjvt5f" />
-    <bpmn:sequenceFlow id="Flow_0ii7gru" name="так" sourceRef="Gateway_1hab3fr" targetRef="Activity_01x7n86" />
+    <bpmn:sequenceFlow id="Flow_0ii7gru" name="так" sourceRef="Gateway_1hab3fr" targetRef="Activity_01x7n86"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_position = "admin"</bpmn:conditionExpression></bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1los5zm" sourceRef="Activity_01x7n86" targetRef="Gateway_12gvzyo" />
-    <bpmn:sequenceFlow id="Flow_10xw1vy" sourceRef="Gateway_1yjk0cn" targetRef="Gateway_1hab3fr" />
+    <bpmn:sequenceFlow id="Flow_10xw1vy" sourceRef="Gateway_1yjk0cn" targetRef="Gateway_1hab3fr"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_position = "admin"</bpmn:conditionExpression></bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1niyrov" name="ні" sourceRef="Gateway_1hab3fr" targetRef="Gateway_12gvzyo" />
     <bpmn:sequenceFlow id="Flow_0v8zv1w" sourceRef="Gateway_12gvzyo" targetRef="Gateway_16wrue9" />
-    <bpmn:sequenceFlow id="Flow_02gc5k5" name="так" sourceRef="Gateway_1yjk0cn" targetRef="Activity_0dpmbl4" />
+    <bpmn:sequenceFlow id="Flow_02gc5k5" name="так" sourceRef="Gateway_1yjk0cn" targetRef="Activity_0dpmbl4"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_position = "driver"</bpmn:conditionExpression></bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_13n4gsf" sourceRef="Activity_1vhn1tf" targetRef="Gateway_0kwn5gi" />
     <bpmn:sequenceFlow id="Flow_0s1fyfr" sourceRef="Activity_18szs5a" targetRef="Gateway_0kwn5gi" />
     <bpmn:sequenceFlow id="Flow_1ts18c3" sourceRef="Activity_0g0xrqb" targetRef="Gateway_0kwn5gi" />
@@ -498,7 +498,7 @@
     <bpmn:sequenceFlow id="Flow_0kqz9se" sourceRef="Gateway_1mf74fc" targetRef="Gateway_1r11r5i" />
     <bpmn:sequenceFlow id="Flow_1rte6s3" sourceRef="Event_1gxav9v" targetRef="Activity_0m84758" />
     <bpmn:sequenceFlow id="Flow_0vwprgx" sourceRef="Activity_0m84758" targetRef="Event_0um794r" />
-    <bpmn:sequenceFlow id="Flow_0cw04h2" sourceRef="Gateway_inc_fop" targetRef="Event_1gxav9v" />
+    <bpmn:sequenceFlow id="Flow_0cw04h2" sourceRef="Gateway_inc_fop" targetRef="Event_1gxav9v"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_is_fop = true</bpmn:conditionExpression></bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_to_inc_gw" sourceRef="Activity_1hed96f" targetRef="Gateway_inc_fop" />
     <bpmn:sequenceFlow id="Flow_reject_no" name="ні" sourceRef="Gateway_104j3nf" targetRef="Activity_1ud6hai">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_employee_arrived = false</bpmn:conditionExpression>
