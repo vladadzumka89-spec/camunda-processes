@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
   <bpmn:collaboration id="Collab_1">
-    <bpmn:participant id="Pool_1" name="Оплата рахунків оренда та комунальні (OCR)" processRef="Process_mkg20od" />
+    <bpmn:participant id="Pool_1" name="Оплата рахунків оренда та комунальні (OCR)" processRef="Process_utxbuta" />
   </bpmn:collaboration>
-  <bpmn:process id="Process_mkg20od" name="Оплата рахунків оренда та комунальні (OCR)" isExecutable="true">
+  <bpmn:process id="Process_utxbuta" name="Оплата рахунків оренда та комунальні (OCR)" isExecutable="true">
     <bpmn:extensionElements>
       <zeebe:versionTag value="1.0" />
     </bpmn:extensionElements>
@@ -37,13 +37,14 @@
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
           <zeebe:input source="= {name: &#34;Завантажити файл рахунку&#34;, description: &#34;Завантажте PDF/JPG/PNG/XLS файл з рахунками для автоматичного розпізнавання&#34;, _model: &#34;project.project&#34;, _id: 236, process_instance_key: process_instance_key}" target="body" />
-          <zeebe:output source="=x_studio_camunda_invoice_file" target="x_studio_camunda_invoice_file" />
-          <zeebe:output source="=x_studio_camunda_file_extension" target="file_extension" />
         </zeebe:ioMapping>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" />
+        </zeebe:taskListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0oceo78</bpmn:incoming>
       <bpmn:incoming>Flow_1vsxaf1</bpmn:incoming>
@@ -54,7 +55,7 @@
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
           <zeebe:input source="= {name: &#34;Перевірити розпізнані рахунки (&#34; + string(total_invoices) + &#34; шт, &#34; + string(total_amount) + &#34; грн)&#34;, description: &#34;OCR розпізнав &#34; + string(total_invoices) + &#34; рахунків на загальну суму &#34; + string(total_amount) + &#34; грн. Перевірте та скоригуйте дані за потреби.&#34;, _model: &#34;project.project&#34;, _id: 236, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="=x_studio_camunda_invoice_items" target="invoice_items" />
@@ -125,7 +126,7 @@
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
           <zeebe:input source="= {name: &#34;Оплата рахунків оренда та комунальні (OCR)&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 236, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
