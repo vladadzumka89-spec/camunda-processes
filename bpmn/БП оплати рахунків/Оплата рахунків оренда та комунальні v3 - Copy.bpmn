@@ -34,7 +34,6 @@
     </bpmn:exclusiveGateway>
     <bpmn:userTask id="UT_add_file" name="Завантажити файл рахунку">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
@@ -44,6 +43,9 @@
           <zeebe:output source="=x_studio_camunda_file_extension" target="file_extension" />
         </zeebe:ioMapping>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" retries="3" />
+        </zeebe:taskListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0oceo78</bpmn:incoming>
       <bpmn:incoming>Flow_1vsxaf1</bpmn:incoming>
@@ -51,7 +53,6 @@
     </bpmn:userTask>
     <bpmn:userTask id="UT_review_items" name="Перевірити розпізнані рахунки">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
@@ -60,6 +61,9 @@
           <zeebe:output source="=x_studio_camunda_invoice_items" target="invoice_items" />
         </zeebe:ioMapping>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" retries="3" />
+        </zeebe:taskListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ocr_to_review</bpmn:incoming>
       <bpmn:outgoing>Flow_review_to_ca</bpmn:outgoing>
