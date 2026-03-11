@@ -280,10 +280,23 @@ class WebhookServer:
         if action == 'cancel' and pik:
             return await self._cancel_process_instance(pik)
 
+        # Complete user task via REST API (for Zeebe-native user tasks)
+        user_task_key = str(payload.get('user_task_key', '') or payload.get('x_studio_camunda_user_task_key', ''))
+
+        # If no user_task_key but we have process_instance_key, find active user task automatically
+        if not user_task_key and pik and action == 'done':
+            found_key = await self._find_active_user_task(pik)
+            if found_key:
+                user_task_key = found_key
+
+        if user_task_key and action == 'done':
+            return await self._complete_user_task(user_task_key, payload)
+
         try:
             # Pass through all variables from Odoo payload (staging_approved, prod_approved, etc.)
             msg_variables = {"odoo_task_resolved": True}
-            for key in ("staging_approved", "prod_approved", "comment"):
+            for key in ("staging_approved", "prod_approved", "merge_approved",
+                        "task_approved", "comment", "rejection_reason"):
                 if key in payload:
                     msg_variables[key] = payload[key]
 
@@ -308,6 +321,69 @@ class WebhookServer:
                 correlation_key, exc,
             )
             return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
+
+    async def _find_active_user_task(self, process_instance_key: str) -> str | None:
+        """Find active user task for a process instance via Camunda REST API."""
+        import httpx
+        from .http_request_smart import _camunda_rest_request
+
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await _camunda_rest_request(
+                    client, "POST", "/v2/user-tasks/search",
+                    json={"filter": {"processInstanceKey": int(process_instance_key), "state": "CREATED"}},
+                )
+                if resp.status_code == 200:
+                    items = resp.json().get("items", [])
+                    if items:
+                        key = str(items[0].get("userTaskKey"))
+                        logger.info("Found active user task %s for process %s", key, process_instance_key)
+                        return key
+                    else:
+                        logger.warning("No active user tasks for process %s", process_instance_key)
+                else:
+                    logger.warning("User task search failed: HTTP %d", resp.status_code)
+        except Exception as exc:
+            logger.error("Failed to find user task for process %s: %s", process_instance_key, exc)
+
+        return None
+
+    async def _complete_user_task(self, user_task_key: str, payload: dict) -> web.Response:
+        """Complete a Zeebe-native user task via Camunda REST API."""
+        import httpx
+        from .http_request_smart import _get_oauth_token
+
+        # Collect x_studio_camunda_* variables from Odoo payload
+        variables = {}
+        for key, value in payload.items():
+            if key.startswith('x_studio_camunda_'):
+                variables[key] = value
+
+        logger.info("Completing user task %s with variables: %s", user_task_key, list(variables.keys()))
+
+        gw = self._config.zeebe.gateway_address
+        zeebe_host = gw.split(':')[0] if ':' in gw else gw
+        rest_url = f"http://{zeebe_host}:8080"
+
+        try:
+            async with httpx.AsyncClient() as client:
+                token = await _get_oauth_token(client)
+                resp = await client.patch(
+                    f"{rest_url}/v2/user-tasks/{user_task_key}/completion",
+                    json={"variables": variables} if variables else {},
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=10.0,
+                )
+
+            if resp.status_code in (200, 204):
+                logger.info("Completed user task %s", user_task_key)
+                return web.json_response({"status": "completed", "user_task_key": user_task_key})
+            else:
+                logger.error("Failed to complete user task %s: HTTP %d %s", user_task_key, resp.status_code, resp.text)
+                return web.Response(status=502, text=f"Complete failed: HTTP {resp.status_code}")
+        except Exception as exc:
+            logger.error("Failed to complete user task %s: %s", user_task_key, exc)
+            return web.Response(status=502, text=f"Complete failed: {exc}")
 
     async def _cancel_process_instance(self, pik: str) -> web.Response:
         """Cancel a Camunda process instance and rollback sync state if needed."""

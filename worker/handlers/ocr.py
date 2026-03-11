@@ -66,6 +66,87 @@ KNOWN_SERVICES = [
 # ---------------------------------------------------------------------------
 # Отримання файлу (base64 або URL)
 # ---------------------------------------------------------------------------
+ODOO_URL = os.getenv("ODOO_URL", "https://odoo.dev.dobrom.com:2689/odoo")
+ODOO_DB = os.getenv("ODOO_DB", "odoo19")
+ODOO_USER = os.getenv("ODOO_USER", "")
+ODOO_PASSWORD = os.getenv("ODOO_PASSWORD", "")
+
+
+async def _odoo_jsonrpc(url: str, service: str, method: str, args: list) -> Any:
+    """Call Odoo JSON-RPC."""
+    payload = {
+        "jsonrpc": "2.0",
+        "method": "call",
+        "id": 1,
+        "params": {"service": service, "method": method, "args": args},
+    }
+    base = ODOO_URL.rstrip("/").removesuffix("/odoo")
+    async with httpx.AsyncClient(timeout=30, verify=False) as client:
+        resp = await client.post(f"{base}/jsonrpc", json=payload)
+        resp.raise_for_status()
+        result = resp.json()
+    if result.get("error"):
+        raise ValueError(f"Odoo RPC error: {result['error']}")
+    return result.get("result")
+
+
+async def _odoo_authenticate() -> int:
+    """Authenticate with Odoo and return uid."""
+    uid = await _odoo_jsonrpc(
+        ODOO_URL, "common", "authenticate",
+        [ODOO_DB, ODOO_USER, ODOO_PASSWORD, {}],
+    )
+    if not uid:
+        raise ValueError("Odoo authentication failed")
+    return uid
+
+
+async def _fetch_file_from_odoo(task_id: int) -> tuple[str, str]:
+    """Fetch invoice file from Odoo task via JSON-RPC.
+
+    Returns (base64_content, file_extension).
+    """
+    uid = await _odoo_authenticate()
+
+    # Читаємо binary поле та filename
+    records = await _odoo_jsonrpc(
+        ODOO_URL, "object", "execute_kw",
+        [ODOO_DB, uid, ODOO_PASSWORD, "project.task", "read",
+         [[task_id], ["x_studio_camunda_invoice_file", "x_studio_camunda_invoice_file_filename"]]],
+    )
+
+    if not records:
+        raise ValueError(f"Odoo task {task_id} not found")
+
+    rec = records[0]
+    file_content = rec.get("x_studio_camunda_invoice_file") or ""
+    filename = rec.get("x_studio_camunda_invoice_file_filename") or ""
+
+    # Якщо файл не в полі задачі — шукаємо в підзадачах
+    if not file_content:
+        children = await _odoo_jsonrpc(
+            ODOO_URL, "object", "execute_kw",
+            [ODOO_DB, uid, ODOO_PASSWORD, "project.task", "search_read",
+             [[["parent_id", "=", task_id],
+               ["x_studio_camunda_invoice_file", "!=", False]]],
+             {"fields": ["x_studio_camunda_invoice_file", "x_studio_camunda_invoice_file_filename"],
+              "limit": 1}],
+        )
+        if children:
+            file_content = children[0].get("x_studio_camunda_invoice_file") or ""
+            filename = children[0].get("x_studio_camunda_invoice_file_filename") or filename
+
+    if not file_content:
+        raise ValueError(f"No file found in Odoo task {task_id} or its subtasks")
+
+    ext = ""
+    if filename and "." in filename:
+        ext = filename.rsplit(".", 1)[-1].lower()
+
+    logger.info("Fetched file from Odoo task %d: %s (%d chars base64)", task_id, filename, len(file_content))
+    return file_content, ext
+
+
 async def _acquire_file(file_data: str) -> bytes:
     """Отримати файл: base64-декодування або завантаження по URL з Odoo."""
     if not file_data:
@@ -967,11 +1048,20 @@ def register_ocr_handlers(
             total_invoices — кількість рахунків
             total_amount — загальна сума
         """
-        logger.info("invoice-data-extractor | ext=%s", file_extension)
+        odoo_task_id = kwargs.get("odoo_task_id")
+        logger.info("invoice-data-extractor | ext=%s, odoo_task_id=%s, file_present=%s",
+                     file_extension, odoo_task_id, bool(x_studio_camunda_invoice_file))
 
         try:
+            # Якщо файл не передано через Camunda — завантажити з Odoo напряму
+            if not x_studio_camunda_invoice_file and odoo_task_id:
+                logger.info("File not in Camunda vars, fetching from Odoo task %s", odoo_task_id)
+                x_studio_camunda_invoice_file, file_extension = await _fetch_file_from_odoo(
+                    int(odoo_task_id)
+                )
+
             file_data = await _acquire_file(x_studio_camunda_invoice_file)
-            ext = file_extension.lower().strip(".")
+            ext = (file_extension or "").lower().strip(".")
 
             items: list[dict] = []
 
@@ -1021,6 +1111,23 @@ def register_ocr_handlers(
                 "total_invoices": len(items),
                 "total_amount": round(total, 2),
             }
+
+            # Розпакувати поля першого рахунку як окремі змінні
+            # для використання в FEEL body без індексації масиву
+            if items:
+                first = items[0]
+                result["first_partner_name"] = first.get("partner_name")
+                result["first_invoice_number"] = first.get("invoice_number")
+                result["first_invoice_date"] = first.get("invoice_date")
+                result["first_invoice_line_name"] = first.get("invoice_line_name")
+                result["first_invoice_amount_no_vat"] = first.get("invoice_amount_no_vat")
+                result["first_vat_amount"] = first.get("vat_amount")
+                result["first_supplier_code"] = first.get("supplier_code")
+                result["first_contract"] = first.get("contract")
+                result["first_buyer_name"] = first.get("buyer_name")
+                result["first_quantity"] = first.get("quantity")
+                result["first_unit"] = first.get("unit")
+                result["first_invoice_type"] = first.get("invoice_type")
 
             logger.info("invoice-data-extractor | %d invoices, total %.2f",
                          len(items), total)

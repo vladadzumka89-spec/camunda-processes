@@ -4,6 +4,7 @@ connector-secrets.txt
 .env.camunda
 .env.camunda.template
 .identity/
+.ssh/
 
 # Infrastructure configs (environment-specific)
 docker-compose*.yaml

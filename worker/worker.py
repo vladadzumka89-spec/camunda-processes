@@ -45,6 +45,12 @@ async def _exception_handler(exc: Exception, job: Job, job_controller: JobContro
     Otherwise, fail the job normally so Zeebe retries it.
     """
     _active_jobs.pop(job.key, None)
+
+    # Task Listener jobs are completed via REST API — skip gRPC error handling
+    from worker.http_request_smart import TaskListenerCompleted
+    if isinstance(exc, TaskListenerCompleted):
+        logger.info("Job %s [%s] — Task Listener already completed via REST API", job.key, job.type)
+        return
     if job.retries <= 1:
         error_code = type(exc).__name__
         error_msg = str(exc)[:500]

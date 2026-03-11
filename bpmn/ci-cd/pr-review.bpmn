@@ -1,0 +1,105 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_pr_review" targetNamespace="http://tut.ua/bpmn/pr-review" exporter="Claude Code" exporterVersion="1.0">
+
+  
+
+  <bpmn:message id="Message_pr_updated" name="msg_pr_updated">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=string(pr_number)" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+
+  <bpmn:process id="pr-review" name="PR Review" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
+
+    
+    <bpmn:startEvent id="evt_start" name="Початок ревʼю">
+      <bpmn:outgoing>f_start_to_review</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    
+    <bpmn:serviceTask id="task_pr_agent" name="Рев'ю PR-Agent">
+      <bpmn:documentation>Запускає PR-Agent для автоматичного code review.
+Output: review_score, has_critical_issues</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="pr-agent-review" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_start_to_review</bpmn:incoming>
+      <bpmn:incoming>f_wait_update_back</bpmn:incoming>
+      <bpmn:outgoing>f_review_to_gw</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    
+    <bpmn:exclusiveGateway id="gw_score" name="Оцінка &gt;= 7?" default="f_score_low">
+      <bpmn:incoming>f_review_to_gw</bpmn:incoming>
+      <bpmn:outgoing>f_score_ok</bpmn:outgoing>
+      <bpmn:outgoing>f_score_low</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    
+    <bpmn:serviceTask id="task_comment_low" name="Коментар: потребує доопрацювання">
+      <bpmn:documentation>Коментар на PR: score &lt; 7, потрібні виправлення.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-comment" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;⚠️ **Потребує доопрацювання** — Score &quot; + string(review_score) + &quot;/10. Перевірте зауваження від PR-Agent вище та пушніть виправлення.&quot;" target="comment_text" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_score_low</bpmn:incoming>
+      <bpmn:outgoing>f_comment_to_wait</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    
+    <bpmn:receiveTask id="recv_wait_update" name="Чекаємо PR update" messageRef="Message_pr_updated">
+      <bpmn:documentation>Очікує push нових комітів в PR (GitHub webhook: pull_request synchronize).
+Кореляція по pr_number.</bpmn:documentation>
+      <bpmn:incoming>f_comment_to_wait</bpmn:incoming>
+      <bpmn:outgoing>f_wait_update_back</bpmn:outgoing>
+    </bpmn:receiveTask>
+
+    
+    <bpmn:boundaryEvent id="timer_reminder" name="Нагадування (3 дні)" cancelActivity="false" attachedToRef="recv_wait_update">
+      <bpmn:outgoing>f_reminder</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_reminder">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/P3D</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="task_send_reminder" name="Нагадати: PR потребує виправлень">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-comment" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;⏰ **Нагадування**: PR #&quot; + string(pr_number) + &quot; потребує доопрацювання (score &quot; + string(review_score) + &quot;/10). Пушніть виправлення.&quot;" target="comment_text" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_reminder</bpmn:incoming>
+      <bpmn:outgoing>f_to_End_rem</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="End_rem" name="Нагадування надіслано">
+      <bpmn:incoming>f_to_End_rem</bpmn:incoming>
+    </bpmn:endEvent>
+
+    
+    <bpmn:endEvent id="evt_end" name="Ревʼю пройдено">
+      <bpmn:incoming>f_score_ok</bpmn:incoming>
+    </bpmn:endEvent>
+
+    
+    <bpmn:sequenceFlow id="f_start_to_review" sourceRef="evt_start" targetRef="task_pr_agent" />
+    <bpmn:sequenceFlow id="f_review_to_gw" sourceRef="task_pr_agent" targetRef="gw_score" />
+    <bpmn:sequenceFlow id="f_score_ok" name="OK" sourceRef="gw_score" targetRef="evt_end">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=review_score &gt;= 7 and has_critical_issues = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_score_low" name="&lt; 7" sourceRef="gw_score" targetRef="task_comment_low" />
+    <bpmn:sequenceFlow id="f_comment_to_wait" sourceRef="task_comment_low" targetRef="recv_wait_update" />
+    <bpmn:sequenceFlow id="f_wait_update_back" sourceRef="recv_wait_update" targetRef="task_pr_agent" />
+    <bpmn:sequenceFlow id="f_reminder" sourceRef="timer_reminder" targetRef="task_send_reminder" />
+    <bpmn:sequenceFlow id="f_to_End_rem" sourceRef="task_send_reminder" targetRef="End_rem" />
+
+  </bpmn:process>
+
+  
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1"><bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="pr-review"><bpmndi:BPMNShape id="evt_start_di" bpmnElement="evt_start"><dc:Bounds x="207" y="222" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_pr_agent_di" bpmnElement="task_pr_agent"><dc:Bounds x="755" y="200" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="gw_score_di" bpmnElement="gw_score" isMarkerVisible="true"><dc:Bounds x="960" y="215" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="evt_end_di" bpmnElement="evt_end"><dc:Bounds x="1097" y="172" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_comment_low_di" bpmnElement="task_comment_low"><dc:Bounds x="1065" y="228" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="recv_wait_update_di" bpmnElement="recv_wait_update"><dc:Bounds x="1245" y="200" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_send_reminder_di" bpmnElement="task_send_reminder"><dc:Bounds x="1425" y="200" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_rem_di" bpmnElement="End_rem"><dc:Bounds x="1637" y="222" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="timer_reminder_di" bpmnElement="timer_reminder"><dc:Bounds x="1255" y="262" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNEdge id="f_start_to_review_di" bpmnElement="f_start_to_review"><di:waypoint x="243" y="240" /><di:waypoint x="755" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_review_to_gw_di" bpmnElement="f_review_to_gw"><di:waypoint x="855" y="240" /><di:waypoint x="960" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_score_ok_di" bpmnElement="f_score_ok"><di:waypoint x="1010" y="240" /><di:waypoint x="1040" y="240" /><di:waypoint x="1040" y="190" /><di:waypoint x="1097" y="190" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_score_low_di" bpmnElement="f_score_low"><di:waypoint x="1010" y="240" /><di:waypoint x="1055" y="240" /><di:waypoint x="1055" y="268" /><di:waypoint x="1065" y="268" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_comment_to_wait_di" bpmnElement="f_comment_to_wait"><di:waypoint x="1165" y="268" /><di:waypoint x="1195" y="268" /><di:waypoint x="1195" y="240" /><di:waypoint x="1245" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_wait_update_back_di" bpmnElement="f_wait_update_back"><di:waypoint x="1345" y="240" /><di:waypoint x="1365" y="240" /><di:waypoint x="1365" y="68" /><di:waypoint x="735" y="68" /><di:waypoint x="735" y="240" /><di:waypoint x="755" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_reminder_di" bpmnElement="f_reminder"><di:waypoint x="1273" y="298" /><di:waypoint x="1273" y="240" /><di:waypoint x="1425" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_to_End_rem_di" bpmnElement="f_to_End_rem"><di:waypoint x="1525" y="240" /><di:waypoint x="1637" y="240" /></bpmndi:BPMNEdge></bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>
