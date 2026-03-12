@@ -15,6 +15,7 @@ from ..http_request_smart import register_http_smart_handlers
 from .github import register_github_handlers
 from .notify import register_notify_handlers
 from .ocr import register_ocr_handlers
+from .fop_monitor import register_fop_monitor_handlers
 from .sync import register_sync_handlers
 
 
@@ -41,7 +42,8 @@ def register_all_handlers(
         Notify (2):   send-notification, create-odoo-task
         OCR (1):      invoice-data-extractor
         HTTP Smart (1): http-request-smart
-    Total: 29 task types
+        FOP Monitor (1): fop-limit-check
+    Total: 30 task types
     """
     register_http_smart_handlers(worker, config)
     register_deploy_handlers(worker, config, ssh)
@@ -51,3 +53,4 @@ def register_all_handlers(
     register_clickbot_handlers(worker, config, ssh)
     register_notify_handlers(worker, config)
     register_ocr_handlers(worker, config)
+    register_fop_monitor_handlers(worker, config)

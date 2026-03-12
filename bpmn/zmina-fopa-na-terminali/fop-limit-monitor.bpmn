@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+                  id="Definitions_1"
+                  targetNamespace="http://bpmn.io/schema/bpmn"
+                  exporter="Claude Code"
+                  exporterVersion="1.0">
+
+  <bpmn:process id="Process_fop_limit_monitor" name="Моніторинг лімітів ФОП" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
+
+    <!-- Swim Lanes -->
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_system" name="Система (автоматично)">
+        <bpmn:flowNodeRef>StartEvent_timer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_fop_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_done</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Timer Start Event — щодня о 08:00 -->
+    <bpmn:startEvent id="StartEvent_timer" name="Щоденна перевірка (08:00)">
+      <bpmn:outgoing>Flow_to_check</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_1">
+        <bpmn:timeCycle>R/P1D</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:startEvent>
+
+    <!-- Service Task — fop-limit-check -->
+    <bpmn:serviceTask id="ST_fop_check" name="Перевірка лімітів ФОП">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="fop-limit-check" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= 14" target="days_ahead" />
+          <zeebe:input source="= false" target="dry_run" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_check</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="End_done" name="Перевірку завершено">
+      <bpmn:incoming>Flow_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_to_check" sourceRef="StartEvent_timer" targetRef="ST_fop_check" />
+    <bpmn:sequenceFlow id="Flow_to_end" sourceRef="ST_fop_check" targetRef="End_done" />
+
+  </bpmn:process>
+
+  <!-- DI (Diagram Interchange) -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_fop_limit_monitor">
+
+      <bpmndi:BPMNShape id="Participant_pool_di" bpmnElement="Lane_system" isHorizontal="true">
+        <dc:Bounds x="105" y="90" width="680" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="StartEvent_timer_di" bpmnElement="StartEvent_timer">
+        <dc:Bounds x="182" y="172" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="155" y="215" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="ST_fop_check_di" bpmnElement="ST_fop_check">
+        <dc:Bounds x="340" y="150" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="End_done_di" bpmnElement="End_done">
+        <dc:Bounds x="562" y="172" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="535" y="215" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="Flow_to_check_di" bpmnElement="Flow_to_check">
+        <di:waypoint x="218" y="190" />
+        <di:waypoint x="340" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_to_end_di" bpmnElement="Flow_to_end">
+        <di:waypoint x="440" y="190" />
+        <di:waypoint x="562" y="190" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>
