@@ -16,12 +16,17 @@
 
 import argparse
 import os
+import re
 import sys
 from datetime import datetime, timedelta
 from collections import defaultdict
 from pathlib import Path
 
+import json
+import logging
+
 import pymssql
+import requests
 
 # === Завантаження .env ===
 _env_path = Path(__file__).resolve().parent / ".env"
@@ -45,12 +50,32 @@ DB_CONFIG = {
 }
 
 # === Ліміти ЄП на 2026 рік (ст. 291.4 ПКУ, мінімалка 8 647 грн) ===
-# 2 група: 834 × 8 647 = 7 211 598 грн
-# 3 група: 1167 × 8 647 = 10 091 049 грн
+# 2 група: 834 × 8 647 = 7 211 598 грн (офіційний)
+# 3 група: 1167 × 8 647 = 10 091 049 грн (офіційний)
+# Моніторинг ведеться по безпечній межі 6 900 000 грн
 LIMITS = {
-    2: 7_211_598.00,
-    3: 10_091_049.00,
+    2: 6_900_000.00,
+    3: 9_900_000.00,
 }
+
+# === Перерахування ГруппыПлательщиковЕдиногоНалога (Enum372) ===
+# Порядок: 0=1гр, 1=2гр, 2=3гр, 3=4гр ...
+EP_GROUP_ENUM = {
+    bytes.fromhex("80907066F89BCA3447EBEB86FEF433E2"): 1,
+    bytes.fromhex("A80C9C2A3B0E352146FAFF2E22E417BC"): 2,
+    bytes.fromhex("BD853EFB6C04CB6D42A4D31D78D446DA"): 3,
+}
+
+# === Camunda REST API ===
+CAMUNDA_REST_URL = os.environ.get("CAMUNDA_REST_URL", "http://localhost:8088")
+CAMUNDA_USER = os.environ.get("CAMUNDA_USER", "demo")
+CAMUNDA_PASSWORD = os.environ.get("CAMUNDA_PASSWORD", "demo")
+CAMUNDA_PROCESS_ID = "Process_0iy2u1a"  # Сповіщення про зміну ФОП
+
+# Файл стану для дедуплікації (зберігає ЄДРПОУ ФОПів з активними процесами)
+STATE_FILE = Path(__file__).resolve().parent / ".fop_monitor_state.json"
+
+log = logging.getLogger("fop_limit_monitor")
 
 # === SQL: offset дати в BAS = +2000 років ===
 BAS_YEAR_OFFSET = 2000
@@ -58,6 +83,110 @@ BAS_YEAR_OFFSET = 2000
 
 def get_connection():
     return pymssql.connect(**DB_CONFIG)
+
+
+# === Camunda REST API ===
+
+def _camunda_auth():
+    return (CAMUNDA_USER, CAMUNDA_PASSWORD)
+
+
+def load_state() -> dict:
+    """Завантажує стан попередніх запусків (ЄДРПОУ → process_instance_key)."""
+    if STATE_FILE.exists():
+        try:
+            return json.loads(STATE_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {}
+
+
+def save_state(state: dict):
+    STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2))
+
+
+def is_process_active(process_instance_key: int) -> bool:
+    """Перевіряє чи інстанс ще активний у Camunda."""
+    try:
+        resp = requests.post(
+            f"{CAMUNDA_REST_URL}/v2/process-instances/search",
+            auth=_camunda_auth(),
+            json={
+                "filter": {"processInstanceKey": process_instance_key},
+            },
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            items = resp.json().get("items", [])
+            return any(i.get("state") == "ACTIVE" for i in items)
+    except requests.RequestException as e:
+        log.warning("Не вдалося перевірити інстанс %s: %s", process_instance_key, e)
+    return False
+
+
+def start_camunda_process(fop: dict, analysis: dict, group: int,
+                          stores: list, dry_run: bool = False) -> int | None:
+    """Запускає процес 'Сповіщення про зміну ФОП' у Camunda.
+
+    Повертає processInstanceKey або None при помилці.
+    """
+    fop_name = fop["name"].strip()
+    edrpou = fop["edrpou"].strip() if fop.get("edrpou") else ""
+    limit = LIMITS[group]
+    info = analysis["limit_dates"][group]
+
+    days_to_limit = None
+    projected_date = None
+    if info["already_exceeded"]:
+        days_to_limit = 0
+        projected_date = "ПЕРЕВИЩЕНО"
+    elif info["date"] is not None:
+        today = datetime.now().date()
+        days_to_limit = (info["date"] - today).days
+        projected_date = info["date"].strftime("%Y-%m-%d")
+
+    store_names = ", ".join(s["name"] for s in stores[:5]) if stores else ""
+
+    variables = {
+        "fop_name": fop_name,
+        "fop_edrpou": edrpou,
+        "ep_group": group,
+        "total_income": round(analysis["total_income"], 2),
+        "limit_amount": limit,
+        "income_percent": round((analysis["total_income"] / limit) * 100, 1),
+        "days_to_limit": days_to_limit,
+        "projected_date": projected_date,
+        "stores": store_names,
+        "trend_ratio": round(analysis["trend_ratio"], 2),
+    }
+
+    if dry_run:
+        print(f"  🧪 DRY RUN: запустив би процес для {fop_name} ({edrpou})")
+        print(f"     Змінні: {json.dumps(variables, ensure_ascii=False)}")
+        return None
+
+    try:
+        resp = requests.post(
+            f"{CAMUNDA_REST_URL}/v2/process-instances",
+            auth=_camunda_auth(),
+            json={
+                "processDefinitionId": CAMUNDA_PROCESS_ID,
+                "variables": variables,
+            },
+            timeout=15,
+        )
+        if resp.status_code in (200, 201):
+            key = resp.json().get("processInstanceKey")
+            print(f"  ✅ Процес запущено: {fop_name} → instanceKey={key}")
+            return key
+        else:
+            log.error("Camunda відповів %s: %s", resp.status_code, resp.text[:300])
+            print(f"  ❌ Помилка запуску для {fop_name}: HTTP {resp.status_code}")
+    except requests.RequestException as e:
+        log.error("Помилка з'єднання з Camunda: %s", e)
+        print(f"  ❌ Немає з'єднання з Camunda: {e}")
+
+    return None
 
 
 def fetch_active_fops(conn, year: int):
@@ -84,6 +213,183 @@ def fetch_active_fops(conn, year: int):
     cursor = conn.cursor(as_dict=True)
     cursor.execute(sql, (bas_start, bas_end))
     return cursor.fetchall()
+
+
+def fetch_fop_groups(conn):
+    """Повертає маппінг org_id → група ЄП (2 або 3) з останнього запису регістру."""
+    sql = """
+        ;WITH latest AS (
+            SELECT _Fld27928RRef AS org_id,
+                   _Fld27930RRef AS group_ref,
+                   ROW_NUMBER() OVER (PARTITION BY _Fld27928RRef
+                                      ORDER BY _Period DESC) AS rn
+            FROM _InfoRg27927
+        )
+        SELECT org_id, group_ref FROM latest WHERE rn = 1
+    """
+    cursor = conn.cursor(as_dict=True)
+    cursor.execute(sql)
+    result = {}
+    for row in cursor:
+        org_id = bytes(row["org_id"])
+        group_ref = bytes(row["group_ref"])
+        group_num = EP_GROUP_ENUM.get(group_ref, 2)  # за замовчуванням 2 група
+        result[org_id] = group_num
+    return result
+
+
+def _parse_terminal_name(purpose: str) -> str | None:
+    """Витягує назву терміналу з призначення платежу.
+
+    Формати:
+      cmps: 19 ,19 ,FORUM PINKY Кiльк тр 53шт.
+      cmps: 25 ,Ostrov Pinky Кiльк тр 54шт.
+      cmps: 36 ,Pinky Nikolskyi Кiльк тр 94шт.
+    """
+    m = re.search(r'cmps:.*?,\s*([A-Za-zА-Яа-яІіЇїЄєҐґ\s]+?)\s*Кiльк\s+тр', purpose)
+    if m:
+        name = m.group(1).strip()
+        # Прибрати залишкові числа та коми на початку (але не літери слів)
+        name = re.sub(r'^[\d\s,]+', '', name).strip()
+        # Прибрати одиничну "R " на початку (код повернення), але не частину слова
+        name = re.sub(r'^R\s+', '', name).strip()
+        if len(name) >= 2:
+            return name
+    return None
+
+
+def fetch_fop_stores(conn, year: int):
+    """Повертає маппінг org_id → список магазинів.
+
+    Джерела:
+    1. Призначення платежів банківських документів (назви терміналів)
+    2. Документи реалізації / поступлення / роздрібних продажів (складський облік)
+    """
+    bas_start = f"{year + BAS_YEAR_OFFSET}-01-01"
+    bas_end = f"{year + BAS_YEAR_OFFSET + 1}-01-01"
+
+    # --- 1. Термінали з призначень платежів ---
+    sql_terminals = """
+        SELECT
+            d._Fld6004RRef AS org_id,
+            d._Fld6019 AS purpose,
+            d._Fld6010 AS amount
+        FROM _Document236 d
+        JOIN _Reference90 o ON d._Fld6004RRef = o._IDRRef
+        WHERE d._Posted = 0x01 AND d._Marked = 0x00
+            AND d._Date_Time >= %s AND d._Date_Time < %s
+            AND o._Marked = 0x00
+            AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
+            AND o._Description NOT LIKE N'яяя%%'
+            AND d._Fld6019 LIKE N'cmps:%%'
+    """
+    cursor = conn.cursor(as_dict=True)
+    cursor.execute(sql_terminals, (bas_start, bas_end))
+
+    # Агрегація: org_id → terminal_name → {count, total}
+    terminal_data = defaultdict(lambda: defaultdict(lambda: {"count": 0, "total": 0.0}))
+    for row in cursor:
+        org_id = bytes(row["org_id"])
+        name = _parse_terminal_name(row["purpose"] or "")
+        if name:
+            terminal_data[org_id][name]["count"] += 1
+            terminal_data[org_id][name]["total"] += float(row["amount"])
+
+    # --- 2. Складський облік (документи) ---
+    # Фільтруємо тільки реальні магазини (500/600/900 ієрархія)
+    sql_docs = """
+        ;WITH store_roots AS (
+            SELECT _IDRRef FROM _Reference116
+            WHERE _Description IN (N'500 Магазини', N'600 Магазини',
+                                   N'900 Пінкі', N'900 Пінкі  Сайт')
+        ),
+        store_tree AS (
+            SELECT _IDRRef FROM _Reference116
+            WHERE _IDRRef IN (SELECT _IDRRef FROM store_roots)
+            UNION ALL
+            SELECT c._IDRRef FROM _Reference116 c
+            JOIN store_tree t ON c._ParentIDRRef = t._IDRRef
+        ),
+        fop_filter AS (
+            SELECT _IDRRef FROM _Reference90
+            WHERE _Marked = 0x00
+                AND (_Fld1495 LIKE N'%%ізична особа%%' OR _Fld1495 LIKE N'%%ФОП%%')
+                AND _Description NOT LIKE N'яяя%%'
+        ),
+        all_stores AS (
+            SELECT d._Fld6686RRef AS org_id, d._Fld6687RRef AS store_id,
+                   COUNT(*) AS doc_count, SUM(d._Fld6704) AS total_sum
+            FROM _Document247 d
+            WHERE d._Posted = 0x01 AND d._Marked = 0x00
+                AND d._Date_Time >= %s AND d._Date_Time < %s
+                AND d._Fld6686RRef IN (SELECT _IDRRef FROM fop_filter)
+                AND d._Fld6687RRef IN (SELECT _IDRRef FROM store_tree)
+            GROUP BY d._Fld6686RRef, d._Fld6687RRef
+
+            UNION ALL
+
+            SELECT d._Fld6103RRef, d._Fld6104RRef,
+                   COUNT(*), SUM(d._Fld6119)
+            FROM _Document238 d
+            WHERE d._Posted = 0x01 AND d._Marked = 0x00
+                AND d._Date_Time >= %s AND d._Date_Time < %s
+                AND d._Fld6103RRef IN (SELECT _IDRRef FROM fop_filter)
+                AND d._Fld6104RRef IN (SELECT _IDRRef FROM store_tree)
+            GROUP BY d._Fld6103RRef, d._Fld6104RRef
+
+            UNION ALL
+
+            SELECT d._Fld5008RRef, d._Fld5011RRef,
+                   COUNT(*), SUM(d._Fld5016)
+            FROM _Document213 d
+            WHERE d._Posted = 0x01 AND d._Marked = 0x00
+                AND d._Date_Time >= %s AND d._Date_Time < %s
+                AND d._Fld5008RRef IN (SELECT _IDRRef FROM fop_filter)
+                AND d._Fld5011RRef IN (SELECT _IDRRef FROM store_tree)
+            GROUP BY d._Fld5008RRef, d._Fld5011RRef
+        )
+        SELECT a.org_id, s._Description AS store_name,
+               SUM(a.doc_count) AS doc_count, SUM(a.total_sum) AS total_sum
+        FROM all_stores a
+        JOIN _Reference116 s ON a.store_id = s._IDRRef
+        GROUP BY a.org_id, s._Description
+        ORDER BY a.org_id, SUM(a.total_sum) DESC
+    """
+    cursor.execute(sql_docs, (bas_start, bas_end, bas_start, bas_end, bas_start, bas_end))
+
+    doc_data = defaultdict(list)
+    for row in cursor:
+        org_id = bytes(row["org_id"])
+        doc_data[org_id].append({
+            "name": row["store_name"].strip(),
+            "doc_count": row["doc_count"],
+            "total": float(row["total_sum"]),
+        })
+
+    # --- Об'єднання: термінали мають пріоритет, документи — доповнення ---
+    result = defaultdict(list)
+    all_org_ids = set(terminal_data.keys()) | set(doc_data.keys())
+
+    for org_id in all_org_ids:
+        # Термінали (з призначень платежів)
+        if org_id in terminal_data:
+            for name, info in sorted(
+                terminal_data[org_id].items(), key=lambda x: -x[1]["total"]
+            ):
+                result[org_id].append({
+                    "name": name,
+                    "doc_count": info["count"],
+                    "total": info["total"],
+                    "source": "terminal",
+                })
+
+        # Документи (склади) — додаємо тільки якщо немає терміналів
+        if org_id not in terminal_data and org_id in doc_data:
+            for item in doc_data[org_id]:
+                item["source"] = "document"
+                result[org_id].append(item)
+
+    return result
 
 
 def fetch_daily_income(conn, year: int):
@@ -260,6 +566,31 @@ def analyze_fop(daily_data: list, today: datetime.date, year: int) -> dict:
         amt = income_by_date.get(d, 0)
         last_7_days.append((d, amt))
 
+    # === Кумулятивний дохід по днях (для залишку до ліміту) ===
+    sorted_dates = sorted(income_by_date.keys())
+    cumulative = 0.0
+    cumulative_by_date = {}
+    for d in sorted_dates:
+        cumulative += income_by_date[d]
+        cumulative_by_date[d] = cumulative
+    # Для днів без доходу — взяти попередній кумулятив
+    if sorted_dates:
+        # Знайти останній кумулятив до початку 7-денного вікна
+        check_start = today - timedelta(days=7)
+        last_cum = 0.0
+        for d in sorted_dates:
+            if d <= check_start:
+                last_cum = cumulative_by_date[d]
+            else:
+                break
+        # Заповнити 7-денне вікно
+        for i in range(8):
+            d = check_start + timedelta(days=i)
+            if d in cumulative_by_date:
+                last_cum = cumulative_by_date[d]
+            else:
+                cumulative_by_date[d] = last_cum
+
     return {
         "total_income": total_income,
         "days_elapsed": days_elapsed,
@@ -272,6 +603,7 @@ def analyze_fop(daily_data: list, today: datetime.date, year: int) -> dict:
         "projected_total": projected_total,
         "limit_dates": limit_dates,
         "last_7_days": last_7_days,
+        "cumulative_by_date": cumulative_by_date,
         "active_days": len(income_by_date),
     }
 
@@ -292,8 +624,10 @@ def format_date(d) -> str:
 WEEKDAY_NAMES = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"]
 
 
-def print_report(fops: list, analyses: dict, group_filter: int | None,
-                 days_ahead: int, top_n: int | None):
+def print_report(fops: list, analyses: dict, fop_stores: dict,
+                 fop_groups: dict,
+                 group_filter: int | None, days_ahead: int, top_n: int | None,
+                 dry_run: bool = False):
     today = datetime.now().date()
     year = today.year
 
@@ -315,52 +649,53 @@ def print_report(fops: list, analyses: dict, group_filter: int | None,
         alert_reasons = []
         alert_level = 0  # 0=ok, 1=увага, 2=попередження, 3=критично
 
-        for group, limit in sorted(LIMITS.items()):
-            if group_filter and group != group_filter:
-                continue
+        # Визначаємо групу ЄП цього ФОП
+        group = fop_groups.get(fop_id, 2)
+        if group_filter and group != group_filter:
+            continue
+        limit = LIMITS[group]
+        info = analysis["limit_dates"][group]
 
-            info = analysis["limit_dates"][group]
+        if info["already_exceeded"]:
+            alert_reasons.append(
+                f"⛔ ЛІМІТ {group} ГРУПИ ПЕРЕВИЩЕНО! "
+                f"Дохід: {format_currency(analysis['total_income'])} грн"
+            )
+            alert_level = max(alert_level, 3)
+        elif info["date"] is not None:
+            days_to_limit = (info["date"] - today).days
+            pct = (analysis["total_income"] / limit) * 100
 
-            if info["already_exceeded"]:
+            if days_to_limit <= days_ahead:
                 alert_reasons.append(
-                    f"⛔ ЛІМІТ {group} ГРУПИ ПЕРЕВИЩЕНО! "
-                    f"Дохід: {format_currency(analysis['total_income'])} грн"
+                    f"🔴 {group} група: досягне ліміту ~{format_date(info['date'])} "
+                    f"(через {days_to_limit} дн.) | "
+                    f"Зараз: {format_currency(analysis['total_income'])} грн ({pct:.1f}%)"
                 )
                 alert_level = max(alert_level, 3)
-            elif info["date"] is not None:
-                days_to_limit = (info["date"] - today).days
-                pct = (analysis["total_income"] / limit) * 100
+            elif days_to_limit <= days_ahead * 2:
+                alert_reasons.append(
+                    f"🟡 {group} група: досягне ліміту ~{format_date(info['date'])} "
+                    f"(через {days_to_limit} дн.) | "
+                    f"Зараз: {format_currency(analysis['total_income'])} грн ({pct:.1f}%)"
+                )
+                alert_level = max(alert_level, 2)
+            elif pct >= 60:
+                alert_reasons.append(
+                    f"🟢 {group} група: {pct:.1f}% ліміту | "
+                    f"Прогноз: ~{format_date(info['date'])}"
+                )
+                alert_level = max(alert_level, 1)
 
-                if days_to_limit <= days_ahead:
-                    alert_reasons.append(
-                        f"🔴 {group} група: досягне ліміту ~{format_date(info['date'])} "
-                        f"(через {days_to_limit} дн.) | "
-                        f"Зараз: {format_currency(analysis['total_income'])} грн ({pct:.1f}%)"
-                    )
-                    alert_level = max(alert_level, 3)
-                elif days_to_limit <= days_ahead * 2:
-                    alert_reasons.append(
-                        f"🟡 {group} група: досягне ліміту ~{format_date(info['date'])} "
-                        f"(через {days_to_limit} дн.) | "
-                        f"Зараз: {format_currency(analysis['total_income'])} грн ({pct:.1f}%)"
-                    )
-                    alert_level = max(alert_level, 2)
-                elif pct >= 60:
-                    alert_reasons.append(
-                        f"🟢 {group} група: {pct:.1f}% ліміту | "
-                        f"Прогноз: ~{format_date(info['date'])}"
-                    )
-                    alert_level = max(alert_level, 1)
-
-            else:
-                # Не досягне ліміту до кінця року
-                pct = (analysis["total_income"] / limit) * 100
-                if pct >= 50:
-                    alert_reasons.append(
-                        f"ℹ️  {group} група: {pct:.1f}% ліміту, "
-                        f"не досягне до кінця року за поточним темпом"
-                    )
-                    alert_level = max(alert_level, 1)
+        else:
+            # Не досягне ліміту до кінця року
+            pct = (analysis["total_income"] / limit) * 100
+            if pct >= 50:
+                alert_reasons.append(
+                    f"ℹ️  {group} група: {pct:.1f}% ліміту, "
+                    f"не досягне до кінця року за поточним темпом"
+                )
+                alert_level = max(alert_level, 1)
 
         # Тренд-попередження
         if analysis["trend_ratio"] > 1.4:
@@ -401,6 +736,59 @@ def print_report(fops: list, analyses: dict, group_filter: int | None,
         print("\n✅ Жоден ФОП не наближається до ліміту. Все під контролем.\n")
         return
 
+    # === Запуск процесу ЗМІНА ФОП у Camunda ===
+    critical_fops = [a for a in alerts if a["level"] >= 3]
+    if critical_fops:
+        print()
+        print("\033[41;97m" + "█" * 90 + "\033[0m")
+        print("\033[41;97m" + "█" + " " * 88 + "█" + "\033[0m")
+        print("\033[41;97m" + "█" + "  🚨  ЗАПУСК ПРОЦЕСУ: ЗМІНА ФОП".center(88) + "█" + "\033[0m")
+        print("\033[41;97m" + "█" + " " * 88 + "█" + "\033[0m")
+
+        state = load_state()
+        state_changed = False
+
+        for cf in critical_fops:
+            fop_name = cf["fop"]["name"].strip()
+            fop_id = bytes(cf["fop"]["id"])
+            edrpou = (cf["fop"].get("edrpou") or "").strip()
+            cf_group = fop_groups.get(fop_id, 2)
+            cf_limit = LIMITS[cf_group]
+            income = format_currency(cf["analysis"]["total_income"])
+            pct = (cf["analysis"]["total_income"] / cf_limit) * 100
+            stores = fop_stores.get(fop_id, [])
+            store_names = ", ".join(s["name"] for s in stores[:3]) if stores else "—"
+
+            line = f"  ➤  {fop_name} ({cf_group}гр) — {income} грн ({pct:.1f}% від межі)"
+            print("\033[41;97m" + "█" + line.ljust(88) + "█" + "\033[0m")
+            store_line = f"       🏪 {store_names}"
+            print("\033[41;97m" + "█" + store_line.ljust(88) + "█" + "\033[0m")
+
+            # Дедуплікація: перевіряємо чи вже є активний процес для цього ФОП
+            state_key = edrpou or fop_name
+            existing_key = state.get(state_key)
+            if existing_key and is_process_active(existing_key):
+                skip_line = f"       ⏭️  Процес вже активний (key={existing_key}), пропускаємо"
+                print("\033[41;97m" + "█" + skip_line.ljust(88) + "█" + "\033[0m")
+                continue
+
+            # Запуск нового процесу
+            instance_key = start_camunda_process(
+                cf["fop"], cf["analysis"], cf_group, stores, dry_run=dry_run,
+            )
+            if instance_key:
+                state[state_key] = instance_key
+                state_changed = True
+
+        print("\033[41;97m" + "█" + " " * 88 + "█" + "\033[0m")
+        print("\033[41;97m" + "█" + "  Необхідно розпочати перехід на іншу юридичну особу!".ljust(88) + "█" + "\033[0m")
+        print("\033[41;97m" + "█" + " " * 88 + "█" + "\033[0m")
+        print("\033[41;97m" + "█" * 90 + "\033[0m")
+        print()
+
+        if state_changed:
+            save_state(state)
+
     # === Вивід алертів ===
     print(f"\n⚠️  ФОПи, що потребують уваги: {len(alerts)}\n")
 
@@ -411,7 +799,9 @@ def print_report(fops: list, analyses: dict, group_filter: int | None,
 
         print(f"{'─' * 90}")
         print(f"  {level_icon} {i}. {fop['name'].strip()}")
-        print(f"     ІПН: {fop['edrpou']} | "
+        fop_id_alert = bytes(fop["id"])
+        fop_group_alert = fop_groups.get(fop_id_alert, 2)
+        print(f"     ІПН: {fop['edrpou']} | {fop_group_alert} група ЄП | "
               f"Дохід {datetime.now().year}: {format_currency(a['total_income'])} грн | "
               f"Активних днів: {a['active_days']}")
 
@@ -431,15 +821,43 @@ def print_report(fops: list, analyses: dict, group_filter: int | None,
             last7_str += f"{d.strftime('%d.%m')}={format_currency(amt)}  "
         print(last7_str)
 
+        # Залишок до ліміту по днях
+        fop_id = bytes(fop["id"])
+        fop_group = fop_groups.get(fop_id, 2)
+        fop_limit = LIMITS[fop_group]
+        cum_by_date = a.get("cumulative_by_date", {})
+        if cum_by_date:
+            rem_str = f"     Залишок {fop_group}гр:    "
+            for d, _amt in a["last_7_days"]:
+                cum = cum_by_date.get(d, 0)
+                remaining = fop_limit - cum
+                if remaining > 0:
+                    rem_str += f"{d.strftime('%d.%m')}={format_currency(remaining)}  "
+                else:
+                    rem_str += f"{d.strftime('%d.%m')}=⛔ ПЕРЕВИЩ  "
+            print(rem_str)
+
+        # Магазини
+        fop_id = bytes(fop["id"])
+        stores = fop_stores.get(fop_id, [])
+        if stores:
+            store_parts = []
+            for s in stores:
+                store_parts.append(f"{s['name']} ({format_currency(s['total'])} грн, {s['doc_count']} док.)")
+            print(f"     🏪 Магазини: {', '.join(store_parts)}")
+        else:
+            print(f"     🏪 Магазини: не визначено")
+
         print()
 
     # === Зведена таблиця ===
     print(f"{'═' * 90}")
     print(f"  ЗВЕДЕНА ТАБЛИЦЯ (топ за доходом {year})")
     print(f"{'═' * 90}")
-    print(f"  {'ФОП':<35} {'Дохід, грн':>16} {'%лім.2гр':>9} {'%лім.3гр':>9} "
-          f"{'Прогноз 2гр':>14} {'Прогноз 3гр':>14}")
-    print(f"  {'─' * 35} {'─' * 16} {'─' * 9} {'─' * 9} {'─' * 14} {'─' * 14}")
+    print(f"  {'ФОП':<35} {'Гр':>3} {'Дохід, грн':>16} {'% ліміту':>9} "
+          f"{'Залишок, грн':>16} {'Прогноз':>14} {'Дн.':>5}")
+    print(f"  {'─' * 35} {'─' * 3} {'─' * 16} {'─' * 9} "
+          f"{'─' * 16} {'─' * 14} {'─' * 5}")
 
     # Всі ФОПи, відсортовані за доходом
     all_fops_sorted = []
@@ -452,18 +870,31 @@ def print_report(fops: list, analyses: dict, group_filter: int | None,
 
     display_count = top_n if top_n else min(30, len(all_fops_sorted))
     for fop, a in all_fops_sorted[:display_count]:
+        fop_id = bytes(fop["id"])
         name = fop["name"].strip()[:34]
-        pct2 = (a["total_income"] / LIMITS[2]) * 100
-        pct3 = (a["total_income"] / LIMITS[3]) * 100
+        group = fop_groups.get(fop_id, 2)
+        limit = LIMITS[group]
+        pct = (a["total_income"] / limit) * 100
+        remaining = limit - a["total_income"]
 
-        info2 = a["limit_dates"][2]
-        info3 = a["limit_dates"][3]
+        info = a["limit_dates"][group]
+        if info["already_exceeded"]:
+            date_str = "ПЕРЕВИЩЕНО"
+            days_str = "⛔"
+        elif info["date"] is None:
+            date_str = "не досягне"
+            days_str = "—"
+        else:
+            date_str = format_date(info["date"])
+            days_str = str((info["date"] - today).days)
 
-        date2 = "ПЕРЕВИЩЕНО" if info2["already_exceeded"] else format_date(info2["date"])
-        date3 = "ПЕРЕВИЩЕНО" if info3["already_exceeded"] else format_date(info3["date"])
+        # Магазини ФОП
+        stores = fop_stores.get(fop_id, [])
+        store_names = ", ".join(s["name"] for s in stores[:3]) if stores else "—"
 
-        print(f"  {name:<35} {format_currency(a['total_income']):>16} "
-              f"{pct2:>8.1f}% {pct3:>8.1f}% {date2:>14} {date3:>14}")
+        print(f"  {name:<35} {group:>3} {format_currency(a['total_income']):>16} "
+              f"{pct:>8.1f}% {format_currency(remaining):>16} {date_str:>14} {days_str:>5}")
+        print(f"  {'':35}     🏪 {store_names}")
 
     print(f"\n{'═' * 90}\n")
 
@@ -484,7 +915,19 @@ def main():
         "--top", type=int, default=None,
         help="Показати лише топ-N ФОПів"
     )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Тільки звіт, без запуску процесів у Camunda"
+    )
+    parser.add_argument(
+        "--camunda-url", type=str, default=None,
+        help="URL Camunda REST API (за замовчуванням http://localhost:8088)"
+    )
     args = parser.parse_args()
+
+    if args.camunda_url:
+        global CAMUNDA_REST_URL
+        CAMUNDA_REST_URL = args.camunda_url.rstrip("/")
 
     today = datetime.now().date()
     year = today.year
@@ -505,6 +948,14 @@ def main():
     daily_income = fetch_daily_income(conn, year)
     print(f"   Завантажено дані по {len(daily_income)} ФОПах")
 
+    fop_stores = fetch_fop_stores(conn, year)
+    print(f"   Магазини: зв'язки для {len(fop_stores)} ФОПів")
+
+    fop_groups = fetch_fop_groups(conn)
+    g2 = sum(1 for g in fop_groups.values() if g == 2)
+    g3 = sum(1 for g in fop_groups.values() if g == 3)
+    print(f"   Групи ЄП: 2 група — {g2}, 3 група — {g3}")
+
     conn.close()
 
     print(f"🔮 Аналіз та прогнозування...\n")
@@ -517,7 +968,8 @@ def main():
         if result:
             analyses[fop_id] = result
 
-    print_report(fops, analyses, args.group, args.days_ahead, args.top)
+    print_report(fops, analyses, fop_stores, fop_groups,
+                 args.group, args.days_ahead, args.top, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":

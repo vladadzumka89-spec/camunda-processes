@@ -147,10 +147,20 @@ async def _fetch_file_from_odoo(task_id: int) -> tuple[str, str]:
     return file_content, ext
 
 
-async def _acquire_file(file_data: str) -> bytes:
+async def _acquire_file(file_data) -> bytes:
     """Отримати файл: base64-декодування або завантаження по URL з Odoo."""
     if not file_data:
         raise ValueError("x_studio_camunda_invoice_file is empty")
+
+    # Якщо вже bytes — повернути як є
+    if isinstance(file_data, bytes):
+        return file_data
+
+    file_data = str(file_data)
+
+    # Odoo binary field may come as string repr of bytes: "b'...'"
+    if file_data.startswith("b'") and file_data.endswith("'"):
+        file_data = file_data[2:-1]
 
     if not file_data.startswith(("http://", "https://")):
         return base64.b64decode(file_data)
@@ -1060,8 +1070,34 @@ def register_ocr_handlers(
                     int(odoo_task_id)
                 )
 
+            # Визначити ext з filename якщо є
+            x_studio_camunda_invoice_file_filename = kwargs.get("x_studio_camunda_invoice_file_filename", "")
+            if not file_extension and x_studio_camunda_invoice_file_filename:
+                fn = str(x_studio_camunda_invoice_file_filename)
+                if "." in fn:
+                    file_extension = fn.rsplit(".", 1)[-1]
+                    logger.info("Got extension from filename '%s': %s", fn, file_extension)
+
+            logger.info("File value first 80 chars: %s", repr(str(x_studio_camunda_invoice_file)[:80]))
+
             file_data = await _acquire_file(x_studio_camunda_invoice_file)
             ext = (file_extension or "").lower().strip(".")
+
+            # Автовизначення розширення з magic bytes якщо не вказано
+            if not ext and file_data:
+                logger.info("Magic bytes (first 16): %s", file_data[:16].hex())
+            if not ext and file_data:
+                if file_data[:4] == b"%PDF":
+                    ext = "pdf"
+                elif file_data[:8] == b"\x89PNG\r\n\x1a\n":
+                    ext = "png"
+                elif file_data[:2] == b"\xff\xd8":
+                    ext = "jpg"
+                elif file_data[:2] == b"PK":
+                    ext = "xlsx"
+                elif file_data[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
+                    ext = "xls"
+                logger.info("Auto-detected file extension: %s", ext)
 
             items: list[dict] = []
 

@@ -5,6 +5,7 @@ connector-secrets.txt
 .env.camunda.template
 .identity/
 .ssh/
+.fop_monitor_state.json
 
 # Infrastructure configs (environment-specific)
 docker-compose*.yaml
