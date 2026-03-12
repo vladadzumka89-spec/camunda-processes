@@ -38,7 +38,7 @@
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/90fdde6b-47f9-44ba-90b2-19559b206bce&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Зміна ФОП на терміналі: &#34; + fop_name, create_process: true, _model: &#34;project.project&#34;, _id: 252, bpmn_process_id: &#34;Process_0iy2u1a&#34;}" target="body" />
+          <zeebe:input source="={name: &#34;Зміна ФОП на терміналі: &#34; + fop_name, create_process: true, _model: &#34;project.project&#34;, _id: 236, bpmn_process_id: &#34;Process_0iy2u1a&#34;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_odoo_create</bpmn:incoming>
@@ -59,7 +59,7 @@
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/90fdde6b-47f9-44ba-90b2-19559b206bce&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Перевірити магазини ФОП &#34; + fop_name, description: &#34;ФОП: &#34; + fop_name + &#34; (&#34; + fop_edrpou + &#34;)\nГрупа ЄП: &#34; + string(ep_group) + &#34;\nДохід: &#34; + string(total_income) + &#34; грн (&#34; + string(income_percent) + &#34;% ліміту)\nМагазини: &#34; + stores + &#34;\n\nПеревірте кількість магазинів та підтвердіть.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= {name: &#34;Перевірити магазини ФОП &#34; + fop_name, description: &#34;ФОП: &#34; + fop_name + &#34; (&#34; + fop_edrpou + &#34;)\nГрупа ЄП: &#34; + string(ep_group) + &#34;\nДохід: &#34; + string(total_income) + &#34; грн (&#34; + string(income_percent) + &#34;% ліміту)\nМагазини: &#34; + stores + &#34;\n\nПеревірте кількість магазинів та підтвердіть.&#34;, _model: &#34;project.project&#34;, _id: 236, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="=x_studio_camunda_stores_count" target="stores_count" />
         </zeebe:ioMapping>
         <zeebe:userTask />
@@ -78,7 +78,7 @@
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/90fdde6b-47f9-44ba-90b2-19559b206bce&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Вибрати магазин для переключення ФОП &#34; + fop_name, description: &#34;Оберіть магазин який переключаємо на іншу ФОП.\nМагазини: &#34; + stores, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= {name: &#34;Вибрати магазин для переключення ФОП &#34; + fop_name, description: &#34;Оберіть магазин який переключаємо на іншу ФОП.\nМагазини: &#34; + stores, _model: &#34;project.project&#34;, _id: 236, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="=x_studio_camunda_selected_store" target="selected_store" />
         </zeebe:ioMapping>
         <zeebe:userTask />
@@ -104,7 +104,7 @@
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/90fdde6b-47f9-44ba-90b2-19559b206bce&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Сповістити керівника про зміну ФОП &#34; + fop_name + &#34; на магазині &#34; + selected_store, description: &#34;Необхідно повідомити керівника підрозділу про переключення терміналу.\nФОП: &#34; + fop_name + &#34;\nМагазин: &#34; + selected_store + &#34;\nПричина: наближення до ліміту &#34; + string(ep_group) + &#34; групи ЄП (&#34; + string(income_percent) + &#34;%)&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= {name: &#34;Сповістити керівника про зміну ФОП &#34; + fop_name + &#34; на магазині &#34; + selected_store, description: &#34;Необхідно повідомити керівника підрозділу про переключення терміналу.\nФОП: &#34; + fop_name + &#34;\nМагазин: &#34; + selected_store + &#34;\nПричина: наближення до ліміту &#34; + string(ep_group) + &#34; групи ЄП (&#34; + string(income_percent) + &#34;%)&#34;, _model: &#34;project.project&#34;, _id: 236, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
         <zeebe:userTask />
         <zeebe:taskListeners>
@@ -122,7 +122,7 @@
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/90fdde6b-47f9-44ba-90b2-19559b206bce&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Перевірити чи платна зміна ФОП на &#34; + selected_store, description: &#34;Перевірте чи ТРЦ бере плату за зміну ФОП на терміналі.\nМагазин: &#34; + selected_store + &#34;\nФОП: &#34; + fop_name + &#34;\n\nВкажіть результат у полі x_studio_camunda_is_paid_change (так/ні).&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= {name: &#34;Перевірити чи платна зміна ФОП на &#34; + selected_store, description: &#34;Перевірте чи ТРЦ бере плату за зміну ФОП на терміналі.\nМагазин: &#34; + selected_store + &#34;\nФОП: &#34; + fop_name + &#34;\n\nВкажіть результат у полі x_studio_camunda_is_paid_change (так/ні).&#34;, _model: &#34;project.project&#34;, _id: 236, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="=x_studio_camunda_is_paid_change" target="is_paid_change" />
         </zeebe:ioMapping>
         <zeebe:userTask />
@@ -140,7 +140,7 @@
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/90fdde6b-47f9-44ba-90b2-19559b206bce&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Сповістити ТРЦ про зміну ФОП на &#34; + selected_store, description: &#34;Зверніться до ТРЦ з питанням зміни ФОП на терміналі.\nМагазин: &#34; + selected_store + &#34;\nСтара ФОП: &#34; + fop_name + &#34;\n\nВкажіть чи є оплата за зміну (поле x_studio_camunda_is_paid_change).&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= {name: &#34;Сповістити ТРЦ про зміну ФОП на &#34; + selected_store, description: &#34;Зверніться до ТРЦ з питанням зміни ФОП на терміналі.\nМагазин: &#34; + selected_store + &#34;\nСтара ФОП: &#34; + fop_name + &#34;\n\nВкажіть чи є оплата за зміну (поле x_studio_camunda_is_paid_change).&#34;, _model: &#34;project.project&#34;, _id: 236, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="=x_studio_camunda_is_paid_change" target="is_paid_change" />
         </zeebe:ioMapping>
         <zeebe:userTask />
@@ -172,7 +172,7 @@
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/90fdde6b-47f9-44ba-90b2-19559b206bce&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Знайти ФОП з 0 оборотом для заміни &#34; + fop_name, description: &#34;Необхідно підібрати ФОП з нульовим оборотом для переключення терміналу на магазині &#34; + selected_store + &#34;.\nВкажіть нову ФОП у полі x_studio_camunda_new_fop_name.&#34;, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= {name: &#34;Знайти ФОП з 0 оборотом для заміни &#34; + fop_name, description: &#34;Необхідно підібрати ФОП з нульовим оборотом для переключення терміналу на магазині &#34; + selected_store + &#34;.\nВкажіть нову ФОП у полі x_studio_camunda_new_fop_name.&#34;, _model: &#34;project.project&#34;, _id: 236, process_instance_key: process_instance_key}" target="body" />
           <zeebe:output source="=x_studio_camunda_new_fop_name" target="new_fop_name" />
         </zeebe:ioMapping>
         <zeebe:userTask />
@@ -190,7 +190,7 @@
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/90fdde6b-47f9-44ba-90b2-19559b206bce&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {name: &#34;Оплатити зміну ФОП на &#34; + selected_store, description: &#34;Необхідно оплатити зміну ФОП на терміналі ТРЦ.\nМагазин: &#34; + selected_store + &#34;\nСтара ФОП: &#34; + fop_name, _model: &#34;project.project&#34;, _id: 252, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="= {name: &#34;Оплатити зміну ФОП на &#34; + selected_store, description: &#34;Необхідно оплатити зміну ФОП на терміналі ТРЦ.\nМагазин: &#34; + selected_store + &#34;\nСтара ФОП: &#34; + fop_name, _model: &#34;project.project&#34;, _id: 236, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
         <zeebe:userTask />
         <zeebe:taskListeners>
