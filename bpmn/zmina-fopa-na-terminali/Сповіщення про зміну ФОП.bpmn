@@ -38,7 +38,7 @@
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/90fdde6b-47f9-44ba-90b2-19559b206bce&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Зміна ФОП на терміналі: &#34; + fop_name, create_process: true, _model: &#34;project.project&#34;, _id: 236, bpmn_process_id: &#34;Process_0iy2u1a&#34;}" target="body" />
+          <zeebe:input source="={name: &#34;Зміна ФОП на терміналі: &#34; + fop_name, create_process: true, _model: &#34;project.project&#34;, _id: 236, bpmn_process_id: &#34;Process_0iy2u1a&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_total_income: total_income, x_studio_camunda_days_to_limit: days_to_limit}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_odoo_create</bpmn:incoming>

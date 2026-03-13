@@ -1,7 +1,7 @@
 FROM python:3.12-slim-bookworm AS builder
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc python3-dev && \
+    apt-get install -y --no-install-recommends gcc python3-dev freetds-dev && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -11,8 +11,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 FROM python:3.12-slim-bookworm
 
 # OCR: tesseract + Ukrainian language pack; poppler: PDF -> image conversion
+# libsybdb5: runtime lib for pymssql (MS-SQL connector)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    tesseract-ocr tesseract-ocr-ukr poppler-utils \
+    tesseract-ocr tesseract-ocr-ukr poppler-utils libsybdb5 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
