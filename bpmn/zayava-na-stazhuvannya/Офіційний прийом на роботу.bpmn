@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
   <bpmn:process id="Process_0fx4kkx" name="Офіційний прийом на роботу" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
     <bpmn:startEvent id="StartEvent_1">
       <bpmn:outgoing>Flow_1yphifm</bpmn:outgoing>
     </bpmn:startEvent>
@@ -12,16 +15,20 @@
       <bpmn:outgoing>Flow_0neqe0x</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:sequenceFlow id="Flow_0d6137m" sourceRef="Activity_0imr582" targetRef="Gateway_0dirkav" />
-    <bpmn:sequenceFlow id="Flow_08s7j0j" sourceRef="Gateway_0dirkav" targetRef="Activity_0hsv4gb" />
+    <bpmn:sequenceFlow id="Flow_08s7j0j" name="так" sourceRef="Gateway_0dirkav" targetRef="Activity_0hsv4gb">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_position_exists = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_0neqe0x" name="ні" sourceRef="Gateway_0dirkav" targetRef="Activity_03c0jkn" />
-    <bpmn:exclusiveGateway id="Gateway_1csuvc1" default="Flow_0b8rv0i">
+    <bpmn:exclusiveGateway id="Gateway_1csuvc1" name="Достатньо одиниць?" default="Flow_0b8rv0i">
       <bpmn:incoming>Flow_0h63vpp</bpmn:incoming>
       <bpmn:outgoing>Flow_0d2m1ig</bpmn:outgoing>
       <bpmn:outgoing>Flow_0b8rv0i</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:sequenceFlow id="Flow_0h63vpp" sourceRef="Activity_0hsv4gb" targetRef="Gateway_1csuvc1" />
     <bpmn:sequenceFlow id="Flow_0wrmn73" sourceRef="Activity_03c0jkn" targetRef="Activity_0hsv4gb" />
-    <bpmn:sequenceFlow id="Flow_0d2m1ig" name="так" sourceRef="Gateway_1csuvc1" targetRef="Activity_1w34e1k" />
+    <bpmn:sequenceFlow id="Flow_0d2m1ig" name="так" sourceRef="Gateway_1csuvc1" targetRef="Activity_1w34e1k">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_need_more_units = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_0b8rv0i" sourceRef="Gateway_1csuvc1" targetRef="Activity_0g8pv9q" />
     <bpmn:sequenceFlow id="Flow_034n49u" sourceRef="Activity_1w34e1k" targetRef="Activity_0g8pv9q" />
     <bpmn:sequenceFlow id="Flow_1sorzk1" sourceRef="Activity_0g8pv9q" targetRef="Activity_14yzxcu" />
@@ -32,6 +39,15 @@
     <bpmn:userTask id="Activity_1cdkvuw" name="Внести військові дані по працівнику">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Внести військові дані по працівнику&#34;, description: &#34;Внесіть військові дані працівника в систему&#34;, x_studio_camunda_user_ids: responsible_user_id, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1yphifm</bpmn:incoming>
       <bpmn:outgoing>Flow_1ecpcgv</bpmn:outgoing>
@@ -39,6 +55,15 @@
     <bpmn:userTask id="Activity_0imr582" name="Прописати організацію у фізичній особі для офіційного прийому">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Прописати організацію у фізичній особі&#34;, description: &#34;Пропишіть організацію у фізичній особі для офіційного прийому. Вкажіть чи є посада в БДУ.&#34;, x_studio_camunda_position_exists: false, x_studio_camunda_user_ids: responsible_user_id, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1ecpcgv</bpmn:incoming>
       <bpmn:outgoing>Flow_0d6137m</bpmn:outgoing>
@@ -46,6 +71,15 @@
     <bpmn:userTask id="Activity_03c0jkn" name="Додати посаду в штатний">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Додати посаду в штатний&#34;, description: &#34;Додайте необхідну посаду в штатний розклад БДУ&#34;, x_studio_camunda_user_ids: responsible_user_id, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0neqe0x</bpmn:incoming>
       <bpmn:outgoing>Flow_0wrmn73</bpmn:outgoing>
@@ -53,6 +87,15 @@
     <bpmn:userTask id="Activity_1w34e1k" name="Змінити кількість одиниць в штатному">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Змінити кількість одиниць в штатному&#34;, description: &#34;Збільшіть кількість одиниць для даної посади в штатному розкладі&#34;, x_studio_camunda_user_ids: responsible_user_id, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0d2m1ig</bpmn:incoming>
       <bpmn:outgoing>Flow_034n49u</bpmn:outgoing>
@@ -60,16 +103,43 @@
     <bpmn:userTask id="Activity_14yzxcu" name="Провести Наказ на прийом в БДУ">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Провести Наказ на прийом в БДУ&#34;, description: &#34;Проведіть наказ на прийом працівника в БДУ&#34;, x_studio_camunda_user_ids: responsible_user_id, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1sorzk1</bpmn:incoming>
       <bpmn:outgoing>Flow_0vmfydg</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:serviceTask id="Activity_0hsv4gb" name="Перевірити чи достатня кількість посад в штатному?">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/api/server-action&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;, &#34;X-API-Key&#34;:&#34;632b5ed6-091f-48db-bd01-1e60aeb10bfc&#34;}" target="headers" />
+          <zeebe:input source="= {action_identifier: &#34;studio_customization._check_position_units&#34;, context: {}, payload: {department_id: x_studio_camunda_pidrozdil}}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_08s7j0j</bpmn:incoming>
       <bpmn:incoming>Flow_0wrmn73</bpmn:incoming>
       <bpmn:outgoing>Flow_0h63vpp</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:serviceTask id="Activity_0g8pv9q" name="Передача інформації та створення Прийому у БДУ">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/api/server-action&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;, &#34;X-API-Key&#34;:&#34;632b5ed6-091f-48db-bd01-1e60aeb10bfc&#34;}" target="headers" />
+          <zeebe:input source="= {action_identifier: &#34;studio_customization._create_bdu_admission&#34;, context: {}, payload: {employee_name: odoo_applicant_name, department_id: x_studio_camunda_pidrozdil}}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_0b8rv0i</bpmn:incoming>
       <bpmn:incoming>Flow_034n49u</bpmn:incoming>
       <bpmn:outgoing>Flow_1sorzk1</bpmn:outgoing>
@@ -88,6 +158,9 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_1csuvc1_di" bpmnElement="Gateway_1csuvc1" isMarkerVisible="true">
         <dc:Bounds x="715" y="155" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="706" y="126" width="68" height="27" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Event_14857la_di" bpmnElement="Event_14857la">
         <dc:Bounds x="1122" y="202" width="36" height="36" />
@@ -128,6 +201,9 @@
       <bpmndi:BPMNEdge id="Flow_08s7j0j_di" bpmnElement="Flow_08s7j0j">
         <di:waypoint x="545" y="180" />
         <di:waypoint x="590" y="180" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="560" y="162" width="16" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_0neqe0x_di" bpmnElement="Flow_0neqe0x">
         <di:waypoint x="520" y="205" />
