@@ -44,7 +44,8 @@ def register_all_handlers(
         OCR (1):      invoice-data-extractor
         HTTP Smart (1): http-request-smart
         FOP Monitor (1): fop-limit-check
-    Total: 30 task types
+        Messaging (1):   publish-message
+    Total: 31 task types
     """
     register_http_smart_handlers(worker, config)
     register_deploy_handlers(worker, config, ssh)

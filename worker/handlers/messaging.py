@@ -40,7 +40,7 @@ def register_messaging_handlers(worker: ZeebeWorker, config: AppConfig) -> None:
             name=message_name,
             correlation_key=str(correlation_key),
             variables=dict(job.variables),
-            time_to_live_in_milliseconds=3_600_000,
+            time_to_live=3_600_000,
         )
         logger.info(
             "Published message %s (correlation=%s)",
