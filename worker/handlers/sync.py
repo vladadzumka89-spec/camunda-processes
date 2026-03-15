@@ -711,6 +711,7 @@ def register_sync_handlers(
 
         run_id = uuid.uuid4().hex[:8]
         workspace = f"/tmp/merge-feature-{run_id}"
+        merge_sha = ""
 
         try:
             # Clone staging branch
@@ -762,6 +763,14 @@ def register_sync_handlers(
                 check=True, timeout=60,
             )
 
+            # Get merge commit SHA for correlation with deploy process
+            sha_result = await ssh.run(
+                server,
+                f"cd {workspace} && git rev-parse HEAD",
+                check=True, timeout=15,
+            )
+            merge_sha = sha_result.stdout.strip()
+
             logger.info("Merged %s into staging (workspace %s)", feature_branch, run_id)
         finally:
             # Cleanup workspace
@@ -769,6 +778,7 @@ def register_sync_handlers(
 
         return {
             "staging_merged": True,
+            "merge_sha": merge_sha,
             "process_instance_key": job.process_instance_key,
         }
 

@@ -232,6 +232,7 @@ async def test_merge_feature_to_staging_success(handlers: dict, mock_ssh: AsyncM
         _make_ssh_result(),  # git fetch
         _make_ssh_result(exit_code=0),  # git merge (success)
         _make_ssh_result(),  # git push
+        _make_ssh_result(stdout="deadbeef\n"),  # git rev-parse HEAD
         _make_ssh_result(),  # rm -rf cleanup
     ]
     job = _make_mock_job(99999)
@@ -242,6 +243,7 @@ async def test_merge_feature_to_staging_success(handlers: dict, mock_ssh: AsyncM
     )
     assert result["staging_merged"] is True
     assert result["process_instance_key"] == 99999
+    assert result["merge_sha"] == "deadbeef"
 
     calls = mock_ssh.run.call_args_list
     # Verify clone command
@@ -254,6 +256,32 @@ async def test_merge_feature_to_staging_success(handlers: dict, mock_ssh: AsyncM
     assert "-X theirs" in calls[2].args[1]
     # Verify push
     assert "push" in calls[3].args[1]
+
+
+@pytest.mark.asyncio
+async def test_merge_feature_to_staging_returns_merge_sha(
+    handlers: dict, mock_ssh: AsyncMock,
+) -> None:
+    """merge-feature-to-staging should return merge_sha (HEAD after push)."""
+    mock_ssh.run.side_effect = [
+        _make_ssh_result(),                    # git clone
+        _make_ssh_result(),                    # git fetch
+        _make_ssh_result(exit_code=0),         # git merge
+        _make_ssh_result(),                    # git push
+        _make_ssh_result(stdout="abc123\n"),   # git rev-parse HEAD
+        _make_ssh_result(),                    # rm -rf workspace
+    ]
+    job = _make_mock_job(99999)
+    result = await handlers["merge-feature-to-staging"](
+        job=job,
+        feature_branch="feat/x",
+        server_host="staging",
+    )
+    assert result["staging_merged"] is True
+    assert result["merge_sha"] == "abc123"
+    # Verify rev-parse was called
+    calls = mock_ssh.run.call_args_list
+    assert "rev-parse HEAD" in calls[4].args[1]
 
 
 @pytest.mark.asyncio
