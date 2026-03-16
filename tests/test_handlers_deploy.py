@@ -753,7 +753,7 @@ async def test_smoke_test_passes(handlers: dict, mock_ssh: AsyncMock) -> None:
 
 @pytest.mark.asyncio
 async def test_smoke_test_fails_on_error(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """Smoke test detects ERROR lines."""
+    """Smoke test detects ERROR lines and raises RuntimeError."""
     mock_ssh.run.return_value = _make_ssh_result(stdout="dbpass\n")
     mock_ssh.run_in_repo.side_effect = [
         OK(),  # stop
@@ -764,13 +764,13 @@ async def test_smoke_test_fails_on_error(handlers: dict, mock_ssh: AsyncMock) ->
         OK(),  # up
     ]
     with patch("worker.handlers.deploy._sleep", new_callable=AsyncMock):
-        result = await handlers["smoke-test"](server_host="staging")
-    assert result["smoke_passed"] is False
+        with pytest.raises(RuntimeError, match="Smoke test failed"):
+            await handlers["smoke-test"](server_host="staging")
 
 
 @pytest.mark.asyncio
 async def test_smoke_test_fails_on_exit_code(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """Non-zero exit code means failure."""
+    """Non-zero exit code means failure — raises RuntimeError."""
     mock_ssh.run.return_value = _make_ssh_result(stdout="dbpass\n")
     mock_ssh.run_in_repo.side_effect = [
         OK(),  # stop
@@ -779,8 +779,8 @@ async def test_smoke_test_fails_on_exit_code(handlers: dict, mock_ssh: AsyncMock
         OK(),  # up
     ]
     with patch("worker.handlers.deploy._sleep", new_callable=AsyncMock):
-        result = await handlers["smoke-test"](server_host="staging")
-    assert result["smoke_passed"] is False
+        with pytest.raises(RuntimeError, match="Smoke test failed"):
+            await handlers["smoke-test"](server_host="staging")
 
 
 @pytest.mark.asyncio
@@ -803,7 +803,7 @@ async def test_smoke_test_ignores_safe_warnings(handlers: dict, mock_ssh: AsyncM
 
 @pytest.mark.asyncio
 async def test_smoke_test_detects_critical(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """CRITICAL level is caught."""
+    """CRITICAL level is caught — raises RuntimeError."""
     mock_ssh.run.return_value = _make_ssh_result(stdout="dbpass\n")
     mock_ssh.run_in_repo.side_effect = [
         OK(), OK(),
@@ -811,13 +811,13 @@ async def test_smoke_test_detects_critical(handlers: dict, mock_ssh: AsyncMock) 
         OK(),
     ]
     with patch("worker.handlers.deploy._sleep", new_callable=AsyncMock):
-        result = await handlers["smoke-test"](server_host="staging")
-    assert result["smoke_passed"] is False
+        with pytest.raises(RuntimeError, match="Smoke test failed"):
+            await handlers["smoke-test"](server_host="staging")
 
 
 @pytest.mark.asyncio
 async def test_smoke_test_detects_import_error(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """ImportError / ModuleNotFoundError detected."""
+    """ImportError / ModuleNotFoundError detected — raises RuntimeError."""
     mock_ssh.run.return_value = _make_ssh_result(stdout="dbpass\n")
     mock_ssh.run_in_repo.side_effect = [
         OK(), OK(),
@@ -825,12 +825,13 @@ async def test_smoke_test_detects_import_error(handlers: dict, mock_ssh: AsyncMo
         OK(),
     ]
     with patch("worker.handlers.deploy._sleep", new_callable=AsyncMock):
-        result = await handlers["smoke-test"](server_host="staging")
-    assert result["smoke_passed"] is False
+        with pytest.raises(RuntimeError, match="Smoke test failed"):
+            await handlers["smoke-test"](server_host="staging")
 
 
 @pytest.mark.asyncio
 async def test_smoke_test_detects_syntax_error(handlers: dict, mock_ssh: AsyncMock) -> None:
+    """SyntaxError detected — raises RuntimeError."""
     mock_ssh.run.return_value = _make_ssh_result(stdout="dbpass\n")
     mock_ssh.run_in_repo.side_effect = [
         OK(), OK(),
@@ -838,13 +839,28 @@ async def test_smoke_test_detects_syntax_error(handlers: dict, mock_ssh: AsyncMo
         OK(),
     ]
     with patch("worker.handlers.deploy._sleep", new_callable=AsyncMock):
-        result = await handlers["smoke-test"](server_host="staging")
-    assert result["smoke_passed"] is False
+        with pytest.raises(RuntimeError, match="Smoke test failed"):
+            await handlers["smoke-test"](server_host="staging")
+
+
+@pytest.mark.asyncio
+async def test_smoke_test_raises_on_error(handlers: dict, mock_ssh: AsyncMock) -> None:
+    """Smoke test should raise RuntimeError when errors are detected."""
+    mock_ssh.run.side_effect = [_make_ssh_result(stdout="password123")]  # _get_db_password
+    mock_ssh.run_in_repo.side_effect = [
+        OK(),  # docker compose stop
+        OK(),  # docker compose start db
+        _make_ssh_result(stdout="2026 ERROR something broke\n", exit_code=1),
+        OK(),  # docker compose up -d (always runs before raise)
+    ]
+    with patch("worker.handlers.deploy._sleep", new_callable=AsyncMock):
+        with pytest.raises(RuntimeError, match="Smoke test failed"):
+            await handlers["smoke-test"](server_host="staging")
 
 
 @pytest.mark.asyncio
 async def test_smoke_test_always_restarts(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """Even on failure, docker compose up -d is always called."""
+    """Even on failure, docker compose up -d is always called before raising."""
     mock_ssh.run.return_value = _make_ssh_result(stdout="dbpass\n")
     mock_ssh.run_in_repo.side_effect = [
         OK(), OK(),
@@ -852,11 +868,11 @@ async def test_smoke_test_always_restarts(handlers: dict, mock_ssh: AsyncMock) -
         OK(),  # up -d must still be called
     ]
     with patch("worker.handlers.deploy._sleep", new_callable=AsyncMock):
-        result = await handlers["smoke-test"](server_host="staging")
-    assert result["smoke_passed"] is False
-    # Verify compose up was called (last call)
-    last_cmd = mock_ssh.run_in_repo.call_args_list[-1][0][1]
-    assert "docker compose up -d" in last_cmd
+        with pytest.raises(RuntimeError, match="Smoke test failed"):
+            await handlers["smoke-test"](server_host="staging")
+    # Verify compose up was called (second-to-last or last call before raise)
+    all_cmds = [call[0][1] for call in mock_ssh.run_in_repo.call_args_list]
+    assert any("docker compose up -d" in cmd for cmd in all_cmds)
 
 
 @pytest.mark.asyncio
@@ -1158,7 +1174,7 @@ async def test_full_deploy_simulation(handlers: dict, mock_ssh: AsyncMock) -> No
     ]
     with patch("worker.handlers.deploy._sleep", new_callable=AsyncMock):
         smoke_result = await handlers["smoke-test"](server_host="staging")
-    assert smoke_result["smoke_passed"] is True
+    assert smoke_result["smoke_passed"] is True  # no errors → returns True
 
     # 7. http-verify
     mock_ssh.run.reset_mock()
@@ -1202,10 +1218,10 @@ async def test_deploy_with_rollback_on_smoke_failure(handlers: dict, mock_ssh: A
         OK(),
     ]
     with patch("worker.handlers.deploy._sleep", new_callable=AsyncMock):
-        smoke_result = await handlers["smoke-test"](server_host="staging")
-    assert smoke_result["smoke_passed"] is False
+        with pytest.raises(RuntimeError, match="Smoke test failed"):
+            await handlers["smoke-test"](server_host="staging")
 
-    # 7. rollback
+    # 7. rollback (in real BPMN this is triggered by the Error Event Subprocess)
     mock_ssh.run_in_repo.reset_mock()
     mock_ssh.run_in_repo.side_effect = None
     mock_ssh.run_in_repo.return_value = OK()

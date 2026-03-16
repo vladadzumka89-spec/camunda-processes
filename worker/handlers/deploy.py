@@ -389,10 +389,11 @@ def register_deploy_handlers(
         smoke_passed = result.exit_code == 0 and not error_lines
 
         if not smoke_passed:
-            logger.warning("Smoke test failed on %s: %s", server.host, error_lines[:3])
+            error_summary = "; ".join(error_lines[:3]) if error_lines else f"exit code {result.exit_code}"
+            raise RuntimeError(f"Smoke test failed on {server.host}: {error_summary}")
 
-        logger.info("smoke-test on %s: passed=%s", server.host, smoke_passed)
-        return {"smoke_passed": smoke_passed}
+        logger.info("smoke-test on %s: passed=True", server.host)
+        return {"smoke_passed": True}
 
     # ── http-verify ────────────────────────────────────────────
 
