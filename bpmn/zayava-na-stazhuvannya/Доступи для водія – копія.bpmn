@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:process id="Process_1vkyhuj" name="Доступи для водія" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_0pnsts4</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_0pnsts4" sourceRef="StartEvent_1" targetRef="Gateway_0jly3vz" />
+    <bpmn:parallelGateway id="Gateway_0jly3vz">
+      <bpmn:incoming>Flow_0pnsts4</bpmn:incoming>
+      <bpmn:outgoing>Flow_16r6x2q</bpmn:outgoing>
+      <bpmn:outgoing>Flow_05kqs3h</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:sequenceFlow id="Flow_16r6x2q" sourceRef="Gateway_0jly3vz" targetRef="Activity_0un8p6o" />
+    <bpmn:sequenceFlow id="Flow_05kqs3h" sourceRef="Gateway_0jly3vz" targetRef="Activity_11i0saf" />
+    <bpmn:inclusiveGateway id="Gateway_0cjct2p">
+      <bpmn:incoming>Flow_1e4vzxm</bpmn:incoming>
+      <bpmn:incoming>Flow_0g7xyjc</bpmn:incoming>
+      <bpmn:outgoing>Flow_1hfyxam</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_104mjld" sourceRef="Activity_0un8p6o" targetRef="Activity_0ieyfzo" />
+    <bpmn:sequenceFlow id="Flow_0zz5nwz" sourceRef="Activity_11i0saf" targetRef="Activity_0jxe7k7" />
+    <bpmn:serviceTask id="Activity_0un8p6o" name="Створити шаблон розписки по працівнику">
+      <bpmn:incoming>Flow_16r6x2q</bpmn:incoming>
+      <bpmn:outgoing>Flow_104mjld</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_1e4vzxm" sourceRef="Activity_0ieyfzo" targetRef="Gateway_0cjct2p" />
+    <bpmn:userTask id="Activity_0ieyfzo" name="Створити касу для водія">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_104mjld</bpmn:incoming>
+      <bpmn:outgoing>Flow_1e4vzxm</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_0t3wjek" sourceRef="Activity_0jxe7k7" targetRef="Activity_09yotxa" />
+    <bpmn:userTask id="Activity_0jxe7k7" name="Додати працівника в організацію">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0zz5nwz</bpmn:incoming>
+      <bpmn:outgoing>Flow_0t3wjek</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_11i0saf" name="Створити доступ до навігатора">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_05kqs3h</bpmn:incoming>
+      <bpmn:outgoing>Flow_0zz5nwz</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_0g7xyjc" sourceRef="Activity_09yotxa" targetRef="Gateway_0cjct2p" />
+    <bpmn:userTask id="Activity_09yotxa" name="Створити електронний підпис водія у кабінеті Приват бан">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0t3wjek</bpmn:incoming>
+      <bpmn:outgoing>Flow_0g7xyjc</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="Event_16jwmnu">
+      <bpmn:incoming>Flow_1hfyxam</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1hfyxam" sourceRef="Gateway_0cjct2p" targetRef="Event_16jwmnu" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1vkyhuj">
+      <bpmndi:BPMNShape id="Activity_1b6mmis_di" bpmnElement="Activity_0un8p6o">
+        <dc:Bounds x="320" y="40" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0e21u8t_di" bpmnElement="Activity_0ieyfzo">
+        <dc:Bounds x="460" y="40" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0fh8wy3_di" bpmnElement="Activity_11i0saf">
+        <dc:Bounds x="320" y="270" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0zfrpua_di" bpmnElement="Activity_0jxe7k7">
+        <dc:Bounds x="460" y="270" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_15w74ns_di" bpmnElement="Activity_09yotxa">
+        <dc:Bounds x="600" y="270" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0kx5c8l_di" bpmnElement="Gateway_0cjct2p">
+        <dc:Bounds x="725" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_10vxpen_di" bpmnElement="Gateway_0jly3vz">
+        <dc:Bounds x="245" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="172" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_16jwmnu_di" bpmnElement="Event_16jwmnu">
+        <dc:Bounds x="822" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0pnsts4_di" bpmnElement="Flow_0pnsts4">
+        <di:waypoint x="208" y="200" />
+        <di:waypoint x="245" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_16r6x2q_di" bpmnElement="Flow_16r6x2q">
+        <di:waypoint x="270" y="175" />
+        <di:waypoint x="270" y="80" />
+        <di:waypoint x="320" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_05kqs3h_di" bpmnElement="Flow_05kqs3h">
+        <di:waypoint x="270" y="225" />
+        <di:waypoint x="270" y="310" />
+        <di:waypoint x="320" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_104mjld_di" bpmnElement="Flow_104mjld">
+        <di:waypoint x="420" y="80" />
+        <di:waypoint x="460" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0zz5nwz_di" bpmnElement="Flow_0zz5nwz">
+        <di:waypoint x="420" y="310" />
+        <di:waypoint x="460" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1e4vzxm_di" bpmnElement="Flow_1e4vzxm">
+        <di:waypoint x="560" y="80" />
+        <di:waypoint x="750" y="80" />
+        <di:waypoint x="750" y="175" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0t3wjek_di" bpmnElement="Flow_0t3wjek">
+        <di:waypoint x="560" y="310" />
+        <di:waypoint x="600" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0g7xyjc_di" bpmnElement="Flow_0g7xyjc">
+        <di:waypoint x="700" y="310" />
+        <di:waypoint x="750" y="310" />
+        <di:waypoint x="750" y="225" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1hfyxam_di" bpmnElement="Flow_1hfyxam">
+        <di:waypoint x="775" y="200" />
+        <di:waypoint x="822" y="200" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
