@@ -1,9 +1,10 @@
 """Webhook server — bridges GitHub/Odoo events to Camunda Zeebe processes.
 
 Endpoints:
-    POST /webhook/github  — GitHub PR events (HMAC-SHA256 verified)
-    POST /webhook/odoo    — Odoo task closure callback (token auth)
-    GET  /health          — Liveness probe
+    POST /webhook/github      — GitHub PR events (HMAC-SHA256 verified)
+    POST /webhook/odoo        — Odoo task closure callback (token auth)
+    GET  /health              — Liveness probe
+    GET  /reports/fop/latest  — Latest FOP limit monitoring JSON report
 
 Zeebe messages published:
     msg_pr_event       — PR opened/reopened targeting main → starts feature-to-production
@@ -38,6 +39,7 @@ class WebhookServer:
         self._app.router.add_post('/webhook/github', self._handle_github)
         self._app.router.add_post('/webhook/odoo', self._handle_odoo)
         self._app.router.add_get('/health', self._handle_health)
+        self._app.router.add_get('/reports/fop/latest', self._handle_fop_report)
         self._runner: web.AppRunner | None = None
 
     # ── Lifecycle ─────────────────────────────────────────
@@ -93,6 +95,24 @@ class WebhookServer:
 
     async def _handle_health(self, request: web.Request) -> web.Response:
         return web.json_response({"status": "ok"})
+
+    # ── FOP report endpoint ────────────────────────────────
+
+    async def _handle_fop_report(self, request: web.Request) -> web.Response:
+        """Serve latest FOP limit monitoring JSON report from file."""
+        from .handlers.fop_monitor import REPORT_FILE
+
+        if not REPORT_FILE.exists():
+            return web.json_response(
+                {"error": "Звіт ще не згенеровано"},
+                status=404,
+            )
+        try:
+            data = json.loads(REPORT_FILE.read_text())
+            return web.json_response(data)
+        except Exception as exc:
+            logger.error("Failed to read FOP report: %s", exc)
+            return web.Response(status=500, text=f"Failed to read report: {exc}")
 
     # ── GitHub webhook ────────────────────────────────────
 

@@ -3,8 +3,8 @@
 Підключається до БД BAS Бухгалтерія, аналізує надходження на рахунки ФОП
 та прогнозує дату досягнення ліміту для 2-ї та 3-ї груп ЄП.
 
-Повертає JSON-звіт (всі ФОП для дашборду Odoo) та список критичних ФОП
-для оркестрації через BPMN (створення задач на зміну терміналу).
+Повертає JSON-звіт (всі ФОП для дашборду Odoo, зберігається у файл) та список
+критичних ФОП для оркестрації через BPMN (задачі на зміну терміналу).
 
 Task type: fop-limit-check
 """
@@ -12,12 +12,14 @@ Task type: fop-limit-check
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import re
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta, date
+from pathlib import Path
 from typing import Any
 
 from pyzeebe import ZeebeWorker
@@ -40,6 +42,9 @@ LIMITS = {
     2: float(os.environ.get("FOP_LIMIT_GROUP_2", "6900000")),
     3: float(os.environ.get("FOP_LIMIT_GROUP_3", "9900000")),
 }
+
+REPORT_DIR = Path(os.environ.get("FOP_REPORT_DIR", "reports/fop"))
+REPORT_FILE = REPORT_DIR / "latest.json"
 
 CAMUNDA_REST_URL = os.environ.get(
     "CAMUNDA_REST_URL", "http://orchestration:8080"
@@ -543,6 +548,20 @@ def _analyze_fop(daily_data: list, today: date, year: int) -> dict | None:
     }
 
 
+# ── Report file ────────────────────────────────────────────────────────
+
+
+def _save_report_json(report: dict) -> None:
+    """Save JSON report to file (atomic write)."""
+    try:
+        REPORT_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = REPORT_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(report, ensure_ascii=False, indent=2))
+        tmp.replace(REPORT_FILE)
+        logger.info("Звіт збережено: %s", REPORT_FILE)
+    except Exception as e:
+        logger.warning("Не вдалося зберегти звіт у файл: %s", e)
+
 
 # ── Main sync check ───────────────────────────────────────────────────
 
@@ -685,6 +704,9 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         "fops": all_fops_report,
     }
 
+    # Save report to file for dashboard endpoint
+    _save_report_json(report_json)
+
     return {
         "report_date": today.isoformat(),
         "total_fops": len(fops),
@@ -720,7 +742,10 @@ def register_fop_monitor_handlers(
             total_analyzed (int): кількість проаналізованих
             critical_count (int): кількість нових критичних (без активного процесу)
             critical_fops (list): нові критичні ФОП для multi-instance (задачі на зміну терміналу)
-            report_json (dict): повний JSON-звіт по всіх ФОП для дашборду Odoo
+            report_json (dict): повний JSON-звіт по всіх ФОП для дашборду Odoo (також зберігається у файл)
+
+        Side effects:
+            Зберігає report_json у reports/fop/latest.json (GET /reports/fop/latest)
         """
         logger.info("fop-limit-check (days_ahead=%d)", days_ahead)
 

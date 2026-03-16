@@ -291,20 +291,27 @@ def register_deploy_handlers(
         # Stop all services (nginx, sfu, etc.) to prevent stale websocket connections
         await ssh.run_in_repo(server, "docker compose stop", timeout=60)
 
-        # Run module update (--no-deps prevents docker from restarting nginx/sfu)
-        await ssh.run_in_repo(
-            server,
-            f"docker compose start db && sleep 3 && "
-            f"timeout 2000 docker compose run --rm --no-deps web "
-            f"odoo-bin -d {db} -u {update_modules} "
-            f"--db_password='{db_password}' "
-            f"--stop-after-init --no-http --log-level=warn",
-            check=True,
-            timeout=2100,
-        )
+        try:
+            # Run module update (--no-deps prevents docker from restarting nginx/sfu)
+            await ssh.run_in_repo(
+                server,
+                f"docker compose start db && sleep 3 && "
+                f"timeout 2000 docker compose run --rm --no-deps web "
+                f"odoo-bin -d {db} -u {update_modules} "
+                f"--db_password='{db_password}' "
+                f"--stop-after-init --no-http --log-level=warn",
+                check=True,
+                timeout=2100,
+            )
 
-        # Restart
-        await ssh.run_in_repo(server, "docker compose up -d", check=True)
+            # Success: restart full stack
+            await ssh.run_in_repo(server, "docker compose up -d", check=True, timeout=120)
+        finally:
+            # Ensure at least DB is running (rollback needs it)
+            try:
+                await ssh.run_in_repo(server, "docker compose start db", check=False, timeout=60)
+            except Exception:
+                pass
 
         # Clear asset cache
         await ssh.run(
@@ -382,10 +389,11 @@ def register_deploy_handlers(
         smoke_passed = result.exit_code == 0 and not error_lines
 
         if not smoke_passed:
-            logger.warning("Smoke test failed on %s: %s", server.host, error_lines[:3])
+            error_summary = "; ".join(error_lines[:3]) if error_lines else f"exit code {result.exit_code}"
+            raise RuntimeError(f"Smoke test failed on {server.host}: {error_summary}")
 
-        logger.info("smoke-test on %s: passed=%s", server.host, smoke_passed)
-        return {"smoke_passed": smoke_passed}
+        logger.info("smoke-test on %s: passed=True", server.host)
+        return {"smoke_passed": True}
 
     # ── http-verify ────────────────────────────────────────────
 
@@ -480,6 +488,32 @@ def register_deploy_handlers(
             server.host, old_commit[:8], bool(is_prod and restore_cmd),
         )
         return {}
+
+    # ── db-checkpoint ─────────────────────────────────────────
+
+    @worker.task(task_type="db-checkpoint", timeout_ms=600_000)
+    async def db_checkpoint(
+        server_host: str,
+        db_checkpoint_command: str = "",
+        container: str = "",
+        **kwargs: Any,
+    ) -> dict:
+        """Create DB checkpoint before module update (production only)."""
+        server = config.resolve_server(server_host)
+        ctr = container or server.container
+
+        if db_checkpoint_command:
+            cmd = db_checkpoint_command
+        else:
+            cmd = (
+                f"docker exec {ctr}-db su - postgres -c "
+                f"\"flock -n /tmp/pgbr.lock /usr/bin/pgbackrest "
+                f"--stanza=main --type=full backup\""
+            )
+
+        await ssh.run(server, cmd, check=True, timeout=540)
+        logger.info("db-checkpoint on %s: completed", server.host)
+        return {"checkpoint_created": True}
 
 
 # ── Helpers ────────────────────────────────────────────────────
