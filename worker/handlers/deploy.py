@@ -291,20 +291,27 @@ def register_deploy_handlers(
         # Stop all services (nginx, sfu, etc.) to prevent stale websocket connections
         await ssh.run_in_repo(server, "docker compose stop", timeout=60)
 
-        # Run module update (--no-deps prevents docker from restarting nginx/sfu)
-        await ssh.run_in_repo(
-            server,
-            f"docker compose start db && sleep 3 && "
-            f"timeout 2000 docker compose run --rm --no-deps web "
-            f"odoo-bin -d {db} -u {update_modules} "
-            f"--db_password='{db_password}' "
-            f"--stop-after-init --no-http --log-level=warn",
-            check=True,
-            timeout=2100,
-        )
+        try:
+            # Run module update (--no-deps prevents docker from restarting nginx/sfu)
+            await ssh.run_in_repo(
+                server,
+                f"docker compose start db && sleep 3 && "
+                f"timeout 2000 docker compose run --rm --no-deps web "
+                f"odoo-bin -d {db} -u {update_modules} "
+                f"--db_password='{db_password}' "
+                f"--stop-after-init --no-http --log-level=warn",
+                check=True,
+                timeout=2100,
+            )
 
-        # Restart
-        await ssh.run_in_repo(server, "docker compose up -d", check=True)
+            # Success: restart full stack
+            await ssh.run_in_repo(server, "docker compose up -d", check=True, timeout=120)
+        finally:
+            # Ensure at least DB is running (rollback needs it)
+            try:
+                await ssh.run_in_repo(server, "docker compose start db", check=False, timeout=60)
+            except Exception:
+                pass
 
         # Clear asset cache
         await ssh.run(

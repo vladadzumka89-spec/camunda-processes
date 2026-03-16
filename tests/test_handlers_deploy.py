@@ -532,6 +532,7 @@ async def test_module_update_all(handlers: dict, mock_ssh: AsyncMock) -> None:
         OK(),  # docker compose stop
         OK(),  # docker compose start db + module update
         OK(),  # docker compose up -d
+        OK(),  # finally: docker compose start db
     ]
     result = await handlers["module-update"](
         server_host="staging", changed_modules="all",
@@ -557,6 +558,7 @@ async def test_module_update_specific_modules(handlers: dict, mock_ssh: AsyncMoc
         OK(),  # docker compose stop
         OK(),  # module update
         OK(),  # docker compose up
+        OK(),  # finally: docker compose start db
     ]
     result = await handlers["module-update"](
         server_host="staging", changed_modules="tut_hr,tut_core,sale",
@@ -597,6 +599,7 @@ async def test_module_update_over_10_switches_to_all(handlers: dict, mock_ssh: A
         OK(),  # stop
         OK(),  # update
         OK(),  # up
+        OK(),  # finally: docker compose start db
     ]
     result = await handlers["module-update"](
         server_host="staging", changed_modules=many_mods,
@@ -617,6 +620,7 @@ async def test_module_update_db_password_from_env_file(handlers: dict, mock_ssh:
         OK(),  # stop
         OK(),  # update
         OK(),  # up
+        OK(),  # finally: docker compose start db
     ]
     result = await handlers["module-update"](
         server_host="staging", changed_modules="all",
@@ -643,7 +647,7 @@ async def test_module_update_clears_pycache(handlers: dict, mock_ssh: AsyncMock)
         _make_ssh_result(stdout="pass\n"),  # password
         OK(),  # asset cache
     ]
-    mock_ssh.run_in_repo.side_effect = [OK(), OK(), OK(), OK()]
+    mock_ssh.run_in_repo.side_effect = [OK(), OK(), OK(), OK(), OK()]
     await handlers["module-update"](server_host="staging", changed_modules="all")
     pycache_cmd = mock_ssh.run_in_repo.call_args_list[0][0][1]
     assert "__pycache__" in pycache_cmd
@@ -656,10 +660,37 @@ async def test_module_update_restarts_services(handlers: dict, mock_ssh: AsyncMo
         _make_ssh_result(stdout="pass\n"),
         OK(),  # asset cache clear
     ]
-    mock_ssh.run_in_repo.side_effect = [OK(), OK(), OK(), OK()]
+    mock_ssh.run_in_repo.side_effect = [OK(), OK(), OK(), OK(), OK()]
     await handlers["module-update"](server_host="staging", changed_modules="all")
-    last_cmd = mock_ssh.run_in_repo.call_args_list[-1][0][1]
-    assert "docker compose up -d" in last_cmd
+    # docker compose up -d is second-to-last; last is finally: docker compose start db
+    up_cmd = mock_ssh.run_in_repo.call_args_list[-2][0][1]
+    assert "docker compose up -d" in up_cmd
+    # finally block always runs docker compose start db
+    finally_cmd = mock_ssh.run_in_repo.call_args_list[-1][0][1]
+    assert "docker compose start db" in finally_cmd
+
+
+@pytest.mark.asyncio
+async def test_module_update_restarts_db_on_failure(handlers: dict, mock_ssh: AsyncMock) -> None:
+    """If module-update command fails, DB should be restarted in finally block."""
+    mock_ssh.run.side_effect = [
+        _make_ssh_result(stdout="password123"),        # _get_db_password
+        _make_ssh_result(stdout="sale_management\n"),  # installed modules query
+    ]
+    mock_ssh.run_in_repo.side_effect = [
+        _make_ssh_result(),                    # find __pycache__
+        _make_ssh_result(),                    # docker compose stop
+        RemoteCommandError("odoo-bin failed", 1, ""),  # module update command fails
+        _make_ssh_result(),                    # finally: docker compose start db
+    ]
+    with pytest.raises(RemoteCommandError, match="odoo-bin failed"):
+        await handlers["module-update"](
+            server_host="staging",
+            changed_modules="sale_management",
+        )
+    # Verify the finally block ran: docker compose start db
+    last_call = mock_ssh.run_in_repo.call_args_list[-1].args[1]
+    assert "docker compose start db" in last_call
 
 
 # ══════════════════════════════════════════════════════════
