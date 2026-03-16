@@ -58,11 +58,11 @@ def prod_handlers(app_config_with_production: AppConfig, mock_ssh: AsyncMock) ->
 # ══════════════════════════════════════════════════════════
 
 
-def test_all_10_handlers_registered(handlers: dict) -> None:
+def test_all_11_handlers_registered(handlers: dict) -> None:
     expected = {
         "git-pull", "detect-modules", "docker-build", "docker-up",
         "module-update", "cache-clear", "smoke-test", "http-verify",
-        "save-deploy-state", "rollback",
+        "save-deploy-state", "rollback", "db-checkpoint",
     }
     assert set(handlers.keys()) == expected
 
@@ -985,6 +985,47 @@ async def test_rollback_force_recreates(handlers: dict, mock_ssh: AsyncMock) -> 
     await handlers["rollback"](server_host="staging", old_commit="abc", branch="main")
     up_cmd = mock_ssh.run_in_repo.call_args_list[-1][0][1]
     assert "--force-recreate" in up_cmd
+
+
+# ══════════════════════════════════════════════════════════
+# db-checkpoint
+# ══════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_db_checkpoint_default_command(handlers, mock_ssh):
+    """db-checkpoint runs pgBackRest command by default."""
+    mock_ssh.run.side_effect = [_make_ssh_result()]
+    result = await handlers["db-checkpoint"](
+        server_host="staging",
+    )
+    assert result["checkpoint_created"] is True
+    cmd = mock_ssh.run.call_args_list[0].args[1]
+    assert "pgbackrest" in cmd
+    assert "flock" in cmd
+
+
+@pytest.mark.asyncio
+async def test_db_checkpoint_custom_command(handlers, mock_ssh):
+    """db-checkpoint uses custom command when provided."""
+    mock_ssh.run.side_effect = [_make_ssh_result()]
+    result = await handlers["db-checkpoint"](
+        server_host="staging",
+        db_checkpoint_command="pg_dump -Fc mydb > /tmp/backup.custom",
+    )
+    assert result["checkpoint_created"] is True
+    cmd = mock_ssh.run.call_args_list[0].args[1]
+    assert "pg_dump" in cmd
+
+
+@pytest.mark.asyncio
+async def test_db_checkpoint_uses_server_container(handlers, mock_ssh):
+    """db-checkpoint constructs command using server.container from config."""
+    mock_ssh.run.side_effect = [_make_ssh_result()]
+    await handlers["db-checkpoint"](server_host="staging")
+    cmd = mock_ssh.run.call_args_list[0].args[1]
+    # staging server container from conftest is "odoo19", so expect "odoo19-db"
+    assert "-db" in cmd  # container name + "-db" suffix
 
 
 # ══════════════════════════════════════════════════════════

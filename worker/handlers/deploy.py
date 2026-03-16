@@ -463,6 +463,32 @@ def register_deploy_handlers(
         logger.info("rollback on %s to %s", server.host, old_commit[:8])
         return {}
 
+    # ── db-checkpoint ─────────────────────────────────────────
+
+    @worker.task(task_type="db-checkpoint", timeout_ms=600_000)
+    async def db_checkpoint(
+        server_host: str,
+        db_checkpoint_command: str = "",
+        container: str = "",
+        **kwargs: Any,
+    ) -> dict:
+        """Create DB checkpoint before module update (production only)."""
+        server = config.resolve_server(server_host)
+        ctr = container or server.container
+
+        if db_checkpoint_command:
+            cmd = db_checkpoint_command
+        else:
+            cmd = (
+                f"docker exec {ctr}-db su - postgres -c "
+                f"\"flock -n /tmp/pgbr.lock /usr/bin/pgbackrest "
+                f"--stanza=main --type=full backup\""
+            )
+
+        await ssh.run(server, cmd, check=True, timeout=540)
+        logger.info("db-checkpoint on %s: completed", server.host)
+        return {"checkpoint_created": True}
+
 
 # ── Helpers ────────────────────────────────────────────────────
 
