@@ -123,8 +123,8 @@ async def test_github_valid_signature(client: TestClient, app_config: AppConfig)
 # ── Event routing ─────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_ignores_non_main_pr(client: TestClient, app_config: AppConfig) -> None:
-    """PRs targeting staging are now ignored (previously they were the trigger)."""
+async def test_pr_to_staging_is_accepted(client: TestClient, app_config: AppConfig) -> None:
+    """PRs targeting staging branch are accepted — webhook publishes msg_pr_event for any base branch."""
     payload = {
         "action": "opened",
         "pull_request": {
@@ -140,18 +140,24 @@ async def test_ignores_non_main_pr(client: TestClient, app_config: AppConfig) ->
     body = json.dumps(payload).encode()
     sig = _sign(body, app_config.github.webhook_secret)
 
-    resp = await client.post(
-        "/webhook/github",
-        data=body,
-        headers={
-            "X-GitHub-Event": "pull_request",
-            "X-Hub-Signature-256": sig,
-            "Content-Type": "application/json",
-        },
-    )
-    assert resp.status == 200
-    data = await resp.json()
-    assert data["status"] == "ignored"
+    with patch.object(WebhookServer, "_create_zeebe_client") as mock_factory:
+        mock_client = AsyncMock()
+        mock_client.publish_message = AsyncMock()
+        mock_factory.return_value = mock_client
+
+        resp = await client.post(
+            "/webhook/github",
+            data=body,
+            headers={
+                "X-GitHub-Event": "pull_request",
+                "X-Hub-Signature-256": sig,
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["message"] == "msg_pr_event"
+        assert data["pr_number"] == 10
 
 
 @pytest.mark.asyncio
