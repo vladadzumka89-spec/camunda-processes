@@ -646,8 +646,8 @@ def register_sync_handlers(
     ) -> dict:
         """Merge sync branch into staging with -X theirs and push.
 
-        Called after deploy to demo + optional conflict resolution.
-        The sync branch may contain additional fix commits pushed by the developer.
+        Works in the existing repo on the server (no clone needed).
+        Fetches the sync branch, merges with -X theirs, and pushes.
         """
         server = config.resolve_server(server_host or "staging")
         repo = repository or config.github.repository
@@ -660,23 +660,15 @@ def register_sync_handlers(
             f"https://x-access-token:{deploy_pat}@github.com/{repo}.git"
         )
 
-        run_id = uuid.uuid4().hex[:8]
-        workspace = f"/tmp/merge-workspace-{run_id}"
-
-        try:
-            # Merge sync branch into staging with -X theirs
-            # (upstream files overwrite staging, custom modules untouched)
-            merge_cmd = (
-                f"git clone --depth=50 -b staging {push_url} {workspace} && "
-                f"cd {workspace} && "
-                f"git fetch origin {sync_branch} && "
-                f"git merge origin/{sync_branch} -X theirs --no-edit && "
-                f"git push --no-verify origin staging"
-            )
-            await ssh.run(server, merge_cmd, check=True, timeout=120)
-            logger.info("Merged %s into staging (workspace %s)", sync_branch, run_id)
-        finally:
-            await ssh.run(server, f"rm -rf {workspace}", check=False)
+        repo_dir = server.repo_dir
+        merge_cmd = (
+            f"cd {repo_dir} && "
+            f"git fetch {push_url} {sync_branch} && "
+            f"git merge FETCH_HEAD -X theirs --no-edit && "
+            f"git push {push_url} HEAD:staging"
+        )
+        await ssh.run(server, merge_cmd, check=True, timeout=120)
+        logger.info("Merged %s into staging on %s", sync_branch, server.host)
 
         return {"staging_merged": True}
 
