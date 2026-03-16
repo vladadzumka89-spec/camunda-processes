@@ -904,7 +904,7 @@ async def test_save_deploy_state(handlers: dict, mock_ssh: AsyncMock) -> None:
     result = await handlers["save-deploy-state"](
         server_host="staging", branch="staging", new_commit="abc123def",
     )
-    assert result == {}
+    assert result == {"state_saved": True}
     cmd = mock_ssh.run.call_args[0][1]
     assert "mkdir -p" in cmd
     assert "abc123def" in cmd
@@ -933,6 +933,19 @@ async def test_save_deploy_state_permissions(handlers: dict, mock_ssh: AsyncMock
     cmd = mock_ssh.run.call_args[0][1]
     assert "chmod 700" in cmd
     assert "chmod 600" in cmd
+
+
+@pytest.mark.asyncio
+async def test_save_deploy_state_handles_ssh_error(handlers, mock_ssh):
+    """save-deploy-state should not raise on SSH failure — returns state_saved=False."""
+    from worker.ssh import RemoteCommandError
+    mock_ssh.run.side_effect = RemoteCommandError("SSH failed", 1, "")
+    result = await handlers["save-deploy-state"](
+        server_host="staging",
+        branch="staging",
+        new_commit="abc123",
+    )
+    assert result["state_saved"] is False
 
 
 # ══════════════════════════════════════════════════════════
@@ -985,6 +998,86 @@ async def test_rollback_force_recreates(handlers: dict, mock_ssh: AsyncMock) -> 
     await handlers["rollback"](server_host="staging", old_commit="abc", branch="main")
     up_cmd = mock_ssh.run_in_repo.call_args_list[-1][0][1]
     assert "--force-recreate" in up_cmd
+
+
+@pytest.mark.asyncio
+async def test_rollback_production_restores_db(
+    app_config_with_production: AppConfig, mock_ssh: AsyncMock
+) -> None:
+    """Rollback on production should stop services, restore DB, then checkout."""
+    config = AppConfig(
+        servers=app_config_with_production.servers,
+        db_restore_command="pgbackrest --stanza=main restore",
+    )
+    prod_handlers = _extract_handlers(config, mock_ssh)
+
+    mock_ssh.run_in_repo.side_effect = [
+        OK(),  # docker compose stop
+        OK(),  # docker compose start db
+        OK(),  # git checkout
+        OK(),  # docker compose up -d
+    ]
+    mock_ssh.run.return_value = OK()  # db restore command
+
+    result = await prod_handlers["rollback"](
+        server_host="production",
+        old_commit="abc123",
+        branch="main",
+    )
+    assert result == {}
+
+    # Verify restore was called with the correct command
+    restore_call = mock_ssh.run.call_args_list[0][0][1]
+    assert "pgbackrest" in restore_call
+
+    # Verify order: stop → start db → checkout → up
+    repo_calls = [c[0][1] for c in mock_ssh.run_in_repo.call_args_list]
+    assert "docker compose stop" in repo_calls[0]
+    assert "docker compose start db" in repo_calls[1]
+    assert "git checkout" in repo_calls[2]
+    assert "--force-recreate" in repo_calls[3]
+
+
+@pytest.mark.asyncio
+async def test_rollback_staging_no_db_restore(
+    handlers: dict, mock_ssh: AsyncMock
+) -> None:
+    """Rollback on staging should NOT restore DB — just checkout + restart."""
+    mock_ssh.run_in_repo.side_effect = [
+        OK(),  # git checkout
+        OK(),  # docker compose up -d
+    ]
+    await handlers["rollback"](
+        server_host="staging",
+        old_commit="abc123",
+        branch="staging",
+    )
+    # No ssh.run calls (no restore command)
+    assert mock_ssh.run.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_rollback_production_no_restore_command(
+    app_config_with_production: AppConfig, mock_ssh: AsyncMock
+) -> None:
+    """If no db_restore_command configured, skip DB restore even on production."""
+    config = AppConfig(
+        servers=app_config_with_production.servers,
+        db_restore_command="",  # empty = no restore
+    )
+    prod_handlers = _extract_handlers(config, mock_ssh)
+
+    mock_ssh.run_in_repo.side_effect = [
+        OK(),  # git checkout
+        OK(),  # docker compose up -d
+    ]
+    await prod_handlers["rollback"](
+        server_host="production",
+        old_commit="abc123",
+        branch="main",
+    )
+    # No restore called
+    assert mock_ssh.run.call_count == 0
 
 
 # ══════════════════════════════════════════════════════════

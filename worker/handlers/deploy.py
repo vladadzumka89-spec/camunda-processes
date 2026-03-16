@@ -413,20 +413,24 @@ def register_deploy_handlers(
         repo_dir: str = "",
         **kwargs: Any,
     ) -> dict:
-        """Save deployed commit hash to state file."""
+        """Save deployed commit hash to state file. Best-effort — does not fail deploy."""
         server = config.resolve_server(server_host)
         repo = repo_dir or server.repo_dir
 
-        safe_branch = branch.replace("/", "_")
-        await ssh.run(
-            server,
-            f"mkdir -p {repo}/.deploy-state && chmod 700 {repo}/.deploy-state && "
-            f"echo '{new_commit}' > {repo}/.deploy-state/deploy_state_{safe_branch} && "
-            f"chmod 600 {repo}/.deploy-state/deploy_state_{safe_branch}",
-            check=True,
-        )
-        logger.info("save-deploy-state on %s: %s → %s", server.host, branch, new_commit[:8])
-        return {}
+        try:
+            safe_branch = branch.replace("/", "_")
+            await ssh.run(
+                server,
+                f"mkdir -p {repo}/.deploy-state && chmod 700 {repo}/.deploy-state && "
+                f"echo '{new_commit}' > {repo}/.deploy-state/deploy_state_{safe_branch} && "
+                f"chmod 600 {repo}/.deploy-state/deploy_state_{safe_branch}",
+                check=True,
+            )
+            logger.info("save-deploy-state on %s: %s → %s", server.host, branch, new_commit[:8])
+            return {"state_saved": True}
+        except Exception as exc:
+            logger.warning("Failed to save deploy state on %s: %s", server.host, exc)
+            return {"state_saved": False}
 
     # ── rollback ───────────────────────────────────────────────
 
@@ -435,15 +439,26 @@ def register_deploy_handlers(
         server_host: str,
         old_commit: str = "none",
         branch: str = "",
+        db_restore_command: str = "",
         repo_dir: str = "",
         **kwargs: Any,
     ) -> dict:
-        """Rollback to previous commit."""
+        """Rollback to previous commit. On production, restores DB first."""
         server = config.resolve_server(server_host)
 
         if old_commit in ("none", ""):
             logger.warning("rollback on %s: no previous commit, skipping", server.host)
             return {}
+
+        # Production: restore DB from checkpoint
+        is_prod = server == config.servers.get("production")
+        restore_cmd = db_restore_command or config.db_restore_command
+
+        if is_prod and restore_cmd:
+            logger.info("rollback on %s: restoring DB from checkpoint", server.host)
+            await ssh.run_in_repo(server, "docker compose stop", timeout=60)
+            await ssh.run(server, restore_cmd, check=True, timeout=600)
+            await ssh.run_in_repo(server, "docker compose start db", check=True, timeout=60)
 
         if branch:
             await ssh.run_in_repo(
@@ -460,7 +475,10 @@ def register_deploy_handlers(
             check=True,
             timeout=120,
         )
-        logger.info("rollback on %s to %s", server.host, old_commit[:8])
+        logger.info(
+            "rollback on %s to %s (db_restored=%s)",
+            server.host, old_commit[:8], bool(is_prod and restore_cmd),
+        )
         return {}
 
 
