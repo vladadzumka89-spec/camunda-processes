@@ -40,7 +40,7 @@ async def test_publish_message_success(app_config):
     call_kw = mock_instance.publish_message.call_args[1]
     assert call_kw["name"] == "msg_review_done"
     assert call_kw["correlation_key"] == "42"
-    assert call_kw["time_to_live"] == 3_600_000
+    assert call_kw["time_to_live_in_milliseconds"] == 3_600_000
 
 
 @pytest.mark.asyncio

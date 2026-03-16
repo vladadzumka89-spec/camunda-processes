@@ -1034,45 +1034,155 @@ async def test_rollback_force_recreates(handlers: dict, mock_ssh: AsyncMock) -> 
     assert "--force-recreate" in up_cmd
 
 
+@pytest.mark.asyncio
+async def test_rollback_production_restores_db(mock_ssh: AsyncMock) -> None:
+    """Production rollback calls HTTP POST to restore DB when db_restore_url is set."""
+    cfg = AppConfig(
+        servers={
+            "staging": ServerConfig(host="staging.example.com", ssh_user="deploy"),
+            "production": ServerConfig(host="prod.example.com", ssh_user="deploy"),
+        },
+        db_restore_url="http://danylo:9090/restore/",
+    )
+    h = _extract_handlers(cfg, mock_ssh)
+    mock_ssh.run_in_repo.return_value = OK()
+
+    with patch("worker.handlers.deploy.httpx") as mock_httpx:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status = MagicMock()
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx.AsyncClient.return_value = mock_client
+
+        result = await h["rollback"](
+            server_host="production", old_commit="abc123", branch="main",
+        )
+
+    assert result == {}
+    mock_client.post.assert_awaited_once()
+    call_args = mock_client.post.call_args
+    assert call_args.args[0] == "http://danylo:9090/restore/"
+
+
+@pytest.mark.asyncio
+async def test_rollback_production_no_restore_url(mock_ssh: AsyncMock) -> None:
+    """Production rollback skips HTTP restore when db_restore_url is not configured."""
+    cfg = AppConfig(
+        servers={
+            "staging": ServerConfig(host="staging.example.com", ssh_user="deploy"),
+            "production": ServerConfig(host="prod.example.com", ssh_user="deploy"),
+        },
+        db_restore_url="",
+    )
+    h = _extract_handlers(cfg, mock_ssh)
+    mock_ssh.run_in_repo.return_value = OK()
+
+    with patch("worker.handlers.deploy.httpx") as mock_httpx:
+        await h["rollback"](
+            server_host="production", old_commit="abc123", branch="main",
+        )
+        mock_httpx.AsyncClient.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_rollback_staging_skips_db_restore(mock_ssh: AsyncMock) -> None:
+    """Staging rollback never calls HTTP restore even when db_restore_url is set."""
+    cfg = AppConfig(
+        servers={
+            "staging": ServerConfig(host="staging.example.com", ssh_user="deploy"),
+            "production": ServerConfig(host="prod.example.com", ssh_user="deploy"),
+        },
+        db_restore_url="http://danylo:9090/restore/",
+    )
+    h = _extract_handlers(cfg, mock_ssh)
+    mock_ssh.run_in_repo.return_value = OK()
+
+    with patch("worker.handlers.deploy.httpx") as mock_httpx:
+        await h["rollback"](
+            server_host="staging", old_commit="abc123", branch="main",
+        )
+        mock_httpx.AsyncClient.assert_not_called()
+
+
 # ══════════════════════════════════════════════════════════
 # db-checkpoint
 # ══════════════════════════════════════════════════════════
 
 
+def _make_handlers_with_config(config: AppConfig, mock_ssh: AsyncMock) -> dict:
+    """Extract handlers using a custom AppConfig."""
+    return _extract_handlers(config, mock_ssh)
+
+
 @pytest.mark.asyncio
-async def test_db_checkpoint_default_command(handlers, mock_ssh):
-    """db-checkpoint runs pgBackRest command by default."""
-    mock_ssh.run.side_effect = [_make_ssh_result()]
-    result = await handlers["db-checkpoint"](
-        server_host="staging",
+async def test_db_checkpoint_calls_http(mock_ssh: AsyncMock) -> None:
+    """db-checkpoint calls checkpoint URL via HTTP POST with auth token."""
+    cfg = AppConfig(
+        servers={"staging": ServerConfig(host="staging.example.com", ssh_user="deploy")},
+        db_checkpoint_url="http://danylo:9090/checkpoint/",
+        db_checkpoint_token="test-token-123",
     )
+    h = _make_handlers_with_config(cfg, mock_ssh)
+
+    with patch("worker.handlers.deploy.httpx") as mock_httpx:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status = MagicMock()
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx.AsyncClient.return_value = mock_client
+
+        result = await h["db-checkpoint"](server_host="staging")
+
     assert result["checkpoint_created"] is True
-    cmd = mock_ssh.run.call_args_list[0].args[1]
-    assert "pgbackrest" in cmd
-    assert "flock" in cmd
+    mock_client.post.assert_awaited_once()
+    call_args = mock_client.post.call_args
+    assert call_args.args[0] == "http://danylo:9090/checkpoint/"
+    assert call_args.kwargs.get("headers", {}).get("X-Auth-Token") == "test-token-123"
 
 
 @pytest.mark.asyncio
-async def test_db_checkpoint_custom_command(handlers, mock_ssh):
-    """db-checkpoint uses custom command when provided."""
-    mock_ssh.run.side_effect = [_make_ssh_result()]
-    result = await handlers["db-checkpoint"](
-        server_host="staging",
-        db_checkpoint_command="pg_dump -Fc mydb > /tmp/backup.custom",
+async def test_db_checkpoint_skips_without_url(mock_ssh: AsyncMock) -> None:
+    """db-checkpoint skips if no URL configured."""
+    cfg = AppConfig(
+        servers={"staging": ServerConfig(host="staging.example.com", ssh_user="deploy")},
+        db_checkpoint_url="",
     )
-    assert result["checkpoint_created"] is True
-    cmd = mock_ssh.run.call_args_list[0].args[1]
-    assert "pg_dump" in cmd
+    h = _make_handlers_with_config(cfg, mock_ssh)
+    result = await h["db-checkpoint"](server_host="staging")
+    assert result["checkpoint_created"] is False
 
 
 @pytest.mark.asyncio
-async def test_db_checkpoint_uses_server_container(handlers, mock_ssh):
-    """db-checkpoint constructs command using server.container from config."""
-    mock_ssh.run.side_effect = [_make_ssh_result()]
-    await handlers["db-checkpoint"](server_host="staging")
-    cmd = mock_ssh.run.call_args_list[0].args[1]
-    # staging server container from conftest is "odoo19", so expect "odoo19-db"
-    assert "-db" in cmd  # container name + "-db" suffix
+async def test_db_checkpoint_no_token_omits_header(mock_ssh: AsyncMock) -> None:
+    """db-checkpoint posts without X-Auth-Token header when token is empty."""
+    cfg = AppConfig(
+        servers={"staging": ServerConfig(host="staging.example.com", ssh_user="deploy")},
+        db_checkpoint_url="http://danylo:9090/checkpoint/",
+        db_checkpoint_token="",
+    )
+    h = _make_handlers_with_config(cfg, mock_ssh)
+
+    with patch("worker.handlers.deploy.httpx") as mock_httpx:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status = MagicMock()
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx.AsyncClient.return_value = mock_client
+
+        result = await h["db-checkpoint"](server_host="staging")
+
+    assert result["checkpoint_created"] is True
+    call_args = mock_client.post.call_args
+    assert "X-Auth-Token" not in call_args.kwargs.get("headers", {})
 
 
 # ══════════════════════════════════════════════════════════

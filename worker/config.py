@@ -75,6 +75,9 @@ class AppConfig:
     odoo: OdooConfig = field(default_factory=OdooConfig)
     ssh_key_path: str = ''
     openrouter_api_key: str = ''
+    db_checkpoint_url: str = ''
+    db_checkpoint_token: str = ''
+    db_restore_url: str = ''
     servers: dict[str, ServerConfig] = field(default_factory=dict)
 
     @classmethod
@@ -123,6 +126,9 @@ class AppConfig:
             ),
             ssh_key_path=str(Path.home() / '.ssh' / 'id_ed25519'),
             openrouter_api_key=os.getenv('OPENROUTER_API_KEY', ''),
+            db_checkpoint_url=os.getenv('DB_CHECKPOINT_URL', ''),
+            db_checkpoint_token=os.getenv('DB_CHECKPOINT_TOKEN', ''),
+            db_restore_url=os.getenv('DB_RESTORE_URL', ''),
             servers=servers,
         )
 
