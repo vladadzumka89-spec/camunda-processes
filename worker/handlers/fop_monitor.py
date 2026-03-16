@@ -43,6 +43,121 @@ LIMITS = {
     3: float(os.environ.get("FOP_LIMIT_GROUP_3", "9900000")),
 }
 
+CAMUNDA_REST_URL = os.environ.get(
+    "CAMUNDA_REST_URL", "http://orchestration:8080"
+)
+CAMUNDA_TOKEN_URL = os.environ.get(
+    "ZEEBE_TOKEN_URL",
+    os.environ.get(
+        "CAMUNDA_TOKEN_URL",
+        "http://keycloak:18080/auth/realms/camunda-platform/protocol/openid-connect/token",
+    ),
+)
+CAMUNDA_CLIENT_ID = os.environ.get(
+    "ZEEBE_CLIENT_ID", os.environ.get("CAMUNDA_CLIENT_ID", "orchestration")
+)
+CAMUNDA_CLIENT_SECRET = os.environ.get(
+    "ZEEBE_CLIENT_SECRET", os.environ.get("CAMUNDA_CLIENT_SECRET", "")
+)
+CAMUNDA_PROCESS_ID = "Process_0iy2u1a"
+
+_token_cache: dict = {"token": None, "expires_at": 0.0}
+
+
+# ── Camunda REST API (dedup) ──────────────────────────────────────────
+
+
+def _get_access_token() -> str:
+    """Get OAuth2 token from Keycloak (cached until expiry)."""
+    import httpx
+
+    now = time.time()
+    if _token_cache["token"] and now < _token_cache["expires_at"] - 30:
+        return _token_cache["token"]
+
+    resp = httpx.post(
+        CAMUNDA_TOKEN_URL,
+        data={
+            "grant_type": "client_credentials",
+            "client_id": CAMUNDA_CLIENT_ID,
+            "client_secret": CAMUNDA_CLIENT_SECRET,
+        },
+        timeout=15,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    _token_cache["token"] = data["access_token"]
+    _token_cache["expires_at"] = now + data.get("expires_in", 300)
+    return _token_cache["token"]
+
+
+def _get_active_fop_edrpous() -> set[str]:
+    """Query Camunda for active Process_0iy2u1a instances and return their fop_edrpou values."""
+    import httpx
+
+    try:
+        token = _get_access_token()
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+
+        # 1. Find all active Process_0iy2u1a instances
+        resp = httpx.post(
+            f"{CAMUNDA_REST_URL}/v2/process-instances/search",
+            headers=headers,
+            json={
+                "filter": {
+                    "processDefinitionId": CAMUNDA_PROCESS_ID,
+                    "state": "ACTIVE",
+                },
+                "page": {"limit": 200},
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        instances = resp.json().get("items", [])
+
+        if not instances:
+            return set()
+
+        # 2. Search for fop_edrpou variables in these instances
+        instance_keys = [i["processInstanceKey"] for i in instances]
+        active_edrpous = set()
+
+        # Query variables in batches (API may limit)
+        for key in instance_keys:
+            resp = httpx.post(
+                f"{CAMUNDA_REST_URL}/v2/variables/search",
+                headers=headers,
+                json={
+                    "filter": {
+                        "processInstanceKey": key,
+                        "name": "fop_edrpou",
+                    },
+                },
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                for var in resp.json().get("items", []):
+                    val = var.get("value")
+                    if val:
+                        # value may be JSON-encoded string
+                        if isinstance(val, str):
+                            val = val.strip('"')
+                        active_edrpous.add(str(val))
+
+        logger.info(
+            "Дедуплікація: %d активних Process_0iy2u1a, ЄДРПОУ: %s",
+            len(instances),
+            active_edrpous or "немає",
+        )
+        return active_edrpous
+
+    except Exception as e:
+        logger.warning("Не вдалося перевірити активні процеси (дедуплікація пропущена): %s", e)
+        return set()
+
 
 # ── DB connection ──────────────────────────────────────────────────────
 
@@ -633,6 +748,22 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
             critical_fops.append(fop_entry)
 
     logger.info("Критичних ФОПів (≤%d днів до ліміту): %d", days_ahead, len(critical_fops))
+
+    # Dedup: exclude FOPs that already have an active Process_0iy2u1a
+    if critical_fops:
+        active_edrpous = _get_active_fop_edrpous()
+        if active_edrpous:
+            before = len(critical_fops)
+            critical_fops = [
+                f for f in critical_fops
+                if f["fop_edrpou"] not in active_edrpous
+            ]
+            skipped = before - len(critical_fops)
+            if skipped:
+                logger.info(
+                    "Дедуплікація: пропущено %d ФОП (вже мають активний процес)",
+                    skipped,
+                )
 
     # Build HTML report
     report_html = _build_fop_report_html(

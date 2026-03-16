@@ -6,9 +6,10 @@ Endpoints:
     GET  /health          — Liveness probe
 
 Zeebe messages published:
-    msg_pr_event     — PR opened/reopened targeting main → starts feature-to-production
-    msg_pr_updated   — PR synchronize → correlates to running instance by pr_number
+    msg_pr_event       — PR opened/reopened targeting main → starts feature-to-production
+    msg_pr_updated     — PR synchronize → correlates to running instance by pr_number
     msg_odoo_task_done — Odoo task closed → correlates to upstream-sync by odoo_task_id
+    msg_deploy_trigger — push to staging → starts deploy-process
 """
 
 from __future__ import annotations
@@ -123,6 +124,8 @@ class WebhookServer:
         # 3. Route by event type
         if event_type == 'pull_request':
             return await self._route_pr_event(payload)
+        elif event_type == 'push':
+            return await self._route_push_event(payload)
 
         # Ignore other events
         return web.json_response({"status": "ignored", "event": event_type})
@@ -154,6 +157,54 @@ class WebhookServer:
             "status": "ignored",
             "reason": f"base_branch={base_branch}, action={action}",
         })
+
+    async def _route_push_event(self, payload: dict) -> web.Response:
+        """Route push events — deploy staging on push to staging branch."""
+        ref = payload.get('ref', '')
+        after_sha = payload.get('after', '')
+
+        if ref != 'refs/heads/staging':
+            logger.info("Ignoring push to %s (not staging)", ref)
+            return web.json_response({"status": "ignored", "ref": ref})
+
+        staging = self._config.servers.get('staging')
+        if not staging:
+            logger.error("No staging server configured for deploy trigger")
+            return web.Response(status=500, text="No staging server configured")
+
+        variables: dict[str, Any] = {
+            "trigger_sha": after_sha,
+            "server_host": staging.host,
+            "ssh_user": staging.ssh_user,
+            "repo_dir": staging.repo_dir,
+            "db_name": staging.db_name,
+            "container": staging.container,
+            "branch": "staging",
+            "run_smoke_test": True,
+            "test_mode": "full",
+            "odoo_project_id": self._config.odoo.project_id,
+        }
+
+        try:
+            client = self._create_zeebe_client()
+            await client.publish_message(
+                name="msg_deploy_trigger",
+                correlation_key=after_sha,
+                variables=variables,
+                time_to_live_in_milliseconds=3_600_000,
+            )
+            logger.info(
+                "Published msg_deploy_trigger for push to staging (sha=%s)",
+                after_sha[:12],
+            )
+            return web.json_response({
+                "status": "published",
+                "message": "msg_deploy_trigger",
+                "trigger_sha": after_sha,
+            })
+        except Exception as exc:
+            logger.error("Failed to publish msg_deploy_trigger: %s", exc)
+            return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
 
     async def _publish_pr_event(self, pr: dict, payload: dict) -> web.Response:
         """Publish msg_pr_event — starts a new feature-to-production process instance."""
@@ -198,6 +249,7 @@ class WebhookServer:
                 name="msg_pr_event",
                 correlation_key=variables.get("head_branch", ""),
                 variables=variables,
+                time_to_live_in_milliseconds=3_600_000,
             )
             logger.info(
                 "Published msg_pr_event for PR #%d (%s)",
@@ -225,6 +277,7 @@ class WebhookServer:
                     "pr_updated": True,
                     "head_sha": pr.get('head', {}).get('sha', ''),
                 },
+                time_to_live_in_milliseconds=3_600_000,
             )
             logger.info("Published msg_pr_updated for PR #%d", pr_number)
             return web.json_response({
@@ -368,7 +421,7 @@ class WebhookServer:
         try:
             async with httpx.AsyncClient() as client:
                 token = await _get_oauth_token(client)
-                resp = await client.patch(
+                resp = await client.post(
                     f"{rest_url}/v2/user-tasks/{user_task_key}/completion",
                     json={"variables": variables} if variables else {},
                     headers={"Authorization": f"Bearer {token}"},

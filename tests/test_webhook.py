@@ -465,3 +465,75 @@ async def test_pr_event_includes_staging_vars(
         assert variables["staging_host"] == "staging.example.com"
         assert variables["staging_ssh_user"] == "deploy"
         assert variables["staging_repo_dir"] == "/opt/odoo-enterprise"
+
+
+# ── Push event routing ────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_push_staging_publishes_deploy_trigger(
+    client: TestClient, app_config: AppConfig,
+) -> None:
+    """Push to staging branch should publish msg_deploy_trigger."""
+    payload = {
+        "ref": "refs/heads/staging",
+        "after": "abc123def456",
+        "before": "000000",
+        "repository": {"full_name": "tut-ua/odoo-enterprise"},
+        "head_commit": {"id": "abc123def456", "message": "Merge feat/x"},
+        "pusher": {"name": "deploy-bot"},
+    }
+    body = json.dumps(payload).encode()
+    sig = _sign(body, app_config.github.webhook_secret)
+
+    with patch.object(WebhookServer, "_create_zeebe_client") as mock_factory:
+        mock_client = AsyncMock()
+        mock_client.publish_message = AsyncMock()
+        mock_factory.return_value = mock_client
+
+        resp = await client.post(
+            "/webhook/github",
+            data=body,
+            headers={
+                "X-GitHub-Event": "push",
+                "X-Hub-Signature-256": sig,
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["message"] == "msg_deploy_trigger"
+
+        call_kwargs = mock_client.publish_message.call_args[1]
+        assert call_kwargs["name"] == "msg_deploy_trigger"
+        assert call_kwargs["correlation_key"] == "abc123def456"
+        assert call_kwargs["variables"]["trigger_sha"] == "abc123def456"
+        assert call_kwargs["variables"]["server_host"] == "staging.example.com"
+        assert call_kwargs["variables"]["branch"] == "staging"
+
+
+@pytest.mark.asyncio
+async def test_push_non_staging_ignored(
+    client: TestClient, app_config: AppConfig,
+) -> None:
+    """Push to non-staging branch should be ignored."""
+    payload = {
+        "ref": "refs/heads/main",
+        "after": "abc123",
+        "repository": {"full_name": "tut-ua/odoo-enterprise"},
+    }
+    body = json.dumps(payload).encode()
+    sig = _sign(body, app_config.github.webhook_secret)
+
+    resp = await client.post(
+        "/webhook/github",
+        data=body,
+        headers={
+            "X-GitHub-Event": "push",
+            "X-Hub-Signature-256": sig,
+            "Content-Type": "application/json",
+        },
+    )
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["status"] == "ignored"
