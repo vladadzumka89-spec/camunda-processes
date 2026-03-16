@@ -16,6 +16,7 @@ from .github import register_github_handlers
 from .notify import register_notify_handlers
 from .ocr import register_ocr_handlers
 from .fop_monitor import register_fop_monitor_handlers
+from .messaging import register_messaging_handlers
 from .sync import register_sync_handlers
 
 
@@ -54,3 +55,4 @@ def register_all_handlers(
     register_notify_handlers(worker, config)
     register_ocr_handlers(worker, config)
     register_fop_monitor_handlers(worker, config)
+    register_messaging_handlers(worker, config)

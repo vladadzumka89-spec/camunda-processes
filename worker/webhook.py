@@ -142,21 +142,14 @@ class WebhookServer:
             pr_number, action, base_branch,
         )
 
-        # PRs targeting main: full lifecycle (opened, synchronize)
-        if base_branch == 'main':
-            if action in ('opened', 'reopened'):
-                return await self._publish_pr_event(pr, payload)
-            elif action == 'synchronize':
-                return await self._publish_pr_updated(pr)
-            else:
-                logger.info("Ignoring PR #%d action=%s", pr_number, action)
-                return web.json_response({"status": "ignored", "action": action})
+        # PR opened/reopened: trigger review for any target branch
+        if action in ('opened', 'reopened'):
+            return await self._publish_pr_event(pr, payload)
+        elif action == 'synchronize':
+            return await self._publish_pr_updated(pr)
 
-        logger.info("Ignoring PR #%d: base=%s action=%s", pr_number, base_branch, action)
-        return web.json_response({
-            "status": "ignored",
-            "reason": f"base_branch={base_branch}, action={action}",
-        })
+        logger.info("Ignoring PR #%d action=%s", pr_number, action)
+        return web.json_response({"status": "ignored", "action": action})
 
     async def _route_push_event(self, payload: dict) -> web.Response:
         """Route push events — deploy staging on push to staging branch."""
