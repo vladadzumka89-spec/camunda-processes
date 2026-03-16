@@ -50,7 +50,7 @@
       <bpmn:outgoing>Flow_to_check</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <!-- Service Task — fop-limit-check (worker: analysis + JSON report in variables) -->
+    <!-- Service Task — fop-limit-check (worker: analysis + JSON report) -->
     <bpmn:serviceTask id="ST_fop_check" name="Перевірка лімітів ФОП">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="fop-limit-check" retries="1" />
@@ -68,7 +68,7 @@
         <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/d454b686-042f-4efd-9e78-4174d5e6a30f&quot;" target="url" />
           <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="= {action: &quot;fop_limit_report&quot;, report: report_json}" target="body" />
         </zeebe:ioMapping>
