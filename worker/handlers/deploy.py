@@ -357,12 +357,8 @@ def register_deploy_handlers(
 
         db_password = await _get_db_password(ssh, server, ctr)
 
-        # Stop all services to prevent websocket interference
-        await ssh.run_in_repo(server, "docker compose stop", timeout=60)
-
-        # Run smoke test (--no-deps: only DB, no nginx/sfu)
-        await ssh.run_in_repo(server, "docker compose start db", check=True, timeout=60)
-        await _sleep(3)
+        # Run smoke test in a separate container without stopping services.
+        # Odoo with --stop-after-init --no-http can run alongside the main instance.
         result = await ssh.run_in_repo(
             server,
             f"timeout 120 docker compose run --rm --no-deps -T web "
@@ -384,9 +380,6 @@ def register_deploy_handlers(
                     error_lines.append(line.strip())
 
         smoke_passed = result.exit_code == 0 and not error_lines
-
-        # Always restart all services — DB is already migrated, rollback is dangerous
-        await ssh.run_in_repo(server, "docker compose up -d", check=True)
 
         if not smoke_passed:
             logger.warning("Smoke test failed on %s: %s", server.host, error_lines[:3])
