@@ -16,7 +16,8 @@ from pyzeebe import ZeebeClient, ZeebeWorker, create_insecure_channel
 logger = logging.getLogger(__name__)
 
 COMPOSE_DIR = Path(__file__).parent
-BPMN_DIR = Path(__file__).parents[2] / "bpmn"
+BPMN_DIR = Path(__file__).parents[2] / "bpmn" / "ci-cd"
+FORMS_DIR = Path(__file__).parents[2] / "bpmn" / "forms"
 ZEEBE_GRPC = "localhost:26500"
 ZEEBE_REST = "http://localhost:8088"
 AUTH = ("demo", "demo")
@@ -75,7 +76,9 @@ def deploy_bpmn(zeebe_stack):
     resources = [
         BPMN_DIR / "feature-to-production.bpmn",
         BPMN_DIR / "deploy-process.bpmn",
-        *(BPMN_DIR / "forms").glob("*.form"),
+        BPMN_DIR / "pr-review.bpmn",
+        BPMN_DIR / "verification-process.bpmn",
+        *FORMS_DIR.glob("*.form"),
     ]
     deadline = time.monotonic() + 30
     last_error = None

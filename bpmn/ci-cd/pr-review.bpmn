@@ -3,6 +3,12 @@
 
   
 
+  <bpmn:message id="Message_pr_event" name="msg_pr_event">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=head_branch" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+
   <bpmn:message id="Message_pr_updated" name="msg_pr_updated">
     <bpmn:extensionElements>
       <zeebe:subscription correlationKey="=string(pr_number)" />
@@ -11,15 +17,46 @@
 
   <bpmn:process id="pr-review" name="PR Review" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="1.0" />
+      <zeebe:versionTag value="2.0" />
     </bpmn:extensionElements>
 
     
-    <bpmn:startEvent id="evt_start" name="Початок ревʼю">
-      <bpmn:outgoing>f_start_to_review</bpmn:outgoing>
+    <bpmn:startEvent id="evt_start" name="PR відкрито">
+      <bpmn:outgoing>f_start_to_parent_check</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_start" messageRef="Message_pr_event" />
     </bpmn:startEvent>
 
-    
+    <!-- ── CHECK: standalone or child process? ─────────────── -->
+    <bpmn:exclusiveGateway id="gw_parent_check" name="Є батьківський процес?" default="f_no_parent">
+      <bpmn:incoming>f_start_to_parent_check</bpmn:incoming>
+      <bpmn:outgoing>f_has_parent</bpmn:outgoing>
+      <bpmn:outgoing>f_no_parent</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="ST_create_review_task" name="Створити задачу ревʼю в Odoo">
+      <bpmn:documentation>Standalone review: створює головне завдання в Odoo.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;[review] PR #&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;Code Review&quot;), description: &quot;&lt;p&gt;Автоматичне ревʼю PR #&quot; + string(pr_number) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot;&lt;/p&gt;&quot;, create_process: true, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 237, bpmn_process_id: &quot;pr-review&quot;}" target="body" />
+          <zeebe:input source="=&quot;odoo_create_response&quot;" target="result_variable_name" />
+          <zeebe:output source="=string(odoo_create_response.id)" target="parent_process_instance_key" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_no_parent</bpmn:incoming>
+      <bpmn:outgoing>f_created_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="gw_merge_parent">
+      <bpmn:incoming>f_has_parent</bpmn:incoming>
+      <bpmn:incoming>f_created_to_merge</bpmn:incoming>
+      <bpmn:outgoing>f_start_to_review</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+
     <bpmn:serviceTask id="task_pr_agent" name="Рев'ю PR-Agent">
       <bpmn:documentation>Запускає PR-Agent для автоматичного code review.
 Output: review_score, has_critical_issues</bpmn:documentation>
@@ -83,16 +120,35 @@ Output: review_score, has_critical_issues</bpmn:documentation>
     </bpmn:endEvent>
 
     
-    <bpmn:endEvent id="evt_end" name="Ревʼю пройдено">
+    <bpmn:serviceTask id="ST_publish_review_done" name="Публікувати результат ревʼю">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="publish-message" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;msg_review_done&quot;" target="message_name" />
+          <zeebe:input source="=string(pr_number)" target="correlation_key" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:incoming>f_score_ok</bpmn:incoming>
+      <bpmn:outgoing>f_publish_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="evt_end" name="Ревʼю пройдено">
+      <bpmn:incoming>f_publish_to_end</bpmn:incoming>
     </bpmn:endEvent>
 
     
-    <bpmn:sequenceFlow id="f_start_to_review" sourceRef="evt_start" targetRef="task_pr_agent" />
+    <bpmn:sequenceFlow id="f_start_to_parent_check" sourceRef="evt_start" targetRef="gw_parent_check" />
+    <bpmn:sequenceFlow id="f_has_parent" name="Так" sourceRef="gw_parent_check" targetRef="gw_merge_parent">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(parent_process_instance_key) and parent_process_instance_key != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_no_parent" name="Standalone" sourceRef="gw_parent_check" targetRef="ST_create_review_task" />
+    <bpmn:sequenceFlow id="f_created_to_merge" sourceRef="ST_create_review_task" targetRef="gw_merge_parent" />
+    <bpmn:sequenceFlow id="f_start_to_review" sourceRef="gw_merge_parent" targetRef="task_pr_agent" />
     <bpmn:sequenceFlow id="f_review_to_gw" sourceRef="task_pr_agent" targetRef="gw_score" />
-    <bpmn:sequenceFlow id="f_score_ok" name="OK" sourceRef="gw_score" targetRef="evt_end">
+    <bpmn:sequenceFlow id="f_score_ok" name="OK" sourceRef="gw_score" targetRef="ST_publish_review_done">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=review_score &gt;= 7 and has_critical_issues = false</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_publish_to_end" sourceRef="ST_publish_review_done" targetRef="evt_end" />
     <bpmn:sequenceFlow id="f_score_low" name="&lt; 7" sourceRef="gw_score" targetRef="task_comment_low" />
     <bpmn:sequenceFlow id="f_comment_to_wait" sourceRef="task_comment_low" targetRef="recv_wait_update" />
     <bpmn:sequenceFlow id="f_wait_update_back" sourceRef="recv_wait_update" targetRef="task_pr_agent" />
@@ -102,4 +158,4 @@ Output: review_score, has_critical_issues</bpmn:documentation>
   </bpmn:process>
 
   
-  <bpmndi:BPMNDiagram id="BPMNDiagram_1"><bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="pr-review"><bpmndi:BPMNShape id="evt_start_di" bpmnElement="evt_start"><dc:Bounds x="207" y="222" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_pr_agent_di" bpmnElement="task_pr_agent"><dc:Bounds x="755" y="200" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="gw_score_di" bpmnElement="gw_score" isMarkerVisible="true"><dc:Bounds x="960" y="215" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="evt_end_di" bpmnElement="evt_end"><dc:Bounds x="1097" y="172" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_comment_low_di" bpmnElement="task_comment_low"><dc:Bounds x="1065" y="228" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="recv_wait_update_di" bpmnElement="recv_wait_update"><dc:Bounds x="1245" y="200" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_send_reminder_di" bpmnElement="task_send_reminder"><dc:Bounds x="1425" y="200" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_rem_di" bpmnElement="End_rem"><dc:Bounds x="1637" y="222" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="timer_reminder_di" bpmnElement="timer_reminder"><dc:Bounds x="1255" y="262" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNEdge id="f_start_to_review_di" bpmnElement="f_start_to_review"><di:waypoint x="243" y="240" /><di:waypoint x="755" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_review_to_gw_di" bpmnElement="f_review_to_gw"><di:waypoint x="855" y="240" /><di:waypoint x="960" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_score_ok_di" bpmnElement="f_score_ok"><di:waypoint x="1010" y="240" /><di:waypoint x="1040" y="240" /><di:waypoint x="1040" y="190" /><di:waypoint x="1097" y="190" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_score_low_di" bpmnElement="f_score_low"><di:waypoint x="1010" y="240" /><di:waypoint x="1055" y="240" /><di:waypoint x="1055" y="268" /><di:waypoint x="1065" y="268" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_comment_to_wait_di" bpmnElement="f_comment_to_wait"><di:waypoint x="1165" y="268" /><di:waypoint x="1195" y="268" /><di:waypoint x="1195" y="240" /><di:waypoint x="1245" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_wait_update_back_di" bpmnElement="f_wait_update_back"><di:waypoint x="1345" y="240" /><di:waypoint x="1365" y="240" /><di:waypoint x="1365" y="68" /><di:waypoint x="735" y="68" /><di:waypoint x="735" y="240" /><di:waypoint x="755" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_reminder_di" bpmnElement="f_reminder"><di:waypoint x="1273" y="298" /><di:waypoint x="1273" y="240" /><di:waypoint x="1425" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_to_End_rem_di" bpmnElement="f_to_End_rem"><di:waypoint x="1525" y="240" /><di:waypoint x="1637" y="240" /></bpmndi:BPMNEdge></bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1"><bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="pr-review"><bpmndi:BPMNShape id="evt_start_di" bpmnElement="evt_start"><dc:Bounds x="207" y="222" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_pr_agent_di" bpmnElement="task_pr_agent"><dc:Bounds x="755" y="200" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="gw_score_di" bpmnElement="gw_score" isMarkerVisible="true"><dc:Bounds x="960" y="215" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_publish_review_done_di" bpmnElement="ST_publish_review_done"><dc:Bounds x="1090" y="80" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="evt_end_di" bpmnElement="evt_end"><dc:Bounds x="1257" y="102" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_comment_low_di" bpmnElement="task_comment_low"><dc:Bounds x="1065" y="228" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="recv_wait_update_di" bpmnElement="recv_wait_update"><dc:Bounds x="1245" y="200" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_send_reminder_di" bpmnElement="task_send_reminder"><dc:Bounds x="1425" y="200" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_rem_di" bpmnElement="End_rem"><dc:Bounds x="1637" y="222" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="timer_reminder_di" bpmnElement="timer_reminder"><dc:Bounds x="1255" y="262" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNEdge id="f_start_to_review_di" bpmnElement="f_start_to_review"><di:waypoint x="243" y="240" /><di:waypoint x="755" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_review_to_gw_di" bpmnElement="f_review_to_gw"><di:waypoint x="855" y="240" /><di:waypoint x="960" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_score_ok_di" bpmnElement="f_score_ok"><di:waypoint x="985" y="215" /><di:waypoint x="985" y="120" /><di:waypoint x="1090" y="120" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_publish_to_end_di" bpmnElement="f_publish_to_end"><di:waypoint x="1190" y="120" /><di:waypoint x="1257" y="120" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_score_low_di" bpmnElement="f_score_low"><di:waypoint x="1010" y="240" /><di:waypoint x="1055" y="240" /><di:waypoint x="1055" y="268" /><di:waypoint x="1065" y="268" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_comment_to_wait_di" bpmnElement="f_comment_to_wait"><di:waypoint x="1165" y="268" /><di:waypoint x="1195" y="268" /><di:waypoint x="1195" y="240" /><di:waypoint x="1245" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_wait_update_back_di" bpmnElement="f_wait_update_back"><di:waypoint x="1345" y="240" /><di:waypoint x="1365" y="240" /><di:waypoint x="1365" y="68" /><di:waypoint x="735" y="68" /><di:waypoint x="735" y="240" /><di:waypoint x="755" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_reminder_di" bpmnElement="f_reminder"><di:waypoint x="1273" y="298" /><di:waypoint x="1273" y="240" /><di:waypoint x="1425" y="240" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_to_End_rem_di" bpmnElement="f_to_End_rem"><di:waypoint x="1525" y="240" /><di:waypoint x="1637" y="240" /></bpmndi:BPMNEdge></bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>

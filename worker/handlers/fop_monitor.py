@@ -3,8 +3,8 @@
 Підключається до БД BAS Бухгалтерія, аналізує надходження на рахунки ФОП
 та прогнозує дату досягнення ліміту для 2-ї та 3-ї груп ЄП.
 
-Повертає HTML-звіт та список критичних ФОП для оркестрації через BPMN.
-Запуск процесів "Сповіщення про зміну ФОП" виконується BPMN через Call Activity.
+Повертає JSON-звіт (всі ФОП для дашборду Odoo) та список критичних ФОП
+для оркестрації через BPMN (створення задач на зміну терміналу).
 
 Task type: fop-limit-check
 """
@@ -12,8 +12,6 @@ Task type: fop-limit-check
 from __future__ import annotations
 
 import asyncio
-import html
-import json
 import logging
 import os
 import re
@@ -42,6 +40,121 @@ LIMITS = {
     2: float(os.environ.get("FOP_LIMIT_GROUP_2", "6900000")),
     3: float(os.environ.get("FOP_LIMIT_GROUP_3", "9900000")),
 }
+
+CAMUNDA_REST_URL = os.environ.get(
+    "CAMUNDA_REST_URL", "http://orchestration:8080"
+)
+CAMUNDA_TOKEN_URL = os.environ.get(
+    "ZEEBE_TOKEN_URL",
+    os.environ.get(
+        "CAMUNDA_TOKEN_URL",
+        "http://keycloak:18080/auth/realms/camunda-platform/protocol/openid-connect/token",
+    ),
+)
+CAMUNDA_CLIENT_ID = os.environ.get(
+    "ZEEBE_CLIENT_ID", os.environ.get("CAMUNDA_CLIENT_ID", "orchestration")
+)
+CAMUNDA_CLIENT_SECRET = os.environ.get(
+    "ZEEBE_CLIENT_SECRET", os.environ.get("CAMUNDA_CLIENT_SECRET", "")
+)
+CAMUNDA_PROCESS_ID = "Process_0iy2u1a"
+
+_token_cache: dict = {"token": None, "expires_at": 0.0}
+
+
+# ── Camunda REST API (dedup) ──────────────────────────────────────────
+
+
+def _get_access_token() -> str:
+    """Get OAuth2 token from Keycloak (cached until expiry)."""
+    import httpx
+
+    now = time.time()
+    if _token_cache["token"] and now < _token_cache["expires_at"] - 30:
+        return _token_cache["token"]
+
+    resp = httpx.post(
+        CAMUNDA_TOKEN_URL,
+        data={
+            "grant_type": "client_credentials",
+            "client_id": CAMUNDA_CLIENT_ID,
+            "client_secret": CAMUNDA_CLIENT_SECRET,
+        },
+        timeout=15,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    _token_cache["token"] = data["access_token"]
+    _token_cache["expires_at"] = now + data.get("expires_in", 300)
+    return _token_cache["token"]
+
+
+def _get_active_fop_edrpous() -> set[str]:
+    """Query Camunda for active Process_0iy2u1a instances and return their fop_edrpou values."""
+    import httpx
+
+    try:
+        token = _get_access_token()
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+
+        # 1. Find all active Process_0iy2u1a instances
+        resp = httpx.post(
+            f"{CAMUNDA_REST_URL}/v2/process-instances/search",
+            headers=headers,
+            json={
+                "filter": {
+                    "processDefinitionId": CAMUNDA_PROCESS_ID,
+                    "state": "ACTIVE",
+                },
+                "page": {"limit": 200},
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        instances = resp.json().get("items", [])
+
+        if not instances:
+            return set()
+
+        # 2. Search for fop_edrpou variables in these instances
+        instance_keys = [i["processInstanceKey"] for i in instances]
+        active_edrpous = set()
+
+        # Query variables in batches (API may limit)
+        for key in instance_keys:
+            resp = httpx.post(
+                f"{CAMUNDA_REST_URL}/v2/variables/search",
+                headers=headers,
+                json={
+                    "filter": {
+                        "processInstanceKey": key,
+                        "name": "fop_edrpou",
+                    },
+                },
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                for var in resp.json().get("items", []):
+                    val = var.get("value")
+                    if val:
+                        # value may be JSON-encoded string
+                        if isinstance(val, str):
+                            val = val.strip('"')
+                        active_edrpous.add(str(val))
+
+        logger.info(
+            "Дедуплікація: %d активних Process_0iy2u1a, ЄДРПОУ: %s",
+            len(instances),
+            active_edrpous or "немає",
+        )
+        return active_edrpous
+
+    except Exception as e:
+        logger.warning("Не вдалося перевірити активні процеси (дедуплікація пропущена): %s", e)
+        return set()
 
 
 # ── DB connection ──────────────────────────────────────────────────────
@@ -430,128 +543,12 @@ def _analyze_fop(daily_data: list, today: date, year: int) -> dict | None:
     }
 
 
-# ── HTML report ────────────────────────────────────────────────────────
-
-
-def format_currency(value: float) -> str:
-    """Format number with space as thousands separator: 1234567.89 -> '1 234 567.89'"""
-    if value == 0:
-        return "0.00"
-    sign = "-" if value < 0 else ""
-    value = abs(value)
-    integer_part = int(value)
-    decimal_part = round(value - integer_part, 2)
-    formatted_int = f"{integer_part:,}".replace(",", " ")
-    return f"{sign}{formatted_int}.{int(decimal_part * 100):02d}"
-
-
-def format_date(value) -> str:
-    """Format date for display: date -> 'DD.MM.YYYY', None -> '-', str -> passthrough"""
-    if value is None:
-        return "-"
-    if isinstance(value, (date, datetime)):
-        return value.strftime("%d.%m.%Y")
-    return str(value)
-
-
-def _row_color(days_to_limit: int) -> str:
-    if days_to_limit == 0:
-        return "background:#ffcccc"  # red — exceeded
-    if days_to_limit <= 7:
-        return "background:#ffe0cc"  # orange
-    if days_to_limit <= 14:
-        return "background:#fff3cc"  # yellow
-    return ""
-
-
-def _build_fop_table(fops: list[dict], title: str | None = None) -> str:
-    """Build HTML table for a list of FOP dicts."""
-    lines = []
-    if title:
-        lines.append(f"<h4>{title}</h4>")
-    lines.append(
-        '<table border="1" cellpadding="5" cellspacing="0" '
-        'style="border-collapse:collapse;font-size:13px;width:100%">'
-    )
-    lines.append(
-        "<tr style=\"background:#f0f0f0;font-weight:bold\">"
-        "<th>#</th>"
-        "<th>ФОП</th>"
-        "<th>ЄДРПОУ</th>"
-        "<th>Група</th>"
-        "<th>Дохід, грн</th>"
-        "<th>% ліміту</th>"
-        "<th>Днів</th>"
-        "<th>Прогноз</th>"
-        "<th>Магазини</th>"
-        "<th>Тренд</th>"
-        "</tr>"
-    )
-    for i, f in enumerate(fops, 1):
-        color = _row_color(f.get("days_to_limit", 999))
-        style = f' style="{color}"' if color else ""
-        projected = f.get("projected_date", "-")
-        if isinstance(projected, (date, datetime)):
-            projected = format_date(projected)
-        lines.append(
-            f"<tr{style}>"
-            f"<td>{i}</td>"
-            f"<td>{html.escape(str(f.get('fop_name', '')))}</td>"
-            f"<td>{html.escape(str(f.get('fop_edrpou', '')))}</td>"
-            f"<td>{f.get('ep_group', '-')}</td>"
-            f"<td style=\"text-align:right\">{format_currency(f.get('total_income', 0))}</td>"
-            f"<td style=\"text-align:right\">{f.get('income_percent', 0)}%</td>"
-            f"<td style=\"text-align:center\">{f.get('days_to_limit', '-')}</td>"
-            f"<td>{html.escape(str(projected))}</td>"
-            f"<td>{html.escape(str(f.get('stores', '')))}</td>"
-            f"<td style=\"text-align:center\">{f.get('trend_ratio', '-')}</td>"
-            f"</tr>"
-        )
-    lines.append("</table>")
-    return "\n".join(lines)
-
-
-def _build_fop_report_html(
-    report_date: str,
-    total_fops: int,
-    total_analyzed: int,
-    critical_count: int,
-    all_fops_summary: list[dict],
-    critical_fops: list[dict],
-) -> str:
-    """Generate HTML report for Odoo task description."""
-    parts = []
-
-    parts.append(f"<h3>Моніторинг лімітів ФОП — {html.escape(report_date)}</h3>")
-    parts.append(
-        f"<p><b>Всього ФОП:</b> {total_fops} | "
-        f"<b>Проаналізовано:</b> {total_analyzed} | "
-        f"<b>Критичних:</b> {critical_count}</p>"
-    )
-
-    if critical_fops:
-        parts.append(_build_fop_table(
-            critical_fops,
-            title=f'<span style="color:red">Критичні ФОП ({critical_count})</span>',
-        ))
-    else:
-        parts.append('<p style="color:green"><b>Критичних ФОП немає.</b></p>')
-
-    if all_fops_summary:
-        parts.append(
-            f"<details><summary>Показати всі ФОП ({len(all_fops_summary)})</summary>"
-        )
-        parts.append(_build_fop_table(all_fops_summary))
-        parts.append("</details>")
-
-    return "\n".join(parts)
-
 
 # ── Main sync check ───────────────────────────────────────────────────
 
 
 def _run_fop_check(days_ahead: int = 14) -> dict:
-    """Synchronous: full FOP limit check (DB → analysis → report).
+    """Synchronous: full FOP limit check (DB → analysis → JSON report).
 
     Returns summary dict for Camunda process variables.
     """
@@ -586,8 +583,11 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
 
     logger.info("Проаналізовано %d ФОПів з %d", len(analyses), len(fops))
 
-    # Build summary for ALL analyzed FOPs + find critical ones
-    all_fops_summary = []
+    # Get active EDRPOU set for dedup BEFORE building summary
+    active_edrpous = _get_active_fop_edrpous()
+
+    # Build summary for ALL analyzed FOPs with status
+    all_fops_report = []
     critical_fops = []
 
     for fop in fops:
@@ -608,50 +608,90 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
             projected_date = info["date"].strftime("%Y-%m-%d")
         else:
             days_to_limit = 999
-            projected_date = "не досягне"
+            projected_date = None
+
+        edrpou = (fop.get("edrpou") or "").strip()
+        is_critical = days_to_limit <= days_ahead
+        has_active_process = edrpou in active_edrpous
+
+        if is_critical and has_active_process:
+            status = "in_progress"
+        elif is_critical:
+            status = "new"
+        else:
+            status = "ok"
 
         stores = fop_stores.get(fop_id, [])
-        store_names = ", ".join(s["name"] for s in stores[:5]) if stores else ""
+        stores_list = [
+            {"name": s["name"], "doc_count": s["doc_count"],
+             "total": s["total"], "source": s.get("source", "document")}
+            for s in stores
+        ]
 
         fop_entry = {
             "fop_name": fop["name"].strip(),
-            "fop_edrpou": (fop.get("edrpou") or "").strip(),
+            "fop_edrpou": edrpou,
             "ep_group": group,
             "total_income": round(analysis["total_income"], 2),
             "limit_amount": limit,
             "income_percent": _safe_pct(analysis["total_income"], limit),
             "days_to_limit": days_to_limit,
             "projected_date": projected_date,
-            "stores": store_names,
-            "stores_count": len(stores),
+            "projected_total": round(analysis["projected_total"], 2),
+            "mean_daily": round(analysis["mean_daily"], 2),
+            "active_days": analysis["active_days"],
             "trend_ratio": round(analysis["trend_ratio"], 2),
+            "stores": stores_list,
+            "status": status,
         }
 
-        all_fops_summary.append(fop_entry)
+        all_fops_report.append(fop_entry)
 
-        if days_to_limit <= days_ahead:
-            critical_fops.append(fop_entry)
+        # critical_fops for Camunda multi-instance: only NEW (no active process)
+        if is_critical and not has_active_process:
+            critical_fops.append({
+                "fop_name": fop_entry["fop_name"],
+                "fop_edrpou": fop_entry["fop_edrpou"],
+                "ep_group": group,
+                "total_income": fop_entry["total_income"],
+                "limit_amount": limit,
+                "income_percent": fop_entry["income_percent"],
+                "days_to_limit": days_to_limit,
+                "projected_date": projected_date,
+                "stores": ", ".join(s["name"] for s in stores[:5]),
+                "stores_count": len(stores),
+                "trend_ratio": fop_entry["trend_ratio"],
+            })
 
-    logger.info("Критичних ФОПів (≤%d днів до ліміту): %d", days_ahead, len(critical_fops))
+    critical_all = sum(1 for f in all_fops_report if f["status"] != "ok")
+    critical_in_progress = sum(1 for f in all_fops_report if f["status"] == "in_progress")
 
-    # Build HTML report
-    report_html = _build_fop_report_html(
-        report_date=today.strftime("%d.%m.%Y"),
-        total_fops=len(fops),
-        total_analyzed=len(analyses),
-        critical_count=len(critical_fops),
-        all_fops_summary=all_fops_summary,
-        critical_fops=critical_fops,
+    logger.info(
+        "Критичних ФОПів: %d всього (%d нових, %d вже в роботі)",
+        critical_all, len(critical_fops), critical_in_progress,
     )
+
+    # JSON report — all FOPs sorted by days_to_limit (most urgent first)
+    all_fops_report.sort(key=lambda f: f["days_to_limit"])
+
+    report_json = {
+        "report_date": today.isoformat(),
+        "total_fops": len(fops),
+        "total_analyzed": len(analyses),
+        "critical_count": critical_all,
+        "critical_new": len(critical_fops),
+        "critical_in_progress": critical_in_progress,
+        "limits": {str(k): v for k, v in LIMITS.items()},
+        "fops": all_fops_report,
+    }
 
     return {
         "report_date": today.isoformat(),
         "total_fops": len(fops),
         "total_analyzed": len(analyses),
         "critical_count": len(critical_fops),
-        "critical_fops": critical_fops,  # native list for FEEL inputCollection
-        "report_html": report_html,
-        "report_task_name": f"Звіт моніторингу ФОП за {today.strftime('%d.%m.%Y')}",
+        "critical_fops": critical_fops,  # only NEW — for BPMN multi-instance
+        "report_json": report_json,      # all FOPs — for Odoo dashboard
     }
 
 
@@ -669,7 +709,7 @@ def register_fop_monitor_handlers(
         days_ahead: int = 14,
         **kwargs: Any,
     ) -> dict:
-        """Перевірка лімітів ФОП — підключення до БД BAS, аналіз, HTML звіт.
+        """Перевірка лімітів ФОП — підключення до БД BAS, аналіз, JSON звіт.
 
         Input variables:
             days_ahead (int): горизонт попередження у днях (default: 14)
@@ -678,10 +718,9 @@ def register_fop_monitor_handlers(
             report_date (str): дата звіту (ISO)
             total_fops (int): загальна кількість активних ФОПів
             total_analyzed (int): кількість проаналізованих
-            critical_count (int): кількість критичних
-            critical_fops (list): список критичних ФОПів для multi-instance
-            report_html (str): HTML звіт для Odoo
-            report_task_name (str): назва задачі-звіту
+            critical_count (int): кількість нових критичних (без активного процесу)
+            critical_fops (list): нові критичні ФОП для multi-instance (задачі на зміну терміналу)
+            report_json (dict): повний JSON-звіт по всіх ФОП для дашборду Odoo
         """
         logger.info("fop-limit-check (days_ahead=%d)", days_ahead)
 

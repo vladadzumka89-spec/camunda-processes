@@ -10,37 +10,66 @@
                   exporter="Claude Code"
                   exporterVersion="1.0">
 
-  <!-- ═══════════════════════════════════════════════════════════
-       MAIN → STAGING SYNC — Щонічна синхронізація
-
-       Запускається щоночі (cron R/P1D).
-       Мерджить main в staging з -X theirs (upstream пріоритет).
-       Після merge — deploy staging через call activity.
-
-       Використовує існуючий handler merge-to-staging з sync_branch="main".
-       ═══════════════════════════════════════════════════════════ -->
-
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
 
   <bpmn:process id="main-to-staging-sync" name="Main to Staging Sync" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="1.2" />
+      <zeebe:versionTag value="2.0" />
     </bpmn:extensionElements>
 
-    <!-- ── Timer Start: щоночі ──────────────────────────── -->
-    <bpmn:startEvent id="start_timer" name="Щоночі (cron)">
-      <bpmn:documentation>Запускається щоночі для синхронізації main → staging.
-Мінімізує розходження між гілками.</bpmn:documentation>
-      <bpmn:outgoing>f_start_to_merge</bpmn:outgoing>
+    <!-- ── Start Events ──────────────────────────────── -->
+    <bpmn:startEvent id="start_none" name="Ручний запуск">
+      <bpmn:outgoing>f_none_to_merge</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:startEvent id="start_timer" name="Щоночі 00:00 Київ">
+      <bpmn:documentation>CRON 0 0 1 * * * = 01:00 UTC = 03:00 EET.
+Влітку (EEST) буде 04:00 Київ.</bpmn:documentation>
+      <bpmn:outgoing>f_timer_to_merge</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerDef_nightly">
-        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/P1D</bpmn:timeCycle>
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">0 0 1 * * *</bpmn:timeCycle>
       </bpmn:timerEventDefinition>
     </bpmn:startEvent>
 
-    <!-- ── Merge main → staging ─────────────────────────── -->
+    <bpmn:exclusiveGateway id="gw_merge_start">
+      <bpmn:incoming>f_none_to_merge</bpmn:incoming>
+      <bpmn:incoming>f_timer_to_merge</bpmn:incoming>
+      <bpmn:outgoing>f_start_to_odoo_check</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ── XOR: Odoo task exists? ────────────────────── -->
+    <bpmn:exclusiveGateway id="GW_odoo_check" name="Задача в Odoo існує?" default="f_no_odoo_task">
+      <bpmn:incoming>f_start_to_odoo_check</bpmn:incoming>
+      <bpmn:outgoing>f_has_odoo_task</bpmn:outgoing>
+      <bpmn:outgoing>f_no_odoo_task</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ── Create main Odoo task ─────────────────────── -->
+    <bpmn:serviceTask id="ST_create_main" name="Створити задачу в Odoo">
+      <bpmn:documentation>Створює головне завдання в Odoo для відстеження sync процесу.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;[sync] Щонічний sync main → staging&quot;, _id: 252, create_process: true, bpmn_process_id: &quot;main-to-staging-sync&quot;}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_no_odoo_task</bpmn:incoming>
+      <bpmn:outgoing>f_created_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Merge_odoo">
+      <bpmn:incoming>f_has_odoo_task</bpmn:incoming>
+      <bpmn:incoming>f_created_to_merge</bpmn:incoming>
+      <bpmn:outgoing>f_odoo_to_merge_task</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ── Merge main → staging ──────────────────────── -->
     <bpmn:serviceTask id="task_merge_main_staging" name="Merge main → staging">
       <bpmn:documentation>Мерджить main в staging з -X theirs.
-Використовує існуючий handler merge-to-staging.</bpmn:documentation>
+Використовує handler merge-to-staging.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="merge-to-staging" retries="2" />
         <zeebe:ioMapping>
@@ -48,17 +77,16 @@
           <zeebe:input source="=&quot;staging&quot;" target="server_host" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>f_start_to_merge</bpmn:incoming>
+      <bpmn:incoming>f_odoo_to_merge_task</bpmn:incoming>
       <bpmn:outgoing>f_merge_to_deploy</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- Boundary error on merge -->
     <bpmn:boundaryEvent id="evt_merge_error" name="Merge failed" attachedToRef="task_merge_main_staging">
       <bpmn:outgoing>f_merge_error</bpmn:outgoing>
       <bpmn:errorEventDefinition id="ErrorDef_merge" />
     </bpmn:boundaryEvent>
 
-    <!-- ── Deploy staging (Call Activity) ───────────────── -->
+    <!-- ── Deploy staging (Call Activity) ────────────── -->
     <bpmn:callActivity id="call_deploy_staging" name="Деплой на staging">
       <bpmn:documentation>Деплоїть staging після merge main → staging.</bpmn:documentation>
       <bpmn:extensionElements>
@@ -71,29 +99,45 @@
           <zeebe:input source="=&quot;odoo19&quot;" target="container" />
           <zeebe:input source="=&quot;/opt/odoo-enterprise&quot;" target="repo_dir" />
           <zeebe:input source="=false" target="run_smoke_test" />
-          <zeebe:input source="=process_instance_key" target="parent_process_instance_key" />
-          <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
+          <zeebe:input source="=string(process_instance_key)" target="parent_process_instance_key" />
+          <zeebe:input source="=252" target="odoo_project_id" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_to_deploy</bpmn:incoming>
-      <bpmn:outgoing>f_deploy_to_end</bpmn:outgoing>
+      <bpmn:outgoing>f_deploy_to_success</bpmn:outgoing>
     </bpmn:callActivity>
 
-    <!-- Boundary error on deploy -->
     <bpmn:boundaryEvent id="evt_deploy_error" name="Deploy failed" attachedToRef="call_deploy_staging">
       <bpmn:outgoing>f_deploy_error</bpmn:outgoing>
       <bpmn:errorEventDefinition id="ErrorDef_deploy" errorRef="Error_deploy_failed" />
     </bpmn:boundaryEvent>
 
-    <!-- ── Notify: sync/deploy failed ──────────────────── -->
-    <bpmn:serviceTask id="task_notify_fail" name="Повідомити: sync failed">
+    <!-- ── Success notification ──────────────────────── -->
+    <bpmn:serviceTask id="ST_notify_success" name="✅ Sync завершено → Odoo">
+      <bpmn:documentation>Створює підзадачу в Odoo про успішний sync.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
           <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;[sync] ⚠️ Щонічний sync main → staging не вдався&quot;, description: &quot;&lt;p&gt;⚠️ Щонічний sync main → staging не вдався. Потрібна ручна синхронізація.&lt;/p&gt;&quot;, create_process: true, _id: odoo_project_id}" target="body" />
+          <zeebe:input source="={name: &quot;[sync] ✅ Sync main → staging завершено&quot;, description: &quot;&lt;p&gt;✅ Щонічний sync main → staging успішно завершено.&lt;/p&gt;&quot;}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_deploy_to_success</bpmn:incoming>
+      <bpmn:outgoing>f_success_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── Error notification ────────────────────────── -->
+    <bpmn:serviceTask id="task_notify_fail" name="❌ Sync не вдався → Odoo">
+      <bpmn:documentation>Створює підзадачу в Odoo про помилку sync.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;[sync] ❌ Sync main → staging не вдався&quot;, description: &quot;&lt;p&gt;❌ Щонічний sync main → staging не вдався. Потрібна ручна синхронізація.&lt;/p&gt;&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_error</bpmn:incoming>
@@ -101,21 +145,30 @@
       <bpmn:outgoing>f_notify_to_end_fail</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- ── End events ──────────────────────────────────── -->
+    <!-- ── End events ────────────────────────────────── -->
     <bpmn:endEvent id="evt_end_success" name="Sync завершено">
-      <bpmn:incoming>f_deploy_to_end</bpmn:incoming>
+      <bpmn:incoming>f_success_to_end</bpmn:incoming>
     </bpmn:endEvent>
 
     <bpmn:endEvent id="evt_end_fail" name="Sync не вдався">
       <bpmn:incoming>f_notify_to_end_fail</bpmn:incoming>
     </bpmn:endEvent>
 
-    <!-- ── Sequence flows ──────────────────────────────── -->
-    <bpmn:sequenceFlow id="f_start_to_merge" sourceRef="start_timer" targetRef="task_merge_main_staging" />
+    <!-- ── Sequence flows ────────────────────────────── -->
+    <bpmn:sequenceFlow id="f_none_to_merge" sourceRef="start_none" targetRef="gw_merge_start" />
+    <bpmn:sequenceFlow id="f_timer_to_merge" sourceRef="start_timer" targetRef="gw_merge_start" />
+    <bpmn:sequenceFlow id="f_start_to_odoo_check" sourceRef="gw_merge_start" targetRef="GW_odoo_check" />
+    <bpmn:sequenceFlow id="f_has_odoo_task" name="Так" sourceRef="GW_odoo_check" targetRef="Merge_odoo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_no_odoo_task" sourceRef="GW_odoo_check" targetRef="ST_create_main" />
+    <bpmn:sequenceFlow id="f_created_to_merge" sourceRef="ST_create_main" targetRef="Merge_odoo" />
+    <bpmn:sequenceFlow id="f_odoo_to_merge_task" sourceRef="Merge_odoo" targetRef="task_merge_main_staging" />
     <bpmn:sequenceFlow id="f_merge_to_deploy" sourceRef="task_merge_main_staging" targetRef="call_deploy_staging" />
     <bpmn:sequenceFlow id="f_merge_error" sourceRef="evt_merge_error" targetRef="task_notify_fail" />
-    <bpmn:sequenceFlow id="f_deploy_to_end" sourceRef="call_deploy_staging" targetRef="evt_end_success" />
+    <bpmn:sequenceFlow id="f_deploy_to_success" sourceRef="call_deploy_staging" targetRef="ST_notify_success" />
     <bpmn:sequenceFlow id="f_deploy_error" sourceRef="evt_deploy_error" targetRef="task_notify_fail" />
+    <bpmn:sequenceFlow id="f_success_to_end" sourceRef="ST_notify_success" targetRef="evt_end_success" />
     <bpmn:sequenceFlow id="f_notify_to_end_fail" sourceRef="task_notify_fail" targetRef="evt_end_fail" />
 
   </bpmn:process>
@@ -124,69 +177,132 @@
   <bpmndi:BPMNDiagram id="BPMNDiagram_sync">
     <bpmndi:BPMNPlane id="BPMNPlane_sync" bpmnElement="main-to-staging-sync">
 
+      <bpmndi:BPMNShape id="start_none_di" bpmnElement="start_none">
+        <dc:Bounds x="152" y="162" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
       <bpmndi:BPMNShape id="start_timer_di" bpmnElement="start_timer">
-        <dc:Bounds x="30" y="162" width="36" height="36" />
+        <dc:Bounds x="152" y="222" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="gw_merge_start_di" bpmnElement="gw_merge_start" isMarkerVisible="true">
+        <dc:Bounds x="268" y="155" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true">
+        <dc:Bounds x="398" y="155" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="ST_create_main_di" bpmnElement="ST_create_main">
+        <dc:Bounds x="373" y="280" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Merge_odoo_di" bpmnElement="Merge_odoo" isMarkerVisible="true">
+        <dc:Bounds x="558" y="155" width="50" height="50" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="task_merge_main_staging_di" bpmnElement="task_merge_main_staging">
-        <dc:Bounds x="130" y="140" width="160" height="80" />
+        <dc:Bounds x="688" y="140" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="evt_merge_error_di" bpmnElement="evt_merge_error">
-        <dc:Bounds x="192" y="202" width="36" height="36" />
+        <dc:Bounds x="720" y="202" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="call_deploy_staging_di" bpmnElement="call_deploy_staging">
-        <dc:Bounds x="370" y="140" width="160" height="80" />
+        <dc:Bounds x="868" y="140" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="evt_deploy_error_di" bpmnElement="evt_deploy_error">
-        <dc:Bounds x="432" y="202" width="36" height="36" />
+        <dc:Bounds x="900" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="ST_notify_success_di" bpmnElement="ST_notify_success">
+        <dc:Bounds x="1048" y="140" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="task_notify_fail_di" bpmnElement="task_notify_fail">
-        <dc:Bounds x="250" y="290" width="160" height="80" />
+        <dc:Bounds x="780" y="340" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="evt_end_success_di" bpmnElement="evt_end_success">
-        <dc:Bounds x="612" y="162" width="36" height="36" />
+        <dc:Bounds x="1228" y="162" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="evt_end_fail_di" bpmnElement="evt_end_fail">
-        <dc:Bounds x="480" y="312" width="36" height="36" />
+        <dc:Bounds x="960" y="362" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <!-- Edges -->
-      <bpmndi:BPMNEdge id="f_start_to_merge_di" bpmnElement="f_start_to_merge">
-        <di:waypoint x="66" y="180" />
-        <di:waypoint x="130" y="180" />
+      <bpmndi:BPMNEdge id="f_none_to_merge_di" bpmnElement="f_none_to_merge">
+        <di:waypoint x="188" y="180" />
+        <di:waypoint x="268" y="180" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f_timer_to_merge_di" bpmnElement="f_timer_to_merge">
+        <di:waypoint x="188" y="240" />
+        <di:waypoint x="228" y="240" />
+        <di:waypoint x="228" y="180" />
+        <di:waypoint x="268" y="180" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f_start_to_odoo_check_di" bpmnElement="f_start_to_odoo_check">
+        <di:waypoint x="318" y="180" />
+        <di:waypoint x="398" y="180" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f_has_odoo_task_di" bpmnElement="f_has_odoo_task">
+        <di:waypoint x="448" y="180" />
+        <di:waypoint x="558" y="180" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f_no_odoo_task_di" bpmnElement="f_no_odoo_task">
+        <di:waypoint x="423" y="205" />
+        <di:waypoint x="423" y="280" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f_created_to_merge_di" bpmnElement="f_created_to_merge">
+        <di:waypoint x="473" y="320" />
+        <di:waypoint x="583" y="320" />
+        <di:waypoint x="583" y="205" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f_odoo_to_merge_task_di" bpmnElement="f_odoo_to_merge_task">
+        <di:waypoint x="608" y="180" />
+        <di:waypoint x="688" y="180" />
       </bpmndi:BPMNEdge>
 
       <bpmndi:BPMNEdge id="f_merge_to_deploy_di" bpmnElement="f_merge_to_deploy">
-        <di:waypoint x="290" y="180" />
-        <di:waypoint x="370" y="180" />
+        <di:waypoint x="788" y="180" />
+        <di:waypoint x="868" y="180" />
       </bpmndi:BPMNEdge>
 
       <bpmndi:BPMNEdge id="f_merge_error_di" bpmnElement="f_merge_error">
-        <di:waypoint x="210" y="238" />
-        <di:waypoint x="210" y="330" />
-        <di:waypoint x="250" y="330" />
+        <di:waypoint x="738" y="238" />
+        <di:waypoint x="738" y="380" />
+        <di:waypoint x="780" y="380" />
       </bpmndi:BPMNEdge>
 
-      <bpmndi:BPMNEdge id="f_deploy_to_end_di" bpmnElement="f_deploy_to_end">
-        <di:waypoint x="530" y="180" />
-        <di:waypoint x="612" y="180" />
+      <bpmndi:BPMNEdge id="f_deploy_to_success_di" bpmnElement="f_deploy_to_success">
+        <di:waypoint x="968" y="180" />
+        <di:waypoint x="1048" y="180" />
       </bpmndi:BPMNEdge>
 
       <bpmndi:BPMNEdge id="f_deploy_error_di" bpmnElement="f_deploy_error">
-        <di:waypoint x="450" y="238" />
-        <di:waypoint x="450" y="330" />
-        <di:waypoint x="410" y="330" />
+        <di:waypoint x="918" y="238" />
+        <di:waypoint x="918" y="300" />
+        <di:waypoint x="830" y="300" />
+        <di:waypoint x="830" y="340" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f_success_to_end_di" bpmnElement="f_success_to_end">
+        <di:waypoint x="1148" y="180" />
+        <di:waypoint x="1228" y="180" />
       </bpmndi:BPMNEdge>
 
       <bpmndi:BPMNEdge id="f_notify_to_end_fail_di" bpmnElement="f_notify_to_end_fail">
-        <di:waypoint x="410" y="330" />
-        <di:waypoint x="480" y="330" />
+        <di:waypoint x="880" y="380" />
+        <di:waypoint x="960" y="380" />
       </bpmndi:BPMNEdge>
 
     </bpmndi:BPMNPlane>
