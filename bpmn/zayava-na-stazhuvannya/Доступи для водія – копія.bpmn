@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
   <bpmn:process id="Process_1vkyhuj" name="Доступи для водія" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
     <bpmn:startEvent id="StartEvent_1">
       <bpmn:outgoing>Flow_0pnsts4</bpmn:outgoing>
     </bpmn:startEvent>
@@ -20,6 +23,15 @@
     <bpmn:sequenceFlow id="Flow_104mjld" sourceRef="Activity_0un8p6o" targetRef="Activity_0ieyfzo" />
     <bpmn:sequenceFlow id="Flow_0zz5nwz" sourceRef="Activity_11i0saf" targetRef="Activity_0jxe7k7" />
     <bpmn:serviceTask id="Activity_0un8p6o" name="Створити шаблон розписки по працівнику">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/api/server-action&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;, &#34;X-API-Key&#34;:&#34;632b5ed6-091f-48db-bd01-1e60aeb10bfc&#34;}" target="headers" />
+          <zeebe:input source="= {action_identifier: &#34;studio_customization._create_driver_receipt&#34;, context: {}, payload: {employee_name: odoo_applicant_name, department_id: x_studio_camunda_pidrozdil}}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_16r6x2q</bpmn:incoming>
       <bpmn:outgoing>Flow_104mjld</bpmn:outgoing>
     </bpmn:serviceTask>
@@ -27,6 +39,15 @@
     <bpmn:userTask id="Activity_0ieyfzo" name="Створити касу для водія">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Створити касу для водія&#34;, description: &#34;Створіть касу для нового водія в системі&#34;, x_studio_camunda_user_ids: responsible_user_id, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_104mjld</bpmn:incoming>
       <bpmn:outgoing>Flow_1e4vzxm</bpmn:outgoing>
@@ -35,6 +56,15 @@
     <bpmn:userTask id="Activity_0jxe7k7" name="Додати працівника в організацію">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Додати працівника в організацію&#34;, description: &#34;Додайте нового водія в організацію&#34;, x_studio_camunda_user_ids: responsible_user_id, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0zz5nwz</bpmn:incoming>
       <bpmn:outgoing>Flow_0t3wjek</bpmn:outgoing>
@@ -42,6 +72,15 @@
     <bpmn:userTask id="Activity_11i0saf" name="Створити доступ до навігатора">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Створити доступ до навігатора&#34;, description: &#34;Створіть доступ до навігатора для нового водія&#34;, x_studio_camunda_user_ids: responsible_user_id, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_05kqs3h</bpmn:incoming>
       <bpmn:outgoing>Flow_0zz5nwz</bpmn:outgoing>
@@ -50,6 +89,15 @@
     <bpmn:userTask id="Activity_09yotxa" name="Створити електронний підпис водія у кабінеті Приват бан">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Створити електронний підпис водія&#34;, description: &#34;Створіть електронний підпис водія у кабінеті ПриватБанку&#34;, x_studio_camunda_user_ids: responsible_user_id, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0t3wjek</bpmn:incoming>
       <bpmn:outgoing>Flow_0g7xyjc</bpmn:outgoing>
