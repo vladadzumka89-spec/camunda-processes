@@ -29,10 +29,40 @@
     <bpmn:exclusiveGateway id="gw_merge_start">
       <bpmn:incoming>f01</bpmn:incoming>
       <bpmn:incoming>f01_msg</bpmn:incoming>
+      <bpmn:outgoing>f_start_to_parent_check</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ── CHECK: standalone or child process? ─────────────── -->
+    <bpmn:exclusiveGateway id="gw_parent_check" name="Є батьківський процес?" default="f_no_parent">
+      <bpmn:incoming>f_start_to_parent_check</bpmn:incoming>
+      <bpmn:outgoing>f_has_parent</bpmn:outgoing>
+      <bpmn:outgoing>f_no_parent</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="ST_create_deploy_task" name="Створити задачу деплою в Odoo">
+      <bpmn:documentation>Standalone deploy: створює головне завдання в Odoo.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;[deploy] Деплой &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;), description: &quot;&lt;p&gt;Автоматичний деплой на &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;/p&gt;&quot;, create_process: true, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 237, bpmn_process_id: &quot;deploy-process&quot;}" target="body" />
+          <zeebe:input source="=&quot;odoo_create_response&quot;" target="result_variable_name" />
+          <zeebe:output source="=string(odoo_create_response.id)" target="parent_process_instance_key" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_no_parent</bpmn:incoming>
+      <bpmn:outgoing>f_created_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="gw_merge_parent">
+      <bpmn:incoming>f_has_parent</bpmn:incoming>
+      <bpmn:incoming>f_created_to_merge</bpmn:incoming>
       <bpmn:outgoing>f01_merged</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    
+
     <bpmn:serviceTask id="task_git_pull" name="Git Fetch &amp; Checkout">
       <bpmn:documentation>SSH на сервер, git fetch origin, checkout branch.
 Retry 3x з інтервалом 5s.
@@ -300,7 +330,13 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
     
     <bpmn:sequenceFlow id="f01" sourceRef="evt_start" targetRef="gw_merge_start" />
     <bpmn:sequenceFlow id="f01_msg" sourceRef="evt_start_msg" targetRef="gw_merge_start" />
-    <bpmn:sequenceFlow id="f01_merged" sourceRef="gw_merge_start" targetRef="task_git_pull" />
+    <bpmn:sequenceFlow id="f_start_to_parent_check" sourceRef="gw_merge_start" targetRef="gw_parent_check" />
+    <bpmn:sequenceFlow id="f_has_parent" name="Так" sourceRef="gw_parent_check" targetRef="gw_merge_parent">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(parent_process_instance_key) and parent_process_instance_key != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_no_parent" name="Standalone" sourceRef="gw_parent_check" targetRef="ST_create_deploy_task" />
+    <bpmn:sequenceFlow id="f_created_to_merge" sourceRef="ST_create_deploy_task" targetRef="gw_merge_parent" />
+    <bpmn:sequenceFlow id="f01_merged" sourceRef="gw_merge_parent" targetRef="task_git_pull" />
     <bpmn:sequenceFlow id="f02" sourceRef="task_git_pull" targetRef="gw_changes" />
     <bpmn:sequenceFlow id="f03" name="Ні" sourceRef="gw_changes" targetRef="ST_publish_no_changes">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=has_changes = false</bpmn:conditionExpression>
