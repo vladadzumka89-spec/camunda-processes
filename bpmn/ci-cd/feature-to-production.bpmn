@@ -441,61 +441,61 @@
         <dc:Bounds x="508" y="275" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="catch_pr_created_di" bpmnElement="catch_pr_created">
-        <dc:Bounds x="638" y="282" width="36" height="36" />
+        <dc:Bounds x="618" y="282" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="catch_review_done_di" bpmnElement="catch_review_done">
-        <dc:Bounds x="818" y="282" width="36" height="36" />
+        <dc:Bounds x="718" y="282" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_review_score_di" bpmnElement="gw_review_score" isMarkerVisible="true">
-        <dc:Bounds x="938" y="275" width="50" height="50" />
+        <dc:Bounds x="818" y="275" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_merge_staging_di" bpmnElement="task_merge_staging">
-        <dc:Bounds x="1058" y="260" width="100" height="80" />
+        <dc:Bounds x="938" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="evt_merge_conflict_di" bpmnElement="evt_merge_conflict">
-        <dc:Bounds x="1068" y="322" width="36" height="36" />
+        <dc:Bounds x="948" y="322" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_notify_conflict_di" bpmnElement="task_notify_conflict">
-        <dc:Bounds x="1038" y="410" width="100" height="80" />
+        <dc:Bounds x="918" y="410" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="catch_deploy_done_di" bpmnElement="catch_deploy_done">
-        <dc:Bounds x="1228" y="282" width="36" height="36" />
+        <dc:Bounds x="1108" y="282" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_deploy_ok_di" bpmnElement="gw_deploy_ok" isMarkerVisible="true">
-        <dc:Bounds x="1328" y="275" width="50" height="50" />
+        <dc:Bounds x="1208" y="275" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_notify_deploy_fail_di" bpmnElement="task_notify_deploy_fail">
-        <dc:Bounds x="1303" y="410" width="100" height="80" />
+        <dc:Bounds x="1183" y="410" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="call_verify_staging_di" bpmnElement="call_verify_staging">
-        <dc:Bounds x="1448" y="260" width="100" height="80" />
+        <dc:Bounds x="1328" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_staging_ok_di" bpmnElement="gw_staging_ok" isMarkerVisible="true">
-        <dc:Bounds x="1613" y="275" width="50" height="50" />
+        <dc:Bounds x="1493" y="275" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_comment_staging_reject_di" bpmnElement="task_comment_staging_reject">
-        <dc:Bounds x="1588" y="410" width="100" height="80" />
+        <dc:Bounds x="1468" y="410" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_undraft_pr_di" bpmnElement="task_undraft_pr">
-        <dc:Bounds x="1728" y="260" width="100" height="80" />
+        <dc:Bounds x="1608" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="call_verify_merge_di" bpmnElement="call_verify_merge">
-        <dc:Bounds x="1898" y="260" width="100" height="80" />
+        <dc:Bounds x="1778" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_merge_ok_di" bpmnElement="gw_merge_ok" isMarkerVisible="true">
-        <dc:Bounds x="2063" y="275" width="50" height="50" />
+        <dc:Bounds x="1943" y="275" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_comment_merge_reject_di" bpmnElement="task_comment_merge_reject">
-        <dc:Bounds x="2038" y="410" width="100" height="80" />
+        <dc:Bounds x="1918" y="410" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_github_merge_di" bpmnElement="task_github_merge">
-        <dc:Bounds x="2178" y="260" width="100" height="80" />
+        <dc:Bounds x="2058" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="call_verify_prod_di" bpmnElement="call_verify_prod">
-        <dc:Bounds x="2348" y="260" width="100" height="80" />
+        <dc:Bounds x="2228" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="evt_end_success_di" bpmnElement="evt_end_success">
-        <dc:Bounds x="2512" y="282" width="36" height="36" />
+        <dc:Bounds x="2392" y="282" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_comment_rework_di" bpmnElement="task_comment_rework">
         <dc:Bounds x="718" y="540" width="100" height="80" />
@@ -546,100 +546,100 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_merge_to_wait_di" bpmnElement="f_merge_to_wait">
         <di:waypoint x="558" y="300" />
-        <di:waypoint x="638" y="300" />
+        <di:waypoint x="618" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_catch_to_review_di" bpmnElement="f_catch_to_review">
-        <di:waypoint x="674" y="300" />
-        <di:waypoint x="818" y="300" />
+        <di:waypoint x="654" y="300" />
+        <di:waypoint x="718" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_review_to_gw_score_di" bpmnElement="f_review_to_gw_score">
-        <di:waypoint x="854" y="300" />
-        <di:waypoint x="938" y="300" />
+        <di:waypoint x="754" y="300" />
+        <di:waypoint x="818" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_review_ok_di" bpmnElement="f_review_ok">
-        <di:waypoint x="988" y="300" />
-        <di:waypoint x="1058" y="300" />
+        <di:waypoint x="868" y="300" />
+        <di:waypoint x="938" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_review_low_di" bpmnElement="f_review_low">
-        <di:waypoint x="963" y="325" />
-        <di:waypoint x="963" y="580" />
+        <di:waypoint x="843" y="325" />
+        <di:waypoint x="843" y="580" />
         <di:waypoint x="818" y="580" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_merge_conflict_di" bpmnElement="f_merge_conflict">
-        <di:waypoint x="1086" y="358" />
-        <di:waypoint x="1086" y="410" />
+        <di:waypoint x="966" y="358" />
+        <di:waypoint x="966" y="410" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_conflict_to_comment_di" bpmnElement="f_conflict_to_comment">
-        <di:waypoint x="1088" y="490" />
-        <di:waypoint x="1088" y="580" />
+        <di:waypoint x="968" y="490" />
+        <di:waypoint x="968" y="580" />
         <di:waypoint x="818" y="580" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_merge_to_deploy_staging_di" bpmnElement="f_merge_to_deploy_staging">
-        <di:waypoint x="1158" y="300" />
-        <di:waypoint x="1228" y="300" />
+        <di:waypoint x="1038" y="300" />
+        <di:waypoint x="1108" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_deploy_to_gw_di" bpmnElement="f_deploy_to_gw">
-        <di:waypoint x="1264" y="300" />
-        <di:waypoint x="1328" y="300" />
+        <di:waypoint x="1144" y="300" />
+        <di:waypoint x="1208" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_deploy_ok_di" bpmnElement="f_deploy_ok">
-        <di:waypoint x="1378" y="300" />
-        <di:waypoint x="1448" y="300" />
+        <di:waypoint x="1258" y="300" />
+        <di:waypoint x="1328" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_deploy_failed_di" bpmnElement="f_deploy_failed">
-        <di:waypoint x="1353" y="325" />
-        <di:waypoint x="1353" y="410" />
+        <di:waypoint x="1233" y="325" />
+        <di:waypoint x="1233" y="410" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_deploy_fail_to_rework_di" bpmnElement="f_deploy_fail_to_rework">
-        <di:waypoint x="1353" y="490" />
-        <di:waypoint x="1353" y="580" />
+        <di:waypoint x="1233" y="490" />
+        <di:waypoint x="1233" y="580" />
         <di:waypoint x="818" y="580" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_verify_staging_to_gw_di" bpmnElement="f_verify_staging_to_gw">
-        <di:waypoint x="1548" y="300" />
-        <di:waypoint x="1613" y="300" />
+        <di:waypoint x="1428" y="300" />
+        <di:waypoint x="1493" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_staging_ok_di" bpmnElement="f_staging_ok">
-        <di:waypoint x="1663" y="300" />
-        <di:waypoint x="1728" y="300" />
+        <di:waypoint x="1543" y="300" />
+        <di:waypoint x="1608" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_staging_rejected_di" bpmnElement="f_staging_rejected">
-        <di:waypoint x="1638" y="325" />
-        <di:waypoint x="1638" y="410" />
+        <di:waypoint x="1518" y="325" />
+        <di:waypoint x="1518" y="410" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_staging_reject_to_rework_di" bpmnElement="f_staging_reject_to_rework">
-        <di:waypoint x="1638" y="490" />
-        <di:waypoint x="1638" y="580" />
+        <di:waypoint x="1518" y="490" />
+        <di:waypoint x="1518" y="580" />
         <di:waypoint x="818" y="580" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_undraft_to_verify_merge_di" bpmnElement="f_undraft_to_verify_merge">
-        <di:waypoint x="1828" y="300" />
-        <di:waypoint x="1898" y="300" />
+        <di:waypoint x="1708" y="300" />
+        <di:waypoint x="1778" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_verify_merge_to_gw_di" bpmnElement="f_verify_merge_to_gw">
-        <di:waypoint x="1998" y="300" />
-        <di:waypoint x="2063" y="300" />
+        <di:waypoint x="1878" y="300" />
+        <di:waypoint x="1943" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_merge_ok_di" bpmnElement="f_merge_ok">
-        <di:waypoint x="2113" y="300" />
-        <di:waypoint x="2178" y="300" />
+        <di:waypoint x="1993" y="300" />
+        <di:waypoint x="2058" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_merge_rejected_di" bpmnElement="f_merge_rejected">
-        <di:waypoint x="2088" y="325" />
-        <di:waypoint x="2088" y="410" />
+        <di:waypoint x="1968" y="325" />
+        <di:waypoint x="1968" y="410" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_merge_reject_to_rework_di" bpmnElement="f_merge_reject_to_rework">
-        <di:waypoint x="2088" y="490" />
-        <di:waypoint x="2088" y="580" />
+        <di:waypoint x="1968" y="490" />
+        <di:waypoint x="1968" y="580" />
         <di:waypoint x="818" y="580" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_github_merge_to_verify_prod_di" bpmnElement="f_github_merge_to_verify_prod">
-        <di:waypoint x="2278" y="300" />
-        <di:waypoint x="2348" y="300" />
+        <di:waypoint x="2158" y="300" />
+        <di:waypoint x="2228" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_verify_prod_to_end_di" bpmnElement="f_verify_prod_to_end">
-        <di:waypoint x="2448" y="300" />
-        <di:waypoint x="2512" y="300" />
+        <di:waypoint x="2328" y="300" />
+        <di:waypoint x="2392" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_rework_to_catch_di" bpmnElement="f_rework_to_catch">
         <di:waypoint x="718" y="580" />
@@ -649,8 +649,8 @@
         <di:waypoint x="538" y="580" />
         <di:waypoint x="468" y="580" />
         <di:waypoint x="468" y="200" />
-        <di:waypoint x="836" y="200" />
-        <di:waypoint x="836" y="282" />
+        <di:waypoint x="736" y="200" />
+        <di:waypoint x="736" y="282" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_rework_reminder_di" bpmnElement="f_rework_reminder">
         <di:waypoint x="566" y="638" />
