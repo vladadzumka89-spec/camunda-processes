@@ -529,17 +529,14 @@ async def test_module_update_all(handlers: dict, mock_ssh: AsyncMock) -> None:
     ]
     mock_ssh.run_in_repo.side_effect = [
         OK(),  # find __pycache__
-        OK(),  # docker compose stop
-        OK(),  # docker compose start db + module update
-        OK(),  # docker compose up -d
-        OK(),  # finally: docker compose start db
+        OK(),  # docker compose run --rm --no-deps web odoo-bin
     ]
     result = await handlers["module-update"](
         server_host="staging", changed_modules="all",
     )
     assert result["modules_updated"] == "all"
     # Should contain -u all in the update command
-    update_cmd = mock_ssh.run_in_repo.call_args_list[2][0][1]
+    update_cmd = mock_ssh.run_in_repo.call_args_list[1][0][1]
     assert "-u all" in update_cmd
 
 
@@ -555,10 +552,7 @@ async def test_module_update_specific_modules(handlers: dict, mock_ssh: AsyncMoc
     ]
     mock_ssh.run_in_repo.side_effect = [
         OK(),  # find __pycache__
-        OK(),  # docker compose stop
-        OK(),  # module update
-        OK(),  # docker compose up
-        OK(),  # finally: docker compose start db
+        OK(),  # docker compose run --rm --no-deps web odoo-bin
     ]
     result = await handlers["module-update"](
         server_host="staging", changed_modules="tut_hr,tut_core,sale",
@@ -596,10 +590,7 @@ async def test_module_update_over_10_switches_to_all(handlers: dict, mock_ssh: A
     ]
     mock_ssh.run_in_repo.side_effect = [
         OK(),  # __pycache__
-        OK(),  # stop
-        OK(),  # update
-        OK(),  # up
-        OK(),  # finally: docker compose start db
+        OK(),  # docker compose run --rm --no-deps web odoo-bin
     ]
     result = await handlers["module-update"](
         server_host="staging", changed_modules=many_mods,
@@ -617,10 +608,7 @@ async def test_module_update_db_password_from_env_file(handlers: dict, mock_ssh:
     mock_ssh.run_in_repo.side_effect = [
         _make_ssh_result(stdout="env_pass\n"),  # .env file fallback
         OK(),  # __pycache__
-        OK(),  # stop
-        OK(),  # update
-        OK(),  # up
-        OK(),  # finally: docker compose start db
+        OK(),  # docker compose run --rm --no-deps web odoo-bin
     ]
     result = await handlers["module-update"](
         server_host="staging", changed_modules="all",
@@ -647,50 +635,10 @@ async def test_module_update_clears_pycache(handlers: dict, mock_ssh: AsyncMock)
         _make_ssh_result(stdout="pass\n"),  # password
         OK(),  # asset cache
     ]
-    mock_ssh.run_in_repo.side_effect = [OK(), OK(), OK(), OK(), OK()]
+    mock_ssh.run_in_repo.side_effect = [OK(), OK()]
     await handlers["module-update"](server_host="staging", changed_modules="all")
     pycache_cmd = mock_ssh.run_in_repo.call_args_list[0][0][1]
     assert "__pycache__" in pycache_cmd
-
-
-@pytest.mark.asyncio
-async def test_module_update_restarts_services(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """After module update, services are restarted."""
-    mock_ssh.run.side_effect = [
-        _make_ssh_result(stdout="pass\n"),
-        OK(),  # asset cache clear
-    ]
-    mock_ssh.run_in_repo.side_effect = [OK(), OK(), OK(), OK(), OK()]
-    await handlers["module-update"](server_host="staging", changed_modules="all")
-    # docker compose up -d is second-to-last; last is finally: docker compose start db
-    up_cmd = mock_ssh.run_in_repo.call_args_list[-2][0][1]
-    assert "docker compose up -d" in up_cmd
-    # finally block always runs docker compose start db
-    finally_cmd = mock_ssh.run_in_repo.call_args_list[-1][0][1]
-    assert "docker compose start db" in finally_cmd
-
-
-@pytest.mark.asyncio
-async def test_module_update_restarts_db_on_failure(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """If module-update command fails, DB should be restarted in finally block."""
-    mock_ssh.run.side_effect = [
-        _make_ssh_result(stdout="password123"),        # _get_db_password
-        _make_ssh_result(stdout="sale_management\n"),  # installed modules query
-    ]
-    mock_ssh.run_in_repo.side_effect = [
-        _make_ssh_result(),                    # find __pycache__
-        _make_ssh_result(),                    # docker compose stop
-        RemoteCommandError("odoo-bin failed", 1, ""),  # module update command fails
-        _make_ssh_result(),                    # finally: docker compose start db
-    ]
-    with pytest.raises(RemoteCommandError, match="odoo-bin failed"):
-        await handlers["module-update"](
-            server_host="staging",
-            changed_modules="sale_management",
-        )
-    # Verify the finally block ran: docker compose start db
-    last_call = mock_ssh.run_in_repo.call_args_list[-1].args[1]
-    assert "docker compose start db" in last_call
 
 
 # ══════════════════════════════════════════════════════════
@@ -1048,83 +996,76 @@ async def test_rollback_force_recreates(handlers: dict, mock_ssh: AsyncMock) -> 
 
 
 @pytest.mark.asyncio
-async def test_rollback_production_restores_db(
-    app_config_with_production: AppConfig, mock_ssh: AsyncMock
-) -> None:
-    """Rollback on production should stop services, restore DB, then checkout."""
-    config = AppConfig(
-        servers=app_config_with_production.servers,
-        db_restore_command="pgbackrest --stanza=main restore",
+async def test_rollback_production_restores_db(mock_ssh: AsyncMock) -> None:
+    """Production rollback calls HTTP POST to restore DB when db_restore_url is set."""
+    cfg = AppConfig(
+        servers={
+            "staging": ServerConfig(host="staging.example.com", ssh_user="deploy"),
+            "production": ServerConfig(host="prod.example.com", ssh_user="deploy"),
+        },
+        db_restore_url="http://danylo:9090/restore/",
     )
-    prod_handlers = _extract_handlers(config, mock_ssh)
+    h = _extract_handlers(cfg, mock_ssh)
+    mock_ssh.run_in_repo.return_value = OK()
 
-    mock_ssh.run_in_repo.side_effect = [
-        OK(),  # docker compose stop
-        OK(),  # docker compose start db
-        OK(),  # git checkout
-        OK(),  # docker compose up -d
-    ]
-    mock_ssh.run.return_value = OK()  # db restore command
+    with patch("worker.handlers.deploy.httpx") as mock_httpx:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status = MagicMock()
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx.AsyncClient.return_value = mock_client
 
-    result = await prod_handlers["rollback"](
-        server_host="production",
-        old_commit="abc123",
-        branch="main",
-    )
+        result = await h["rollback"](
+            server_host="production", old_commit="abc123", branch="main",
+        )
+
     assert result == {}
-
-    # Verify restore was called with the correct command
-    restore_call = mock_ssh.run.call_args_list[0][0][1]
-    assert "pgbackrest" in restore_call
-
-    # Verify order: stop → start db → checkout → up
-    repo_calls = [c[0][1] for c in mock_ssh.run_in_repo.call_args_list]
-    assert "docker compose stop" in repo_calls[0]
-    assert "docker compose start db" in repo_calls[1]
-    assert "git checkout" in repo_calls[2]
-    assert "--force-recreate" in repo_calls[3]
+    mock_client.post.assert_awaited_once()
+    call_args = mock_client.post.call_args
+    assert call_args.args[0] == "http://danylo:9090/restore/"
 
 
 @pytest.mark.asyncio
-async def test_rollback_staging_no_db_restore(
-    handlers: dict, mock_ssh: AsyncMock
-) -> None:
-    """Rollback on staging should NOT restore DB — just checkout + restart."""
-    mock_ssh.run_in_repo.side_effect = [
-        OK(),  # git checkout
-        OK(),  # docker compose up -d
-    ]
-    await handlers["rollback"](
-        server_host="staging",
-        old_commit="abc123",
-        branch="staging",
+async def test_rollback_production_no_restore_url(mock_ssh: AsyncMock) -> None:
+    """Production rollback skips HTTP restore when db_restore_url is not configured."""
+    cfg = AppConfig(
+        servers={
+            "staging": ServerConfig(host="staging.example.com", ssh_user="deploy"),
+            "production": ServerConfig(host="prod.example.com", ssh_user="deploy"),
+        },
+        db_restore_url="",
     )
-    # No ssh.run calls (no restore command)
-    assert mock_ssh.run.call_count == 0
+    h = _extract_handlers(cfg, mock_ssh)
+    mock_ssh.run_in_repo.return_value = OK()
+
+    with patch("worker.handlers.deploy.httpx") as mock_httpx:
+        await h["rollback"](
+            server_host="production", old_commit="abc123", branch="main",
+        )
+        mock_httpx.AsyncClient.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_rollback_production_no_restore_command(
-    app_config_with_production: AppConfig, mock_ssh: AsyncMock
-) -> None:
-    """If no db_restore_command configured, skip DB restore even on production."""
-    config = AppConfig(
-        servers=app_config_with_production.servers,
-        db_restore_command="",  # empty = no restore
+async def test_rollback_staging_skips_db_restore(mock_ssh: AsyncMock) -> None:
+    """Staging rollback never calls HTTP restore even when db_restore_url is set."""
+    cfg = AppConfig(
+        servers={
+            "staging": ServerConfig(host="staging.example.com", ssh_user="deploy"),
+            "production": ServerConfig(host="prod.example.com", ssh_user="deploy"),
+        },
+        db_restore_url="http://danylo:9090/restore/",
     )
-    prod_handlers = _extract_handlers(config, mock_ssh)
+    h = _extract_handlers(cfg, mock_ssh)
+    mock_ssh.run_in_repo.return_value = OK()
 
-    mock_ssh.run_in_repo.side_effect = [
-        OK(),  # git checkout
-        OK(),  # docker compose up -d
-    ]
-    await prod_handlers["rollback"](
-        server_host="production",
-        old_commit="abc123",
-        branch="main",
-    )
-    # No restore called
-    assert mock_ssh.run.call_count == 0
+    with patch("worker.handlers.deploy.httpx") as mock_httpx:
+        await h["rollback"](
+            server_host="staging", old_commit="abc123", branch="main",
+        )
+        mock_httpx.AsyncClient.assert_not_called()
 
 
 # ══════════════════════════════════════════════════════════
@@ -1132,40 +1073,77 @@ async def test_rollback_production_no_restore_command(
 # ══════════════════════════════════════════════════════════
 
 
+def _make_handlers_with_config(config: AppConfig, mock_ssh: AsyncMock) -> dict:
+    """Extract handlers using a custom AppConfig."""
+    return _extract_handlers(config, mock_ssh)
+
+
 @pytest.mark.asyncio
-async def test_db_checkpoint_default_command(handlers, mock_ssh):
-    """db-checkpoint runs pgBackRest command by default."""
-    mock_ssh.run.side_effect = [_make_ssh_result()]
-    result = await handlers["db-checkpoint"](
-        server_host="staging",
+async def test_db_checkpoint_calls_http(mock_ssh: AsyncMock) -> None:
+    """db-checkpoint calls checkpoint URL via HTTP POST with auth token."""
+    cfg = AppConfig(
+        servers={"staging": ServerConfig(host="staging.example.com", ssh_user="deploy")},
+        db_checkpoint_url="http://danylo:9090/checkpoint/",
+        db_checkpoint_token="test-token-123",
     )
+    h = _make_handlers_with_config(cfg, mock_ssh)
+
+    with patch("worker.handlers.deploy.httpx") as mock_httpx:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status = MagicMock()
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx.AsyncClient.return_value = mock_client
+
+        result = await h["db-checkpoint"](server_host="staging")
+
     assert result["checkpoint_created"] is True
-    cmd = mock_ssh.run.call_args_list[0].args[1]
-    assert "pgbackrest" in cmd
-    assert "flock" in cmd
+    mock_client.post.assert_awaited_once()
+    call_args = mock_client.post.call_args
+    assert call_args.args[0] == "http://danylo:9090/checkpoint/"
+    assert call_args.kwargs.get("headers", {}).get("X-Auth-Token") == "test-token-123"
 
 
 @pytest.mark.asyncio
-async def test_db_checkpoint_custom_command(handlers, mock_ssh):
-    """db-checkpoint uses custom command when provided."""
-    mock_ssh.run.side_effect = [_make_ssh_result()]
-    result = await handlers["db-checkpoint"](
-        server_host="staging",
-        db_checkpoint_command="pg_dump -Fc mydb > /tmp/backup.custom",
+async def test_db_checkpoint_skips_without_url(mock_ssh: AsyncMock) -> None:
+    """db-checkpoint skips if no URL configured."""
+    cfg = AppConfig(
+        servers={"staging": ServerConfig(host="staging.example.com", ssh_user="deploy")},
+        db_checkpoint_url="",
     )
-    assert result["checkpoint_created"] is True
-    cmd = mock_ssh.run.call_args_list[0].args[1]
-    assert "pg_dump" in cmd
+    h = _make_handlers_with_config(cfg, mock_ssh)
+    result = await h["db-checkpoint"](server_host="staging")
+    assert result["checkpoint_created"] is False
 
 
 @pytest.mark.asyncio
-async def test_db_checkpoint_uses_server_container(handlers, mock_ssh):
-    """db-checkpoint constructs command using server.container from config."""
-    mock_ssh.run.side_effect = [_make_ssh_result()]
-    await handlers["db-checkpoint"](server_host="staging")
-    cmd = mock_ssh.run.call_args_list[0].args[1]
-    # staging server container from conftest is "odoo19", so expect "odoo19-db"
-    assert "-db" in cmd  # container name + "-db" suffix
+async def test_db_checkpoint_no_token_omits_header(mock_ssh: AsyncMock) -> None:
+    """db-checkpoint posts without X-Auth-Token header when token is empty."""
+    cfg = AppConfig(
+        servers={"staging": ServerConfig(host="staging.example.com", ssh_user="deploy")},
+        db_checkpoint_url="http://danylo:9090/checkpoint/",
+        db_checkpoint_token="",
+    )
+    h = _make_handlers_with_config(cfg, mock_ssh)
+
+    with patch("worker.handlers.deploy.httpx") as mock_httpx:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status = MagicMock()
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx.AsyncClient.return_value = mock_client
+
+        result = await h["db-checkpoint"](server_host="staging")
+
+    assert result["checkpoint_created"] is True
+    call_args = mock_client.post.call_args
+    assert "X-Auth-Token" not in call_args.kwargs.get("headers", {})
 
 
 # ══════════════════════════════════════════════════════════

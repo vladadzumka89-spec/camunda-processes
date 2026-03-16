@@ -219,6 +219,54 @@ class WebhookServer:
             logger.error("Failed to publish msg_deploy_trigger: %s", exc)
             return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
 
+    async def _route_push_event(self, payload: dict) -> web.Response:
+        """Route push events — deploy staging on push to staging branch."""
+        ref = payload.get('ref', '')
+        after_sha = payload.get('after', '')
+
+        if ref != 'refs/heads/staging':
+            logger.info("Ignoring push to %s (not staging)", ref)
+            return web.json_response({"status": "ignored", "ref": ref})
+
+        staging = self._config.servers.get('staging')
+        if not staging:
+            logger.error("No staging server configured for deploy trigger")
+            return web.Response(status=500, text="No staging server configured")
+
+        variables: dict[str, Any] = {
+            "trigger_sha": after_sha,
+            "server_host": staging.host,
+            "ssh_user": staging.ssh_user,
+            "repo_dir": staging.repo_dir,
+            "db_name": staging.db_name,
+            "container": staging.container,
+            "branch": "staging",
+            "run_smoke_test": True,
+            "test_mode": "full",
+            "odoo_project_id": self._config.odoo.project_id,
+        }
+
+        try:
+            client = self._create_zeebe_client()
+            await client.publish_message(
+                name="msg_deploy_trigger",
+                correlation_key=after_sha,
+                variables=variables,
+                time_to_live_in_milliseconds=3_600_000,
+            )
+            logger.info(
+                "Published msg_deploy_trigger for push to staging (sha=%s)",
+                after_sha[:12],
+            )
+            return web.json_response({
+                "status": "published",
+                "message": "msg_deploy_trigger",
+                "trigger_sha": after_sha,
+            })
+        except Exception as exc:
+            logger.error("Failed to publish msg_deploy_trigger: %s", exc)
+            return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
+
     async def _publish_pr_event(self, pr: dict, payload: dict) -> web.Response:
         """Publish msg_pr_event — starts a new feature-to-production process instance."""
         pr_number = pr.get('number', 0)

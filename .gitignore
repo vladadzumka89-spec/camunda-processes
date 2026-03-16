@@ -32,5 +32,8 @@ __pycache__/
 # Node (if workers use it)
 node_modules/
 
+# Docs (generated)
+docs/
+
 #temporary
 tmp

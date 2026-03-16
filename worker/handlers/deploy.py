@@ -10,6 +10,7 @@ import logging
 import re
 from typing import Any
 
+import httpx
 from pyzeebe import ZeebeWorker
 
 from ..config import AppConfig
@@ -288,30 +289,16 @@ def register_deploy_handlers(
             "find src -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true",
         )
 
-        # Stop all services (nginx, sfu, etc.) to prevent stale websocket connections
-        await ssh.run_in_repo(server, "docker compose stop", timeout=60)
-
-        try:
-            # Run module update (--no-deps prevents docker from restarting nginx/sfu)
-            await ssh.run_in_repo(
-                server,
-                f"docker compose start db && sleep 3 && "
-                f"timeout 2000 docker compose run --rm --no-deps web "
-                f"odoo-bin -d {db} -u {update_modules} "
-                f"--db_password='{db_password}' "
-                f"--stop-after-init --no-http --log-level=warn",
-                check=True,
-                timeout=2100,
-            )
-
-            # Success: restart full stack
-            await ssh.run_in_repo(server, "docker compose up -d", check=True, timeout=120)
-        finally:
-            # Ensure at least DB is running (rollback needs it)
-            try:
-                await ssh.run_in_repo(server, "docker compose start db", check=False, timeout=60)
-            except Exception:
-                pass
+        # Run module update in a separate container (production keeps running)
+        await ssh.run_in_repo(
+            server,
+            f"timeout 2000 docker compose run --rm --no-deps web "
+            f"odoo-bin -d {db} -u {update_modules} "
+            f"--db_password='{db_password}' "
+            f"--stop-after-init --no-http --log-level=warn",
+            check=True,
+            timeout=2100,
+        )
 
         # Clear asset cache
         await ssh.run(
@@ -442,7 +429,7 @@ def register_deploy_handlers(
 
     # ── rollback ───────────────────────────────────────────────
 
-    @worker.task(task_type="rollback", timeout_ms=300_000)
+    @worker.task(task_type="rollback", timeout_ms=600_000)
     async def rollback(
         server_host: str,
         old_commit: str = "none",
@@ -458,16 +445,28 @@ def register_deploy_handlers(
             logger.warning("rollback on %s: no previous commit, skipping", server.host)
             return {}
 
-        # Production: restore DB from checkpoint
+        # Production: restore DB from checkpoint via HTTP API
         is_prod = server == config.servers.get("production")
-        restore_cmd = db_restore_command or config.db_restore_command
+        db_restored = False
 
-        if is_prod and restore_cmd:
+        if is_prod and config.db_restore_url:
             logger.info("rollback on %s: restoring DB from checkpoint", server.host)
             await ssh.run_in_repo(server, "docker compose stop", timeout=60)
-            await ssh.run(server, restore_cmd, check=True, timeout=600)
+            try:
+                restore_headers = {}
+                if config.db_checkpoint_token:
+                    restore_headers["X-Auth-Token"] = config.db_checkpoint_token
+                async with httpx.AsyncClient(timeout=540) as client:
+                    resp = await client.post(config.db_restore_url, headers=restore_headers, content=b"")
+                    resp.raise_for_status()
+                db_restored = True
+                logger.info("rollback on %s: DB restored (HTTP %d)", server.host, resp.status_code)
+            except Exception as exc:
+                logger.error("rollback on %s: DB restore failed: %s", server.host, exc)
+                raise
             await ssh.run_in_repo(server, "docker compose start db", check=True, timeout=60)
 
+        # Git checkout
         if branch:
             await ssh.run_in_repo(
                 server,
@@ -483,10 +482,7 @@ def register_deploy_handlers(
             check=True,
             timeout=120,
         )
-        logger.info(
-            "rollback on %s to %s (db_restored=%s)",
-            server.host, old_commit[:8], bool(is_prod and restore_cmd),
-        )
+        logger.info("rollback on %s to %s (db_restored=%s)", server.host, old_commit[:8], db_restored)
         return {}
 
     # ── db-checkpoint ─────────────────────────────────────────
@@ -494,25 +490,29 @@ def register_deploy_handlers(
     @worker.task(task_type="db-checkpoint", timeout_ms=600_000)
     async def db_checkpoint(
         server_host: str,
-        db_checkpoint_command: str = "",
-        container: str = "",
         **kwargs: Any,
     ) -> dict:
-        """Create DB checkpoint before module update (production only)."""
-        server = config.resolve_server(server_host)
-        ctr = container or server.container
+        """Create DB checkpoint before module update (production only).
 
-        if db_checkpoint_command:
-            cmd = db_checkpoint_command
-        else:
-            cmd = (
-                f"docker exec {ctr}-db su - postgres -c "
-                f"\"flock -n /tmp/pgbr.lock /usr/bin/pgbackrest "
-                f"--stanza=main --type=full backup\""
-            )
+        Calls the checkpoint HTTP API provided by sysadmin.
+        URL and auth token configured via DB_CHECKPOINT_URL / DB_CHECKPOINT_TOKEN env vars.
+        """
+        checkpoint_url = config.db_checkpoint_url
+        checkpoint_token = config.db_checkpoint_token
 
-        await ssh.run(server, cmd, check=True, timeout=540)
-        logger.info("db-checkpoint on %s: completed", server.host)
+        if not checkpoint_url:
+            logger.warning("db-checkpoint: no DB_CHECKPOINT_URL configured, skipping")
+            return {"checkpoint_created": False}
+
+        headers: dict[str, str] = {}
+        if checkpoint_token:
+            headers["X-Auth-Token"] = checkpoint_token
+
+        async with httpx.AsyncClient(timeout=540) as client:
+            resp = await client.post(checkpoint_url, headers=headers, content=b"")
+            resp.raise_for_status()
+
+        logger.info("db-checkpoint: completed (HTTP %d)", resp.status_code)
         return {"checkpoint_created": True}
 
 
