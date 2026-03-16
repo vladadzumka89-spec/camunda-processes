@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
   <bpmn:process id="Process_0h8z3ny" name="Надання доступів та ОЗ" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
     <bpmn:startEvent id="StartEvent_1">
       <bpmn:outgoing>Flow_0x7w76e</bpmn:outgoing>
     </bpmn:startEvent>
@@ -11,6 +14,15 @@
     <bpmn:userTask id="Activity_0qai6qv" name="Надати Адмін доступи на сайті">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Надати Адмін доступи на сайті&#34;, description: &#34;Надайте адміністративні доступи на сайті для нового працівника&#34;, x_studio_camunda_user_ids: responsible_user_id, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1ui5p6c</bpmn:incoming>
       <bpmn:outgoing>Flow_0j3rzr9</bpmn:outgoing>
@@ -19,6 +31,15 @@
     <bpmn:userTask id="Activity_0cqoubb" name="Допомогти налаштувати Passbolt">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Допомогти налаштувати Passbolt&#34;, description: &#34;Допоможіть новому працівнику налаштувати Passbolt для зберігання паролів&#34;, x_studio_camunda_user_ids: responsible_user_id, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1lafgyv</bpmn:incoming>
       <bpmn:outgoing>Flow_0yk6gnc</bpmn:outgoing>
@@ -36,6 +57,15 @@
     <bpmn:userTask id="Activity_0bzvot4" name="Доступи створенні">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Доступи створенні&#34;, description: &#34;Підтвердіть що всі доступи надано працівнику&#34;, x_studio_camunda_user_ids: responsible_user_id, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1y5v2z1</bpmn:incoming>
       <bpmn:outgoing>Flow_1r681yk</bpmn:outgoing>
@@ -53,6 +83,15 @@
     <bpmn:userTask id="Activity_1qzyyoj" name="Сворити користувача в Passbolt">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Створити користувача в Passbolt&#34;, description: &#34;Створіть обліковий запис для нового працівника в Passbolt&#34;, x_studio_camunda_user_ids: responsible_user_id, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0lah2nk</bpmn:incoming>
       <bpmn:outgoing>Flow_1lafgyv</bpmn:outgoing>
@@ -60,6 +99,15 @@
     <bpmn:userTask id="Activity_0j2pm4k" name="Створити склад в Оду">
       <bpmn:extensionElements>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Створити склад в Оду&#34;, description: &#34;Створіть склад для нового працівника в Odoo&#34;, x_studio_camunda_user_ids: responsible_user_id, _model: &#34;project.project&#34;, _id: 252}" target="body" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_07sxp4q</bpmn:incoming>
       <bpmn:outgoing>Flow_0ne7wti</bpmn:outgoing>
