@@ -78,6 +78,7 @@ class AppConfig:
     db_checkpoint_url: str = ''
     db_checkpoint_token: str = ''
     db_restore_url: str = ''
+    db_remove_url: str = ''
     servers: dict[str, ServerConfig] = field(default_factory=dict)
 
     @classmethod
@@ -129,6 +130,7 @@ class AppConfig:
             db_checkpoint_url=os.getenv('DB_CHECKPOINT_URL', ''),
             db_checkpoint_token=os.getenv('DB_CHECKPOINT_TOKEN', ''),
             db_restore_url=os.getenv('DB_RESTORE_URL', ''),
+            db_remove_url=os.getenv('DB_REMOVE_URL', ''),
             servers=servers,
         )
 

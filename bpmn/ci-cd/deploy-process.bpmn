@@ -116,13 +116,20 @@ Output: changed_modules, docker_build_needed</bpmn:documentation>
       <bpmn:incoming>f_clickbot_report_error_to_docker_up</bpmn:incoming>
       <bpmn:outgoing>f11</bpmn:outgoing>
     </bpmn:serviceTask>
+    <bpmn:serviceTask id="ST_db_remove" name="Видалити старий чекпоінт">
+      <bpmn:documentation>Видаляє попередній чекпоінт перед створенням нового.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="db-remove" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f01_merged</bpmn:incoming>
+      <bpmn:outgoing>f_remove_to_checkpoint</bpmn:outgoing>
+    </bpmn:serviceTask>
     <bpmn:serviceTask id="ST_db_checkpoint" name="DB Checkpoint">
-      <bpmn:documentation>Створює зліпок БД через pgBackRest HTTP API перед міграцією.
-Якщо DB_CHECKPOINT_URL не налаштований — пропускає.</bpmn:documentation>
+      <bpmn:documentation>Створює зліпок через HTTP API перед деплоєм.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="db-checkpoint" retries="2" />
       </bpmn:extensionElements>
-      <bpmn:incoming>f01_merged</bpmn:incoming>
+      <bpmn:incoming>f_remove_to_checkpoint</bpmn:incoming>
       <bpmn:outgoing>f_checkpoint_to_pull</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:serviceTask id="task_module_update" name="Міграція БД (module-update)">
@@ -286,7 +293,8 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
     <bpmn:sequenceFlow id="f_no_parent" name="Standalone" sourceRef="gw_parent_check" targetRef="ST_create_deploy_task" />
     <bpmn:sequenceFlow id="f_created_to_merge" sourceRef="ST_create_deploy_task" targetRef="gw_merge_parent" />
     <bpmn:sequenceFlow id="f_subtask_to_merge" sourceRef="ST_create_subtask" targetRef="gw_merge_parent" />
-    <bpmn:sequenceFlow id="f01_merged" sourceRef="gw_merge_parent" targetRef="ST_db_checkpoint" />
+    <bpmn:sequenceFlow id="f01_merged" sourceRef="gw_merge_parent" targetRef="ST_db_remove" />
+    <bpmn:sequenceFlow id="f_remove_to_checkpoint" sourceRef="ST_db_remove" targetRef="ST_db_checkpoint" />
     <bpmn:sequenceFlow id="f02" sourceRef="task_git_pull" targetRef="gw_changes" />
     <bpmn:sequenceFlow id="f03" name="Ні" sourceRef="gw_changes" targetRef="ST_publish_no_changes">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=has_changes = false</bpmn:conditionExpression>
@@ -317,264 +325,4 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
     <bpmn:sequenceFlow id="f18" sourceRef="task_save_state" targetRef="ST_publish_deploy_done" />
     <bpmn:sequenceFlow id="f_publish_to_end" sourceRef="ST_publish_deploy_done" targetRef="evt_end_success" />
   </bpmn:process>
-  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="deploy-process">
-      <!-- ── Error subprocess (y=80) ── -->
-      <bpmndi:BPMNShape id="evt_error_catch_di" bpmnElement="evt_error_catch">
-        <dc:Bounds x="160" y="62" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_error_odoo_task_di" bpmnElement="ST_error_odoo_task">
-        <dc:Bounds x="260" y="40" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task_rollback_di" bpmnElement="task_rollback">
-        <dc:Bounds x="440" y="40" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_publish_deploy_failed_di" bpmnElement="ST_publish_deploy_failed">
-        <dc:Bounds x="620" y="40" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="evt_error_end_di" bpmnElement="evt_error_end">
-        <dc:Bounds x="800" y="62" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <!-- ── Start event ── -->
-      <bpmndi:BPMNShape id="evt_start_di" bpmnElement="evt_start">
-        <dc:Bounds x="160" y="282" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="gw_parent_check_di" bpmnElement="gw_parent_check" isMarkerVisible="true">
-        <dc:Bounds x="400" y="275" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_create_subtask_di" bpmnElement="ST_create_subtask">
-        <dc:Bounds x="525" y="160" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_create_deploy_task_di" bpmnElement="ST_create_deploy_task">
-        <dc:Bounds x="525" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="gw_merge_parent_di" bpmnElement="gw_merge_parent" isMarkerVisible="true">
-        <dc:Bounds x="730" y="275" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <!-- ── Checkpoint → Git pull ── -->
-      <bpmndi:BPMNShape id="ST_db_checkpoint_di" bpmnElement="ST_db_checkpoint">
-        <dc:Bounds x="855" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task_git_pull_di" bpmnElement="task_git_pull">
-        <dc:Bounds x="1035" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <!-- ── Changes check ── -->
-      <bpmndi:BPMNShape id="gw_changes_di" bpmnElement="gw_changes" isMarkerVisible="true">
-        <dc:Bounds x="1240" y="275" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_publish_no_changes_di" bpmnElement="ST_publish_no_changes">
-        <dc:Bounds x="1345" y="160" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="evt_end_no_changes_di" bpmnElement="evt_end_no_changes">
-        <dc:Bounds x="1527" y="182" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task_detect_modules_di" bpmnElement="task_detect_modules">
-        <dc:Bounds x="1345" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <!-- ── Docker build diamond ── -->
-      <bpmndi:BPMNShape id="gw_docker_build_di" bpmnElement="gw_docker_build" isMarkerVisible="true">
-        <dc:Bounds x="1550" y="275" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task_docker_build_di" bpmnElement="task_docker_build">
-        <dc:Bounds x="1680" y="160" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="gw_merge_docker_di" bpmnElement="gw_merge_docker" isMarkerVisible="true">
-        <dc:Bounds x="1860" y="275" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <!-- ── Module update → Smoke test ── -->
-      <bpmndi:BPMNShape id="task_module_update_di" bpmnElement="task_module_update">
-        <dc:Bounds x="1985" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task_smoke_test_di" bpmnElement="task_smoke_test">
-        <dc:Bounds x="2165" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <!-- ── Clickbot diamond ── -->
-      <bpmndi:BPMNShape id="gw_clickbot_di" bpmnElement="gw_clickbot" isMarkerVisible="true">
-        <dc:Bounds x="2370" y="275" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task_clickbot_di" bpmnElement="task_clickbot">
-        <dc:Bounds x="2475" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="gw_merge_clickbot_di" bpmnElement="gw_merge_clickbot" isMarkerVisible="true">
-        <dc:Bounds x="2680" y="275" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <!-- ── Clickbot report + boundary event ── -->
-      <bpmndi:BPMNShape id="ST_clickbot_report_di" bpmnElement="ST_clickbot_report">
-        <dc:Bounds x="2785" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="evt_clickbot_report_error_di" bpmnElement="evt_clickbot_report_error">
-        <dc:Bounds x="2839" y="322" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <!-- ── Final chain ── -->
-      <bpmndi:BPMNShape id="task_docker_up_di" bpmnElement="task_docker_up">
-        <dc:Bounds x="2965" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task_cache_clear_di" bpmnElement="task_cache_clear">
-        <dc:Bounds x="3145" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task_http_verify_di" bpmnElement="task_http_verify">
-        <dc:Bounds x="3325" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task_save_state_di" bpmnElement="task_save_state">
-        <dc:Bounds x="3505" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_publish_deploy_done_di" bpmnElement="ST_publish_deploy_done">
-        <dc:Bounds x="3685" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="evt_end_success_di" bpmnElement="evt_end_success">
-        <dc:Bounds x="3865" y="282" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <!-- ═══ EDGES ═══ -->
-      <!-- Error subprocess -->
-      <bpmndi:BPMNEdge id="f_err_to_odoo_di" bpmnElement="f_err_to_odoo">
-        <di:waypoint x="196" y="80" />
-        <di:waypoint x="260" y="80" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_err_odoo_to_rollback_di" bpmnElement="f_err_odoo_to_rollback">
-        <di:waypoint x="360" y="80" />
-        <di:waypoint x="440" y="80" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_err2_di" bpmnElement="f_err2">
-        <di:waypoint x="540" y="80" />
-        <di:waypoint x="620" y="80" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_err3_di" bpmnElement="f_err3">
-        <di:waypoint x="720" y="80" />
-        <di:waypoint x="800" y="80" />
-      </bpmndi:BPMNEdge>
-      <!-- Start → parent check -->
-      <bpmndi:BPMNEdge id="f_start_to_parent_check_di" bpmnElement="f_start_to_parent_check">
-        <di:waypoint x="196" y="300" />
-        <di:waypoint x="400" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_has_parent_di" bpmnElement="f_has_parent">
-        <di:waypoint x="425" y="275" />
-        <di:waypoint x="425" y="200" />
-        <di:waypoint x="525" y="200" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_no_parent_di" bpmnElement="f_no_parent">
-        <di:waypoint x="450" y="300" />
-        <di:waypoint x="525" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_subtask_to_merge_di" bpmnElement="f_subtask_to_merge">
-        <di:waypoint x="625" y="200" />
-        <di:waypoint x="755" y="200" />
-        <di:waypoint x="755" y="275" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_created_to_merge_di" bpmnElement="f_created_to_merge">
-        <di:waypoint x="625" y="300" />
-        <di:waypoint x="730" y="300" />
-      </bpmndi:BPMNEdge>
-      <!-- Checkpoint → git pull → changes -->
-      <bpmndi:BPMNEdge id="f01_merged_di" bpmnElement="f01_merged">
-        <di:waypoint x="780" y="300" />
-        <di:waypoint x="855" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_checkpoint_to_pull_di" bpmnElement="f_checkpoint_to_pull">
-        <di:waypoint x="955" y="300" />
-        <di:waypoint x="1035" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f02_di" bpmnElement="f02">
-        <di:waypoint x="1135" y="300" />
-        <di:waypoint x="1240" y="300" />
-      </bpmndi:BPMNEdge>
-      <!-- Changes: no changes (upper) / detect modules (main) -->
-      <bpmndi:BPMNEdge id="f03_di" bpmnElement="f03">
-        <di:waypoint x="1265" y="275" />
-        <di:waypoint x="1265" y="200" />
-        <di:waypoint x="1345" y="200" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f03_to_end_di" bpmnElement="f03_to_end">
-        <di:waypoint x="1445" y="200" />
-        <di:waypoint x="1527" y="200" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f04_di" bpmnElement="f04">
-        <di:waypoint x="1290" y="300" />
-        <di:waypoint x="1345" y="300" />
-      </bpmndi:BPMNEdge>
-      <!-- Docker build diamond -->
-      <bpmndi:BPMNEdge id="f05_di" bpmnElement="f05">
-        <di:waypoint x="1445" y="300" />
-        <di:waypoint x="1550" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f06_di" bpmnElement="f06">
-        <di:waypoint x="1575" y="275" />
-        <di:waypoint x="1575" y="200" />
-        <di:waypoint x="1680" y="200" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f07_di" bpmnElement="f07">
-        <di:waypoint x="1600" y="300" />
-        <di:waypoint x="1860" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f08_di" bpmnElement="f08">
-        <di:waypoint x="1780" y="200" />
-        <di:waypoint x="1885" y="200" />
-        <di:waypoint x="1885" y="275" />
-      </bpmndi:BPMNEdge>
-      <!-- Module update → smoke test -->
-      <bpmndi:BPMNEdge id="f09_di" bpmnElement="f09">
-        <di:waypoint x="1910" y="300" />
-        <di:waypoint x="1985" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f10_di" bpmnElement="f10">
-        <di:waypoint x="2085" y="300" />
-        <di:waypoint x="2165" y="300" />
-      </bpmndi:BPMNEdge>
-      <!-- Clickbot diamond -->
-      <bpmndi:BPMNEdge id="f_smoke_to_gw_clickbot_di" bpmnElement="f_smoke_to_gw_clickbot">
-        <di:waypoint x="2265" y="300" />
-        <di:waypoint x="2370" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_run_clickbot_di" bpmnElement="f_run_clickbot">
-        <di:waypoint x="2420" y="300" />
-        <di:waypoint x="2475" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_skip_clickbot_di" bpmnElement="f_skip_clickbot">
-        <di:waypoint x="2395" y="275" />
-        <di:waypoint x="2395" y="200" />
-        <di:waypoint x="2705" y="200" />
-        <di:waypoint x="2705" y="275" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_clickbot_to_merge_di" bpmnElement="f_clickbot_to_merge">
-        <di:waypoint x="2575" y="300" />
-        <di:waypoint x="2680" y="300" />
-      </bpmndi:BPMNEdge>
-      <!-- Report → docker up -->
-      <bpmndi:BPMNEdge id="f_merge_to_clickbot_report_di" bpmnElement="f_merge_to_clickbot_report">
-        <di:waypoint x="2730" y="300" />
-        <di:waypoint x="2785" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_clickbot_report_to_docker_up_di" bpmnElement="f_clickbot_report_to_docker_up">
-        <di:waypoint x="2885" y="300" />
-        <di:waypoint x="2965" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_clickbot_report_error_to_docker_up_di" bpmnElement="f_clickbot_report_error_to_docker_up">
-        <di:waypoint x="2857" y="358" />
-        <di:waypoint x="2857" y="400" />
-        <di:waypoint x="3015" y="400" />
-        <di:waypoint x="3015" y="340" />
-      </bpmndi:BPMNEdge>
-      <!-- Final chain -->
-      <bpmndi:BPMNEdge id="f11_di" bpmnElement="f11">
-        <di:waypoint x="3065" y="300" />
-        <di:waypoint x="3145" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f12_di" bpmnElement="f12">
-        <di:waypoint x="3245" y="300" />
-        <di:waypoint x="3325" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_http_to_save_di" bpmnElement="f_http_to_save">
-        <di:waypoint x="3425" y="300" />
-        <di:waypoint x="3505" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f18_di" bpmnElement="f18">
-        <di:waypoint x="3605" y="300" />
-        <di:waypoint x="3685" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_publish_to_end_di" bpmnElement="f_publish_to_end">
-        <di:waypoint x="3785" y="300" />
-        <di:waypoint x="3865" y="300" />
-      </bpmndi:BPMNEdge>
-    </bpmndi:BPMNPlane>
-  </bpmndi:BPMNDiagram>
-</bpmn:definitions>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1"><bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="deploy-process"><bpmndi:BPMNShape id="evt_error_catch_di" bpmnElement="evt_error_catch"><dc:Bounds x="207" y="254" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="evt_start_di" bpmnElement="evt_start"><dc:Bounds x="207" y="310" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_error_odoo_task_di" bpmnElement="ST_error_odoo_task"><dc:Bounds x="291" y="225" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="gw_parent_check_di" bpmnElement="gw_parent_check" isMarkerVisible="true"><dc:Bounds x="316" y="325" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_rollback_di" bpmnElement="task_rollback"><dc:Bounds x="471" y="160" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_create_subtask_di" bpmnElement="ST_create_subtask"><dc:Bounds x="471" y="260" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_create_deploy_task_di" bpmnElement="ST_create_deploy_task"><dc:Bounds x="471" y="360" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_publish_deploy_failed_di" bpmnElement="ST_publish_deploy_failed"><dc:Bounds x="651" y="225" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="gw_merge_parent_di" bpmnElement="gw_merge_parent" isMarkerVisible="true"><dc:Bounds x="676" y="325" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="evt_error_end_di" bpmnElement="evt_error_end"><dc:Bounds x="863" y="232" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_db_remove_di" bpmnElement="ST_db_remove"><dc:Bounds x="831" y="288" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_db_checkpoint_di" bpmnElement="ST_db_checkpoint"><dc:Bounds x="1011" y="260" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_git_pull_di" bpmnElement="task_git_pull"><dc:Bounds x="1191" y="260" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="gw_changes_di" bpmnElement="gw_changes" isMarkerVisible="true"><dc:Bounds x="1396" y="275" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_publish_no_changes_di" bpmnElement="ST_publish_no_changes"><dc:Bounds x="1501" y="210" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_detect_modules_di" bpmnElement="task_detect_modules"><dc:Bounds x="1501" y="310" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="evt_end_no_changes_di" bpmnElement="evt_end_no_changes"><dc:Bounds x="1713" y="247" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="gw_docker_build_di" bpmnElement="gw_docker_build" isMarkerVisible="true"><dc:Bounds x="1706" y="303" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_docker_build_di" bpmnElement="task_docker_build"><dc:Bounds x="1811" y="260" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="gw_merge_docker_di" bpmnElement="gw_merge_docker" isMarkerVisible="true"><dc:Bounds x="2016" y="275" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_module_update_di" bpmnElement="task_module_update"><dc:Bounds x="2121" y="260" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_smoke_test_di" bpmnElement="task_smoke_test"><dc:Bounds x="2301" y="260" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="gw_clickbot_di" bpmnElement="gw_clickbot" isMarkerVisible="true"><dc:Bounds x="2506" y="275" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_clickbot_di" bpmnElement="task_clickbot"><dc:Bounds x="2611" y="260" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="gw_merge_clickbot_di" bpmnElement="gw_merge_clickbot" isMarkerVisible="true"><dc:Bounds x="2816" y="275" width="50" height="50" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_clickbot_report_di" bpmnElement="ST_clickbot_report"><dc:Bounds x="2921" y="260" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_docker_up_di" bpmnElement="task_docker_up"><dc:Bounds x="3101" y="260" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_cache_clear_di" bpmnElement="task_cache_clear"><dc:Bounds x="3281" y="260" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_http_verify_di" bpmnElement="task_http_verify"><dc:Bounds x="3461" y="260" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="task_save_state_di" bpmnElement="task_save_state"><dc:Bounds x="3641" y="260" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="ST_publish_deploy_done_di" bpmnElement="ST_publish_deploy_done"><dc:Bounds x="3821" y="260" width="100" height="80" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="evt_end_success_di" bpmnElement="evt_end_success"><dc:Bounds x="4033" y="282" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNShape id="evt_clickbot_report_error_di" bpmnElement="evt_clickbot_report_error"><dc:Bounds x="2975" y="322" width="36" height="36" /><bpmndi:BPMNLabel /></bpmndi:BPMNShape><bpmndi:BPMNEdge id="f_err_to_odoo_di" bpmnElement="f_err_to_odoo"><di:waypoint x="243" y="272" /><di:waypoint x="273" y="272" /><di:waypoint x="273" y="265" /><di:waypoint x="291" y="265" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_err_odoo_to_rollback_di" bpmnElement="f_err_odoo_to_rollback"><di:waypoint x="391" y="265" /><di:waypoint x="421" y="265" /><di:waypoint x="421" y="200" /><di:waypoint x="471" y="200" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_err2_di" bpmnElement="f_err2"><di:waypoint x="571" y="200" /><di:waypoint x="601" y="200" /><di:waypoint x="601" y="265" /><di:waypoint x="651" y="265" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_err3_di" bpmnElement="f_err3"><di:waypoint x="751" y="265" /><di:waypoint x="781" y="265" /><di:waypoint x="781" y="250" /><di:waypoint x="863" y="250" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_start_to_parent_check_di" bpmnElement="f_start_to_parent_check"><di:waypoint x="243" y="328" /><di:waypoint x="273" y="328" /><di:waypoint x="273" y="350" /><di:waypoint x="316" y="350" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_has_parent_di" bpmnElement="f_has_parent"><di:waypoint x="366" y="350" /><di:waypoint x="396" y="350" /><di:waypoint x="396" y="300" /><di:waypoint x="471" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_no_parent_di" bpmnElement="f_no_parent"><di:waypoint x="366" y="350" /><di:waypoint x="411" y="350" /><di:waypoint x="411" y="400" /><di:waypoint x="471" y="400" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_created_to_merge_di" bpmnElement="f_created_to_merge"><di:waypoint x="571" y="400" /><di:waypoint x="601" y="400" /><di:waypoint x="601" y="350" /><di:waypoint x="676" y="350" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_subtask_to_merge_di" bpmnElement="f_subtask_to_merge"><di:waypoint x="571" y="300" /><di:waypoint x="616" y="300" /><di:waypoint x="616" y="350" /><di:waypoint x="676" y="350" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f01_merged_di" bpmnElement="f01_merged"><di:waypoint x="726" y="350" /><di:waypoint x="756" y="350" /><di:waypoint x="756" y="328" /><di:waypoint x="831" y="328" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_remove_to_checkpoint_di" bpmnElement="f_remove_to_checkpoint"><di:waypoint x="931" y="328" /><di:waypoint x="961" y="328" /><di:waypoint x="961" y="300" /><di:waypoint x="1011" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f02_di" bpmnElement="f02"><di:waypoint x="1291" y="300" /><di:waypoint x="1396" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f03_di" bpmnElement="f03"><di:waypoint x="1446" y="300" /><di:waypoint x="1476" y="300" /><di:waypoint x="1476" y="250" /><di:waypoint x="1501" y="250" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f03_to_end_di" bpmnElement="f03_to_end"><di:waypoint x="1601" y="250" /><di:waypoint x="1631" y="250" /><di:waypoint x="1631" y="265" /><di:waypoint x="1713" y="265" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f04_di" bpmnElement="f04"><di:waypoint x="1446" y="300" /><di:waypoint x="1491" y="300" /><di:waypoint x="1491" y="350" /><di:waypoint x="1501" y="350" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f05_di" bpmnElement="f05"><di:waypoint x="1601" y="350" /><di:waypoint x="1631" y="350" /><di:waypoint x="1631" y="328" /><di:waypoint x="1706" y="328" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f06_di" bpmnElement="f06"><di:waypoint x="1756" y="328" /><di:waypoint x="1786" y="328" /><di:waypoint x="1786" y="300" /><di:waypoint x="1811" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f07_di" bpmnElement="f07"><di:waypoint x="1756" y="328" /><di:waypoint x="1801" y="328" /><di:waypoint x="1801" y="300" /><di:waypoint x="1801" y="245" /><di:waypoint x="2016" y="245" /><di:waypoint x="2016" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f08_di" bpmnElement="f08"><di:waypoint x="1911" y="300" /><di:waypoint x="2016" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f09_di" bpmnElement="f09"><di:waypoint x="2066" y="300" /><di:waypoint x="2121" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_checkpoint_to_pull_di" bpmnElement="f_checkpoint_to_pull"><di:waypoint x="1111" y="300" /><di:waypoint x="1191" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f10_di" bpmnElement="f10"><di:waypoint x="2221" y="300" /><di:waypoint x="2301" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_smoke_to_gw_clickbot_di" bpmnElement="f_smoke_to_gw_clickbot"><di:waypoint x="2401" y="300" /><di:waypoint x="2506" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_run_clickbot_di" bpmnElement="f_run_clickbot"><di:waypoint x="2556" y="300" /><di:waypoint x="2611" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_skip_clickbot_di" bpmnElement="f_skip_clickbot"><di:waypoint x="2556" y="300" /><di:waypoint x="2556" y="245" /><di:waypoint x="2816" y="245" /><di:waypoint x="2816" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_clickbot_to_merge_di" bpmnElement="f_clickbot_to_merge"><di:waypoint x="2711" y="300" /><di:waypoint x="2816" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_merge_to_clickbot_report_di" bpmnElement="f_merge_to_clickbot_report"><di:waypoint x="2866" y="300" /><di:waypoint x="2921" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_clickbot_report_to_docker_up_di" bpmnElement="f_clickbot_report_to_docker_up"><di:waypoint x="3021" y="300" /><di:waypoint x="3101" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_clickbot_report_error_to_docker_up_di" bpmnElement="f_clickbot_report_error_to_docker_up"><di:waypoint x="2993" y="358" /><di:waypoint x="2993" y="300" /><di:waypoint x="3101" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f11_di" bpmnElement="f11"><di:waypoint x="3201" y="300" /><di:waypoint x="3281" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f12_di" bpmnElement="f12"><di:waypoint x="3381" y="300" /><di:waypoint x="3461" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_http_to_save_di" bpmnElement="f_http_to_save"><di:waypoint x="3561" y="300" /><di:waypoint x="3641" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f18_di" bpmnElement="f18"><di:waypoint x="3741" y="300" /><di:waypoint x="3821" y="300" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="f_publish_to_end_di" bpmnElement="f_publish_to_end"><di:waypoint x="3921" y="300" /><di:waypoint x="4033" y="300" /></bpmndi:BPMNEdge></bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>

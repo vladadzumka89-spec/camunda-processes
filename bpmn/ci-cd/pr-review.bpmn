@@ -50,8 +50,24 @@
       <bpmn:outgoing>f_created_to_merge</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:exclusiveGateway id="gw_merge_parent">
+    <bpmn:serviceTask id="ST_create_review_subtask" name="Створити підзадачу ревʼю в Odoo">
+      <bpmn:documentation>Child review: створює підзадачу в батьківському процесі Odoo.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={name: &quot;[review] PR #&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;Code Review&quot;), description: &quot;&lt;p&gt;Автоматичне ревʼю PR #&quot; + string(pr_number) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot;&lt;/p&gt;&quot;, parent_process_instance_key: parent_process_instance_key, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 237, bpmn_process_id: &quot;pr-review&quot;}" target="body" />
+          <zeebe:input source="=&quot;odoo_subtask_response&quot;" target="result_variable_name" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:incoming>f_has_parent</bpmn:incoming>
+      <bpmn:outgoing>f_subtask_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="gw_merge_parent">
+      <bpmn:incoming>f_subtask_to_merge</bpmn:incoming>
       <bpmn:incoming>f_created_to_merge</bpmn:incoming>
       <bpmn:outgoing>f_start_to_review</bpmn:outgoing>
     </bpmn:exclusiveGateway>
@@ -138,11 +154,12 @@ Output: review_score, has_critical_issues</bpmn:documentation>
 
     
     <bpmn:sequenceFlow id="f_start_to_parent_check" sourceRef="evt_start" targetRef="gw_parent_check" />
-    <bpmn:sequenceFlow id="f_has_parent" name="Так" sourceRef="gw_parent_check" targetRef="gw_merge_parent">
+    <bpmn:sequenceFlow id="f_has_parent" name="Так" sourceRef="gw_parent_check" targetRef="ST_create_review_subtask">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(parent_process_instance_key) and parent_process_instance_key != null</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="f_no_parent" name="Standalone" sourceRef="gw_parent_check" targetRef="ST_create_review_task" />
     <bpmn:sequenceFlow id="f_created_to_merge" sourceRef="ST_create_review_task" targetRef="gw_merge_parent" />
+    <bpmn:sequenceFlow id="f_subtask_to_merge" sourceRef="ST_create_review_subtask" targetRef="gw_merge_parent" />
     <bpmn:sequenceFlow id="f_start_to_review" sourceRef="gw_merge_parent" targetRef="task_pr_agent" />
     <bpmn:sequenceFlow id="f_review_to_gw" sourceRef="task_pr_agent" targetRef="gw_score" />
     <bpmn:sequenceFlow id="f_score_ok" name="OK" sourceRef="gw_score" targetRef="ST_publish_review_done">
@@ -169,6 +186,11 @@ Output: review_score, has_critical_issues</bpmn:documentation>
 
       <bpmndi:BPMNShape id="gw_parent_check_di" bpmnElement="gw_parent_check" isMarkerVisible="true">
         <dc:Bounds x="290" y="185" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="ST_create_review_subtask_di" bpmnElement="ST_create_review_subtask">
+        <dc:Bounds x="420" y="90" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
@@ -239,18 +261,24 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         <di:waypoint x="290" y="210" />
       </bpmndi:BPMNEdge>
 
-      <!-- "Так" bypass above: Parent check → Merge -->
+      <!-- "Так": Parent check → Subtask (L-shape up then right) -->
       <bpmndi:BPMNEdge id="f_has_parent_di" bpmnElement="f_has_parent">
         <di:waypoint x="315" y="185" />
         <di:waypoint x="315" y="130" />
-        <di:waypoint x="625" y="130" />
-        <di:waypoint x="625" y="185" />
+        <di:waypoint x="420" y="130" />
       </bpmndi:BPMNEdge>
 
       <!-- "Standalone" default: Parent check → Create task -->
       <bpmndi:BPMNEdge id="f_no_parent_di" bpmnElement="f_no_parent">
         <di:waypoint x="340" y="210" />
         <di:waypoint x="420" y="210" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Subtask → Merge (L-shape right then down) -->
+      <bpmndi:BPMNEdge id="f_subtask_to_merge_di" bpmnElement="f_subtask_to_merge">
+        <di:waypoint x="520" y="130" />
+        <di:waypoint x="625" y="130" />
+        <di:waypoint x="625" y="185" />
       </bpmndi:BPMNEdge>
 
       <!-- Create task → Merge -->
@@ -300,8 +328,8 @@ Output: review_score, has_critical_issues</bpmn:documentation>
       <bpmndi:BPMNEdge id="f_wait_update_back_di" bpmnElement="f_wait_update_back">
         <di:waypoint x="1320" y="370" />
         <di:waypoint x="1350" y="370" />
-        <di:waypoint x="1350" y="80" />
-        <di:waypoint x="700" y="80" />
+        <di:waypoint x="1350" y="50" />
+        <di:waypoint x="700" y="50" />
         <di:waypoint x="700" y="210" />
         <di:waypoint x="730" y="210" />
       </bpmndi:BPMNEdge>
