@@ -405,7 +405,11 @@ def _fetch_fop_stores(conn, year: int) -> dict:
         all_org_ids = set(terminal_data.keys()) | set(doc_data.keys())
 
         for org_id in all_org_ids:
-            if org_id in terminal_data:
+            if org_id in doc_data:
+                for item in doc_data[org_id]:
+                    item["source"] = "document"
+                    result[org_id].append(item)
+            elif org_id in terminal_data:
                 for name, info in sorted(
                     terminal_data[org_id].items(), key=lambda x: -x[1]["total"]
                 ):
@@ -415,10 +419,6 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                         "total": info["total"],
                         "source": "terminal",
                     })
-            if org_id not in terminal_data and org_id in doc_data:
-                for item in doc_data[org_id]:
-                    item["source"] = "document"
-                    result[org_id].append(item)
 
         return result
     finally:
@@ -677,7 +677,10 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
                 "income_percent": fop_entry["income_percent"],
                 "days_to_limit": days_to_limit,
                 "projected_date": projected_date,
-                "stores": ", ".join(s["name"] for s in stores[:5]),
+                "stores": ", ".join(
+                    f"{s['name']}: {s['total']:,.0f}".replace(",", " ")
+                    for s in stores[:5]
+                ),
                 "stores_count": len(stores),
                 "trend_ratio": fop_entry["trend_ratio"],
             })
@@ -693,8 +696,11 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
     # JSON report — all FOPs sorted by days_to_limit (most urgent first)
     all_fops_report.sort(key=lambda f: f["days_to_limit"])
 
+    period = f"{date(year, 1, 1).strftime('%d.%m.%Y')} - {today.strftime('%d.%m.%Y')}"
+
     report_json = {
         "report_date": today.isoformat(),
+        "period": period,
         "total_fops": len(fops),
         "total_analyzed": len(analyses),
         "critical_count": critical_all,

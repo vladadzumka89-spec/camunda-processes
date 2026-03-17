@@ -202,55 +202,7 @@ class WebhookServer:
             client = self._create_zeebe_client()
             await client.publish_message(
                 name="msg_deploy_trigger",
-                correlation_key=after_sha,
-                variables=variables,
-                time_to_live_in_milliseconds=3_600_000,
-            )
-            logger.info(
-                "Published msg_deploy_trigger for push to staging (sha=%s)",
-                after_sha[:12],
-            )
-            return web.json_response({
-                "status": "published",
-                "message": "msg_deploy_trigger",
-                "trigger_sha": after_sha,
-            })
-        except Exception as exc:
-            logger.error("Failed to publish msg_deploy_trigger: %s", exc)
-            return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
-
-    async def _route_push_event(self, payload: dict) -> web.Response:
-        """Route push events — deploy staging on push to staging branch."""
-        ref = payload.get('ref', '')
-        after_sha = payload.get('after', '')
-
-        if ref != 'refs/heads/staging':
-            logger.info("Ignoring push to %s (not staging)", ref)
-            return web.json_response({"status": "ignored", "ref": ref})
-
-        staging = self._config.servers.get('staging')
-        if not staging:
-            logger.error("No staging server configured for deploy trigger")
-            return web.Response(status=500, text="No staging server configured")
-
-        variables: dict[str, Any] = {
-            "trigger_sha": after_sha,
-            "server_host": staging.host,
-            "ssh_user": staging.ssh_user,
-            "repo_dir": staging.repo_dir,
-            "db_name": staging.db_name,
-            "container": staging.container,
-            "branch": "staging",
-            "run_smoke_test": True,
-            "test_mode": "full",
-            "odoo_project_id": self._config.odoo.project_id,
-        }
-
-        try:
-            client = self._create_zeebe_client()
-            await client.publish_message(
-                name="msg_deploy_trigger",
-                correlation_key=after_sha,
+                correlation_key=variables.get("branch", "staging"),
                 variables=variables,
                 time_to_live_in_milliseconds=3_600_000,
             )
@@ -306,6 +258,14 @@ class WebhookServer:
 
         try:
             client = self._create_zeebe_client()
+            # msg_pr_review: starts standalone pr-review process (correlation by pr_number)
+            await client.publish_message(
+                name="msg_pr_review",
+                correlation_key=str(pr_number),
+                variables=variables,
+                time_to_live_in_milliseconds=3_600_000,
+            )
+            # msg_pr_event: correlates with running feature-to-production (correlation by head_branch)
             await client.publish_message(
                 name="msg_pr_event",
                 correlation_key=variables.get("head_branch", ""),
@@ -313,16 +273,16 @@ class WebhookServer:
                 time_to_live_in_milliseconds=3_600_000,
             )
             logger.info(
-                "Published msg_pr_event for PR #%d (%s)",
+                "Published msg_pr_review + msg_pr_event for PR #%d (%s)",
                 pr_number, pr.get('title', ''),
             )
             return web.json_response({
                 "status": "published",
-                "message": "msg_pr_event",
+                "messages": ["msg_pr_review", "msg_pr_event"],
                 "pr_number": pr_number,
             })
         except Exception as exc:
-            logger.error("Failed to publish msg_pr_event for PR #%d: %s", pr_number, exc)
+            logger.error("Failed to publish messages for PR #%d: %s", pr_number, exc)
             return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
 
     async def _publish_pr_updated(self, pr: dict) -> web.Response:
