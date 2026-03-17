@@ -1,27 +1,13 @@
 <?xml version='1.0' encoding='utf-8'?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_deploy" targetNamespace="http://tut.ua/bpmn/deploy" exporter="Claude Code" exporterVersion="1.0">
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
-  <bpmn:message id="Message_deploy_trigger" name="msg_deploy_trigger">
-    <bpmn:extensionElements>
-      <zeebe:subscription correlationKey="=trigger_sha" />
-    </bpmn:extensionElements>
-  </bpmn:message>
   <bpmn:process id="deploy-process" name="Deploy Process" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="4.0" />
+      <zeebe:versionTag value="5.0" />
     </bpmn:extensionElements>
     <bpmn:startEvent id="evt_start" name="Початок деплою">
-      <bpmn:outgoing>f01</bpmn:outgoing>
-    </bpmn:startEvent>
-    <bpmn:startEvent id="evt_start_msg" name="Деплой (webhook)">
-      <bpmn:outgoing>f01_msg</bpmn:outgoing>
-      <bpmn:messageEventDefinition id="MsgDef_deploy_trigger" messageRef="Message_deploy_trigger" />
-    </bpmn:startEvent>
-    <bpmn:exclusiveGateway id="gw_merge_start">
-      <bpmn:incoming>f01</bpmn:incoming>
-      <bpmn:incoming>f01_msg</bpmn:incoming>
       <bpmn:outgoing>f_start_to_parent_check</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
+    </bpmn:startEvent>
     <bpmn:exclusiveGateway id="gw_parent_check" name="Є батьківський процес?" default="f_no_parent">
       <bpmn:incoming>f_start_to_parent_check</bpmn:incoming>
       <bpmn:outgoing>f_has_parent</bpmn:outgoing>
@@ -193,7 +179,7 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <zeebe:ioMapping>
           <zeebe:input source="=server_host" target="server_host" />
           <zeebe:input source="=db_name" target="db_name" />
-          <zeebe:input source="=if is defined(test_mode) and test_mode != null then test_mode else &quot;full&quot;" target="test_mode" />
+          <zeebe:input source="=if is defined(test_mode) and test_mode != null then test_mode else &quot;light&quot;" target="test_mode" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_run_clickbot</bpmn:incoming>
@@ -293,9 +279,7 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
       <bpmn:sequenceFlow id="f_err2" sourceRef="task_rollback" targetRef="ST_publish_deploy_failed" />
       <bpmn:sequenceFlow id="f_err3" sourceRef="ST_publish_deploy_failed" targetRef="evt_error_end" />
     </bpmn:subProcess>
-    <bpmn:sequenceFlow id="f01" sourceRef="evt_start" targetRef="gw_merge_start" />
-    <bpmn:sequenceFlow id="f01_msg" sourceRef="evt_start_msg" targetRef="gw_merge_start" />
-    <bpmn:sequenceFlow id="f_start_to_parent_check" sourceRef="gw_merge_start" targetRef="gw_parent_check" />
+    <bpmn:sequenceFlow id="f_start_to_parent_check" sourceRef="evt_start" targetRef="gw_parent_check" />
     <bpmn:sequenceFlow id="f_has_parent" name="Так" sourceRef="gw_parent_check" targetRef="ST_create_subtask">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(parent_process_instance_key) and parent_process_instance_key != null</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
@@ -351,16 +335,9 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
       <bpmndi:BPMNShape id="evt_error_end_di" bpmnElement="evt_error_end">
         <dc:Bounds x="800" y="62" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <!-- ── Start events ── -->
+      <!-- ── Start event ── -->
       <bpmndi:BPMNShape id="evt_start_di" bpmnElement="evt_start">
-        <dc:Bounds x="160" y="232" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="evt_start_msg_di" bpmnElement="evt_start_msg">
-        <dc:Bounds x="160" y="332" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <!-- ── Parent check diamond ── -->
-      <bpmndi:BPMNShape id="gw_merge_start_di" bpmnElement="gw_merge_start" isMarkerVisible="true">
-        <dc:Bounds x="270" y="275" width="50" height="50" />
+        <dc:Bounds x="160" y="282" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_parent_check_di" bpmnElement="gw_parent_check" isMarkerVisible="true">
         <dc:Bounds x="400" y="275" width="50" height="50" />
@@ -465,20 +442,9 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <di:waypoint x="720" y="80" />
         <di:waypoint x="800" y="80" />
       </bpmndi:BPMNEdge>
-      <!-- Start → merge -->
-      <bpmndi:BPMNEdge id="f01_di" bpmnElement="f01">
-        <di:waypoint x="196" y="250" />
-        <di:waypoint x="295" y="250" />
-        <di:waypoint x="295" y="275" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f01_msg_di" bpmnElement="f01_msg">
-        <di:waypoint x="196" y="350" />
-        <di:waypoint x="295" y="350" />
-        <di:waypoint x="295" y="325" />
-      </bpmndi:BPMNEdge>
-      <!-- Parent check diamond -->
+      <!-- Start → parent check -->
       <bpmndi:BPMNEdge id="f_start_to_parent_check_di" bpmnElement="f_start_to_parent_check">
-        <di:waypoint x="320" y="300" />
+        <di:waypoint x="196" y="300" />
         <di:waypoint x="400" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_has_parent_di" bpmnElement="f_has_parent">
