@@ -432,58 +432,23 @@ def register_deploy_handlers(
     @worker.task(task_type="rollback", timeout_ms=600_000)
     async def rollback(
         server_host: str,
-        old_commit: str = "none",
-        branch: str = "",
-        db_restore_command: str = "",
-        repo_dir: str = "",
         **kwargs: Any,
     ) -> dict:
-        """Rollback to previous commit. On production, restores DB first."""
-        server = config.resolve_server(server_host)
+        """Restore from checkpoint via HTTP API."""
+        if not config.db_restore_url:
+            logger.warning("rollback: no DB_RESTORE_URL configured, skipping")
+            return {"restored": False}
 
-        if old_commit in ("none", ""):
-            logger.warning("rollback on %s: no previous commit, skipping", server.host)
-            return {}
+        headers: dict[str, str] = {}
+        if config.db_checkpoint_token:
+            headers["X-Auth-Token"] = config.db_checkpoint_token
 
-        # Production: restore DB from checkpoint via HTTP API
-        is_prod = server == config.servers.get("production")
-        db_restored = False
+        async with httpx.AsyncClient(timeout=540) as client:
+            resp = await client.post(config.db_restore_url, headers=headers, content=b"")
+            resp.raise_for_status()
 
-        if is_prod and config.db_restore_url:
-            logger.info("rollback on %s: restoring DB from checkpoint", server.host)
-            await ssh.run_in_repo(server, "docker compose stop", timeout=60)
-            try:
-                restore_headers = {}
-                if config.db_checkpoint_token:
-                    restore_headers["X-Auth-Token"] = config.db_checkpoint_token
-                async with httpx.AsyncClient(timeout=540) as client:
-                    resp = await client.post(config.db_restore_url, headers=restore_headers, content=b"")
-                    resp.raise_for_status()
-                db_restored = True
-                logger.info("rollback on %s: DB restored (HTTP %d)", server.host, resp.status_code)
-            except Exception as exc:
-                logger.error("rollback on %s: DB restore failed: %s", server.host, exc)
-                raise
-            await ssh.run_in_repo(server, "docker compose start db", check=True, timeout=60)
-
-        # Git checkout
-        if branch:
-            await ssh.run_in_repo(
-                server,
-                f"git checkout -B {branch} {old_commit}",
-                check=True,
-            )
-        else:
-            await ssh.run_in_repo(server, f"git checkout {old_commit}", check=True)
-
-        await ssh.run_in_repo(
-            server,
-            "docker compose up -d --force-recreate",
-            check=True,
-            timeout=120,
-        )
-        logger.info("rollback on %s to %s (db_restored=%s)", server.host, old_commit[:8], db_restored)
-        return {}
+        logger.info("rollback on %s: restored from checkpoint (HTTP %d)", server_host, resp.status_code)
+        return {"restored": True}
 
     # ── db-checkpoint ─────────────────────────────────────────
 
@@ -492,11 +457,7 @@ def register_deploy_handlers(
         server_host: str,
         **kwargs: Any,
     ) -> dict:
-        """Create DB checkpoint before module update (production only).
-
-        Calls the checkpoint HTTP API provided by sysadmin.
-        URL and auth token configured via DB_CHECKPOINT_URL / DB_CHECKPOINT_TOKEN env vars.
-        """
+        """Create checkpoint via HTTP API before deploy."""
         checkpoint_url = config.db_checkpoint_url
         checkpoint_token = config.db_checkpoint_token
 
