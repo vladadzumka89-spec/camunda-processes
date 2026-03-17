@@ -3,6 +3,11 @@
 Task types:
     - bdu-check-position   — чи є посада в штатному розкладі
     - bdu-check-units      — чи достатньо вакантних одиниць
+
+Camunda variables (з Odoo):
+    x_studio_camunda_position_id      — назва посади ("Продавець-консультант")
+    x_studio_camunda_pidrozdil_name   — назва підрозділу ("639 ТРЦ Київ Полтава")
+    x_studio_camunda_organization_name — назва організації ("Кременюк Аліна Юріївна")
 """
 
 from __future__ import annotations
@@ -75,7 +80,7 @@ def _extract_department_number(department_name: str) -> str:
 def _check_position_exists(
     position_name: str,
     department_number: str,
-    org_okpo: str,
+    org_name: str,
 ) -> dict:
     """Перевірити чи є посада в штатному розкладі.
 
@@ -83,7 +88,7 @@ def _check_position_exists(
         _Reference12429 — Позиції штатного розкладу
         _Reference12325 — Посади (Fld27124RRef)
         _Reference100   — Підрозділи (Fld27123RRef)
-        _Reference90    — Організації (OwnerIDRRef, Fld1494 = ЄДРПОУ)
+        _Reference90    — Організації (OwnerIDRRef)
         _Fld27127       — Кількість одиниць
     """
     conn = _get_connection()
@@ -102,19 +107,19 @@ def _check_position_exists(
                 JOIN _Reference90 org ON p._OwnerIDRRef = org._IDRRef
                 WHERE pos._Description = %s
                   AND dept._Description LIKE %s
-                  AND org._Fld1494 = %s
+                  AND org._Description = %s
                   AND p._Marked = 0x00
                   AND p._Fld27127 > 0
                 ORDER BY p._Fld27129 DESC
-            """, (position_name, f"{department_number}%", org_okpo))
+            """, (position_name, f"{department_number}%", org_name))
 
             row = cursor.fetchone()
             position_exists = row is not None
             units = float(row["units"]) if row else 0
 
             logger.info(
-                "bdu-check-position: '%s' в '%s' (ЄДРПОУ %s) → %s (одиниць: %s)",
-                position_name, department_number, org_okpo,
+                "bdu-check-position: '%s' в '%s' (орг '%s') → %s (одиниць: %s)",
+                position_name, department_number, org_name,
                 "знайдена" if position_exists else "не знайдена", units,
             )
 
@@ -138,7 +143,7 @@ def _check_position_exists(
 def _check_units_available(
     position_name: str,
     department_number: str,
-    org_okpo: str,
+    org_name: str,
 ) -> dict:
     """Перевірити чи є вакантні одиниці.
 
@@ -159,11 +164,11 @@ def _check_units_available(
                 JOIN _Reference90 org ON p._OwnerIDRRef = org._IDRRef
                 WHERE pos._Description = %s
                   AND dept._Description LIKE %s
-                  AND org._Fld1494 = %s
+                  AND org._Description = %s
                   AND p._Marked = 0x00
                   AND p._Fld27127 > 0
                 ORDER BY p._Fld27129 DESC
-            """, (position_name, f"{department_number}%", org_okpo))
+            """, (position_name, f"{department_number}%", org_name))
 
             row = cursor.fetchone()
             total_units = int(float(row["units"])) if row else 0
@@ -177,10 +182,10 @@ def _check_units_available(
                 JOIN _Reference90 org ON d._Fld13192RRef = org._IDRRef
                 WHERE pos._Description = %s
                   AND dept._Description LIKE %s
-                  AND org._Fld1494 = %s
+                  AND org._Description = %s
                   AND d._Posted = 0x01
                   AND d._Marked = 0x00
-            """, (position_name, f"{department_number}%", org_okpo))
+            """, (position_name, f"{department_number}%", org_name))
 
             row2 = cursor.fetchone()
             occupied_count = row2["occupied"] if row2 else 0
@@ -220,45 +225,51 @@ def register_bdu_handlers(worker: ZeebeWorker) -> None:
 
     @worker.task(task_type="bdu-check-position", timeout_ms=60_000)
     async def bdu_check_position(
-        position_name: str = "",
-        department_name: str = "",
-        org_okpo: str = "",
+        x_studio_camunda_position_id: str = "",
+        x_studio_camunda_pidrozdil_name: str = "",
+        x_studio_camunda_organization_name: str = "",
         **kwargs: Any,
     ) -> dict:
         """Перевірити чи є посада в штатному розкладі БДУ.
 
-        Input variables (з Camunda):
-            position_name (str): назва посади ('Продавець-консультант')
-            department_name (str): назва підрозділу ('639 ТРЦ Київ Полтава')
-            org_okpo (str): код ЄДРПОУ організації
+        Input variables (з Camunda/Odoo):
+            x_studio_camunda_position_id (str): назва посади
+            x_studio_camunda_pidrozdil_name (str): назва підрозділу
+            x_studio_camunda_organization_name (str): назва організації
 
         Output variables:
             position_exists (bool): чи знайдена посада
             units_in_schedule (int): кількість одиниць
             message (str): опис результату
         """
-        department_number = _extract_department_number(department_name)
+        department_number = _extract_department_number(x_studio_camunda_pidrozdil_name)
         logger.info(
             "bdu-check-position: посада='%s', підрозділ='%s'→'%s', орг='%s'",
-            position_name, department_name, department_number, org_okpo,
+            x_studio_camunda_position_id,
+            x_studio_camunda_pidrozdil_name,
+            department_number,
+            x_studio_camunda_organization_name,
         )
         return await asyncio.to_thread(
-            _check_position_exists, position_name, department_number, org_okpo,
+            _check_position_exists,
+            x_studio_camunda_position_id,
+            department_number,
+            x_studio_camunda_organization_name,
         )
 
     @worker.task(task_type="bdu-check-units", timeout_ms=60_000)
     async def bdu_check_units(
-        position_name: str = "",
-        department_name: str = "",
-        org_okpo: str = "",
+        x_studio_camunda_position_id: str = "",
+        x_studio_camunda_pidrozdil_name: str = "",
+        x_studio_camunda_organization_name: str = "",
         **kwargs: Any,
     ) -> dict:
         """Перевірити чи достатньо одиниць в штатному.
 
-        Input variables (з Camunda):
-            position_name (str): назва посади
-            department_name (str): назва підрозділу
-            org_okpo (str): код ЄДРПОУ
+        Input variables (з Camunda/Odoo):
+            x_studio_camunda_position_id (str): назва посади
+            x_studio_camunda_pidrozdil_name (str): назва підрозділу
+            x_studio_camunda_organization_name (str): назва організації
 
         Output variables:
             need_more_units (bool): потрібно додати одиниці
@@ -268,13 +279,19 @@ def register_bdu_handlers(worker: ZeebeWorker) -> None:
             available_units (int): вільних
             message (str): опис результату
         """
-        department_number = _extract_department_number(department_name)
+        department_number = _extract_department_number(x_studio_camunda_pidrozdil_name)
         logger.info(
             "bdu-check-units: посада='%s', підрозділ='%s'→'%s', орг='%s'",
-            position_name, department_name, department_number, org_okpo,
+            x_studio_camunda_position_id,
+            x_studio_camunda_pidrozdil_name,
+            department_number,
+            x_studio_camunda_organization_name,
         )
         return await asyncio.to_thread(
-            _check_units_available, position_name, department_number, org_okpo,
+            _check_units_available,
+            x_studio_camunda_position_id,
+            department_number,
+            x_studio_camunda_organization_name,
         )
 
     logger.info(

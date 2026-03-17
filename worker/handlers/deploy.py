@@ -450,6 +450,29 @@ def register_deploy_handlers(
         logger.info("rollback on %s: restored from checkpoint (HTTP %d)", server_host, resp.status_code)
         return {"restored": True}
 
+    # ── db-remove ──────────────────────────────────────────────
+
+    @worker.task(task_type="db-remove", timeout_ms=120_000)
+    async def db_remove(
+        server_host: str,
+        **kwargs: Any,
+    ) -> dict:
+        """Remove old checkpoint via HTTP API before creating a new one."""
+        if not config.db_remove_url:
+            logger.warning("db-remove: no DB_REMOVE_URL configured, skipping")
+            return {"checkpoint_removed": False}
+
+        headers: dict[str, str] = {}
+        if config.db_checkpoint_token:
+            headers["X-Auth-Token"] = config.db_checkpoint_token
+
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.post(config.db_remove_url, headers=headers, content=b"")
+            resp.raise_for_status()
+
+        logger.info("db-remove: completed (HTTP %d)", resp.status_code)
+        return {"checkpoint_removed": True}
+
     # ── db-checkpoint ─────────────────────────────────────────
 
     @worker.task(task_type="db-checkpoint", timeout_ms=600_000)

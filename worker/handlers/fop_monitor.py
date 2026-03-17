@@ -291,15 +291,201 @@ def _fetch_daily_income(conn, year: int) -> dict:
         cursor.close()
 
 
-def _parse_terminal_name(purpose: str) -> str | None:
-    m = re.search(r'cmps:.*?,\s*([A-Za-zА-Яа-яІіЇїЄєҐґ\s]+?)\s*Кiльк\s+тр', purpose)
-    if m:
-        name = m.group(1).strip()
-        name = re.sub(r'^[\d\s,]+', '', name).strip()
-        name = re.sub(r'^R\s+', '', name).strip()
-        if len(name) >= 2:
-            return name
-    return None
+# ── Terminal → Subdivision mapping ─────────────────────────────────────
+
+_TRANSLIT = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e',
+    'є': 'ie', 'ж': 'zh', 'з': 'z', 'и': 'y', 'і': 'i', 'ї': 'i',
+    'й': 'i', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o',
+    'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f',
+    'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch',
+    'ь': '', 'ю': 'iu', 'я': 'ia', 'ґ': 'g', "'": '', '\u2019': '',
+}
+
+
+def _translit_ukr(text: str) -> str:
+    """Transliterate Ukrainian to Latin (simplified passport-style)."""
+    return ''.join(_TRANSLIT.get(c, c) for c in text.lower())
+
+
+def _fetch_subdivision_lookup(conn) -> dict[str, str]:
+    """Build {translit_word: full_description} lookup from _Reference116 store tree."""
+    sql = """
+        ;WITH store_roots AS (
+            SELECT _IDRRef FROM _Reference116
+            WHERE _Description IN (N'500 Магазини', N'600 Магазини',
+                                   N'900 Пінкі', N'900 Пінкі  Сайт')
+        ),
+        store_tree AS (
+            SELECT _IDRRef FROM _Reference116
+            WHERE _IDRRef IN (SELECT _IDRRef FROM store_roots)
+            UNION ALL
+            SELECT c._IDRRef FROM _Reference116 c
+            JOIN store_tree t ON c._ParentIDRRef = t._IDRRef
+        )
+        SELECT _Description FROM _Reference116
+        WHERE _IDRRef IN (SELECT _IDRRef FROM store_tree)
+            AND _Description NOT IN (N'500 Магазини', N'600 Магазини',
+                                     N'900 Пінкі', N'900 Пінкі  Сайт')
+    """
+    cursor = conn.cursor(as_dict=True)
+    try:
+        cursor.execute(sql)
+        # Build lookup: each significant word (translit) → full description
+        # Also store full translit → description for multi-word matching
+        lookup = {}  # translit_key -> description
+        all_subs = []  # [(description, set_of_translit_words)]
+        code_lookup = {}  # "601" -> "601 Квартал Хмель"
+
+        for row in cursor:
+            desc = row["_Description"].strip()
+            # Only use entries with 3-digit number prefix: "601 Квартал Хмель"
+            # These are actual store subdivisions, not intermediate folders
+            code_m = re.match(r'^(\d{3})\s', desc)
+            if not code_m:
+                continue
+
+            code_lookup[code_m.group(1)] = desc
+
+            # "601 Квартал Хмель" → name_part = "Квартал Хмель"
+            name_part = re.sub(r'^\d+\s*', '', desc).strip()
+            if not name_part:
+                continue
+
+            words = [w for w in name_part.split() if len(w) >= 2]
+            translit_words = set()
+            for w in words:
+                tw = _translit_ukr(w)
+                if len(tw) >= 2:
+                    translit_words.add(tw)
+
+            all_subs.append((desc, translit_words))
+
+            # Map each unique word ≥4 chars to this subdivision
+            for tw in translit_words:
+                if len(tw) >= 4:
+                    lookup[tw] = desc
+
+            # Map full translit name
+            full_translit = _translit_ukr(name_part).replace(' ', '')
+            if full_translit:
+                lookup[full_translit] = desc
+
+        return {"word_lookup": lookup, "subdivisions": all_subs, "code_lookup": code_lookup}
+    finally:
+        cursor.close()
+
+
+# Manual fallback for terminal names that can't be auto-transliterated
+_TERMINAL_ALIASES = {
+    "ocean": "okean",
+    "cum": "tsum",
+    "golivud": "gollivud",
+    "hollywood": "gollivud",
+    "city center": "siti tsentr",
+    "city centre": "siti tsentr",
+    "small": "smol",
+    "smart": "smol",
+    "schasluvuy": "shchaslyvyi",
+    "happy": "shchaslyvyi",
+    "uzhhorod": "uzhgorod",
+}
+
+# Direct terminal name → subdivision for names that can't be transliterated
+_TERMINAL_DIRECT = {
+    "пiрамiда": "651 Піраміда Київ",  # Latin 'i' in source
+}
+
+
+def _match_terminal_to_subdivision(
+    terminal_name: str,
+    sub_data: dict,
+) -> str | None:
+    """Match English terminal name to Ukrainian subdivision from _Reference116."""
+    tn = terminal_name.lower().strip()
+    word_lookup = sub_data["word_lookup"]
+    subdivisions = sub_data["subdivisions"]
+
+    # 0a) Check direct mapping table
+    if tn in _TERMINAL_DIRECT:
+        return _TERMINAL_DIRECT[tn]
+
+    # 0b) Apply aliases for known mismatches
+    tn_aliased = tn
+    for eng, ukr_translit in _TERMINAL_ALIASES.items():
+        tn_aliased = tn_aliased.replace(eng, ukr_translit)
+    if tn_aliased != tn:
+        tn = tn_aliased
+
+    # 1) Direct full-name match (no spaces)
+    tn_nospace = tn.replace(' ', '')
+    if tn_nospace in word_lookup:
+        return word_lookup[tn_nospace]
+
+    # 2) Word-set matching: find subdivision with most overlapping words
+    # Filter out noise words that appear in many terminal names
+    _NOISE_WORDS = {"pinky", "pinki", "famo", "mag"}
+    terminal_words = [w for w in tn.split() if len(w) >= 2 and w not in _NOISE_WORDS]
+    if not terminal_words:
+        return None
+
+    best_match = None
+    best_score = 0
+    best_sub_size = 999  # prefer smaller subdivisions (more specific)
+
+    for desc, sub_words in subdivisions:
+        if not sub_words:
+            continue
+        score = 0
+        for tw in terminal_words:
+            for sw in sub_words:
+                # Match: first 4 chars equal, containment, or y/i equivalence
+                tw_norm = tw.replace('y', 'i')
+                sw_norm = sw.replace('y', 'i')
+                if (len(tw) >= 4 and len(sw) >= 4 and
+                    (tw[:4] == sw[:4] or tw_norm[:4] == sw_norm[:4])) or \
+                   (len(tw) >= 3 and len(sw) >= 3 and
+                    (tw in sw or sw in tw or tw_norm in sw_norm or sw_norm in tw_norm)):
+                    score += 1
+                    break
+        # Prefer: higher score → fewer unmatched sub_words (more specific)
+        sub_size = len(sub_words)
+        if score > best_score or (score == best_score and score > 0
+                                   and sub_size < best_sub_size):
+            best_score = score
+            best_match = desc
+            best_sub_size = sub_size
+
+    return best_match if best_score > 0 else None
+
+
+def _parse_terminal_name(purpose: str) -> tuple[str | None, str | None]:
+    """Parse terminal name and optional subdivision code from payment purpose.
+
+    Returns (terminal_name, subdivision_code) where subdivision_code is a
+    3-digit string like '911' if found in the text.
+    """
+    # Use greedy match for cmps prefix to handle double-cmps patterns
+    m = re.search(r'cmps:.*,\s*(.*?)\s*Кiльк\s+тр', purpose)
+    if not m:
+        return None, None
+    raw = m.group(1).strip().rstrip(',').strip()
+    # Also strip any remaining cmps: prefix
+    raw = re.sub(r'^cmps:\s*', '', raw).strip()
+    # Look for 3-digit subdivision code (5xx, 6xx, 9xx) in the raw text
+    code_match = re.search(r'\b(\d{3})\s*(?=[A-Za-zА-Яа-яІіЇїЄєҐґ])', raw)
+    sub_code = None
+    if code_match:
+        candidate = code_match.group(1)
+        if candidate[0] in ('5', '6', '9'):
+            sub_code = candidate
+    # Extract terminal name (strip numbers, commas, leading noise)
+    name = re.sub(r'^[\d\s,]+', '', raw).strip()
+    name = re.sub(r'^\d{3}\s*', '', name).strip()  # strip embedded code
+    name = re.sub(r'^R\s+', '', name).strip()
+    if len(name) >= 2:
+        return name, sub_code
+    return None, sub_code
 
 
 def _fetch_fop_stores(conn, year: int) -> dict:
@@ -324,13 +510,15 @@ def _fetch_fop_stores(conn, year: int) -> dict:
     try:
         cursor.execute(sql_terminals, (bas_start, bas_end))
 
-        terminal_data = defaultdict(lambda: defaultdict(lambda: {"count": 0, "total": 0.0}))
+        terminal_data = defaultdict(lambda: defaultdict(lambda: {"count": 0, "total": 0.0, "code": None}))
         for row in cursor:
             org_id = bytes(row["org_id"])
-            name = _parse_terminal_name(row["purpose"] or "")
+            name, sub_code = _parse_terminal_name(row["purpose"] or "")
             if name:
                 terminal_data[org_id][name]["count"] += 1
                 terminal_data[org_id][name]["total"] += float(row["amount"] or 0)
+                if sub_code:
+                    terminal_data[org_id][name]["code"] = sub_code
 
         sql_docs = """
             ;WITH store_roots AS (
@@ -401,8 +589,18 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 "total": float(row["total_sum"] or 0),
             })
 
+        # Build terminal → subdivision mapping from _Reference116
+        sub_data = _fetch_subdivision_lookup(conn)
+        logger.info(
+            "Підрозділи: %d записів у lookup, %d підрозділів",
+            len(sub_data["word_lookup"]),
+            len(sub_data["subdivisions"]),
+        )
+
         result = defaultdict(list)
         all_org_ids = set(terminal_data.keys()) | set(doc_data.keys())
+        mapped_count = 0
+        unmapped_names = set()
 
         for org_id in all_org_ids:
             if org_id in doc_data:
@@ -410,15 +608,35 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                     item["source"] = "document"
                     result[org_id].append(item)
             elif org_id in terminal_data:
+                code_lookup = sub_data["code_lookup"]
                 for name, info in sorted(
                     terminal_data[org_id].items(), key=lambda x: -x[1]["total"]
                 ):
+                    subdivision = None
+                    # 1) Try direct code lookup from payment text
+                    if info["code"] and info["code"] in code_lookup:
+                        subdivision = code_lookup[info["code"]]
+                    # 2) Fallback: transliteration matching
+                    if not subdivision:
+                        subdivision = _match_terminal_to_subdivision(name, sub_data)
+                    if subdivision:
+                        mapped_count += 1
+                    else:
+                        unmapped_names.add(name)
                     result[org_id].append({
-                        "name": name,
+                        "name": subdivision or name,
                         "doc_count": info["count"],
                         "total": info["total"],
                         "source": "terminal",
                     })
+
+        if unmapped_names:
+            logger.warning(
+                "Не вдалось зіставити %d терміналів: %s",
+                len(unmapped_names),
+                ", ".join(sorted(unmapped_names)[:10]),
+            )
+        logger.info("Термінал→підрозділ: %d зіставлено", mapped_count)
 
         return result
     finally:
