@@ -6,6 +6,7 @@ All operations execute via SSH on target servers.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import Any
@@ -18,6 +19,15 @@ from ..retry import retry
 from ..ssh import AsyncSSHClient, CommandResult
 
 logger = logging.getLogger(__name__)
+
+# One lock per server — serializes deploys to the same server
+_deploy_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_deploy_lock(server_host: str) -> asyncio.Lock:
+    if server_host not in _deploy_locks:
+        _deploy_locks[server_host] = asyncio.Lock()
+    return _deploy_locks[server_host]
 
 
 def register_deploy_handlers(
@@ -37,157 +47,84 @@ def register_deploy_handlers(
         **kwargs: Any,
     ) -> dict:
         """Fetch and checkout branch on remote server."""
-        server = config.resolve_server(server_host)
-        repo = repo_dir or server.repo_dir
+        lock = _get_deploy_lock(server_host)
+        async with lock:
+            server = config.resolve_server(server_host)
+            repo = repo_dir or server.repo_dir
 
-        # Read previous deploy state
-        state_file = f"{repo}/.deploy-state/deploy_state_{branch}"
-        result = await ssh.run(server, f"cat {state_file} 2>/dev/null || echo none")
-        old_commit = result.stdout.strip()
+            # Read previous deploy state
+            state_file = f"{repo}/.deploy-state/deploy_state_{branch}"
+            result = await ssh.run(server, f"cat {state_file} 2>/dev/null || echo none")
+            old_commit = result.stdout.strip()
 
-        # Git fetch with retry
-        async def _fetch() -> CommandResult:
-            return await ssh.run_in_repo(
+            # Git fetch with retry
+            async def _fetch() -> CommandResult:
+                return await ssh.run_in_repo(
+                    server,
+                    f"git config --global --add safe.directory {repo} 2>/dev/null; "
+                    f"git fetch origin {branch}",
+                    check=True,
+                    timeout=60,
+                )
+
+            await retry(_fetch, max_attempts=3, delay=5.0)
+
+            # Checkout
+            await ssh.run_in_repo(
                 server,
-                f"git config --global --add safe.directory {repo} 2>/dev/null; "
-                f"git fetch origin {branch}",
+                f"git checkout -B {branch} origin/{branch}",
                 check=True,
-                timeout=60,
             )
 
-        await retry(_fetch, max_attempts=3, delay=5.0)
+            # Get new commit
+            result = await ssh.run_in_repo(server, "git rev-parse HEAD", check=True)
+            new_commit = result.stdout.strip()
 
-        # Checkout
-        await ssh.run_in_repo(
-            server,
-            f"git checkout -B {branch} origin/{branch}",
-            check=True,
-        )
+            has_changes = old_commit != new_commit
+            logger.info(
+                "git-pull on %s: %s → %s (changed=%s)",
+                server.host, old_commit[:8], new_commit[:8], has_changes,
+            )
 
-        # Get new commit
-        result = await ssh.run_in_repo(server, "git rev-parse HEAD", check=True)
-        new_commit = result.stdout.strip()
-
-        has_changes = old_commit != new_commit
-        logger.info(
-            "git-pull on %s: %s → %s (changed=%s)",
-            server.host, old_commit[:8], new_commit[:8], has_changes,
-        )
-
-        return {
-            "old_commit": old_commit,
-            "new_commit": new_commit,
-            "has_changes": has_changes,
-        }
+            return {
+                "old_commit": old_commit,
+                "new_commit": new_commit,
+                "has_changes": has_changes,
+            }
 
     # ── detect-modules ─────────────────────────────────────────
 
-    @worker.task(task_type="detect-modules", timeout_ms=60_000)
+    @worker.task(task_type="detect-modules", timeout_ms=120_000)
     async def detect_modules(
         server_host: str,
-        old_commit: str,
-        new_commit: str,
+        container: str = "",
+        db_name: str = "",
         repo_dir: str = "",
         **kwargs: Any,
     ) -> dict:
-        """Detect changed Odoo modules and whether Docker build is needed."""
+        """Detect changed modules by comparing manifest version on disk vs installed_version in DB."""
         server = config.resolve_server(server_host)
+        ctr = container or server.container
+        db = db_name or server.db_name
         repo = repo_dir or server.repo_dir
 
-        if old_commit == "none":
-            return {"changed_modules": "all", "docker_build_needed": True}
+        scan_script = _build_version_compare_script(ctr, db)
 
-        # Count total changed files
         result = await ssh.run_in_repo(
             server,
-            f"git diff --name-only {old_commit} {new_commit} | wc -l",
-            check=True,
+            scan_script,
+            timeout=120,
         )
-        total_files = int(result.stdout.strip())
 
-        if total_files > 250:
-            return {"changed_modules": "all", "docker_build_needed": True}
+        if not result.success:
+            logger.warning("detect-modules: version scan failed (%s), falling back to 'all'", result.stderr[:200])
+            return {"changed_modules": "all"}
 
-        # Detect module changes in each source dir
-        modules: set[str] = set()
+        changed = [m.strip() for m in result.stdout.strip().split("\n") if m.strip()]
+        changed_modules = ",".join(sorted(set(changed))) if changed else ""
 
-        for base_dir, depth in [
-            ("src/custom", 3),
-            ("src/enterprise", 3),
-            ("src/third-party", 3),
-        ]:
-            result = await ssh.run_in_repo(
-                server,
-                f"git diff --name-only {old_commit} {new_commit} -- {base_dir}/ 2>/dev/null",
-            )
-            if not result.stdout.strip():
-                continue
-
-            for line in result.stdout.strip().split("\n"):
-                parts = line.split("/")
-                if len(parts) >= depth:
-                    mod_name = parts[depth - 1]
-                    # Verify __manifest__.py exists
-                    check = await ssh.run_in_repo(
-                        server,
-                        f"test -f {base_dir}/{mod_name}/__manifest__.py && echo yes || echo no",
-                    )
-                    if check.stdout.strip() == "yes":
-                        modules.add(mod_name)
-
-        # Community addons (deeper path: src/community/odoo/addons/MODULE)
-        result = await ssh.run_in_repo(
-            server,
-            f"git diff --name-only {old_commit} {new_commit} -- src/community/odoo/addons/ 2>/dev/null",
-        )
-        if result.stdout.strip():
-            for line in result.stdout.strip().split("\n"):
-                parts = line.split("/")
-                if len(parts) >= 5:
-                    mod_name = parts[4]
-                    check = await ssh.run_in_repo(
-                        server,
-                        f"test -f src/community/odoo/addons/{mod_name}/__manifest__.py && echo yes || echo no",
-                    )
-                    if check.stdout.strip() == "yes":
-                        modules.add(mod_name)
-
-        # Check if Docker build needed
-        docker_result = await ssh.run_in_repo(
-            server,
-            f"git diff --name-only {old_commit} {new_commit} -- "
-            "docker/ Dockerfile docker-compose.yml "
-            "src/community/requirements.txt src/custom/requirements.txt",
-        )
-        docker_build_needed = bool(docker_result.stdout.strip())
-
-        changed_modules = ",".join(sorted(modules)) if modules else ""
-        logger.info("detect-modules: %s (docker_build=%s)", changed_modules or "none", docker_build_needed)
-
-        return {
-            "changed_modules": changed_modules,
-            "docker_build_needed": docker_build_needed,
-        }
-
-    # ── docker-build ───────────────────────────────────────────
-
-    @worker.task(task_type="docker-build", timeout_ms=600_000)
-    async def docker_build(server_host: str, repo_dir: str = "", **kwargs: Any) -> dict:
-        """Build Docker image on remote server."""
-        server = config.resolve_server(server_host)
-        repo = repo_dir or server.repo_dir
-
-        async def _build() -> CommandResult:
-            return await ssh.run_in_repo(
-                server,
-                "docker compose build --pull web",
-                check=True,
-                timeout=540,
-            )
-
-        await retry(_build, max_attempts=3, delay=5.0)
-        logger.info("docker-build completed on %s", server.host)
-        return {}
+        logger.info("detect-modules (manifest version): %s", changed_modules or "none")
+        return {"changed_modules": changed_modules}
 
     # ── docker-up ──────────────────────────────────────────────
 
@@ -237,78 +174,94 @@ def register_deploy_handlers(
 
     # ── module-update ──────────────────────────────────────────
 
-    @worker.task(task_type="module-update", timeout_ms=900_000)
+    @worker.task(task_type="module-update", timeout_ms=1_200_000)
     async def module_update(
         server_host: str,
         changed_modules: str = "",
+        install_modules: str = "",
         db_name: str = "",
         container: str = "",
         repo_dir: str = "",
         **kwargs: Any,
     ) -> dict:
-        """Update Odoo modules on remote server."""
+        """Update/install changed Odoo modules, rebuild and restart container."""
         server = config.resolve_server(server_host)
         repo = repo_dir or server.repo_dir
         db = db_name or server.db_name
         ctr = container or server.container
 
-        if not changed_modules:
+        if not changed_modules and not install_modules:
             return {"modules_updated": ""}
 
-        # Get DB password
-        db_password = await _get_db_password(ssh, server, ctr)
+        lock = _get_deploy_lock(server_host)
+        async with lock:
+            # Get DB password
+            db_password = await _get_db_password(ssh, server, ctr)
 
-        # Determine update strategy
-        if changed_modules == "all":
-            update_modules = "all"
-        else:
-            module_list = [m.strip() for m in changed_modules.split(",") if m.strip()]
-
-            # Query installed modules
-            result = await ssh.run(
+            # Clean __pycache__
+            await ssh.run_in_repo(
                 server,
-                f"docker exec {ctr}-db psql -U odoo -d {db} -t -A "
-                f"-c \"SELECT name FROM ir_module_module WHERE state = 'installed';\"",
-                check=True,
+                "find src -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true",
             )
-            installed = set(result.stdout.strip().split("\n"))
 
-            update_mods = [m for m in module_list if m in installed]
-            # If >10 modules, switch to -u all
-            if len(update_mods) > 10:
-                update_modules = "all"
+            if changed_modules == "all":
+                update_flag = "-u all"
             else:
-                update_modules = ",".join(update_mods) if update_mods else ""
+                # Query installed modules — only update those that are installed
+                result = await ssh.run(
+                    server,
+                    f"docker exec {ctr}-db psql -U odoo -d {db} -t -A "
+                    f"-c \"SELECT name FROM ir_module_module WHERE state = 'installed';\"",
+                    check=True,
+                )
+                installed = set(result.stdout.strip().split("\n"))
 
-        if not update_modules:
-            return {"modules_updated": ""}
+                to_update = []
+                if changed_modules:
+                    module_list = [m.strip() for m in changed_modules.split(",") if m.strip()]
+                    to_update = [m for m in module_list if m in installed]
 
-        # Clean __pycache__
-        await ssh.run_in_repo(
-            server,
-            "find src -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true",
-        )
+                # install_modules from commit message [install: mod1, mod2]
+                to_install = []
+                if install_modules:
+                    to_install = [m.strip() for m in install_modules.split(",") if m.strip() and m.strip() not in installed]
 
-        # Run module update in a separate container (production keeps running)
-        await ssh.run_in_repo(
-            server,
-            f"timeout 2000 docker compose run --rm --no-deps web "
-            f"odoo-bin -d {db} -u {update_modules} "
-            f"--db_password='{db_password}' "
-            f"--stop-after-init --no-http --log-level=warn",
-            check=True,
-            timeout=2100,
-        )
+                flags = []
+                if to_update:
+                    flags.append(f"-u {','.join(to_update)}")
+                if to_install:
+                    flags.append(f"-i {','.join(to_install)}")
+                if not flags:
+                    return {"modules_updated": ""}
+                update_flag = " ".join(flags)
 
-        # Clear asset cache
-        await ssh.run(
-            server,
-            f"docker exec {ctr}-db psql -U odoo -d {db} -c "
-            "\"DELETE FROM ir_attachment WHERE url LIKE '/web/assets/%' OR name LIKE 'web.assets%';\"",
-        )
+            # Stop web to avoid concurrent DB access during migration
+            await ssh.run_in_repo(server, "docker compose stop web", check=True, timeout=60)
 
-        logger.info("module-update on %s: %s", server.host, update_modules)
-        return {"modules_updated": update_modules}
+            # Run migration in isolated container (web stopped, no conflicts)
+            await ssh.run_in_repo(
+                server,
+                f"docker compose run --rm --no-deps -T -u odoo web "
+                f"odoo-bin -d {db} {update_flag} "
+                f"--db_password='{db_password}' "
+                f"--stop-after-init --no-http --log-level=warn",
+                check=True,
+                timeout=2100,
+            )
+
+            # Clear asset cache
+            await ssh.run(
+                server,
+                f"docker exec {ctr}-db psql -U odoo -d {db} -c "
+                "\"DELETE FROM ir_attachment WHERE url LIKE '/web/assets/%' OR name LIKE 'web.assets%';\"",
+            )
+
+            # Rebuild and restart web with new code
+            await ssh.run_in_repo(server, "docker compose build web", check=True, timeout=1200)
+            await ssh.run_in_repo(server, "docker compose up -d web", check=True, timeout=60)
+
+            logger.info("module-update on %s: %s", server.host, update_flag)
+            return {"modules_updated": changed_modules}
 
     # ── cache-clear ────────────────────────────────────────────
 
@@ -351,12 +304,10 @@ def register_deploy_handlers(
 
         db_password = await _get_db_password(ssh, server, ctr)
 
-        # Run smoke test in a separate container without stopping services.
-        # Odoo with --stop-after-init --no-http can run alongside the main instance.
-        result = await ssh.run_in_repo(
+        # Run smoke test inside the running container
+        result = await ssh.run(
             server,
-            f"timeout 120 docker compose run --rm --no-deps -T web "
-            f"odoo-bin -d {db} --db_password='{db_password}' "
+            f"docker exec -u odoo {ctr} odoo-bin -d {db} --db_password='{db_password}' "
             f"--stop-after-init --no-http 2>&1",
             timeout=150,
         )
@@ -435,42 +386,50 @@ def register_deploy_handlers(
         **kwargs: Any,
     ) -> dict:
         """Restore from checkpoint via HTTP API."""
-        if not config.db_restore_url:
-            logger.warning("rollback: no DB_RESTORE_URL configured, skipping")
+        if not config.db_checkpoint_base_url:
+            logger.warning("rollback: no DB_CHECKPOINT_BASE_URL configured, skipping")
             return {"restored": False}
+
+        server_name = config.resolve_server_name(server_host)
+        restore_url = f"{config.db_checkpoint_base_url}/restore/{server_name}"
 
         headers: dict[str, str] = {}
         if config.db_checkpoint_token:
             headers["X-Auth-Token"] = config.db_checkpoint_token
 
         async with httpx.AsyncClient(timeout=540) as client:
-            resp = await client.post(config.db_restore_url, headers=headers, content=b"")
+            resp = await client.post(restore_url, headers=headers, content=b"")
             resp.raise_for_status()
 
-        logger.info("rollback on %s: restored from checkpoint (HTTP %d)", server_host, resp.status_code)
+        logger.info("rollback on %s: restored from checkpoint (HTTP %d), waiting 60s...", server_host, resp.status_code)
+        await _sleep(60)
         return {"restored": True}
 
     # ── db-remove ──────────────────────────────────────────────
 
-    @worker.task(task_type="db-remove", timeout_ms=120_000)
+    @worker.task(task_type="db-remove", timeout_ms=180_000)
     async def db_remove(
         server_host: str,
         **kwargs: Any,
     ) -> dict:
         """Remove old checkpoint via HTTP API before creating a new one."""
-        if not config.db_remove_url:
-            logger.warning("db-remove: no DB_REMOVE_URL configured, skipping")
+        if not config.db_checkpoint_base_url:
+            logger.warning("db-remove: no DB_CHECKPOINT_BASE_URL configured, skipping")
             return {"checkpoint_removed": False}
+
+        server_name = config.resolve_server_name(server_host)
+        remove_url = f"{config.db_checkpoint_base_url}/remove/{server_name}"
 
         headers: dict[str, str] = {}
         if config.db_checkpoint_token:
             headers["X-Auth-Token"] = config.db_checkpoint_token
 
         async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(config.db_remove_url, headers=headers, content=b"")
+            resp = await client.post(remove_url, headers=headers, content=b"")
             resp.raise_for_status()
 
-        logger.info("db-remove: completed (HTTP %d)", resp.status_code)
+        logger.info("db-remove: completed (HTTP %d), waiting 60s...", resp.status_code)
+        await _sleep(60)
         return {"checkpoint_removed": True}
 
     # ── db-checkpoint ─────────────────────────────────────────
@@ -481,26 +440,64 @@ def register_deploy_handlers(
         **kwargs: Any,
     ) -> dict:
         """Create checkpoint via HTTP API before deploy."""
-        checkpoint_url = config.db_checkpoint_url
-        checkpoint_token = config.db_checkpoint_token
-
-        if not checkpoint_url:
-            logger.warning("db-checkpoint: no DB_CHECKPOINT_URL configured, skipping")
+        if not config.db_checkpoint_base_url:
+            logger.warning("db-checkpoint: no DB_CHECKPOINT_BASE_URL configured, skipping")
             return {"checkpoint_created": False}
 
+        server_name = config.resolve_server_name(server_host)
+        checkpoint_url = f"{config.db_checkpoint_base_url}/checkpoint/{server_name}"
+
         headers: dict[str, str] = {}
-        if checkpoint_token:
-            headers["X-Auth-Token"] = checkpoint_token
+        if config.db_checkpoint_token:
+            headers["X-Auth-Token"] = config.db_checkpoint_token
 
         async with httpx.AsyncClient(timeout=540) as client:
             resp = await client.post(checkpoint_url, headers=headers, content=b"")
             resp.raise_for_status()
 
-        logger.info("db-checkpoint: completed (HTTP %d)", resp.status_code)
+        logger.info("db-checkpoint: completed (HTTP %d), waiting 60s...", resp.status_code)
+        await _sleep(60)
         return {"checkpoint_created": True}
 
 
 # ── Helpers ────────────────────────────────────────────────────
+
+
+def _build_version_compare_script(container: str, db_name: str) -> str:
+    """Build a shell script that compares manifest version on disk vs installed_version in DB.
+
+    For each module with __manifest__.py on disk, extracts 'version' field
+    and compares with installed_version from ir_module_module.
+    Outputs module names where versions differ.
+    """
+    return (
+        f'# Get installed versions from DB\n'
+        f'INSTALLED=$(docker exec {container}-db psql -U odoo -d {db_name} -t -A -c '
+        f'"SELECT name || \'=\' || COALESCE(installed_version, \'\') FROM ir_module_module;" 2>/dev/null)\n'
+        f'\n'
+        f'for manifest in $(find src/custom src/enterprise src/third-party src/community '
+        f'-maxdepth 3 -name "__manifest__.py" 2>/dev/null); do\n'
+        f'    mod_dir=$(dirname "$manifest")\n'
+        f'    mod_name=$(basename "$mod_dir")\n'
+        f'    # Extract version from __manifest__.py\n'
+        f'    disk_version=$(python3 -c "\n'
+        f'import ast, sys\n'
+        f'try:\n'
+        f'    m = ast.literal_eval(open(sys.argv[1]).read())\n'
+        f'    print(m.get(\'version\', \'0.0\'))\n'
+        f'except: print(\'0.0\')\n'
+        f'" "$manifest" 2>/dev/null)\n'
+        f'    # Find installed version from DB output\n'
+        f'    db_version=$(echo "$INSTALLED" | grep "^$mod_name=" | cut -d= -f2)\n'
+        f'    # If module not in DB at all — skip (not installed, not our concern)\n'
+        f'    [ -z "$db_version" ] && continue\n'
+        f'    # Compare versions\n'
+        f'    if [ "$disk_version" != "$db_version" ]; then\n'
+        f'        echo "$mod_name"\n'
+        f'    fi\n'
+        f'done'
+    )
+
 
 import asyncio as _asyncio
 

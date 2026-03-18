@@ -29,7 +29,14 @@ class CommandResult:
     def check(self, message: str = 'Command failed') -> CommandResult:
         """Raise if command failed."""
         if not self.success:
-            error = self.stderr.strip() or self.stdout[:500]
+            stderr = self.stderr.strip()
+            stdout = self.stdout.strip()
+            # Log full output for diagnostics
+            if stdout:
+                logger.error("STDOUT:\n%s", stdout)
+            if stderr:
+                logger.error("STDERR:\n%s", stderr)
+            error = stderr or stdout[-2000:]
             raise RemoteCommandError(
                 f'{message} (exit code {self.exit_code}): {error}'
             )

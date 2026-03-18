@@ -663,6 +663,8 @@ def register_sync_handlers(
         repo_dir = server.repo_dir
         merge_cmd = (
             f"cd {repo_dir} && "
+            f"git fetch {push_url} staging && "
+            f"git reset --hard FETCH_HEAD && "
             f"git fetch {push_url} {sync_branch} && "
             f"git merge FETCH_HEAD -X theirs --no-edit && "
             f"git push {push_url} HEAD:staging"

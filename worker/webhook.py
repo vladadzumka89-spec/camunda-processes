@@ -19,6 +19,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 from typing import Any
 
 from aiohttp import web
@@ -28,6 +29,31 @@ from .auth import ZeebeAuthConfig, create_channel
 from .config import AppConfig
 
 logger = logging.getLogger(__name__)
+
+
+_INSTALL_RE = re.compile(r'\[install:\s*([^\]]+)\]', re.IGNORECASE)
+
+
+def _parse_install_modules(payload: dict) -> str:
+    """Parse [install: module1, module2] from push commit messages."""
+    modules: set[str] = set()
+    for commit in payload.get('commits', []):
+        msg = commit.get('message', '')
+        for match in _INSTALL_RE.finditer(msg):
+            for mod in match.group(1).split(','):
+                mod = mod.strip()
+                if mod:
+                    modules.add(mod)
+    # Also check head_commit
+    head = payload.get('head_commit', {})
+    if head:
+        msg = head.get('message', '')
+        for match in _INSTALL_RE.finditer(msg):
+            for mod in match.group(1).split(','):
+                mod = mod.strip()
+                if mod:
+                    modules.add(mod)
+    return ",".join(sorted(modules))
 
 
 class WebhookServer:
@@ -185,6 +211,9 @@ class WebhookServer:
             logger.error("No staging server configured for deploy trigger")
             return web.Response(status=500, text="No staging server configured")
 
+        # Parse [install: module1, module2] from commit messages
+        install_modules = _parse_install_modules(payload)
+
         variables: dict[str, Any] = {
             "trigger_sha": after_sha,
             "server_host": staging.host,
@@ -197,6 +226,9 @@ class WebhookServer:
             "test_mode": "full",
             "odoo_project_id": self._config.odoo.project_id,
         }
+        if install_modules:
+            variables["install_modules"] = install_modules
+            logger.info("Install modules from commit: %s", install_modules)
 
         try:
             client = self._create_zeebe_client()

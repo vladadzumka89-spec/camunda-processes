@@ -175,208 +175,35 @@ async def test_git_pull_all_retries_exhausted(handlers: dict, mock_ssh: AsyncMoc
 
 
 @pytest.mark.asyncio
-async def test_detect_modules_first_deploy(handlers: dict) -> None:
-    result = await handlers["detect-modules"](
-        server_host="staging", old_commit="none", new_commit="abc123",
-    )
+async def test_detect_modules_checksum_finds_changed(handlers: dict, mock_ssh: AsyncMock) -> None:
+    """Checksum scan returns changed module names."""
+    mock_ssh.run_in_repo.return_value = OK("tut_custom\ndiscuss_folders\n")
+    result = await handlers["detect-modules"](server_host="staging")
+    assert result["changed_modules"] == "discuss_folders,tut_custom"
+
+
+@pytest.mark.asyncio
+async def test_detect_modules_checksum_no_changes(handlers: dict, mock_ssh: AsyncMock) -> None:
+    """Empty output means no modules changed."""
+    mock_ssh.run_in_repo.return_value = OK("")
+    result = await handlers["detect-modules"](server_host="staging")
+    assert result["changed_modules"] == ""
+
+
+@pytest.mark.asyncio
+async def test_detect_modules_checksum_fallback_on_error(handlers: dict, mock_ssh: AsyncMock) -> None:
+    """If checksum scan fails, fallback to 'all'."""
+    mock_ssh.run_in_repo.return_value = FAIL("container not running")
+    result = await handlers["detect-modules"](server_host="staging")
     assert result["changed_modules"] == "all"
-    assert result["docker_build_needed"] is True
 
 
 @pytest.mark.asyncio
-async def test_detect_modules_finds_changed(handlers: dict, mock_ssh: AsyncMock) -> None:
-    mock_ssh.run_in_repo.side_effect = [
-        _make_ssh_result(stdout="3\n"),  # total file count
-        # src/custom diff
-        _make_ssh_result(stdout="src/custom/tut_hr/models/hr.py\n"),
-        _make_ssh_result(stdout="yes\n"),  # manifest check
-        # src/enterprise diff
-        _make_ssh_result(stdout=""),
-        # src/third-party diff
-        _make_ssh_result(stdout=""),
-        # community addons diff
-        _make_ssh_result(stdout=""),
-        # docker diff
-        _make_ssh_result(stdout=""),
-    ]
-    result = await handlers["detect-modules"](
-        server_host="staging", old_commit="aaa", new_commit="bbb",
-    )
-    assert "tut_hr" in result["changed_modules"]
-    assert result["docker_build_needed"] is False
-
-
-@pytest.mark.asyncio
-async def test_detect_modules_too_many_files(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """When >250 files changed, return 'all' immediately."""
-    mock_ssh.run_in_repo.return_value = _make_ssh_result(stdout="300\n")
-    result = await handlers["detect-modules"](
-        server_host="staging", old_commit="aaa", new_commit="bbb",
-    )
-    assert result["changed_modules"] == "all"
-    assert result["docker_build_needed"] is True
-    # Should only have called once (total file count)
-    assert mock_ssh.run_in_repo.await_count == 1
-
-
-@pytest.mark.asyncio
-async def test_detect_modules_docker_build_needed(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """Docker-related file changes trigger docker_build_needed."""
-    mock_ssh.run_in_repo.side_effect = [
-        _make_ssh_result(stdout="2\n"),  # total file count
-        _make_ssh_result(stdout=""),  # src/custom
-        _make_ssh_result(stdout=""),  # src/enterprise
-        _make_ssh_result(stdout=""),  # src/third-party
-        _make_ssh_result(stdout=""),  # community
-        _make_ssh_result(stdout="Dockerfile\n"),  # docker diff — has changes
-    ]
-    result = await handlers["detect-modules"](
-        server_host="staging", old_commit="aaa", new_commit="bbb",
-    )
-    assert result["changed_modules"] == ""
-    assert result["docker_build_needed"] is True
-
-
-@pytest.mark.asyncio
-async def test_detect_modules_community_addons(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """Community addons at deeper path are detected."""
-    mock_ssh.run_in_repo.side_effect = [
-        _make_ssh_result(stdout="2\n"),  # total files
-        _make_ssh_result(stdout=""),  # src/custom
-        _make_ssh_result(stdout=""),  # src/enterprise
-        _make_ssh_result(stdout=""),  # src/third-party
-        # community addons diff
-        _make_ssh_result(stdout="src/community/odoo/addons/sale_custom/models/sale.py\n"),
-        _make_ssh_result(stdout="yes\n"),  # manifest check
-        # docker diff
-        _make_ssh_result(stdout=""),
-    ]
-    result = await handlers["detect-modules"](
-        server_host="staging", old_commit="aaa", new_commit="bbb",
-    )
-    assert "sale_custom" in result["changed_modules"]
-
-
-@pytest.mark.asyncio
-async def test_detect_modules_no_manifest_skipped(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """Changed dir without __manifest__.py is not a valid module."""
-    mock_ssh.run_in_repo.side_effect = [
-        _make_ssh_result(stdout="1\n"),  # total files
-        _make_ssh_result(stdout="src/custom/not_a_module/readme.txt\n"),
-        _make_ssh_result(stdout="no\n"),  # no manifest
-        _make_ssh_result(stdout=""),  # enterprise
-        _make_ssh_result(stdout=""),  # third-party
-        _make_ssh_result(stdout=""),  # community
-        _make_ssh_result(stdout=""),  # docker
-    ]
-    result = await handlers["detect-modules"](
-        server_host="staging", old_commit="aaa", new_commit="bbb",
-    )
-    assert result["changed_modules"] == ""
-
-
-@pytest.mark.asyncio
-async def test_detect_modules_multiple_dirs(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """Modules from multiple source dirs are merged and sorted."""
-    mock_ssh.run_in_repo.side_effect = [
-        _make_ssh_result(stdout="5\n"),  # total files
-        # src/custom — 1 module
-        _make_ssh_result(stdout="src/custom/tut_hr/models/hr.py\n"),
-        _make_ssh_result(stdout="yes\n"),
-        # src/enterprise — 1 module
-        _make_ssh_result(stdout="src/enterprise/sale_ent/views/sale.xml\n"),
-        _make_ssh_result(stdout="yes\n"),
-        # src/third-party — nothing
-        _make_ssh_result(stdout=""),
-        # community — nothing
-        _make_ssh_result(stdout=""),
-        # docker
-        _make_ssh_result(stdout=""),
-    ]
-    result = await handlers["detect-modules"](
-        server_host="staging", old_commit="aaa", new_commit="bbb",
-    )
-    modules = result["changed_modules"].split(",")
-    assert "sale_ent" in modules
-    assert "tut_hr" in modules
-    assert modules == sorted(modules)  # sorted
-
-
-@pytest.mark.asyncio
-async def test_detect_modules_no_changes(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """No file changes in any source dir."""
-    mock_ssh.run_in_repo.side_effect = [
-        _make_ssh_result(stdout="0\n"),  # total files
-        _make_ssh_result(stdout=""),  # custom
-        _make_ssh_result(stdout=""),  # enterprise
-        _make_ssh_result(stdout=""),  # third-party
-        _make_ssh_result(stdout=""),  # community
-        _make_ssh_result(stdout=""),  # docker
-    ]
-    result = await handlers["detect-modules"](
-        server_host="staging", old_commit="aaa", new_commit="bbb",
-    )
-    assert result["changed_modules"] == ""
-    assert result["docker_build_needed"] is False
-
-
-@pytest.mark.asyncio
-async def test_detect_modules_deduplicates(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """Same module changed in multiple files is counted once."""
-    mock_ssh.run_in_repo.side_effect = [
-        _make_ssh_result(stdout="3\n"),
-        # src/custom — 2 files in same module
-        _make_ssh_result(stdout="src/custom/tut_hr/models/hr.py\nsrc/custom/tut_hr/views/hr.xml\n"),
-        _make_ssh_result(stdout="yes\n"),  # manifest check (first)
-        _make_ssh_result(stdout="yes\n"),  # manifest check (second — same module, dedup'd in set)
-        # enterprise
-        _make_ssh_result(stdout=""),
-        # third-party
-        _make_ssh_result(stdout=""),
-        # community
-        _make_ssh_result(stdout=""),
-        # docker
-        _make_ssh_result(stdout=""),
-    ]
-    result = await handlers["detect-modules"](
-        server_host="staging", old_commit="aaa", new_commit="bbb",
-    )
-    assert result["changed_modules"] == "tut_hr"
-
-
-# ══════════════════════════════════════════════════════════
-# docker-build
-# ══════════════════════════════════════════════════════════
-
-
-@pytest.mark.asyncio
-async def test_docker_build(handlers: dict, mock_ssh: AsyncMock) -> None:
-    mock_ssh.run_in_repo.return_value = _make_ssh_result()
-    result = await handlers["docker-build"](server_host="staging")
-    assert result == {}
-    # Verify docker compose build was called
-    call_cmd = mock_ssh.run_in_repo.call_args[0][1]
-    assert "docker compose build" in call_cmd
-
-
-@pytest.mark.asyncio
-async def test_docker_build_retry_on_failure(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """Docker build retries on transient failures."""
-    mock_ssh.run_in_repo.side_effect = [
-        _make_ssh_result(stderr="network timeout", exit_code=1),
-        _make_ssh_result(stderr="network timeout", exit_code=1),
-        OK(),  # 3rd attempt succeeds
-    ]
-    with patch("worker.handlers.deploy._asyncio.sleep", new_callable=AsyncMock):
-        result = await handlers["docker-build"](server_host="staging")
-    assert result == {}
-
-
-@pytest.mark.asyncio
-async def test_docker_build_custom_repo(handlers: dict, mock_ssh: AsyncMock) -> None:
-    mock_ssh.run_in_repo.return_value = OK()
-    await handlers["docker-build"](server_host="staging", repo_dir="/custom/repo")
-    assert mock_ssh.run_in_repo.await_count == 1
+async def test_detect_modules_checksum_deduplicates(handlers: dict, mock_ssh: AsyncMock) -> None:
+    """Duplicate module names from multiple dirs are deduplicated."""
+    mock_ssh.run_in_repo.return_value = OK("mod_a\nmod_b\nmod_a\n")
+    result = await handlers["detect-modules"](server_host="staging")
+    assert result["changed_modules"] == "mod_a,mod_b"
 
 
 # ══════════════════════════════════════════════════════════
@@ -565,16 +392,26 @@ async def test_module_update_specific_modules(handlers: dict, mock_ssh: AsyncMoc
 
 
 @pytest.mark.asyncio
-async def test_module_update_none_installed(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """None of the changed modules are installed — skip update."""
+async def test_module_update_installs_new_modules(handlers: dict, mock_ssh: AsyncMock) -> None:
+    """New modules (not installed) get -i flag instead of being skipped."""
     mock_ssh.run.side_effect = [
         _make_ssh_result(stdout="dbpass\n"),  # password
-        _make_ssh_result(stdout="base\nweb\n"),  # installed (none match)
+        _make_ssh_result(stdout="base\nweb\n"),  # installed (none match changed)
+        OK(),  # docker exec odoo-bin -i tut_new_module
+        OK(),  # psql cache clear
+    ]
+    mock_ssh.run_in_repo.side_effect = [
+        OK(),  # clean __pycache__
+        OK(),  # docker compose build web
+        OK(),  # docker compose up -d web
     ]
     result = await handlers["module-update"](
         server_host="staging", changed_modules="tut_new_module",
     )
-    assert result["modules_updated"] == ""
+    assert result["modules_updated"] == "tut_new_module"
+    # Verify -i flag used
+    odoo_cmd = mock_ssh.run.call_args_list[2][0][1]
+    assert "-i tut_new_module" in odoo_cmd
 
 
 @pytest.mark.asyncio
@@ -968,7 +805,7 @@ async def test_rollback_production_restores_db(mock_ssh: AsyncMock) -> None:
             "staging": ServerConfig(host="staging.example.com", ssh_user="deploy"),
             "production": ServerConfig(host="prod.example.com", ssh_user="deploy"),
         },
-        db_restore_url="http://danylo:9090/restore/",
+        db_checkpoint_base_url="http://danylo:9090",
     )
     h = _extract_handlers(cfg, mock_ssh)
     mock_ssh.run_in_repo.return_value = OK()
@@ -990,18 +827,18 @@ async def test_rollback_production_restores_db(mock_ssh: AsyncMock) -> None:
     assert result == {}
     mock_client.post.assert_awaited_once()
     call_args = mock_client.post.call_args
-    assert call_args.args[0] == "http://danylo:9090/restore/"
+    assert call_args.args[0] == "http://danylo:9090/restore/production"
 
 
 @pytest.mark.asyncio
 async def test_rollback_production_no_restore_url(mock_ssh: AsyncMock) -> None:
-    """Production rollback skips HTTP restore when db_restore_url is not configured."""
+    """Production rollback skips HTTP restore when db_checkpoint_base_url is not configured."""
     cfg = AppConfig(
         servers={
             "staging": ServerConfig(host="staging.example.com", ssh_user="deploy"),
             "production": ServerConfig(host="prod.example.com", ssh_user="deploy"),
         },
-        db_restore_url="",
+        db_checkpoint_base_url="",
     )
     h = _extract_handlers(cfg, mock_ssh)
     mock_ssh.run_in_repo.return_value = OK()
@@ -1015,22 +852,34 @@ async def test_rollback_production_no_restore_url(mock_ssh: AsyncMock) -> None:
 
 @pytest.mark.asyncio
 async def test_rollback_staging_skips_db_restore(mock_ssh: AsyncMock) -> None:
-    """Staging rollback never calls HTTP restore even when db_restore_url is set."""
+    """Staging rollback calls HTTP restore with staging URL."""
     cfg = AppConfig(
         servers={
             "staging": ServerConfig(host="staging.example.com", ssh_user="deploy"),
             "production": ServerConfig(host="prod.example.com", ssh_user="deploy"),
         },
-        db_restore_url="http://danylo:9090/restore/",
+        db_checkpoint_base_url="http://danylo:9090",
     )
     h = _extract_handlers(cfg, mock_ssh)
     mock_ssh.run_in_repo.return_value = OK()
 
     with patch("worker.handlers.deploy.httpx") as mock_httpx:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status = MagicMock()
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx.AsyncClient.return_value = mock_client
+
         await h["rollback"](
             server_host="staging", old_commit="abc123", branch="main",
         )
-        mock_httpx.AsyncClient.assert_not_called()
+
+    mock_client.post.assert_awaited_once()
+    call_args = mock_client.post.call_args
+    assert call_args.args[0] == "http://danylo:9090/restore/staging"
 
 
 # ══════════════════════════════════════════════════════════
@@ -1048,7 +897,7 @@ async def test_db_checkpoint_calls_http(mock_ssh: AsyncMock) -> None:
     """db-checkpoint calls checkpoint URL via HTTP POST with auth token."""
     cfg = AppConfig(
         servers={"staging": ServerConfig(host="staging.example.com", ssh_user="deploy")},
-        db_checkpoint_url="http://danylo:9090/checkpoint/",
+        db_checkpoint_base_url="http://danylo:9090",
         db_checkpoint_token="test-token-123",
     )
     h = _make_handlers_with_config(cfg, mock_ssh)
@@ -1068,7 +917,7 @@ async def test_db_checkpoint_calls_http(mock_ssh: AsyncMock) -> None:
     assert result["checkpoint_created"] is True
     mock_client.post.assert_awaited_once()
     call_args = mock_client.post.call_args
-    assert call_args.args[0] == "http://danylo:9090/checkpoint/"
+    assert call_args.args[0] == "http://danylo:9090/checkpoint/staging"
     assert call_args.kwargs.get("headers", {}).get("X-Auth-Token") == "test-token-123"
 
 
@@ -1077,7 +926,7 @@ async def test_db_checkpoint_skips_without_url(mock_ssh: AsyncMock) -> None:
     """db-checkpoint skips if no URL configured."""
     cfg = AppConfig(
         servers={"staging": ServerConfig(host="staging.example.com", ssh_user="deploy")},
-        db_checkpoint_url="",
+        db_checkpoint_base_url="",
     )
     h = _make_handlers_with_config(cfg, mock_ssh)
     result = await h["db-checkpoint"](server_host="staging")
@@ -1089,7 +938,7 @@ async def test_db_checkpoint_no_token_omits_header(mock_ssh: AsyncMock) -> None:
     """db-checkpoint posts without X-Auth-Token header when token is empty."""
     cfg = AppConfig(
         servers={"staging": ServerConfig(host="staging.example.com", ssh_user="deploy")},
-        db_checkpoint_url="http://danylo:9090/checkpoint/",
+        db_checkpoint_base_url="http://danylo:9090",
         db_checkpoint_token="",
     )
     h = _make_handlers_with_config(cfg, mock_ssh)

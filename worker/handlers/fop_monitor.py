@@ -423,9 +423,18 @@ def _match_terminal_to_subdivision(
         return word_lookup[tn_nospace]
 
     # 2) Word-set matching: find subdivision with most overlapping words
-    # Filter out noise words that appear in many terminal names
-    _NOISE_WORDS = {"pinky", "pinki", "famo", "mag"}
+    _NOISE_WORDS = {"famo", "mag"}
+    is_pinky = "pinky" in tn or "pinki" in tn
     terminal_words = [w for w in tn.split() if len(w) >= 2 and w not in _NOISE_WORDS]
+    # For Пінкі terminals, remove "pinky"/"pinki" from matching words
+    # but use it as a filter to prefer 9xx subdivisions
+    if is_pinky:
+        # Determine if PINKY is prefix (terminal brand) or suffix (Пінкі store)
+        # "PINKY Obolon" → prefix → match all subdivisions (regular store)
+        # "FORUM PINKY", "Ostrov Pinky" → suffix → restrict to 9xx Пінкі
+        raw_words = tn.split()
+        pinky_is_prefix = raw_words and raw_words[0] in ("pinky", "pinki")
+        terminal_words = [w for w in terminal_words if w not in ("pinky", "pinki")]
     if not terminal_words:
         return None
 
@@ -436,6 +445,12 @@ def _match_terminal_to_subdivision(
     for desc, sub_words in subdivisions:
         if not sub_words:
             continue
+        # Suffix Пінкі (e.g. "Forum PINKY") → ONLY match 9xx Пінкі subdivisions
+        # Prefix Пінкі (e.g. "PINKY Obolon") → match ALL (terminal brand, not store)
+        if is_pinky and not pinky_is_prefix:
+            desc_lower = desc.lower()
+            if not (re.match(r'^9\d{2}\s', desc) or 'пінкі' in desc_lower):
+                continue
         score = 0
         for tw in terminal_words:
             for sw in sub_words:
@@ -459,16 +474,39 @@ def _match_terminal_to_subdivision(
     return best_match if best_score > 0 else None
 
 
-def _parse_terminal_name(purpose: str) -> tuple[str | None, str | None]:
-    """Parse terminal name and optional subdivision code from payment purpose.
+def _classify_payment(purpose: str) -> str:
+    """Classify payment by purpose text.
 
-    Returns (terminal_name, subdivision_code) where subdivision_code is a
-    3-digit string like '911' if found in the text.
+    Returns: 'cmps', 'mono', 'liqpay', 'novapay', 'other'
     """
+    p = (purpose or "").strip()
+    if p.startswith("cmps:") or ",cmps:" in p:
+        return "cmps"
+    p_low = p.lower()
+    if "еквайринг" in p_low or "універсал банк" in p_low:
+        return "mono"
+    if "liqpay" in p_low:
+        return "liqpay"
+    if not p:
+        return "novapay"
+    return "other"
+
+
+def _parse_terminal_name(purpose: str) -> tuple[str | None, str | None, str | None]:
+    """Parse terminal name, subdivision code, and terminal code from payment purpose.
+
+    Returns (terminal_name, subdivision_code, terminal_code) where:
+    - subdivision_code is a 3-digit string like '911' if found in the text
+    - terminal_code is the cmps merchant code (e.g. '75' from 'cmps: 75')
+    """
+    # Extract terminal code (first number after cmps:)
+    tc_match = re.search(r'cmps:\s*(\d+)', purpose)
+    terminal_code = tc_match.group(1).strip() if tc_match else None
+
     # Use greedy match for cmps prefix to handle double-cmps patterns
     m = re.search(r'cmps:.*,\s*(.*?)\s*Кiльк\s+тр', purpose)
     if not m:
-        return None, None
+        return None, None, terminal_code
     raw = m.group(1).strip().rstrip(',').strip()
     # Also strip any remaining cmps: prefix
     raw = re.sub(r'^cmps:\s*', '', raw).strip()
@@ -484,15 +522,15 @@ def _parse_terminal_name(purpose: str) -> tuple[str | None, str | None]:
     name = re.sub(r'^\d{3}\s*', '', name).strip()  # strip embedded code
     name = re.sub(r'^R\s+', '', name).strip()
     if len(name) >= 2:
-        return name, sub_code
-    return None, sub_code
+        return name, sub_code, terminal_code
+    return None, sub_code, terminal_code
 
 
 def _fetch_fop_stores(conn, year: int) -> dict:
     bas_start = f"{year + BAS_YEAR_OFFSET}-01-01"
     bas_end = f"{year + BAS_YEAR_OFFSET + 1}-01-01"
 
-    sql_terminals = """
+    sql_payments = """
         SELECT
             d._Fld6004RRef AS org_id,
             d._Fld6019 AS purpose,
@@ -504,21 +542,51 @@ def _fetch_fop_stores(conn, year: int) -> dict:
             AND o._Marked = 0x00
             AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
             AND o._Description NOT LIKE N'яяя%%'
-            AND d._Fld6019 LIKE N'cmps:%%'
     """
     cursor = conn.cursor(as_dict=True)
     try:
-        cursor.execute(sql_terminals, (bas_start, bas_end))
+        cursor.execute(sql_payments, (bas_start, bas_end))
 
+        _CAT_LABELS = {
+            "mono": "101 Інтернет-магазин (Моно)",
+            "liqpay": "101 Інтернет-магазин (LiqPay)",
+            "novapay": "101 Інтернет-магазин (НоваПей)",
+            "other": "Інші надходження",
+        }
+
+        # Group cmps by (org_id, terminal_code) to merge entries like
+        # "PINKY" and "920 BUKOVYNA PINKY" that come from the same terminal
         terminal_data = defaultdict(lambda: defaultdict(lambda: {"count": 0, "total": 0.0, "code": None}))
+        other_income = defaultdict(lambda: defaultdict(lambda: {"count": 0, "total": 0.0}))
+        # Track terminal_code → sub_code globally for resolving generic PINKY
+        tc_sub_global = defaultdict(set)  # terminal_code → {sub_codes}
+        tc_sub_per_fop = defaultdict(lambda: defaultdict(set))  # org → tc → {sub_codes}
+        pinky_tc_map = defaultdict(lambda: defaultdict(set))  # org → name → {terminal_codes}
+
         for row in cursor:
             org_id = bytes(row["org_id"])
-            name, sub_code = _parse_terminal_name(row["purpose"] or "")
-            if name:
-                terminal_data[org_id][name]["count"] += 1
-                terminal_data[org_id][name]["total"] += float(row["amount"] or 0)
-                if sub_code:
-                    terminal_data[org_id][name]["code"] = sub_code
+            purpose = row["purpose"] or ""
+            amount = float(row["amount"] or 0)
+            cat = _classify_payment(purpose)
+
+            if cat == "cmps":
+                name, sub_code, tc = _parse_terminal_name(purpose)
+                if name:
+                    terminal_data[org_id][name]["count"] += 1
+                    terminal_data[org_id][name]["total"] += amount
+                    if sub_code:
+                        terminal_data[org_id][name]["code"] = sub_code
+                    if tc:
+                        if sub_code:
+                            tc_sub_global[tc].add(sub_code)
+                            tc_sub_per_fop[org_id][tc].add(sub_code)
+                        # Track terminal codes for generic PINKY entries
+                        if name.lower().strip() in ("pinky", "pinki"):
+                            pinky_tc_map[org_id][name].add(tc)
+            else:
+                label = _CAT_LABELS[cat]
+                other_income[org_id][label]["count"] += 1
+                other_income[org_id][label]["total"] += amount
 
         sql_docs = """
             ;WITH store_roots AS (
@@ -598,27 +666,47 @@ def _fetch_fop_stores(conn, year: int) -> dict:
         )
 
         result = defaultdict(list)
-        all_org_ids = set(terminal_data.keys()) | set(doc_data.keys())
+        all_org_ids = set(terminal_data.keys()) | set(doc_data.keys()) | set(other_income.keys())
         mapped_count = 0
         unmapped_names = set()
 
         for org_id in all_org_ids:
+            # 1) Document-based stores (from _Document247/238/213)
             if org_id in doc_data:
                 for item in doc_data[org_id]:
                     item["source"] = "document"
                     result[org_id].append(item)
-            elif org_id in terminal_data:
+
+            # 2) cmps: terminal payments (PrivatBank)
+            if org_id in terminal_data:
                 code_lookup = sub_data["code_lookup"]
                 for name, info in sorted(
                     terminal_data[org_id].items(), key=lambda x: -x[1]["total"]
                 ):
                     subdivision = None
-                    # 1) Try direct code lookup from payment text
+                    # 2a) Try direct code lookup from payment text
                     if info["code"] and info["code"] in code_lookup:
                         subdivision = code_lookup[info["code"]]
-                    # 2) Fallback: transliteration matching
+                    # 2b) Fallback: transliteration matching
                     if not subdivision:
                         subdivision = _match_terminal_to_subdivision(name, sub_data)
+                    # 2c) For generic PINKY — resolve via terminal code mapping
+                    if not subdivision and name.lower().strip() in ("pinky", "pinki"):
+                        for tc in pinky_tc_map.get(org_id, {}).get(name, set()):
+                            # Per-FOP: same FOP+tc has sub_code from other payments
+                            pf = tc_sub_per_fop.get(org_id, {}).get(tc, set())
+                            if len(pf) == 1:
+                                sc = next(iter(pf))
+                                if sc in code_lookup:
+                                    subdivision = code_lookup[sc]
+                                    break
+                            # Global: all FOPs with this tc agree on sub_code
+                            gl = tc_sub_global.get(tc, set())
+                            if len(gl) == 1:
+                                sc = next(iter(gl))
+                                if sc in code_lookup:
+                                    subdivision = code_lookup[sc]
+                                    break
                     if subdivision:
                         mapped_count += 1
                     else:
@@ -630,6 +718,19 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                         "source": "terminal",
                     })
 
+            # 3) Non-cmps payments (Mono, LiqPay, NovaPay, other)
+            if org_id in other_income:
+                for cat_name, info in sorted(
+                    other_income[org_id].items(), key=lambda x: -x[1]["total"]
+                ):
+                    if info["total"] > 0:
+                        result[org_id].append({
+                            "name": cat_name,
+                            "doc_count": info["count"],
+                            "total": info["total"],
+                            "source": "payment",
+                        })
+
         if unmapped_names:
             logger.warning(
                 "Не вдалось зіставити %d терміналів: %s",
@@ -638,7 +739,23 @@ def _fetch_fop_stores(conn, year: int) -> dict:
             )
         logger.info("Термінал→підрозділ: %d зіставлено", mapped_count)
 
-        return result
+        # Merge duplicate subdivision names per FOP
+        merged = defaultdict(list)
+        for org_id, stores in result.items():
+            seen = {}
+            for s in stores:
+                name = s["name"]
+                if name in seen:
+                    seen[name]["doc_count"] += s["doc_count"]
+                    seen[name]["total"] += s["total"]
+                else:
+                    entry = dict(s)
+                    seen[name] = entry
+                    merged[org_id].append(entry)
+            # Re-sort by total descending
+            merged[org_id].sort(key=lambda x: -x["total"])
+
+        return merged
     finally:
         cursor.close()
 

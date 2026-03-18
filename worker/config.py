@@ -75,10 +75,8 @@ class AppConfig:
     odoo: OdooConfig = field(default_factory=OdooConfig)
     ssh_key_path: str = ''
     openrouter_api_key: str = ''
-    db_checkpoint_url: str = ''
+    db_checkpoint_base_url: str = ''
     db_checkpoint_token: str = ''
-    db_restore_url: str = ''
-    db_remove_url: str = ''
     servers: dict[str, ServerConfig] = field(default_factory=dict)
 
     @classmethod
@@ -127,10 +125,8 @@ class AppConfig:
             ),
             ssh_key_path=str(Path.home() / '.ssh' / 'id_ed25519'),
             openrouter_api_key=os.getenv('OPENROUTER_API_KEY', ''),
-            db_checkpoint_url=os.getenv('DB_CHECKPOINT_URL', ''),
+            db_checkpoint_base_url=os.getenv('DB_CHECKPOINT_BASE_URL', ''),
             db_checkpoint_token=os.getenv('DB_CHECKPOINT_TOKEN', ''),
-            db_restore_url=os.getenv('DB_RESTORE_URL', ''),
-            db_remove_url=os.getenv('DB_REMOVE_URL', ''),
             servers=servers,
         )
 
@@ -151,4 +147,13 @@ class AppConfig:
         for server in self.servers.values():
             if server.host == server_host:
                 return server
+        raise ValueError(f"No server config for '{server_host}'")
+
+    def resolve_server_name(self, server_host: str) -> str:
+        """Resolve server_host (name or IP) to canonical server name."""
+        if server_host in self.servers:
+            return server_host
+        for name, server in self.servers.items():
+            if server.host == server_host:
+                return name
         raise ValueError(f"No server config for '{server_host}'")
