@@ -1,0 +1,406 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  id="Definitions_1"
+                  targetNamespace="http://bpmn.io/schema/bpmn"
+                  exporter="Claude Code"
+                  exporterVersion="2.1"
+                  modeler:executionPlatform="Camunda Cloud"
+                  modeler:executionPlatformVersion="8.8.0">
+
+  <bpmn:process id="Process_0iy2u1a" name="Сповіщення про зміну ФОП" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="3.0" />
+    </bpmn:extensionElements>
+
+    <!-- ══════════ START ══════════ -->
+    <bpmn:startEvent id="StartEvent_1" name="Перевіряємо ліміти">
+      <bpmn:outgoing>Flow_start_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ══════════ XOR: Задача в Odoo існує? ══════════ -->
+    <bpmn:exclusiveGateway id="GW_odoo_check" name="Задача в Odoo існує?" default="Flow_odoo_create">
+      <bpmn:incoming>Flow_start_to_gw</bpmn:incoming>
+      <bpmn:outgoing>Flow_odoo_exists</bpmn:outgoing>
+      <bpmn:outgoing>Flow_odoo_create</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ══════════ ST: Створити головне завдання (PROD webhook) ══════════ -->
+    <bpmn:serviceTask id="ST_create_main" name="Створити головне завдання">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Зміна ФОП на терміналі: &#34; + fop_name, create_process: true, _model: &#34;project.project&#34;, _id: 524, bpmn_process_id: &#34;Process_0iy2u1a&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_total_income: total_income, x_studio_camunda_days_to_limit: days_to_limit}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_odoo_create</bpmn:incoming>
+      <bpmn:outgoing>Flow_create_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ══════════ XOR merge ══════════ -->
+    <bpmn:exclusiveGateway id="GW_odoo_merge">
+      <bpmn:incoming>Flow_odoo_exists</bpmn:incoming>
+      <bpmn:incoming>Flow_create_to_merge</bpmn:incoming>
+      <bpmn:outgoing>Flow_merge_to_stores</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ══════════ UT: Перевірити кількість магазинів ══════════ -->
+    <bpmn:userTask id="Activity_0bkeomf" name="Перевірити кількість магазинів на ФОП">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Перевірити магазини ФОП &#34; + fop_name, description: &#34;ФОП: &#34; + fop_name + &#34; (&#34; + fop_edrpou + &#34;)\nГрупа ЄП: &#34; + string(ep_group) + &#34;\nДохід: &#34; + string(total_income) + &#34; грн (&#34; + string(income_percent) + &#34;% ліміту)\nМагазини: &#34; + stores + &#34;\n\nПеревірте кількість магазинів та підтвердіть.&#34;, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="=x_studio_camunda_stores_count" target="stores_count" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" retries="1" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_merge_to_stores</bpmn:incoming>
+      <bpmn:outgoing>Flow_0c40yaa</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ══════════ UT: Вибрати магазин ══════════ -->
+    <bpmn:userTask id="Activity_1m5lz1c" name="Вибрати магазин, який переключаємо">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Вибрати магазин для переключення ФОП &#34; + fop_name, description: &#34;Оберіть магазин який переключаємо на іншу ФОП.\nМагазини: &#34; + stores, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="=x_studio_camunda_selected_store" target="selected_store" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" retries="1" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0c40yaa</bpmn:incoming>
+      <bpmn:outgoing>Flow_16jm8l4</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ══════════ Parallel split ══════════ -->
+    <bpmn:parallelGateway id="Gateway_1qaw5a1">
+      <bpmn:incoming>Flow_16jm8l4</bpmn:incoming>
+      <bpmn:outgoing>Flow_1eqdds9</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1skjfzo</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- ══════════ Branch A: Сповістити керівника ══════════ -->
+    <bpmn:userTask id="Activity_0xmtzgd" name="Сповістити керівника підрозділу про зміну терміналу ФОП">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Сповістити керівника про зміну ФОП &#34; + fop_name + &#34; на магазині &#34; + selected_store, description: &#34;Необхідно повідомити керівника підрозділу про переключення терміналу.\nФОП: &#34; + fop_name + &#34;\nМагазин: &#34; + selected_store + &#34;\nПричина: наближення до ліміту &#34; + string(ep_group) + &#34; групи ЄП (&#34; + string(income_percent) + &#34;%)&#34;, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" retries="1" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1eqdds9</bpmn:incoming>
+      <bpmn:outgoing>Flow_notify_to_par</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ══════════ Branch B: Перевірити чи платна зміна + Сповістити ТРЦ ══════════ -->
+    <bpmn:userTask id="Activity_1glu1uv" name="Перевірити чи платна зміна ФОП">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Перевірити чи платна зміна ФОП на &#34; + selected_store, description: &#34;Перевірте чи ТРЦ бере плату за зміну ФОП на терміналі.\nМагазин: &#34; + selected_store + &#34;\nФОП: &#34; + fop_name + &#34;\n\nВкажіть результат у полі x_studio_camunda_is_paid_change (так/ні).&#34;, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="=x_studio_camunda_is_paid_change" target="is_paid_change" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" retries="1" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1skjfzo</bpmn:incoming>
+      <bpmn:outgoing>Flow_071l64z</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Activity_113c8jv" name="Сповістити ТРЦ про зміну ФОП">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Сповістити ТРЦ про зміну ФОП на &#34; + selected_store, description: &#34;Зверніться до ТРЦ з питанням зміни ФОП на терміналі.\nМагазин: &#34; + selected_store + &#34;\nСтара ФОП: &#34; + fop_name + &#34;\n\nВкажіть чи є оплата за зміну (поле x_studio_camunda_is_paid_change).&#34;, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="=x_studio_camunda_is_paid_change" target="is_paid_change" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" retries="1" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_071l64z</bpmn:incoming>
+      <bpmn:outgoing>Flow_1p9i419</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ══════════ XOR: Чи платна зміна? ══════════ -->
+    <bpmn:exclusiveGateway id="Gateway_0buteek" name="Чи платна зміна?" default="Flow_18nl74g">
+      <bpmn:incoming>Flow_1p9i419</bpmn:incoming>
+      <bpmn:outgoing>Flow_0t3023h</bpmn:outgoing>
+      <bpmn:outgoing>Flow_18nl74g</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ══════════ Якщо платна → parallel: ФОП з 0 оборотом + Оплатити ══════════ -->
+    <bpmn:parallelGateway id="Gateway_0gkxwo7">
+      <bpmn:incoming>Flow_0t3023h</bpmn:incoming>
+      <bpmn:outgoing>Flow_0qte4qt</bpmn:outgoing>
+      <bpmn:outgoing>Flow_03im9uy</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:userTask id="Activity_0rhyd10" name="Беремо ФОП з 0 оборотом">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Знайти ФОП з 0 оборотом для заміни &#34; + fop_name, description: &#34;Необхідно підібрати ФОП з нульовим оборотом для переключення терміналу на магазині &#34; + selected_store + &#34;.\nВкажіть нову ФОП у полі x_studio_camunda_new_fop_name.&#34;, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="=x_studio_camunda_new_fop_name" target="new_fop_name" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" retries="1" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0qte4qt</bpmn:incoming>
+      <bpmn:outgoing>Flow_0w8chx0</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Activity_1riu9zl" name="Оплатити зміну ФОП">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Оплатити зміну ФОП на &#34; + selected_store, description: &#34;Необхідно оплатити зміну ФОП на терміналі ТРЦ.\nМагазин: &#34; + selected_store + &#34;\nСтара ФОП: &#34; + fop_name, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" retries="1" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_03im9uy</bpmn:incoming>
+      <bpmn:outgoing>Flow_0f7ap09</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ══════════ Parallel merge (платна гілка) ══════════ -->
+    <bpmn:parallelGateway id="Gateway_145t302">
+      <bpmn:incoming>Flow_0w8chx0</bpmn:incoming>
+      <bpmn:incoming>Flow_0f7ap09</bpmn:incoming>
+      <bpmn:outgoing>Flow_19dhshg</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- ══════════ XOR merge (платна / безкоштовна) ══════════ -->
+    <bpmn:exclusiveGateway id="GW_branchB_merge">
+      <bpmn:incoming>Flow_18nl74g</bpmn:incoming>
+      <bpmn:incoming>Flow_19dhshg</bpmn:incoming>
+      <bpmn:outgoing>Flow_branchB_to_par</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ══════════ Parallel merge (керівник + ТРЦ гілки) ══════════ -->
+    <bpmn:parallelGateway id="GW_par_merge">
+      <bpmn:incoming>Flow_branchB_to_par</bpmn:incoming>
+      <bpmn:incoming>Flow_notify_to_par</bpmn:incoming>
+      <bpmn:outgoing>Flow_par_to_end</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- ══════════ END ══════════ -->
+    <bpmn:endEvent id="End_process" name="Процес завершено">
+      <bpmn:incoming>Flow_par_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ══════════ SEQUENCE FLOWS ══════════ -->
+    <bpmn:sequenceFlow id="Flow_start_to_gw" sourceRef="StartEvent_1" targetRef="GW_odoo_check" />
+    <bpmn:sequenceFlow id="Flow_odoo_exists" sourceRef="GW_odoo_check" targetRef="GW_odoo_merge">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_odoo_create" sourceRef="GW_odoo_check" targetRef="ST_create_main" />
+    <bpmn:sequenceFlow id="Flow_create_to_merge" sourceRef="ST_create_main" targetRef="GW_odoo_merge" />
+    <bpmn:sequenceFlow id="Flow_merge_to_stores" sourceRef="GW_odoo_merge" targetRef="Activity_0bkeomf" />
+    <bpmn:sequenceFlow id="Flow_0c40yaa" sourceRef="Activity_0bkeomf" targetRef="Activity_1m5lz1c" />
+    <bpmn:sequenceFlow id="Flow_16jm8l4" sourceRef="Activity_1m5lz1c" targetRef="Gateway_1qaw5a1" />
+    <bpmn:sequenceFlow id="Flow_1eqdds9" sourceRef="Gateway_1qaw5a1" targetRef="Activity_0xmtzgd" />
+    <bpmn:sequenceFlow id="Flow_1skjfzo" sourceRef="Gateway_1qaw5a1" targetRef="Activity_1glu1uv" />
+    <bpmn:sequenceFlow id="Flow_071l64z" sourceRef="Activity_1glu1uv" targetRef="Activity_113c8jv" />
+    <bpmn:sequenceFlow id="Flow_1p9i419" sourceRef="Activity_113c8jv" targetRef="Gateway_0buteek" />
+    <bpmn:sequenceFlow id="Flow_0t3023h" name="так" sourceRef="Gateway_0buteek" targetRef="Gateway_0gkxwo7">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is_paid_change = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_18nl74g" sourceRef="Gateway_0buteek" targetRef="GW_branchB_merge" />
+    <bpmn:sequenceFlow id="Flow_0qte4qt" sourceRef="Gateway_0gkxwo7" targetRef="Activity_0rhyd10" />
+    <bpmn:sequenceFlow id="Flow_03im9uy" sourceRef="Gateway_0gkxwo7" targetRef="Activity_1riu9zl" />
+    <bpmn:sequenceFlow id="Flow_0w8chx0" sourceRef="Activity_0rhyd10" targetRef="Gateway_145t302" />
+    <bpmn:sequenceFlow id="Flow_0f7ap09" sourceRef="Activity_1riu9zl" targetRef="Gateway_145t302" />
+    <bpmn:sequenceFlow id="Flow_19dhshg" sourceRef="Gateway_145t302" targetRef="GW_branchB_merge" />
+    <bpmn:sequenceFlow id="Flow_notify_to_par" sourceRef="Activity_0xmtzgd" targetRef="GW_par_merge" />
+    <bpmn:sequenceFlow id="Flow_branchB_to_par" sourceRef="GW_branchB_merge" targetRef="GW_par_merge" />
+    <bpmn:sequenceFlow id="Flow_par_to_end" sourceRef="GW_par_merge" targetRef="End_process" />
+  </bpmn:process>
+
+  <!-- ══════════ DI (diagram) ══════════ -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_0iy2u1a">
+
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="172" y="232" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="150" y="275" width="80" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true">
+        <dc:Bounds x="265" y="225" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="248" y="195" width="85" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="ST_create_main_di" bpmnElement="ST_create_main">
+        <dc:Bounds x="240" y="330" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="GW_odoo_merge_di" bpmnElement="GW_odoo_merge" isMarkerVisible="true">
+        <dc:Bounds x="395" y="225" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Activity_0bkeomf_di" bpmnElement="Activity_0bkeomf">
+        <dc:Bounds x="500" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Activity_1m5lz1c_di" bpmnElement="Activity_1m5lz1c">
+        <dc:Bounds x="660" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_1qaw5a1_di" bpmnElement="Gateway_1qaw5a1">
+        <dc:Bounds x="815" y="225" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Activity_0xmtzgd_di" bpmnElement="Activity_0xmtzgd">
+        <dc:Bounds x="920" y="310" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Activity_1glu1uv_di" bpmnElement="Activity_1glu1uv">
+        <dc:Bounds x="920" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Activity_113c8jv_di" bpmnElement="Activity_113c8jv">
+        <dc:Bounds x="1080" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_0buteek_di" bpmnElement="Gateway_0buteek" isMarkerVisible="true">
+        <dc:Bounds x="1235" y="115" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1220" y="85" width="80" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_0gkxwo7_di" bpmnElement="Gateway_0gkxwo7">
+        <dc:Bounds x="1345" y="15" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Activity_0rhyd10_di" bpmnElement="Activity_0rhyd10">
+        <dc:Bounds x="1450" y="-60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Activity_1riu9zl_di" bpmnElement="Activity_1riu9zl">
+        <dc:Bounds x="1450" y="70" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_145t302_di" bpmnElement="Gateway_145t302">
+        <dc:Bounds x="1605" y="15" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="GW_branchB_merge_di" bpmnElement="GW_branchB_merge" isMarkerVisible="true">
+        <dc:Bounds x="1705" y="225" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="GW_par_merge_di" bpmnElement="GW_par_merge">
+        <dc:Bounds x="1805" y="225" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="End_process_di" bpmnElement="End_process">
+        <dc:Bounds x="1912" y="232" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1888" y="275" width="85" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Edges -->
+      <bpmndi:BPMNEdge id="Flow_start_to_gw_di" bpmnElement="Flow_start_to_gw">
+        <di:waypoint x="208" y="250" /><di:waypoint x="265" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_odoo_exists_di" bpmnElement="Flow_odoo_exists">
+        <di:waypoint x="315" y="250" /><di:waypoint x="395" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_odoo_create_di" bpmnElement="Flow_odoo_create">
+        <di:waypoint x="290" y="275" /><di:waypoint x="290" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_create_to_merge_di" bpmnElement="Flow_create_to_merge">
+        <di:waypoint x="340" y="370" /><di:waypoint x="420" y="370" /><di:waypoint x="420" y="275" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_merge_to_stores_di" bpmnElement="Flow_merge_to_stores">
+        <di:waypoint x="445" y="250" /><di:waypoint x="500" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0c40yaa_di" bpmnElement="Flow_0c40yaa">
+        <di:waypoint x="600" y="250" /><di:waypoint x="660" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_16jm8l4_di" bpmnElement="Flow_16jm8l4">
+        <di:waypoint x="760" y="250" /><di:waypoint x="815" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1eqdds9_di" bpmnElement="Flow_1eqdds9">
+        <di:waypoint x="840" y="275" /><di:waypoint x="840" y="350" /><di:waypoint x="920" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1skjfzo_di" bpmnElement="Flow_1skjfzo">
+        <di:waypoint x="840" y="225" /><di:waypoint x="840" y="140" /><di:waypoint x="920" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_071l64z_di" bpmnElement="Flow_071l64z">
+        <di:waypoint x="1020" y="140" /><di:waypoint x="1080" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1p9i419_di" bpmnElement="Flow_1p9i419">
+        <di:waypoint x="1180" y="140" /><di:waypoint x="1235" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0t3023h_di" bpmnElement="Flow_0t3023h">
+        <di:waypoint x="1260" y="115" /><di:waypoint x="1260" y="40" /><di:waypoint x="1345" y="40" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1280" y="45" width="16" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_18nl74g_di" bpmnElement="Flow_18nl74g">
+        <di:waypoint x="1260" y="165" /><di:waypoint x="1260" y="250" /><di:waypoint x="1705" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0qte4qt_di" bpmnElement="Flow_0qte4qt">
+        <di:waypoint x="1370" y="15" /><di:waypoint x="1370" y="-20" /><di:waypoint x="1450" y="-20" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_03im9uy_di" bpmnElement="Flow_03im9uy">
+        <di:waypoint x="1370" y="65" /><di:waypoint x="1370" y="110" /><di:waypoint x="1450" y="110" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0w8chx0_di" bpmnElement="Flow_0w8chx0">
+        <di:waypoint x="1550" y="-20" /><di:waypoint x="1630" y="-20" /><di:waypoint x="1630" y="15" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0f7ap09_di" bpmnElement="Flow_0f7ap09">
+        <di:waypoint x="1550" y="110" /><di:waypoint x="1630" y="110" /><di:waypoint x="1630" y="65" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_19dhshg_di" bpmnElement="Flow_19dhshg">
+        <di:waypoint x="1655" y="40" /><di:waypoint x="1730" y="40" /><di:waypoint x="1730" y="225" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_notify_to_par_di" bpmnElement="Flow_notify_to_par">
+        <di:waypoint x="1020" y="350" /><di:waypoint x="1830" y="350" /><di:waypoint x="1830" y="275" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_branchB_to_par_di" bpmnElement="Flow_branchB_to_par">
+        <di:waypoint x="1755" y="250" /><di:waypoint x="1805" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_par_to_end_di" bpmnElement="Flow_par_to_end">
+        <di:waypoint x="1855" y="250" /><di:waypoint x="1912" y="250" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
