@@ -1,7 +1,14 @@
 <?xml version='1.0' encoding='utf-8'?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_pr_review" targetNamespace="http://tut.ua/bpmn/pr-review" exporter="Claude Code" exporterVersion="1.0">
-
-  
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  id="Definitions_pr_review"
+                  targetNamespace="http://tut.ua/bpmn/pr-review"
+                  exporter="Claude Code"
+                  exporterVersion="1.0">
 
   <bpmn:message id="Message_pr_review" name="msg_pr_review">
     <bpmn:extensionElements>
@@ -9,18 +16,11 @@
     </bpmn:extensionElements>
   </bpmn:message>
 
-  <bpmn:message id="Message_pr_updated" name="msg_pr_updated">
-    <bpmn:extensionElements>
-      <zeebe:subscription correlationKey="=string(pr_number)" />
-    </bpmn:extensionElements>
-  </bpmn:message>
-
   <bpmn:process id="pr-review" name="PR Review" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="2.0" />
+      <zeebe:versionTag value="4.0" />
     </bpmn:extensionElements>
 
-    
     <bpmn:startEvent id="evt_start" name="PR відкрито">
       <bpmn:outgoing>f_start_to_parent_check</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_start" messageRef="Message_pr_review" />
@@ -34,7 +34,6 @@
     </bpmn:exclusiveGateway>
 
     <bpmn:serviceTask id="ST_create_review_task" name="Створити задачу ревʼю в Odoo">
-      <bpmn:documentation>Standalone review: створює головне завдання в Odoo.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
@@ -51,7 +50,6 @@
     </bpmn:serviceTask>
 
     <bpmn:serviceTask id="ST_create_review_subtask" name="Створити підзадачу ревʼю в Odoo">
-      <bpmn:documentation>Child review: створює підзадачу в батьківському процесі Odoo.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
@@ -72,70 +70,38 @@
       <bpmn:outgoing>f_start_to_review</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-
-    <bpmn:serviceTask id="task_pr_agent" name="Рев'ю PR-Agent">
-      <bpmn:documentation>Запускає PR-Agent для автоматичного code review.
+    <!-- ── Claude Code Review ──────────────────────────────── -->
+    <bpmn:serviceTask id="task_pr_agent" name="Claude Code Review">
+      <bpmn:documentation>Запускає Claude Code CLI для автоматичного code review.
 Output: review_score, has_critical_issues</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="pr-agent-review" retries="2" />
       </bpmn:extensionElements>
       <bpmn:incoming>f_start_to_review</bpmn:incoming>
-      <bpmn:incoming>f_wait_update_back</bpmn:incoming>
       <bpmn:outgoing>f_review_to_gw</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    
     <bpmn:exclusiveGateway id="gw_score" name="Оцінка &gt;= 7?" default="f_score_low">
       <bpmn:incoming>f_review_to_gw</bpmn:incoming>
       <bpmn:outgoing>f_score_ok</bpmn:outgoing>
       <bpmn:outgoing>f_score_low</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    
-    <bpmn:serviceTask id="task_comment_low" name="Коментар: потребує доопрацювання">
-      <bpmn:documentation>Коментар на PR: score &lt; 7, потрібні виправлення.</bpmn:documentation>
+    <!-- ── Score OK: merge + publish ───────────────────────── -->
+    <bpmn:serviceTask id="task_github_merge" name="Змержити PR в staging">
+      <bpmn:documentation>Автоматичний squash-merge PR через GitHub API при score >= 7.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="github-comment" retries="2" />
+        <zeebe:taskDefinition type="github-merge" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;⚠️ **Потребує доопрацювання** — Score &quot; + string(review_score) + &quot;/10. Перевірте зауваження від PR-Agent вище та пушніть виправлення.&quot;" target="comment_text" />
+          <zeebe:input source="=pr_number" target="pr_number" />
+          <zeebe:input source="=if is defined(repository) and repository != null then repository else &quot;tut-ua/odoo-enterprise&quot;" target="repository" />
+          <zeebe:input source="=if is defined(pr_title) and pr_title != null then pr_title else &quot;&quot;" target="pr_title" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>f_score_low</bpmn:incoming>
-      <bpmn:outgoing>f_comment_to_wait</bpmn:outgoing>
+      <bpmn:incoming>f_score_ok</bpmn:incoming>
+      <bpmn:outgoing>f_merge_to_publish</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    
-    <bpmn:receiveTask id="recv_wait_update" name="Чекаємо PR update" messageRef="Message_pr_updated">
-      <bpmn:documentation>Очікує push нових комітів в PR (GitHub webhook: pull_request synchronize).
-Кореляція по pr_number.</bpmn:documentation>
-      <bpmn:incoming>f_comment_to_wait</bpmn:incoming>
-      <bpmn:outgoing>f_wait_update_back</bpmn:outgoing>
-    </bpmn:receiveTask>
-
-    
-    <bpmn:boundaryEvent id="timer_reminder" name="Нагадування (3 дні)" cancelActivity="false" attachedToRef="recv_wait_update">
-      <bpmn:outgoing>f_reminder</bpmn:outgoing>
-      <bpmn:timerEventDefinition id="TimerDef_reminder">
-        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/P3D</bpmn:timeCycle>
-      </bpmn:timerEventDefinition>
-    </bpmn:boundaryEvent>
-
-    <bpmn:serviceTask id="task_send_reminder" name="Нагадати: PR потребує виправлень">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="github-comment" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&quot;⏰ **Нагадування**: PR #&quot; + string(pr_number) + &quot; потребує доопрацювання (score &quot; + string(review_score) + &quot;/10). Пушніть виправлення.&quot;" target="comment_text" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_reminder</bpmn:incoming>
-      <bpmn:outgoing>f_to_End_rem</bpmn:outgoing>
-    </bpmn:serviceTask>
-
-    <bpmn:endEvent id="End_rem" name="Нагадування надіслано">
-      <bpmn:incoming>f_to_End_rem</bpmn:incoming>
-    </bpmn:endEvent>
-
-    
     <bpmn:serviceTask id="ST_publish_review_done" name="Публікувати результат ревʼю">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="publish-message" retries="2" />
@@ -144,15 +110,29 @@ Output: review_score, has_critical_issues</bpmn:documentation>
           <zeebe:input source="=string(pr_number)" target="correlation_key" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>f_score_ok</bpmn:incoming>
+      <bpmn:incoming>f_merge_to_publish</bpmn:incoming>
+      <bpmn:incoming>f_low_to_publish</bpmn:incoming>
       <bpmn:outgoing>f_publish_to_end</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:endEvent id="evt_end" name="Ревʼю пройдено">
+    <bpmn:endEvent id="evt_end" name="Ревʼю завершено">
       <bpmn:incoming>f_publish_to_end</bpmn:incoming>
     </bpmn:endEvent>
 
-    
+    <!-- ── Score LOW: comment + publish + end ──────────────── -->
+    <bpmn:serviceTask id="task_comment_low" name="Коментар: не пройшло ревʼю">
+      <bpmn:documentation>Коментар на PR: score &lt; 7, merge відхилено.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-comment" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;❌ **Ревʼю не пройдено** — Score &quot; + string(review_score) + &quot;/10. PR не буде змерджено автоматично. Перегляньте зауваження вище.&quot;" target="comment_text" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_score_low</bpmn:incoming>
+      <bpmn:outgoing>f_low_to_publish</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── Sequence flows ──────────────────────────────────── -->
     <bpmn:sequenceFlow id="f_start_to_parent_check" sourceRef="evt_start" targetRef="gw_parent_check" />
     <bpmn:sequenceFlow id="f_has_parent" name="Так" sourceRef="gw_parent_check" targetRef="ST_create_review_subtask">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(parent_process_instance_key) and parent_process_instance_key != null</bpmn:conditionExpression>
@@ -162,189 +142,136 @@ Output: review_score, has_critical_issues</bpmn:documentation>
     <bpmn:sequenceFlow id="f_subtask_to_merge" sourceRef="ST_create_review_subtask" targetRef="gw_merge_parent" />
     <bpmn:sequenceFlow id="f_start_to_review" sourceRef="gw_merge_parent" targetRef="task_pr_agent" />
     <bpmn:sequenceFlow id="f_review_to_gw" sourceRef="task_pr_agent" targetRef="gw_score" />
-    <bpmn:sequenceFlow id="f_score_ok" name="OK" sourceRef="gw_score" targetRef="ST_publish_review_done">
+    <bpmn:sequenceFlow id="f_score_ok" name="OK" sourceRef="gw_score" targetRef="task_github_merge">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=review_score &gt;= 7 and has_critical_issues = false</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="f_publish_to_end" sourceRef="ST_publish_review_done" targetRef="evt_end" />
+    <bpmn:sequenceFlow id="f_merge_to_publish" sourceRef="task_github_merge" targetRef="ST_publish_review_done" />
     <bpmn:sequenceFlow id="f_score_low" name="&lt; 7" sourceRef="gw_score" targetRef="task_comment_low" />
-    <bpmn:sequenceFlow id="f_comment_to_wait" sourceRef="task_comment_low" targetRef="recv_wait_update" />
-    <bpmn:sequenceFlow id="f_wait_update_back" sourceRef="recv_wait_update" targetRef="task_pr_agent" />
-    <bpmn:sequenceFlow id="f_reminder" sourceRef="timer_reminder" targetRef="task_send_reminder" />
-    <bpmn:sequenceFlow id="f_to_End_rem" sourceRef="task_send_reminder" targetRef="End_rem" />
+    <bpmn:sequenceFlow id="f_low_to_publish" sourceRef="task_comment_low" targetRef="ST_publish_review_done" />
+    <bpmn:sequenceFlow id="f_publish_to_end" sourceRef="ST_publish_review_done" targetRef="evt_end" />
 
   </bpmn:process>
 
+  <!-- ═══════════════════ DIAGRAM ═══════════════════ -->
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="pr-review">
 
-      <!-- ── Main row (center Y=210) ─────────────────────────── -->
-
+      <!-- Main row Y=210 -->
       <bpmndi:BPMNShape id="evt_start_di" bpmnElement="evt_start">
         <dc:Bounds x="170" y="192" width="36" height="36" />
-        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="gw_parent_check_di" bpmnElement="gw_parent_check" isMarkerVisible="true">
         <dc:Bounds x="290" y="185" width="50" height="50" />
-        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="ST_create_review_subtask_di" bpmnElement="ST_create_review_subtask">
         <dc:Bounds x="420" y="90" width="100" height="80" />
-        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="ST_create_review_task_di" bpmnElement="ST_create_review_task">
         <dc:Bounds x="420" y="170" width="100" height="80" />
-        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="gw_merge_parent_di" bpmnElement="gw_merge_parent" isMarkerVisible="true">
         <dc:Bounds x="600" y="185" width="50" height="50" />
-        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="task_pr_agent_di" bpmnElement="task_pr_agent">
         <dc:Bounds x="730" y="170" width="100" height="80" />
-        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="gw_score_di" bpmnElement="gw_score" isMarkerVisible="true">
         <dc:Bounds x="910" y="185" width="50" height="50" />
-        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
-      <bpmndi:BPMNShape id="ST_publish_review_done_di" bpmnElement="ST_publish_review_done">
+      <!-- OK path -->
+      <bpmndi:BPMNShape id="task_github_merge_di" bpmnElement="task_github_merge">
         <dc:Bounds x="1040" y="170" width="100" height="80" />
-        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Shared: publish + end -->
+      <bpmndi:BPMNShape id="ST_publish_review_done_di" bpmnElement="ST_publish_review_done">
+        <dc:Bounds x="1220" y="170" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="evt_end_di" bpmnElement="evt_end">
-        <dc:Bounds x="1220" y="192" width="36" height="36" />
-        <bpmndi:BPMNLabel />
+        <dc:Bounds x="1400" y="192" width="36" height="36" />
       </bpmndi:BPMNShape>
 
-      <!-- ── Low-score branch (center Y=370) ─────────────────── -->
-
+      <!-- Low score path Y=340 -->
       <bpmndi:BPMNShape id="task_comment_low_di" bpmnElement="task_comment_low">
-        <dc:Bounds x="1040" y="330" width="100" height="80" />
-        <bpmndi:BPMNLabel />
+        <dc:Bounds x="1040" y="300" width="100" height="80" />
       </bpmndi:BPMNShape>
 
-      <bpmndi:BPMNShape id="recv_wait_update_di" bpmnElement="recv_wait_update">
-        <dc:Bounds x="1220" y="330" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-
-      <bpmndi:BPMNShape id="timer_reminder_di" bpmnElement="timer_reminder">
-        <dc:Bounds x="1230" y="392" width="36" height="36" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-
-      <!-- ── Reminder path (center Y=510) ────────────────────── -->
-
-      <bpmndi:BPMNShape id="task_send_reminder_di" bpmnElement="task_send_reminder">
-        <dc:Bounds x="1320" y="470" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-
-      <bpmndi:BPMNShape id="End_rem_di" bpmnElement="End_rem">
-        <dc:Bounds x="1500" y="492" width="36" height="36" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-
-      <!-- ══ EDGES ═══════════════════════════════════════════ -->
-
-      <!-- Start → Parent check -->
+      <!-- ── Edges ─────────────────────────────────────────── -->
       <bpmndi:BPMNEdge id="f_start_to_parent_check_di" bpmnElement="f_start_to_parent_check">
         <di:waypoint x="206" y="210" />
         <di:waypoint x="290" y="210" />
       </bpmndi:BPMNEdge>
 
-      <!-- "Так": Parent check → Subtask (L-shape up then right) -->
       <bpmndi:BPMNEdge id="f_has_parent_di" bpmnElement="f_has_parent">
         <di:waypoint x="315" y="185" />
         <di:waypoint x="315" y="130" />
         <di:waypoint x="420" y="130" />
       </bpmndi:BPMNEdge>
 
-      <!-- "Standalone" default: Parent check → Create task -->
       <bpmndi:BPMNEdge id="f_no_parent_di" bpmnElement="f_no_parent">
         <di:waypoint x="340" y="210" />
         <di:waypoint x="420" y="210" />
       </bpmndi:BPMNEdge>
 
-      <!-- Subtask → Merge (L-shape right then down) -->
       <bpmndi:BPMNEdge id="f_subtask_to_merge_di" bpmnElement="f_subtask_to_merge">
         <di:waypoint x="520" y="130" />
         <di:waypoint x="625" y="130" />
         <di:waypoint x="625" y="185" />
       </bpmndi:BPMNEdge>
 
-      <!-- Create task → Merge -->
       <bpmndi:BPMNEdge id="f_created_to_merge_di" bpmnElement="f_created_to_merge">
         <di:waypoint x="520" y="210" />
         <di:waypoint x="600" y="210" />
       </bpmndi:BPMNEdge>
 
-      <!-- Merge → PR-Agent -->
       <bpmndi:BPMNEdge id="f_start_to_review_di" bpmnElement="f_start_to_review">
         <di:waypoint x="650" y="210" />
         <di:waypoint x="730" y="210" />
       </bpmndi:BPMNEdge>
 
-      <!-- PR-Agent → Score check -->
       <bpmndi:BPMNEdge id="f_review_to_gw_di" bpmnElement="f_review_to_gw">
         <di:waypoint x="830" y="210" />
         <di:waypoint x="910" y="210" />
       </bpmndi:BPMNEdge>
 
-      <!-- "OK" score → Publish -->
+      <!-- OK → merge -->
       <bpmndi:BPMNEdge id="f_score_ok_di" bpmnElement="f_score_ok">
         <di:waypoint x="960" y="210" />
         <di:waypoint x="1040" y="210" />
       </bpmndi:BPMNEdge>
 
-      <!-- Publish → End -->
-      <bpmndi:BPMNEdge id="f_publish_to_end_di" bpmnElement="f_publish_to_end">
+      <!-- merge → publish -->
+      <bpmndi:BPMNEdge id="f_merge_to_publish_di" bpmnElement="f_merge_to_publish">
         <di:waypoint x="1140" y="210" />
         <di:waypoint x="1220" y="210" />
       </bpmndi:BPMNEdge>
 
-      <!-- "< 7" default: Score → Comment low (down then right) -->
+      <!-- low score → comment -->
       <bpmndi:BPMNEdge id="f_score_low_di" bpmnElement="f_score_low">
         <di:waypoint x="935" y="235" />
-        <di:waypoint x="935" y="370" />
-        <di:waypoint x="1040" y="370" />
+        <di:waypoint x="935" y="340" />
+        <di:waypoint x="1040" y="340" />
       </bpmndi:BPMNEdge>
 
-      <!-- Comment → Wait update -->
-      <bpmndi:BPMNEdge id="f_comment_to_wait_di" bpmnElement="f_comment_to_wait">
-        <di:waypoint x="1140" y="370" />
-        <di:waypoint x="1220" y="370" />
+      <!-- comment → publish -->
+      <bpmndi:BPMNEdge id="f_low_to_publish_di" bpmnElement="f_low_to_publish">
+        <di:waypoint x="1140" y="340" />
+        <di:waypoint x="1270" y="340" />
+        <di:waypoint x="1270" y="250" />
       </bpmndi:BPMNEdge>
 
-      <!-- Loop back: Wait update → PR-Agent (6wp reverse flow) -->
-      <bpmndi:BPMNEdge id="f_wait_update_back_di" bpmnElement="f_wait_update_back">
-        <di:waypoint x="1320" y="370" />
-        <di:waypoint x="1350" y="370" />
-        <di:waypoint x="1350" y="50" />
-        <di:waypoint x="700" y="50" />
-        <di:waypoint x="700" y="210" />
-        <di:waypoint x="730" y="210" />
-      </bpmndi:BPMNEdge>
-
-      <!-- Boundary timer → Send reminder (down then right) -->
-      <bpmndi:BPMNEdge id="f_reminder_di" bpmnElement="f_reminder">
-        <di:waypoint x="1248" y="428" />
-        <di:waypoint x="1248" y="510" />
-        <di:waypoint x="1320" y="510" />
-      </bpmndi:BPMNEdge>
-
-      <!-- Send reminder → End reminder -->
-      <bpmndi:BPMNEdge id="f_to_End_rem_di" bpmnElement="f_to_End_rem">
-        <di:waypoint x="1420" y="510" />
-        <di:waypoint x="1500" y="510" />
+      <!-- publish → end -->
+      <bpmndi:BPMNEdge id="f_publish_to_end_di" bpmnElement="f_publish_to_end">
+        <di:waypoint x="1320" y="210" />
+        <di:waypoint x="1400" y="210" />
       </bpmndi:BPMNEdge>
 
     </bpmndi:BPMNPlane>

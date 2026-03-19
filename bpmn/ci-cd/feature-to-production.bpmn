@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_feature" targetNamespace="http://tut.ua/bpmn/feature-pipeline" exporter="Claude Code" exporterVersion="2.0">
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
-  <bpmn:error id="Error_merge_conflict" name="Merge Conflict" errorCode="MERGE_CONFLICT" />
   <bpmn:message id="Message_pr_event" name="msg_pr_event">
     <bpmn:extensionElements>
       <zeebe:subscription correlationKey="=head_branch" />
@@ -17,14 +16,9 @@
       <zeebe:subscription correlationKey="=string(pr_number)" />
     </bpmn:extensionElements>
   </bpmn:message>
-  <bpmn:message id="Message_deploy_done" name="msg_deploy_done">
-    <bpmn:extensionElements>
-      <zeebe:subscription correlationKey="=merge_sha" />
-    </bpmn:extensionElements>
-  </bpmn:message>
   <bpmn:process id="feature-to-production" name="Feature to Production" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="6.0" />
+      <zeebe:versionTag value="7.0" />
     </bpmn:extensionElements>
     <bpmn:startEvent id="start_manual" name="Розробку розпочато (/start)">
       <bpmn:documentation>Розробник запускає /start в Claude Code CLI.</bpmn:documentation>
@@ -74,61 +68,15 @@
       <bpmn:outgoing>f_review_ok</bpmn:outgoing>
       <bpmn:outgoing>f_review_low</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:serviceTask id="task_merge_staging" name="Змержити фічу в staging">
-      <bpmn:documentation>Мерджить feature branch в staging через SSH.</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="merge-feature-to-staging" retries="1" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=head_branch" target="feature_branch" />
-          <zeebe:input source="=staging_host" target="server_host" />
-          <zeebe:input source="=repository" target="repository" />
-          <zeebe:output source="=merge_sha" target="merge_sha" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
+    <!-- ── Timer: чекаємо 15 хв на деплой staging ────────── -->
+    <bpmn:intermediateCatchEvent id="timer_wait_deploy" name="Чекаємо 15 хв на деплой">
+      <bpmn:documentation>Після merge PR в staging (з pr-review), чекаємо 15 хвилин щоб deploy завершився через webhook.</bpmn:documentation>
       <bpmn:incoming>f_review_ok</bpmn:incoming>
-      <bpmn:outgoing>f_merge_to_deploy_staging</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:boundaryEvent id="evt_merge_conflict" name="Конфлікт злиття" attachedToRef="task_merge_staging">
-      <bpmn:outgoing>f_merge_conflict</bpmn:outgoing>
-      <bpmn:errorEventDefinition id="ErrorDef_merge_conflict" />
-    </bpmn:boundaryEvent>
-    <bpmn:serviceTask id="task_notify_conflict" name="Створити задачу: конфлікт злиття">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Merge конфлікт: PR #&#34; + string(pr_number) + &#34; — &#34; + head_branch, description: &#34;Не вдалось змержити гілку в staging. Потрібен rebase на main.\n\nКонфліктні файли:\n&#34; + (if is defined(conflict_files) and conflict_files != null and conflict_files != &#34;&#34; then conflict_files else &#34;(не вдалось визначити)&#34;)}" target="body" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_merge_conflict</bpmn:incoming>
-      <bpmn:outgoing>f_conflict_to_comment</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:intermediateCatchEvent id="catch_deploy_done" name="Чекаємо результат деплою">
-      <bpmn:documentation>Чекає msg_deploy_done від standalone deploy-process (triggered by push to staging).</bpmn:documentation>
-      <bpmn:incoming>f_merge_to_deploy_staging</bpmn:incoming>
-      <bpmn:outgoing>f_deploy_to_gw</bpmn:outgoing>
-      <bpmn:messageEventDefinition id="MsgDef_catch_deploy" messageRef="Message_deploy_done" />
+      <bpmn:outgoing>f_timer_to_verify_staging</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_wait_deploy">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT15M</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
     </bpmn:intermediateCatchEvent>
-    <bpmn:exclusiveGateway id="gw_deploy_ok" name="Деплой успішний?" default="f_deploy_ok">
-      <bpmn:incoming>f_deploy_to_gw</bpmn:incoming>
-      <bpmn:outgoing>f_deploy_ok</bpmn:outgoing>
-      <bpmn:outgoing>f_deploy_failed</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-    <bpmn:serviceTask id="task_notify_deploy_fail" name="Створити задачу: деплой staging провалився">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;[deploy] ❌ Деплой staging провалився&#34;, description: &#34;&#60;p&#62;❌ Deploy PR #&#34; + string(pr_number) + &#34; на staging провалився.&#60;/p&#62;&#34;}" target="body" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_deploy_failed</bpmn:incoming>
-      <bpmn:outgoing>f_deploy_fail_to_rework</bpmn:outgoing>
-    </bpmn:serviceTask>
     <bpmn:callActivity id="call_verify_staging" name="Перевірити staging">
       <bpmn:documentation>Call Activity: verification-process. Створює Odoo задачу, чекає результату.</bpmn:documentation>
       <bpmn:extensionElements>
@@ -241,8 +189,6 @@
           <zeebe:input source="=&#34;🔄 Потрібне виправлення. Пушніть зміни в гілку `&#34; + head_branch + &#34;` для продовження CI/CD.&#34;" target="comment_text" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>f_conflict_to_comment</bpmn:incoming>
-      <bpmn:incoming>f_deploy_fail_to_rework</bpmn:incoming>
       <bpmn:incoming>f_staging_reject_to_rework</bpmn:incoming>
       <bpmn:incoming>f_merge_reject_to_rework</bpmn:incoming>
       <bpmn:incoming>f_review_low</bpmn:incoming>
@@ -308,19 +254,11 @@
     <bpmn:sequenceFlow id="f_merge_to_wait" sourceRef="Merge_odoo" targetRef="catch_pr_created" />
     <bpmn:sequenceFlow id="f_catch_to_review" sourceRef="catch_pr_created" targetRef="catch_review_done" />
     <bpmn:sequenceFlow id="f_review_to_gw_score" sourceRef="catch_review_done" targetRef="gw_review_score" />
-    <bpmn:sequenceFlow id="f_review_ok" name="OK" sourceRef="gw_review_score" targetRef="task_merge_staging" />
+    <bpmn:sequenceFlow id="f_review_ok" name="OK" sourceRef="gw_review_score" targetRef="timer_wait_deploy" />
     <bpmn:sequenceFlow id="f_review_low" name="Низька оцінка" sourceRef="gw_review_score" targetRef="task_comment_rework">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=review_score &lt; 7 or has_critical_issues = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="f_merge_conflict" sourceRef="evt_merge_conflict" targetRef="task_notify_conflict" />
-    <bpmn:sequenceFlow id="f_conflict_to_comment" sourceRef="task_notify_conflict" targetRef="task_comment_rework" />
-    <bpmn:sequenceFlow id="f_merge_to_deploy_staging" sourceRef="task_merge_staging" targetRef="catch_deploy_done" />
-    <bpmn:sequenceFlow id="f_deploy_to_gw" sourceRef="catch_deploy_done" targetRef="gw_deploy_ok" />
-    <bpmn:sequenceFlow id="f_deploy_ok" name="OK" sourceRef="gw_deploy_ok" targetRef="call_verify_staging" />
-    <bpmn:sequenceFlow id="f_deploy_failed" name="Провалено" sourceRef="gw_deploy_ok" targetRef="task_notify_deploy_fail">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(deploy_failed) and deploy_failed = true</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="f_deploy_fail_to_rework" sourceRef="task_notify_deploy_fail" targetRef="task_comment_rework" />
+    <bpmn:sequenceFlow id="f_timer_to_verify_staging" sourceRef="timer_wait_deploy" targetRef="call_verify_staging" />
     <bpmn:sequenceFlow id="f_verify_staging_to_gw" sourceRef="call_verify_staging" targetRef="gw_staging_ok" />
     <bpmn:sequenceFlow id="f_staging_ok" name="OK" sourceRef="gw_staging_ok" targetRef="task_undraft_pr" />
     <bpmn:sequenceFlow id="f_staging_rejected" name="Проблеми" sourceRef="gw_staging_ok" targetRef="task_comment_staging_reject">
@@ -376,56 +314,38 @@
           <dc:Bounds x="813" y="251" width="60" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task_merge_staging_di" bpmnElement="task_merge_staging">
-        <dc:Bounds x="938" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task_notify_conflict_di" bpmnElement="task_notify_conflict">
-        <dc:Bounds x="918" y="410" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="catch_deploy_done_di" bpmnElement="catch_deploy_done">
-        <dc:Bounds x="1108" y="282" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="gw_deploy_ok_di" bpmnElement="gw_deploy_ok" isMarkerVisible="true">
-        <dc:Bounds x="1208" y="275" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task_notify_deploy_fail_di" bpmnElement="task_notify_deploy_fail">
-        <dc:Bounds x="1183" y="410" width="100" height="80" />
+      <bpmndi:BPMNShape id="timer_wait_deploy_di" bpmnElement="timer_wait_deploy">
+        <dc:Bounds x="970" y="282" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="call_verify_staging_di" bpmnElement="call_verify_staging">
-        <dc:Bounds x="1328" y="260" width="100" height="80" />
+        <dc:Bounds x="1078" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_staging_ok_di" bpmnElement="gw_staging_ok" isMarkerVisible="true">
-        <dc:Bounds x="1493" y="275" width="50" height="50" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1490" y="244" width="56" height="27" />
-        </bpmndi:BPMNLabel>
+        <dc:Bounds x="1243" y="275" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_comment_staging_reject_di" bpmnElement="task_comment_staging_reject">
-        <dc:Bounds x="1468" y="410" width="100" height="80" />
+        <dc:Bounds x="1218" y="410" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_undraft_pr_di" bpmnElement="task_undraft_pr">
-        <dc:Bounds x="1608" y="260" width="100" height="80" />
+        <dc:Bounds x="1358" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="call_verify_merge_di" bpmnElement="call_verify_merge">
-        <dc:Bounds x="1778" y="260" width="100" height="80" />
+        <dc:Bounds x="1528" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_merge_ok_di" bpmnElement="gw_merge_ok" isMarkerVisible="true">
-        <dc:Bounds x="1943" y="275" width="50" height="50" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1923" y="252" width="90" height="14" />
-        </bpmndi:BPMNLabel>
+        <dc:Bounds x="1693" y="275" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_comment_merge_reject_di" bpmnElement="task_comment_merge_reject">
-        <dc:Bounds x="1918" y="410" width="100" height="80" />
+        <dc:Bounds x="1668" y="410" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_github_merge_di" bpmnElement="task_github_merge">
-        <dc:Bounds x="2058" y="260" width="100" height="80" />
+        <dc:Bounds x="1808" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="call_verify_prod_di" bpmnElement="call_verify_prod">
-        <dc:Bounds x="2228" y="260" width="100" height="80" />
+        <dc:Bounds x="1978" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="evt_end_success_di" bpmnElement="evt_end_success">
-        <dc:Bounds x="2392" y="282" width="36" height="36" />
+        <dc:Bounds x="2142" y="282" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_comment_rework_di" bpmnElement="task_comment_rework">
         <dc:Bounds x="718" y="540" width="100" height="80" />
@@ -462,9 +382,6 @@
       <bpmndi:BPMNShape id="timer_rework_reminder_di" bpmnElement="timer_rework_reminder">
         <dc:Bounds x="548" y="602" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="evt_merge_conflict_di" bpmnElement="evt_merge_conflict">
-        <dc:Bounds x="948" y="322" width="36" height="36" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="f_manual_to_odoo_di" bpmnElement="f_manual_to_odoo">
         <di:waypoint x="188" y="300" />
         <di:waypoint x="248" y="300" />
@@ -497,98 +414,63 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_review_ok_di" bpmnElement="f_review_ok">
         <di:waypoint x="868" y="300" />
-        <di:waypoint x="938" y="300" />
+        <di:waypoint x="970" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_review_low_di" bpmnElement="f_review_low">
         <di:waypoint x="843" y="325" />
         <di:waypoint x="843" y="470" />
         <di:waypoint x="768" y="470" />
         <di:waypoint x="768" y="540" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="785" y="443" width="49" height="14" />
-        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_merge_conflict_di" bpmnElement="f_merge_conflict">
-        <di:waypoint x="966" y="358" />
-        <di:waypoint x="966" y="410" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_conflict_to_comment_di" bpmnElement="f_conflict_to_comment">
-        <di:waypoint x="968" y="490" />
-        <di:waypoint x="968" y="580" />
-        <di:waypoint x="818" y="580" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_merge_to_deploy_staging_di" bpmnElement="f_merge_to_deploy_staging">
-        <di:waypoint x="1038" y="300" />
-        <di:waypoint x="1108" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_deploy_to_gw_di" bpmnElement="f_deploy_to_gw">
-        <di:waypoint x="1144" y="300" />
-        <di:waypoint x="1208" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_deploy_ok_di" bpmnElement="f_deploy_ok">
-        <di:waypoint x="1258" y="300" />
-        <di:waypoint x="1328" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_deploy_failed_di" bpmnElement="f_deploy_failed">
-        <di:waypoint x="1233" y="325" />
-        <di:waypoint x="1233" y="410" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_deploy_fail_to_rework_di" bpmnElement="f_deploy_fail_to_rework">
-        <di:waypoint x="1233" y="490" />
-        <di:waypoint x="1233" y="580" />
-        <di:waypoint x="818" y="580" />
+      <bpmndi:BPMNEdge id="f_timer_to_verify_staging_di" bpmnElement="f_timer_to_verify_staging">
+        <di:waypoint x="1006" y="300" />
+        <di:waypoint x="1078" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_verify_staging_to_gw_di" bpmnElement="f_verify_staging_to_gw">
-        <di:waypoint x="1428" y="300" />
-        <di:waypoint x="1493" y="300" />
+        <di:waypoint x="1178" y="300" />
+        <di:waypoint x="1243" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_staging_ok_di" bpmnElement="f_staging_ok">
-        <di:waypoint x="1543" y="300" />
-        <di:waypoint x="1608" y="300" />
+        <di:waypoint x="1293" y="300" />
+        <di:waypoint x="1358" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_staging_rejected_di" bpmnElement="f_staging_rejected">
-        <di:waypoint x="1518" y="325" />
-        <di:waypoint x="1518" y="410" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1463" y="363" width="53" height="14" />
-        </bpmndi:BPMNLabel>
+        <di:waypoint x="1268" y="325" />
+        <di:waypoint x="1268" y="410" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_staging_reject_to_rework_di" bpmnElement="f_staging_reject_to_rework">
-        <di:waypoint x="1518" y="490" />
-        <di:waypoint x="1518" y="580" />
+        <di:waypoint x="1268" y="490" />
+        <di:waypoint x="1268" y="580" />
         <di:waypoint x="818" y="580" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_undraft_to_verify_merge_di" bpmnElement="f_undraft_to_verify_merge">
-        <di:waypoint x="1708" y="300" />
-        <di:waypoint x="1778" y="300" />
+        <di:waypoint x="1458" y="300" />
+        <di:waypoint x="1528" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_verify_merge_to_gw_di" bpmnElement="f_verify_merge_to_gw">
-        <di:waypoint x="1878" y="300" />
-        <di:waypoint x="1943" y="300" />
+        <di:waypoint x="1628" y="300" />
+        <di:waypoint x="1693" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_merge_ok_di" bpmnElement="f_merge_ok">
-        <di:waypoint x="1993" y="300" />
-        <di:waypoint x="2058" y="300" />
+        <di:waypoint x="1743" y="300" />
+        <di:waypoint x="1808" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_merge_rejected_di" bpmnElement="f_merge_rejected">
-        <di:waypoint x="1968" y="325" />
-        <di:waypoint x="1968" y="410" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1973" y="358" width="53" height="14" />
-        </bpmndi:BPMNLabel>
+        <di:waypoint x="1718" y="325" />
+        <di:waypoint x="1718" y="410" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_merge_reject_to_rework_di" bpmnElement="f_merge_reject_to_rework">
-        <di:waypoint x="1968" y="490" />
-        <di:waypoint x="1968" y="580" />
+        <di:waypoint x="1718" y="490" />
+        <di:waypoint x="1718" y="580" />
         <di:waypoint x="818" y="580" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_github_merge_to_verify_prod_di" bpmnElement="f_github_merge_to_verify_prod">
-        <di:waypoint x="2158" y="300" />
-        <di:waypoint x="2228" y="300" />
+        <di:waypoint x="1908" y="300" />
+        <di:waypoint x="1978" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_verify_prod_to_end_di" bpmnElement="f_verify_prod_to_end">
-        <di:waypoint x="2328" y="300" />
-        <di:waypoint x="2392" y="300" />
+        <di:waypoint x="2078" y="300" />
+        <di:waypoint x="2142" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_rework_to_catch_di" bpmnElement="f_rework_to_catch">
         <di:waypoint x="718" y="580" />
