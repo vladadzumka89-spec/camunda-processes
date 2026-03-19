@@ -49,6 +49,16 @@ class GitHubClient:
         """Get PR details."""
         return await self._request("GET", f"{API_BASE}/repos/{repo}/pulls/{pr_number}")
 
+    async def get_pr_diff(self, repo: str, pr_number: int) -> str:
+        """Get PR diff as plain text."""
+        url = f"{API_BASE}/repos/{repo}/pulls/{pr_number}"
+        headers = self._headers()
+        headers["Accept"] = "application/vnd.github.diff"
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.request("GET", url, headers=headers)
+            resp.raise_for_status()
+            return resp.text
+
     async def merge_pr(
         self,
         repo: str,

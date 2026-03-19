@@ -99,3 +99,24 @@ async def test_create_pr_uses_deploy_pat(github: GitHubClient) -> None:
 def test_headers_default_token(github_no_deploy_pat: GitHubClient) -> None:
     headers = github_no_deploy_pat._headers(use_deploy_pat=True)
     assert "ghp_test" in headers["Authorization"]
+
+
+@pytest.mark.asyncio
+async def test_get_pr_diff():
+    """GitHubClient.get_pr_diff() returns diff text."""
+    import httpx
+    from unittest.mock import AsyncMock, patch
+
+    client = GitHubClient(token="test-token")
+
+    mock_response = httpx.Response(
+        200,
+        text="diff --git a/file.py b/file.py\n+new line",
+        request=httpx.Request("GET", "https://api.github.com/repos/org/repo/pulls/1"),
+    )
+
+    with patch("httpx.AsyncClient.request", new_callable=AsyncMock, return_value=mock_response):
+        diff = await client.get_pr_diff("org/repo", 1)
+
+    assert "diff --git" in diff
+    assert "+new line" in diff
