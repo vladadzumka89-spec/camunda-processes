@@ -124,6 +124,44 @@ async def _run_claude_review(
         return dict(FALLBACK_RESULT)
 
 
+_SEVERITY_ICONS = {
+    "critical": "\U0001f534",  # red circle
+    "major": "\U0001f7e1",     # yellow circle
+    "minor": "\U0001f7e2",     # green circle
+    "nit": "\U0001f7e2",       # green circle
+}
+
+
+def _format_review_comment(review: dict) -> str:
+    """Format review result as a markdown GitHub comment."""
+    score = review.get("score", 0)
+    summary = review.get("summary", "")
+    issues = review.get("issues", [])
+
+    lines = [f"## \U0001f916 Claude Code Review \u2014 Score: {score}/10", ""]
+    if summary:
+        lines.append(summary)
+        lines.append("")
+
+    if not issues:
+        lines.append("\u2705 No issues found")
+    else:
+        lines.append("### Issues")
+        lines.append("")
+        for issue in issues:
+            icon = _SEVERITY_ICONS.get(issue.get("severity", "minor"), "\U0001f7e2")
+            sev = issue.get("severity", "minor")
+            f = issue.get("file", "")
+            desc = issue.get("description", "")
+            lines.append(f"{icon} **{sev}** \u00b7 `{f}`")
+            lines.append(f"{desc}")
+            lines.append("")
+
+    lines.append("---")
+    lines.append("*Reviewed by Claude Code (Max subscription)*")
+    return "\n".join(lines)
+
+
 def register_github_handlers(
     worker: ZeebeWorker,
     config: AppConfig,

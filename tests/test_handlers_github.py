@@ -144,3 +144,47 @@ class TestRunClaudeReview:
 
         assert result["score"] == 0
         assert result["critical"] is False
+
+
+from worker.handlers.github import _format_review_comment
+
+
+class TestFormatReviewComment:
+    def test_with_issues(self):
+        review = {
+            "score": 6,
+            "critical": False,
+            "summary": "Some issues found",
+            "issues": [
+                {"severity": "major", "file": "models/sale.py", "description": "Missing access check"},
+                {"severity": "nit", "file": "__manifest__.py", "description": "Version not bumped"},
+            ],
+        }
+        comment = _format_review_comment(review)
+        assert "Score: 6/10" in comment
+        assert "Missing access check" in comment
+        assert "models/sale.py" in comment
+        assert "nit" in comment.lower() or "\U0001f7e2" in comment
+
+    def test_no_issues(self):
+        review = {
+            "score": 9,
+            "critical": False,
+            "summary": "Looks great",
+            "issues": [],
+        }
+        comment = _format_review_comment(review)
+        assert "Score: 9/10" in comment
+        assert "No issues found" in comment or "\u2705" in comment
+
+    def test_critical_issues(self):
+        review = {
+            "score": 2,
+            "critical": True,
+            "summary": "SQL injection found",
+            "issues": [
+                {"severity": "critical", "file": "api.py", "description": "SQL injection"},
+            ],
+        }
+        comment = _format_review_comment(review)
+        assert "critical" in comment.lower() or "\U0001f534" in comment
