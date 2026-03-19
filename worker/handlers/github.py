@@ -4,6 +4,8 @@ Source: .github/workflows/pr_agent.yml
 Handles PR-Agent review, merge, comment, and PR creation.
 """
 
+import asyncio
+import json
 import logging
 import re
 from typing import Any
@@ -15,6 +17,111 @@ from ..github_client import GitHubClient
 from ..ssh import AsyncSSHClient
 
 logger = logging.getLogger(__name__)
+
+
+REVIEW_SYSTEM_PROMPT = """You are a code reviewer for an Odoo 19 Enterprise project.
+Analyze the PR diff and provide a structured review.
+
+Scoring guide (0-10):
+- 9-10: Excellent, no issues
+- 7-8: Good, minor suggestions only
+- 5-6: Needs improvement, has notable issues
+- 3-4: Significant problems
+- 0-2: Critical issues, should not be merged
+
+Mark critical=true ONLY for: security vulnerabilities, data loss risks, or production-breaking bugs.
+
+Review in context of Odoo module development: Python, XML views, security CSV, manifests."""
+
+REVIEW_JSON_SCHEMA = json.dumps({
+    "type": "object",
+    "properties": {
+        "score": {"type": "integer", "minimum": 0, "maximum": 10},
+        "critical": {"type": "boolean"},
+        "summary": {"type": "string"},
+        "issues": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "severity": {"enum": ["critical", "major", "minor", "nit"]},
+                    "file": {"type": "string"},
+                    "description": {"type": "string"}
+                },
+                "required": ["severity", "file", "description"]
+            }
+        }
+    },
+    "required": ["score", "critical", "summary", "issues"]
+})
+
+FALLBACK_RESULT = {
+    "score": 0,
+    "critical": False,
+    "summary": "Review failed — Claude Code unavailable or returned invalid response.",
+    "issues": [],
+}
+
+
+async def _run_claude_review(
+    diff: str,
+    pr_number: int,
+    repo: str,
+    timeout: int = 300,
+) -> dict:
+    """Run Claude Code CLI to review a PR diff.
+
+    Returns dict with keys: score, critical, summary, issues.
+    On any failure returns FALLBACK_RESULT.
+    """
+    prompt = (
+        f"Review this PR #{pr_number} in {repo}. "
+        f"Analyze the diff below and provide your assessment.\n\n"
+        f"```diff\n{diff[:80000]}\n```"
+    )
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "claude", "-p", prompt,
+            "--output-format", "json",
+            "--json-schema", REVIEW_JSON_SCHEMA,
+            "--append-system-prompt", REVIEW_SYSTEM_PROMPT,
+            "--max-turns", "1",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(), timeout=timeout,
+        )
+    except asyncio.TimeoutError:
+        logger.error("Claude Code timed out after %ds for PR #%d", timeout, pr_number)
+        proc.kill()
+        await proc.wait()
+        return dict(FALLBACK_RESULT)
+    except FileNotFoundError:
+        logger.error("Claude Code CLI not found — is 'claude' installed?")
+        return dict(FALLBACK_RESULT)
+
+    if proc.returncode != 0:
+        logger.error(
+            "Claude Code exited %d for PR #%d. stderr: %s",
+            proc.returncode, pr_number,
+            stderr.decode()[-2000:] if stderr else "(empty)",
+        )
+        return dict(FALLBACK_RESULT)
+
+    try:
+        envelope = json.loads(stdout.decode())
+        # claude -p --output-format json wraps result in {"result": "...", ...}
+        structured = envelope.get("structured_output")
+        if structured and isinstance(structured, dict):
+            return structured
+        # Fallback: parse result field as JSON string
+        raw = envelope.get("result", "")
+        return json.loads(raw) if isinstance(raw, str) else dict(FALLBACK_RESULT)
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        logger.error("Failed to parse Claude output for PR #%d: %s", pr_number, exc)
+        return dict(FALLBACK_RESULT)
 
 
 def register_github_handlers(

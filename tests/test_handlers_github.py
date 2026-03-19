@@ -70,3 +70,77 @@ class TestHasCriticalSecurityIssues:
     def test_ukrainian_critical(self) -> None:
         body = "🔒 Критична проблема з авторизацією</tr>"
         assert _has_critical_security_issues(body) is True
+
+
+import json
+from unittest.mock import AsyncMock, patch, MagicMock
+
+from worker.handlers.github import _run_claude_review
+
+
+class TestRunClaudeReview:
+    @pytest.mark.asyncio
+    async def test_successful_review(self):
+        """Claude returns valid JSON with score and issues."""
+        claude_output = json.dumps({
+            "result": json.dumps({
+                "score": 8,
+                "critical": False,
+                "summary": "Good code quality",
+                "issues": []
+            })
+        })
+
+        mock_proc = AsyncMock()
+        mock_proc.communicate.return_value = (claude_output.encode(), b"")
+        mock_proc.returncode = 0
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            result = await _run_claude_review("diff content here", 42, "org/repo")
+
+        assert result["score"] == 8
+        assert result["critical"] is False
+        assert result["summary"] == "Good code quality"
+        assert result["issues"] == []
+
+    @pytest.mark.asyncio
+    async def test_claude_timeout_returns_fallback(self):
+        """Timeout returns score=0."""
+        import asyncio
+
+        mock_proc = AsyncMock()
+        mock_proc.communicate.side_effect = asyncio.TimeoutError()
+        mock_proc.kill = MagicMock()
+        mock_proc.wait = AsyncMock()
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            result = await _run_claude_review("diff", 1, "org/repo")
+
+        assert result["score"] == 0
+        assert result["critical"] is False
+
+    @pytest.mark.asyncio
+    async def test_claude_bad_json_returns_fallback(self):
+        """Invalid JSON returns score=0."""
+        mock_proc = AsyncMock()
+        mock_proc.communicate.return_value = (b"not json at all", b"")
+        mock_proc.returncode = 0
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            result = await _run_claude_review("diff", 1, "org/repo")
+
+        assert result["score"] == 0
+        assert result["critical"] is False
+
+    @pytest.mark.asyncio
+    async def test_claude_nonzero_exit_returns_fallback(self):
+        """Non-zero exit code returns score=0."""
+        mock_proc = AsyncMock()
+        mock_proc.communicate.return_value = (b"", b"error")
+        mock_proc.returncode = 1
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            result = await _run_claude_review("diff", 1, "org/repo")
+
+        assert result["score"] == 0
+        assert result["critical"] is False
