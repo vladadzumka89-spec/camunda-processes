@@ -91,7 +91,9 @@ def register_http_smart_handlers(worker, config=None):
         method: str = "POST",
         body: dict = None,
         headers: dict = None,
-        result_variable_name: str = None
+        result_variable_name: str = None,
+        ignore_errors: bool = False,
+        **kwargs,
     ):
         # Detect task listener: check for userTaskKey in custom_headers (set by Zeebe for task listeners)
         is_task_listener = bool(
@@ -145,8 +147,11 @@ def register_http_smart_handlers(worker, config=None):
 
                 if response.status_code >= 400:
                     error_msg = f"HTTP {response.status_code}: {response_body}"
-                    logger.error(error_msg)
-                    raise Exception(error_msg)
+                    if ignore_errors:
+                        logger.warning(f"[{job.process_instance_key}] {error_msg} (ignore_errors=True, continuing)")
+                    else:
+                        logger.error(error_msg)
+                        raise Exception(error_msg)
 
                 logger.info(f"Success. Status: {response.status_code}")
 

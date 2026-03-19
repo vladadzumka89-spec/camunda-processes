@@ -234,6 +234,7 @@
             <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
             <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
             <zeebe:input source="={name: &#34;[pipeline] ❌ Помилка CI/CD пайплайну&#34;, description: &#34;&#60;p&#62;Критична помилка в пайплайні для PR #&#34; + string(pr_number) + &#34;.&#60;/p&#62;&#34;}" target="body" />
+            <zeebe:input source="=true" target="ignore_errors" />
           </zeebe:ioMapping>
         </bpmn:extensionElements>
         <bpmn:incoming>f_err_to_notify</bpmn:incoming>

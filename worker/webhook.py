@@ -223,7 +223,7 @@ class WebhookServer:
             "container": staging.container,
             "branch": "staging",
             "run_smoke_test": True,
-            "test_mode": "full",
+            "test_mode": "light",
             "odoo_project_id": self._config.odoo.project_id,
         }
         if install_modules:

@@ -18,7 +18,7 @@
 
   <bpmn:process id="pr-review" name="PR Review" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="4.0" />
+      <zeebe:versionTag value="5.0" />
     </bpmn:extensionElements>
 
     <bpmn:startEvent id="evt_start" name="PR відкрито">
@@ -102,6 +102,22 @@ Output: review_score, has_critical_issues</bpmn:documentation>
       <bpmn:outgoing>f_merge_to_publish</bpmn:outgoing>
     </bpmn:serviceTask>
 
+    <bpmn:boundaryEvent id="BE_merge_error" name="Merge не вдався" attachedToRef="task_github_merge">
+      <bpmn:outgoing>f_merge_error_to_comment</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_merge_error" />
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="task_comment_merge_fail" name="Коментар: merge не вдався">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-comment" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;⚠️ **Auto-merge не вдався** — Score &quot; + string(review_score) + &quot;/10 (OK), але merge заблоковано (конфлікти або branch protection). Змерджіть вручну.&quot;" target="comment_text" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_merge_error_to_comment</bpmn:incoming>
+      <bpmn:outgoing>f_merge_fail_to_publish</bpmn:outgoing>
+    </bpmn:serviceTask>
+
     <bpmn:serviceTask id="ST_publish_review_done" name="Публікувати результат ревʼю">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="publish-message" retries="2" />
@@ -112,6 +128,7 @@ Output: review_score, has_critical_issues</bpmn:documentation>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_to_publish</bpmn:incoming>
       <bpmn:incoming>f_low_to_publish</bpmn:incoming>
+      <bpmn:incoming>f_merge_fail_to_publish</bpmn:incoming>
       <bpmn:outgoing>f_publish_to_end</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -148,6 +165,8 @@ Output: review_score, has_critical_issues</bpmn:documentation>
     <bpmn:sequenceFlow id="f_merge_to_publish" sourceRef="task_github_merge" targetRef="ST_publish_review_done" />
     <bpmn:sequenceFlow id="f_score_low" name="&lt; 7" sourceRef="gw_score" targetRef="task_comment_low" />
     <bpmn:sequenceFlow id="f_low_to_publish" sourceRef="task_comment_low" targetRef="ST_publish_review_done" />
+    <bpmn:sequenceFlow id="f_merge_error_to_comment" sourceRef="BE_merge_error" targetRef="task_comment_merge_fail" />
+    <bpmn:sequenceFlow id="f_merge_fail_to_publish" sourceRef="task_comment_merge_fail" targetRef="ST_publish_review_done" />
     <bpmn:sequenceFlow id="f_publish_to_end" sourceRef="ST_publish_review_done" targetRef="evt_end" />
 
   </bpmn:process>
@@ -199,7 +218,16 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         <dc:Bounds x="1400" y="192" width="36" height="36" />
       </bpmndi:BPMNShape>
 
-      <!-- Low score path Y=340 -->
+      <!-- Merge error boundary + comment -->
+      <bpmndi:BPMNShape id="BE_merge_error_di" bpmnElement="BE_merge_error">
+        <dc:Bounds x="1072" y="232" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="task_comment_merge_fail_di" bpmnElement="task_comment_merge_fail">
+        <dc:Bounds x="1040" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Low score path Y=310 -->
       <bpmndi:BPMNShape id="task_comment_low_di" bpmnElement="task_comment_low">
         <dc:Bounds x="1040" y="300" width="100" height="80" />
       </bpmndi:BPMNShape>
@@ -261,10 +289,23 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         <di:waypoint x="1040" y="340" />
       </bpmndi:BPMNEdge>
 
-      <!-- comment → publish -->
+      <!-- low comment → publish -->
       <bpmndi:BPMNEdge id="f_low_to_publish_di" bpmnElement="f_low_to_publish">
         <di:waypoint x="1140" y="340" />
         <di:waypoint x="1270" y="340" />
+        <di:waypoint x="1270" y="250" />
+      </bpmndi:BPMNEdge>
+
+      <!-- merge error → comment merge fail -->
+      <bpmndi:BPMNEdge id="f_merge_error_to_comment_di" bpmnElement="f_merge_error_to_comment">
+        <di:waypoint x="1090" y="268" />
+        <di:waypoint x="1090" y="420" />
+      </bpmndi:BPMNEdge>
+
+      <!-- merge fail comment → publish -->
+      <bpmndi:BPMNEdge id="f_merge_fail_to_publish_di" bpmnElement="f_merge_fail_to_publish">
+        <di:waypoint x="1140" y="460" />
+        <di:waypoint x="1270" y="460" />
         <di:waypoint x="1270" y="250" />
       </bpmndi:BPMNEdge>
 

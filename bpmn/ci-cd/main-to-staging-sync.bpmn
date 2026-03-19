@@ -111,6 +111,7 @@ Push в GitHub тригерить deploy через webhook автоматичн
           <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;[sync] ❌ Merge main → staging не вдався&quot;, description: &quot;&lt;p&gt;❌ Merge main → staging не вдався. Потрібна ручна синхронізація.&lt;/p&gt;&quot;}" target="body" />
+          <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_error</bpmn:incoming>
