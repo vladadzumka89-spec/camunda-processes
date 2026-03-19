@@ -1,13 +1,12 @@
 """GitHub-related handlers — 4 task types.
 
-Source: .github/workflows/pr_agent.yml
-Handles PR-Agent review, merge, comment, and PR creation.
+Handles Claude Code review, merge, comment, and PR creation.
 """
 
 import asyncio
 import json
 import logging
-import re
+from pathlib import Path
 from typing import Any
 
 from pyzeebe import Job, ZeebeWorker
@@ -19,19 +18,13 @@ from ..ssh import AsyncSSHClient
 logger = logging.getLogger(__name__)
 
 
-REVIEW_SYSTEM_PROMPT = """You are a code reviewer for an Odoo 19 Enterprise project.
-Analyze the PR diff and provide a structured review.
+_REVIEW_PROMPT_PATH = Path(__file__).resolve().parent.parent / "review_prompt.txt"
 
-Scoring guide (0-10):
-- 9-10: Excellent, no issues
-- 7-8: Good, minor suggestions only
-- 5-6: Needs improvement, has notable issues
-- 3-4: Significant problems
-- 0-2: Critical issues, should not be merged
-
-Mark critical=true ONLY for: security vulnerabilities, data loss risks, or production-breaking bugs.
-
-Review in context of Odoo module development: Python, XML views, security CSV, manifests."""
+REVIEW_SYSTEM_PROMPT = (
+    _REVIEW_PROMPT_PATH.read_text(encoding="utf-8")
+    if _REVIEW_PROMPT_PATH.exists()
+    else "You are a code reviewer for Odoo 19 Enterprise. Respond in Ukrainian."
+)
 
 REVIEW_JSON_SCHEMA = json.dumps({
     "type": "object",
@@ -86,7 +79,8 @@ async def _run_claude_review(
             "--output-format", "json",
             "--json-schema", REVIEW_JSON_SCHEMA,
             "--append-system-prompt", REVIEW_SYSTEM_PROMPT,
-            "--max-turns", "1",
+            "--allowedTools", "",
+            "--max-turns", "3",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -180,79 +174,46 @@ def register_github_handlers(
         repository: str = "",
         **kwargs: Any,
     ) -> dict:
-        """Run PR-Agent review and parse the score.
+        """Run Claude Code review on a PR and return score.
 
-        Launches PR-Agent via Docker, then fetches the review comment
-        to extract the score and security assessment.
+        Fetches the PR diff via GitHub API, sends it to Claude Code CLI
+        for structured review, posts a formatted comment on the PR,
+        and returns score + critical flag to Zeebe.
         """
         repo = repository or config.github.repository
 
-        # Run PR-Agent via Docker on a server (kozak_demo or any available)
-        pr_agent_server = None
-        for name in ("kozak_demo", "staging"):
-            if name in config.servers:
-                pr_agent_server = config.servers[name]
-                break
-
-        if pr_agent_server:
-            docker_cmd = (
-                f"docker run --rm "
-                f"-e OPENROUTER.KEY='{config.openrouter_api_key}' "
-                f"-e GITHUB.USER_TOKEN='{config.github.token}' "
-                f"-e CONFIG.MODEL='openrouter/x-ai/grok-code-fast-1' "
-                f"codiumai/pr-agent:latest "
-                f"--pr_url={pr_url} review"
-            )
-            logger.info(
-                "Running PR-Agent on %s for PR #%d: %s",
-                pr_agent_server.host, pr_number,
-                docker_cmd.replace(config.openrouter_api_key, "***")
-                          .replace(config.github.token, "***"),
-            )
-            result = await ssh.run(
-                pr_agent_server, docker_cmd, timeout=300,
-            )
-            if not result.success:
-                logger.error(
-                    "PR-Agent failed on %s (exit %d) for PR #%d.\nSTDOUT: %s\nSTDERR: %s",
-                    pr_agent_server.host, result.exit_code, pr_number,
-                    result.stdout[-2000:] if result.stdout else "(empty)",
-                    result.stderr[-2000:] if result.stderr else "(empty)",
-                )
-            else:
-                logger.info(
-                    "PR-Agent completed on %s for PR #%d (exit 0). Output tail: %s",
-                    pr_agent_server.host, pr_number,
-                    result.stdout[-500:] if result.stdout else "(empty)",
-                )
-        else:
-            logger.warning("No server available for PR-Agent, skipping review execution")
-
-        # Parse the review comment
-        comment = await github.get_bot_review_comment(repo, pr_number)
-        if not comment:
-            logger.warning(
-                "No PR-Agent review comment found for PR #%d in %s. "
-                "PR-Agent Docker likely failed — check logs above.",
-                pr_number, repo,
-            )
+        # 1. Fetch diff
+        try:
+            diff = await github.get_pr_diff(repo, pr_number)
+        except Exception as exc:
+            logger.error("Failed to fetch diff for PR #%d: %s", pr_number, exc)
             return {
                 "review_score": 0,
                 "has_critical_issues": False,
                 "process_instance_key": job.process_instance_key,
             }
 
-        body = comment.get("body", "")
-        score = _parse_review_score(body)
-        has_critical = _has_critical_security_issues(body)
+        # 2. Run Claude Code review
+        review = await _run_claude_review(diff, pr_number, repo)
+        score = review.get("score", 0)
+        critical = review.get("critical", False)
 
         logger.info(
-            "pr-agent-review PR #%d: score=%d, critical=%s",
-            pr_number, score, has_critical,
+            "claude-review PR #%d: score=%d, critical=%s",
+            pr_number, score, critical,
         )
+
+        # 3. Post comment on PR
+        try:
+            comment = _format_review_comment(review)
+            await github.comment_pr(repo, pr_number, comment)
+            logger.info("Posted review comment on PR #%d in %s", pr_number, repo)
+        except Exception as exc:
+            logger.warning("Failed to post review comment on PR #%d: %s", pr_number, exc)
+
         return {
             "review_score": score,
-            "has_critical_issues": has_critical,
+            "has_critical_issues": critical,
             "process_instance_key": job.process_instance_key,
         }
 
@@ -320,49 +281,3 @@ def register_github_handlers(
 
         return {"pr_url": pr_url, "pr_number": pr_number}
 
-
-# ── Score Parsing Helpers ──────────────────────────────────────
-
-
-def _parse_review_score(body: str) -> int:
-    """Extract review score from PR-Agent comment.
-
-    Score formats:
-      - HTML table: <strong>Score</strong>: 85
-      - Emoji: Score: 85
-      - Plain: Score: 8/10
-    Normalizes 100-point scale to 10-point.
-    """
-    # Strip HTML tags for easier parsing
-    clean = re.sub(r"<[^>]+>", "", body)
-
-    # Try "Score: NUMBER" pattern
-    match = re.search(r"[Ss]core[^0-9]*(\d+)", clean)
-    if not match:
-        # Try emoji pattern
-        match = re.search(r"🏅[^0-9]*(\d+)", clean)
-
-    if not match:
-        return 0
-
-    score = int(match.group(1))
-
-    # Normalize: if > 10, assume 100-point scale
-    if score > 10:
-        score = score // 10
-
-    return score
-
-
-def _has_critical_security_issues(body: str) -> bool:
-    """Check if the review has critical security concerns."""
-    if "No security concerns identified" in body:
-        return False
-
-    # Extract security section (between lock emoji and </tr> or next section)
-    security_match = re.search(r"🔒(.*?)(?:</tr>|$)", body, re.DOTALL)
-    if not security_match:
-        return False
-
-    security_text = re.sub(r"<[^>]+>", "", security_match.group(1))
-    return bool(re.search(r"critical|high severity|блокер|критичн", security_text, re.IGNORECASE))
