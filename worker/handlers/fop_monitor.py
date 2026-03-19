@@ -760,6 +760,195 @@ def _fetch_fop_stores(conn, year: int) -> dict:
         cursor.close()
 
 
+# ── Seasonal coefficients ──────────────────────────────────────────────
+
+
+def _compute_seasonal_coefficients(
+    monthly_data: dict[str, dict[int, float]],
+) -> dict[str, dict[int, float]]:
+    """Compute seasonal coefficients per store per month.
+
+    Args:
+        monthly_data: {store_name: {month: avg_daily_income}}
+
+    Returns:
+        {store_name: {month: coefficient}} where coefficient = month_avg / year_avg.
+        Months without data get coefficient 1.0.
+    """
+    coefficients = {}
+    for store, months in monthly_data.items():
+        if not months:
+            continue
+        year_avg = sum(months.values()) / len(months)
+        if year_avg <= 0:
+            coefficients[store] = {m: 1.0 for m in range(1, 13)}
+            continue
+        store_coeffs = {}
+        for m in range(1, 13):
+            if m in months and months[m] > 0:
+                store_coeffs[m] = months[m] / year_avg
+            else:
+                store_coeffs[m] = 1.0
+        coefficients[store] = store_coeffs
+    return coefficients
+
+
+def _fetch_seasonal_coefficients(conn, year: int) -> tuple[dict, dict]:
+    """Fetch store-level and network-level seasonal coefficients from previous year.
+
+    Returns:
+        (store_coefficients, network_coefficients):
+        - store_coefficients: {store_name: {month: coefficient}}
+        - network_coefficients: {month: coefficient} — fallback for unknown stores
+    """
+    prev_year = year - 1
+    bas_start = f"{prev_year + BAS_YEAR_OFFSET}-01-01"
+    bas_end = f"{prev_year + BAS_YEAR_OFFSET + 1}-01-01"
+
+    sql = """
+        SELECT
+            MONTH(DATEADD(year, -2000, d._Date_Time)) AS month_num,
+            d._Fld6019 AS purpose,
+            d._Fld6010 AS amount
+        FROM _Document236 d
+        JOIN _Reference90 o ON d._Fld6004RRef = o._IDRRef
+        WHERE d._Posted = 0x01 AND d._Marked = 0x00
+            AND d._Date_Time >= %s AND d._Date_Time < %s
+            AND o._Marked = 0x00
+            AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
+            AND o._Description NOT LIKE N'яяя%%'
+    """
+    cursor = conn.cursor(as_dict=True)
+    try:
+        cursor.execute(sql, (bas_start, bas_end))
+
+        store_monthly_totals = defaultdict(lambda: defaultdict(float))
+        store_monthly_counts = defaultdict(lambda: defaultdict(int))
+        network_monthly_totals = defaultdict(float)
+        network_monthly_counts = defaultdict(int)
+
+        for row in cursor:
+            purpose = row["purpose"] or ""
+            amount = float(row["amount"] or 0)
+            month = row["month_num"]
+            cat = _classify_payment(purpose)
+
+            if cat == "cmps":
+                name, _, _ = _parse_terminal_name(purpose)
+                if name:
+                    store_monthly_totals[name][month] += amount
+                    store_monthly_counts[name][month] += 1
+
+            network_monthly_totals[month] += amount
+            network_monthly_counts[month] += 1
+    finally:
+        cursor.close()
+
+    # Convert totals to daily averages per month
+    store_monthly_avg = {}
+    for store, months in store_monthly_totals.items():
+        store_monthly_avg[store] = {}
+        for m, total in months.items():
+            count = store_monthly_counts[store][m]
+            store_monthly_avg[store][m] = total / count if count > 0 else 0
+
+    network_monthly_avg = {}
+    for m, total in network_monthly_totals.items():
+        count = network_monthly_counts[m]
+        network_monthly_avg[m] = total / count if count > 0 else 0
+
+    store_coefficients = _compute_seasonal_coefficients(store_monthly_avg)
+    network_coefficients = _compute_seasonal_coefficients(
+        {"_network": network_monthly_avg}
+    )
+    network_coefficients = network_coefficients.get(
+        "_network", {m: 1.0 for m in range(1, 13)}
+    )
+
+    logger.info(
+        "Сезонні коефіцієнти: %d магазинів з даних %d року",
+        len(store_coefficients), prev_year,
+    )
+
+    return store_coefficients, network_coefficients
+
+
+# ── Terminal changes ──────────────────────────────────────────────────
+
+
+def _compute_terminal_change(current: int, previous: int) -> dict:
+    """Compute terminal count change between two periods."""
+    change = current - previous
+    if previous > 0:
+        change_pct = round((change / previous) * 100, 1)
+    else:
+        change_pct = 0.0
+    return {
+        "terminal_change": change,
+        "terminal_change_percent": change_pct,
+    }
+
+
+def _fetch_terminal_changes(conn, year: int) -> dict:
+    """Fetch terminal count changes per FOP: this week vs last week.
+
+    Returns:
+        {org_id_bytes: {"current": int, "previous": int,
+                        "terminal_change": int, "terminal_change_percent": float}}
+    """
+    today = datetime.now().date()
+    one_week_ago = today - timedelta(days=7)
+    two_weeks_ago = today - timedelta(days=14)
+
+    bas_one_week = f"{one_week_ago.year + BAS_YEAR_OFFSET}-{one_week_ago.month:02d}-{one_week_ago.day:02d}"
+    bas_two_weeks = f"{two_weeks_ago.year + BAS_YEAR_OFFSET}-{two_weeks_ago.month:02d}-{two_weeks_ago.day:02d}"
+    bas_today = f"{today.year + BAS_YEAR_OFFSET}-{today.month:02d}-{today.day:02d}"
+
+    sql = """
+        SELECT
+            d._Fld6004RRef AS org_id,
+            CASE WHEN CAST(d._Date_Time AS date) >= %s THEN 'current' ELSE 'previous' END AS period,
+            d._Fld6019 AS purpose
+        FROM _Document236 d
+        JOIN _Reference90 o ON d._Fld6004RRef = o._IDRRef
+        WHERE d._Posted = 0x01 AND d._Marked = 0x00
+            AND d._Date_Time >= %s AND d._Date_Time < %s
+            AND o._Marked = 0x00
+            AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
+            AND o._Description NOT LIKE N'яяя%%'
+            AND d._Fld6019 LIKE N'%%cmps%%'
+    """
+    cursor = conn.cursor(as_dict=True)
+    try:
+        cursor.execute(sql, (bas_one_week, bas_two_weeks, bas_today))
+
+        terminals = defaultdict(lambda: {"current": set(), "previous": set()})
+
+        for row in cursor:
+            org_id = bytes(row["org_id"])
+            period = row["period"]
+            purpose = row["purpose"] or ""
+            _, _, tc = _parse_terminal_name(purpose)
+            if tc:
+                terminals[org_id][period].add(tc)
+    finally:
+        cursor.close()
+
+    result = {}
+    for org_id, periods in terminals.items():
+        current_count = len(periods["current"])
+        previous_count = len(periods["previous"])
+        change_info = _compute_terminal_change(current_count, previous_count)
+        result[org_id] = {
+            "current": current_count,
+            "previous": previous_count,
+            **change_info,
+        }
+
+    logger.info("Зміни терміналів: %d ФОПів з даними", len(result))
+    return result
+
+
 # ── Analysis ───────────────────────────────────────────────────────────
 
 
@@ -767,7 +956,15 @@ def _safe_pct(income: float, limit: float) -> float:
     return round((income / limit) * 100, 1) if limit > 0 else 0.0
 
 
-def _analyze_fop(daily_data: list, today: date, year: int) -> dict | None:
+def _analyze_fop(
+    daily_data: list,
+    today: date,
+    year: int,
+    *,
+    seasonal_coefficients: dict | None = None,
+    network_coefficients: dict | None = None,
+    fop_stores: list | None = None,
+) -> dict | None:
     if not daily_data:
         return None
 
@@ -838,16 +1035,37 @@ def _analyze_fop(daily_data: list, today: date, year: int) -> dict | None:
         mean_daily = 0
         std_daily = 0
 
-    # Projection
+    # Build per-month seasonal multiplier for this FOP
+    seasonal_mult = {m: 1.0 for m in range(1, 13)}
+    if seasonal_coefficients and fop_stores:
+        total_store_income = sum(s.get("total", 0) for s in fop_stores)
+        if total_store_income > 0:
+            for m in range(1, 13):
+                weighted = 0.0
+                for s in fop_stores:
+                    store_name = s["name"]
+                    weight = s.get("total", 0) / total_store_income
+                    if store_name in seasonal_coefficients:
+                        weighted += seasonal_coefficients[store_name].get(m, 1.0) * weight
+                    elif network_coefficients:
+                        weighted += network_coefficients.get(m, 1.0) * weight
+                    else:
+                        weighted += 1.0 * weight
+                seasonal_mult[m] = weighted
+    elif network_coefficients:
+        seasonal_mult = {m: network_coefficients.get(m, 1.0) for m in range(1, 13)}
+
+    # Projection with seasonality
     projected_remaining = 0.0
     for day_offset in range(1, days_remaining + 1):
         future_date = today + timedelta(days=day_offset)
         wd = future_date.weekday()
-        projected_remaining += weekday_avg.get(wd, mean_daily) * trend_ratio
+        m = future_date.month
+        projected_remaining += weekday_avg.get(wd, mean_daily) * trend_ratio * seasonal_mult[m]
 
     projected_total = total_income + projected_remaining
 
-    # Limit dates
+    # Limit dates with seasonality
     limit_dates = {}
     for group, limit in LIMITS.items():
         if total_income >= limit:
@@ -860,7 +1078,8 @@ def _analyze_fop(daily_data: list, today: date, year: int) -> dict | None:
         for day_offset in range(1, days_remaining + 1):
             future_date = today + timedelta(days=day_offset)
             wd = future_date.weekday()
-            cumulative += weekday_avg.get(wd, mean_daily) * trend_ratio
+            m = future_date.month
+            cumulative += weekday_avg.get(wd, mean_daily) * trend_ratio * seasonal_mult[m]
             if cumulative >= remaining_to_limit:
                 hit_date = future_date
                 break
@@ -923,6 +1142,12 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         logger.info("Магазини: зв'язки для %d ФОПів", len(fop_stores))
 
         fop_groups = _fetch_fop_groups(conn)
+
+        # Seasonal coefficients from previous year
+        seasonal_coefficients, network_coefficients = _fetch_seasonal_coefficients(conn, year)
+
+        # Terminal count changes (this week vs last week)
+        terminal_changes = _fetch_terminal_changes(conn, year)
     finally:
         conn.close()
 
@@ -931,7 +1156,13 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
     for fop in fops:
         fop_id = bytes(fop["id"])
         data = daily_income.get(fop_id, [])
-        result = _analyze_fop(data, today, year)
+        stores = fop_stores.get(fop_id, [])
+        result = _analyze_fop(
+            data, today, year,
+            seasonal_coefficients=seasonal_coefficients,
+            network_coefficients=network_coefficients,
+            fop_stores=stores,
+        )
         if result:
             analyses[fop_id] = result
 
@@ -986,6 +1217,9 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
             for s in stores
         )
 
+        # Terminal changes
+        tc = terminal_changes.get(fop_id, {})
+
         fop_entry = {
             "fop_name": fop["name"].strip(),
             "fop_edrpou": edrpou,
@@ -1002,6 +1236,9 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
             "stores": stores_list,
             "stores_text": stores_text,
             "status": status,
+            "terminal_change": tc.get("terminal_change", 0),
+            "terminal_change_percent": tc.get("terminal_change_percent", 0.0),
+            "seasonal_adjusted": bool(seasonal_coefficients),
         }
 
         all_fops_report.append(fop_entry)
@@ -1023,6 +1260,8 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
                 ),
                 "stores_count": len(stores),
                 "trend_ratio": fop_entry["trend_ratio"],
+                "terminal_change": fop_entry["terminal_change"],
+                "terminal_change_percent": fop_entry["terminal_change_percent"],
             })
 
     critical_all = sum(1 for f in all_fops_report if f["status"] != "ok")
