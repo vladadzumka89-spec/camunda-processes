@@ -56,16 +56,15 @@ FALLBACK_RESULT = {
 }
 
 
-async def _run_claude_review(
+async def _run_claude_review_once(
     diff: str,
     pr_number: int,
     repo: str,
     timeout: int = 300,
-) -> dict:
-    """Run Claude Code CLI to review a PR diff.
+) -> dict | None:
+    """Single attempt to run Claude Code CLI review.
 
-    Returns dict with keys: score, critical, summary, issues.
-    On any failure returns FALLBACK_RESULT.
+    Returns structured result dict on success, None on failure (for retry).
     """
     prompt = (
         f"Review this PR #{pr_number} in {repo}. "
@@ -91,10 +90,10 @@ async def _run_claude_review(
         logger.error("Claude Code timed out after %ds for PR #%d", timeout, pr_number)
         proc.kill()
         await proc.wait()
-        return dict(FALLBACK_RESULT)
+        return None
     except FileNotFoundError:
         logger.error("Claude Code CLI not found — is 'claude' installed?")
-        return dict(FALLBACK_RESULT)
+        return None
 
     if proc.returncode != 0:
         logger.error(
@@ -102,7 +101,7 @@ async def _run_claude_review(
             proc.returncode, pr_number,
             stderr.decode()[-2000:] if stderr else "(empty)",
         )
-        return dict(FALLBACK_RESULT)
+        return None
 
     try:
         envelope = json.loads(stdout.decode())
@@ -112,10 +111,39 @@ async def _run_claude_review(
             return structured
         # Fallback: parse result field as JSON string
         raw = envelope.get("result", "")
-        return json.loads(raw) if isinstance(raw, str) else dict(FALLBACK_RESULT)
+        return json.loads(raw) if isinstance(raw, str) else None
     except (json.JSONDecodeError, KeyError, TypeError) as exc:
         logger.error("Failed to parse Claude output for PR #%d: %s", pr_number, exc)
-        return dict(FALLBACK_RESULT)
+        return None
+
+
+async def _run_claude_review(
+    diff: str,
+    pr_number: int,
+    repo: str,
+    timeout: int = 300,
+    max_retries: int = 5,
+    retry_delay: int = 60,
+) -> dict:
+    """Run Claude Code CLI to review a PR diff with retries.
+
+    Retries up to max_retries times with retry_delay seconds between attempts.
+    Returns dict with keys: score, critical, summary, issues.
+    On all failures returns FALLBACK_RESULT.
+    """
+    for attempt in range(1, max_retries + 1):
+        result = await _run_claude_review_once(diff, pr_number, repo, timeout)
+        if result is not None:
+            return result
+        if attempt < max_retries:
+            logger.warning(
+                "Claude review attempt %d/%d failed for PR #%d — retrying in %ds",
+                attempt, max_retries, pr_number, retry_delay,
+            )
+            await asyncio.sleep(retry_delay)
+
+    logger.error("All %d Claude review attempts failed for PR #%d", max_retries, pr_number)
+    return dict(FALLBACK_RESULT)
 
 
 _SEVERITY_ICONS = {
