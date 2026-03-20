@@ -404,14 +404,11 @@ class TestCrossProcessConsistency:
         assert not missing, f"Call Activity missing mappings for: {missing}"
 
     def test_prod_monitor_also_passes_process_instance_key(self):
-        """Prod monitor should also pass process_instance_key (known issue)."""
+        """Prod monitor must pass process_instance_key to Call Activity."""
         ca = _find_element(self.monitor_prod, "callActivity", "CA_fop_notification")
         inputs = _get_inputs(ca)
-        if "process_instance_key" not in inputs:
-            pytest.xfail(
-                "KNOWN ISSUE: prod fop-limit-monitor.bpmn does not pass "
-                "process_instance_key to Call Activity"
-            )
+        assert "process_instance_key" in inputs, \
+            "Prod monitor must pass process_instance_key to Call Activity"
 
     def test_dev_and_prod_notification_have_same_structure(self):
         """Dev and prod notification should have same user tasks."""
@@ -425,3 +422,167 @@ class TestCrossProcessConsistency:
         dev_gws = {gw.get("id") for gw in self.notif_dev.findall("bpmn:exclusiveGateway", NS)}
         assert prod_gws == dev_gws, \
             f"Gateway mismatch. Prod-only: {prod_gws - dev_gws}, Dev-only: {dev_gws - prod_gws}"
+
+    def test_prod_and_dev_monitor_same_call_activity_fields(self):
+        """Both monitors must map the same set of fields to Call Activity."""
+        ca_prod = _find_element(self.monitor_prod, "callActivity", "CA_fop_notification")
+        ca_dev = _find_element(self.monitor_dev, "callActivity", "CA_fop_notification")
+        prod_inputs = set(_get_inputs(ca_prod).keys())
+        dev_inputs = set(_get_inputs(ca_dev).keys())
+        assert prod_inputs == dev_inputs, \
+            f"Prod-only: {prod_inputs - dev_inputs}, Dev-only: {dev_inputs - prod_inputs}"
+
+    def test_prod_and_dev_notification_same_output_mappings(self):
+        """User tasks with output mappings must match between prod and dev."""
+        for ut_id in ("Activity_1m5lz1c", "Activity_1glu1uv", "Activity_0rhyd10"):
+            prod_ut = _find_element(self.notif_prod, "userTask", ut_id)
+            dev_ut = _find_element(self.notif_dev, "userTask", ut_id)
+            prod_out = _get_outputs(prod_ut)
+            dev_out = _get_outputs(dev_ut)
+            assert prod_out == dev_out, \
+                f"{ut_id} output mismatch. Prod: {prod_out}, Dev: {dev_out}"
+
+
+# ══════════════════════════════════════════════════════════
+#  Flow integrity (reachability, dead ends, orphan flows)
+# ══════════════════════════════════════════════════════════
+
+
+class TestFlowIntegrity:
+    """Verify that every process has no orphan flows and all nodes are reachable."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.files = {
+            "monitor_prod": _process(_parse("fop-limit-monitor.bpmn")),
+            "monitor_dev": _process(_parse("fop-limit-monitor-dev.bpmn")),
+            "notif_prod": _process(_parse("Сповіщення про зміну ФОП (prod).bpmn")),
+            "notif_dev": _process(_parse("Сповіщення про зміну ФОП (2).bpmn")),
+        }
+
+    @pytest.mark.parametrize("label", ["monitor_prod", "monitor_dev", "notif_prod", "notif_dev"])
+    def test_no_orphan_sequence_flows(self, label):
+        """Every sequenceFlow must reference existing source and target elements."""
+        proc = self.files[label]
+        node_ids = set()
+        for tag in ("startEvent", "endEvent", "exclusiveGateway", "serviceTask",
+                     "userTask", "callActivity", "intermediateThrowEvent",
+                     "intermediateCatchEvent", "boundaryEvent"):
+            for el in proc.findall(f"bpmn:{tag}", NS):
+                node_ids.add(el.get("id"))
+        flows = _get_sequence_flows(proc)
+        for flow_id, flow in flows.items():
+            assert flow["sourceRef"] in node_ids, \
+                f"{label}: flow {flow_id} references missing source {flow['sourceRef']}"
+            assert flow["targetRef"] in node_ids, \
+                f"{label}: flow {flow_id} references missing target {flow['targetRef']}"
+
+    @pytest.mark.parametrize("label", ["monitor_prod", "monitor_dev", "notif_prod", "notif_dev"])
+    def test_all_gateways_have_at_least_two_flows(self, label):
+        """Every XOR gateway must have at least 2 outgoing flows."""
+        proc = self.files[label]
+        flows = _get_sequence_flows(proc)
+        for gw in proc.findall("bpmn:exclusiveGateway", NS):
+            gw_id = gw.get("id")
+            outgoing = [f for f in flows.values() if f["sourceRef"] == gw_id]
+            # Merge gateways may have 1 outgoing, but split gateways need 2+
+            incoming = [f for f in flows.values() if f["targetRef"] == gw_id]
+            if len(incoming) <= 1:  # split gateway
+                assert len(outgoing) >= 2, \
+                    f"{label}: split gateway {gw_id} has only {len(outgoing)} outgoing flow(s)"
+
+    @pytest.mark.parametrize("label", ["monitor_prod", "monitor_dev", "notif_prod", "notif_dev"])
+    def test_end_events_have_no_outgoing(self, label):
+        proc = self.files[label]
+        for ee in proc.findall("bpmn:endEvent", NS):
+            out = ee.findall("bpmn:outgoing", NS)
+            assert len(out) == 0, \
+                f"{label}: end event {ee.get('id')} has outgoing flows"
+
+    @pytest.mark.parametrize("label", ["monitor_prod", "monitor_dev", "notif_prod", "notif_dev"])
+    def test_start_events_have_no_incoming(self, label):
+        proc = self.files[label]
+        for se in proc.findall("bpmn:startEvent", NS):
+            inc = se.findall("bpmn:incoming", NS)
+            assert len(inc) == 0, \
+                f"{label}: start event {se.get('id')} has incoming flows"
+
+
+# ══════════════════════════════════════════════════════════
+#  Notification: x_studio_camunda_ field naming
+# ══════════════════════════════════════════════════════════
+
+
+class TestOdooFieldNaming:
+    """All Odoo custom fields must use x_studio_camunda_ prefix."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.notif_dev = _process(_parse("Сповіщення про зміну ФОП (2).bpmn"))
+        self.notif_prod = _process(_parse("Сповіщення про зміну ФОП (prod).bpmn"))
+
+    @pytest.mark.parametrize("label", ["dev", "prod"])
+    def test_x_studio_fields_have_correct_prefix(self, label):
+        """Any field starting with x_studio_ must be x_studio_camunda_."""
+        proc = self.notif_dev if label == "dev" else self.notif_prod
+        for inp in proc.findall(".//zeebe:input", NS):
+            src = inp.get("source", "")
+            # Find x_studio_ references that are NOT x_studio_camunda_
+            if "x_studio_" in src:
+                parts = src.split("x_studio_")
+                for part in parts[1:]:
+                    assert part.startswith("camunda_"), \
+                        f"Field x_studio_{part.split(',')[0].split('}')[0]} " \
+                        f"missing camunda_ prefix in {label}"
+        for out in proc.findall(".//zeebe:output", NS):
+            src = out.get("source", "")
+            if "x_studio_" in src:
+                parts = src.split("x_studio_")
+                for part in parts[1:]:
+                    assert part.startswith("camunda_"), \
+                        f"Output field x_studio_{part.split(',')[0].split('}')[0]} " \
+                        f"missing camunda_ prefix in {label}"
+
+    @pytest.mark.parametrize("label", ["dev", "prod"])
+    def test_create_task_has_bpmn_process_id(self, label):
+        """Create task body should include bpmn_process_id for traceability."""
+        proc = self.notif_dev if label == "dev" else self.notif_prod
+        st = _find_element(proc, "serviceTask", "Activity_1cqrobx")
+        inputs = _get_inputs(st)
+        assert "bpmn_process_id" in inputs["body"], \
+            f"{label}: create task body missing bpmn_process_id"
+
+
+# ══════════════════════════════════════════════════════════
+#  Notification: user task listener configuration
+# ══════════════════════════════════════════════════════════
+
+
+class TestUserTaskListeners:
+    """All user tasks must have taskListener with http-request-smart."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.notif_dev = _process(_parse("Сповіщення про зміну ФОП (2).bpmn"))
+        self.notif_prod = _process(_parse("Сповіщення про зміну ФОП (prod).bpmn"))
+
+    @pytest.mark.parametrize("label", ["dev", "prod"])
+    def test_all_user_tasks_have_creating_listener(self, label):
+        """Each user task needs a taskListener eventType='creating' to create Odoo subtask."""
+        proc = self.notif_dev if label == "dev" else self.notif_prod
+        for ut in proc.findall("bpmn:userTask", NS):
+            listeners = ut.findall(".//zeebe:taskListener", NS)
+            creating = [l for l in listeners if l.get("eventType") == "creating"]
+            assert len(creating) >= 1, \
+                f"{label}: user task {ut.get('id')} missing creating taskListener"
+            assert creating[0].get("type") == "http-request-smart", \
+                f"{label}: user task {ut.get('id')} listener type should be http-request-smart"
+
+    @pytest.mark.parametrize("label", ["dev", "prod"])
+    def test_all_user_tasks_are_zeebe_native(self, label):
+        """All user tasks should have <zeebe:userTask /> marker."""
+        proc = self.notif_dev if label == "dev" else self.notif_prod
+        for ut in proc.findall("bpmn:userTask", NS):
+            marker = ut.find(".//zeebe:userTask", NS)
+            assert marker is not None, \
+                f"{label}: user task {ut.get('id')} missing <zeebe:userTask /> marker"

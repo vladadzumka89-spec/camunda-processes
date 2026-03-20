@@ -100,6 +100,7 @@
           <zeebe:input source="= fop.stores" target="stores" />
           <zeebe:input source="= fop.stores_count" target="stores_count" />
           <zeebe:input source="= fop.trend_ratio" target="trend_ratio" />
+          <zeebe:input source="= string(processInstanceKey)" target="process_instance_key" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_yes_critical</bpmn:incoming>

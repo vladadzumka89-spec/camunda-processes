@@ -49,16 +49,6 @@ class GitHubClient:
         """Get PR details."""
         return await self._request("GET", f"{API_BASE}/repos/{repo}/pulls/{pr_number}")
 
-    async def get_pr_diff(self, repo: str, pr_number: int) -> str:
-        """Get PR diff as plain text."""
-        url = f"{API_BASE}/repos/{repo}/pulls/{pr_number}"
-        headers = self._headers()
-        headers["Accept"] = "application/vnd.github.diff"
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.request("GET", url, headers=headers)
-            resp.raise_for_status()
-            return resp.text
-
     async def merge_pr(
         self,
         repo: str,
@@ -81,35 +71,6 @@ class GitHubClient:
             f"{API_BASE}/repos/{repo}/issues/{pr_number}/comments",
             json={"body": body},
         )
-
-    async def upsert_comment(
-        self, repo: str, pr_number: int, body: str, marker: str,
-    ) -> dict:
-        """Update existing comment with marker, or create new one.
-
-        Searches for a comment containing `marker` text. If found — updates it
-        and appends '(оновлено)' note. If not found — creates a new comment.
-        """
-        url = f"{API_BASE}/repos/{repo}/issues/{pr_number}/comments"
-        params = {"per_page": "100", "sort": "created", "direction": "desc"}
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(url, headers=self._headers(), params=params)
-            resp.raise_for_status()
-            comments = resp.json()
-
-        existing_id = None
-        for c in comments:
-            if marker in c.get("body", ""):
-                existing_id = c["id"]
-                break
-
-        if existing_id:
-            return await self._request(
-                "PATCH",
-                f"{API_BASE}/repos/{repo}/issues/comments/{existing_id}",
-                json={"body": body + "\n\n> _оновлено свіжим ревʼю_"},
-            )
-        return await self._request("POST", url, json={"body": body})
 
     async def create_pr(
         self,

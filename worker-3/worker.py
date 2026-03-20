@@ -16,7 +16,10 @@ from pyzeebe.job.job import JobController
 
 from .auth import ZeebeAuthConfig, create_channel, get_token_manager
 from .config import AppConfig
+from .github_client import GitHubClient
 from .handlers import register_all_handlers
+from .odoo_client import OdooClient
+from .ssh import AsyncSSHClient
 from .incident_janitor import (
     JANITOR_INTERVAL_SECONDS,
     cleanup_stale_incidents,
@@ -107,7 +110,14 @@ async def create_worker(config: AppConfig) -> ZeebeWorker:
     channel = create_channel(auth_config)
     worker = ZeebeWorker(channel, exception_handler=_exception_handler)
 
-    register_all_handlers(worker, config=config)
+    # Shared clients
+    ssh = AsyncSSHClient(key_path=config.ssh_key_path)
+    github = GitHubClient(
+        token=config.github.token,
+        deploy_pat=config.github.deploy_pat,
+    )
+    odoo = OdooClient(config=config.odoo)
+    register_all_handlers(worker, config=config, ssh=ssh, github=github, odoo=odoo)
 
     # Wrap all registered handlers to track active jobs
     for task in worker.tasks:

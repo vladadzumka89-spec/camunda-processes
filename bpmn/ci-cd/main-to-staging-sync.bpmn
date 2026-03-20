@@ -12,7 +12,7 @@
 
   <bpmn:process id="main-to-staging-sync" name="Main to Staging Sync" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="3.0" />
+      <zeebe:versionTag value="4.0" />
     </bpmn:extensionElements>
 
     <!-- ── Start Events ──────────────────────────────── -->
@@ -64,9 +64,9 @@
       <bpmn:outgoing>f_odoo_to_merge_task</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <!-- ── Merge main → staging ──────────────────────── -->
-    <bpmn:serviceTask id="task_merge_main_staging" name="Merge main → staging">
-      <bpmn:documentation>Мерджить main в staging з -X theirs.
+    <!-- ── Hard reset staging → main ──────────────────── -->
+    <bpmn:serviceTask id="task_merge_main_staging" name="Hard reset staging → main">
+      <bpmn:documentation>Скидає staging до main через git reset --hard + force push.
 Використовує handler merge-to-staging.
 Push в GitHub тригерить deploy через webhook автоматично.</bpmn:documentation>
       <bpmn:extensionElements>
@@ -80,21 +80,21 @@ Push в GitHub тригерить deploy через webhook автоматичн
       <bpmn:outgoing>f_merge_to_success</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:boundaryEvent id="evt_merge_error" name="Merge failed" attachedToRef="task_merge_main_staging">
+    <bpmn:boundaryEvent id="evt_merge_error" name="Reset failed" attachedToRef="task_merge_main_staging">
       <bpmn:outgoing>f_merge_error</bpmn:outgoing>
       <bpmn:errorEventDefinition id="ErrorDef_merge" />
     </bpmn:boundaryEvent>
 
     <!-- ── Success notification ──────────────────────── -->
-    <bpmn:serviceTask id="ST_notify_success" name="✅ Merge завершено → Odoo">
-      <bpmn:documentation>Нотифікація в Odoo про успішний merge. Deploy запуститься окремо через GitHub webhook.</bpmn:documentation>
+    <bpmn:serviceTask id="ST_notify_success" name="✅ Reset завершено → Odoo">
+      <bpmn:documentation>Нотифікація в Odoo про успішний hard reset staging до main. Deploy запуститься окремо через GitHub webhook.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
           <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;[sync] ✅ Merge main → staging завершено&quot;, description: &quot;&lt;p&gt;✅ Merge main → staging виконано. Deploy запуститься автоматично через webhook.&lt;/p&gt;&quot;}" target="body" />
+          <zeebe:input source="={name: &quot;[sync] ✅ Hard reset staging → main завершено&quot;, description: &quot;&lt;p&gt;✅ Staging скинуто до main (hard reset + force push). Deploy запуститься автоматично через webhook.&lt;/p&gt;&quot;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_to_success</bpmn:incoming>
@@ -102,15 +102,15 @@ Push в GitHub тригерить deploy через webhook автоматичн
     </bpmn:serviceTask>
 
     <!-- ── Error notification ────────────────────────── -->
-    <bpmn:serviceTask id="task_notify_fail" name="❌ Merge не вдався → Odoo">
-      <bpmn:documentation>Створює підзадачу в Odoo про помилку merge.</bpmn:documentation>
+    <bpmn:serviceTask id="task_notify_fail" name="❌ Reset не вдався → Odoo">
+      <bpmn:documentation>Створює підзадачу в Odoo про помилку hard reset.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
           <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;[sync] ❌ Merge main → staging не вдався&quot;, description: &quot;&lt;p&gt;❌ Merge main → staging не вдався. Потрібна ручна синхронізація.&lt;/p&gt;&quot;}" target="body" />
+          <zeebe:input source="={name: &quot;[sync] ❌ Hard reset staging → main не вдався&quot;, description: &quot;&lt;p&gt;❌ Hard reset staging → main не вдався. Потрібна ручна синхронізація.&lt;/p&gt;&quot;}" target="body" />
           <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -123,7 +123,7 @@ Push в GitHub тригерить deploy через webhook автоматичн
       <bpmn:incoming>f_success_to_end</bpmn:incoming>
     </bpmn:endEvent>
 
-    <bpmn:endEvent id="evt_end_fail" name="Merge не вдався">
+    <bpmn:endEvent id="evt_end_fail" name="Reset не вдався">
       <bpmn:incoming>f_notify_to_end_fail</bpmn:incoming>
     </bpmn:endEvent>
 

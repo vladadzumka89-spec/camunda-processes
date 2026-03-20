@@ -39,8 +39,8 @@ EP_GROUP_ENUM = {
 }
 
 LIMITS = {
-    2: float(os.environ.get("FOP_LIMIT_GROUP_2", "6900000")),
-    3: float(os.environ.get("FOP_LIMIT_GROUP_3", "9900000")),
+    2: float(os.environ.get("FOP_LIMIT_GROUP_2", "3500000")),
+    3: float(os.environ.get("FOP_LIMIT_GROUP_3", "3500000")),
 }
 
 REPORT_DIR = Path(os.environ.get("FOP_REPORT_DIR", "reports/fop"))
@@ -255,23 +255,56 @@ def _fetch_fop_groups(conn) -> dict:
         cursor.close()
 
 
-def _fetch_daily_income(conn, year: int) -> dict:
+# Status property ID and known values in _Reference90_VT1523
+_STATUS_PROP_ID = bytes.fromhex("85d7ec0d9a794f5211ed6f042b93621a")
+_STATUS_CLOSED_ID = bytes.fromhex("85d7ec0d9a794f5211ed6f042b93621b")
+
+
+def _fetch_fop_statuses(conn) -> dict:
+    """Fetch org status (Відкрита/Закрита) from additional properties."""
     sql = """
-        SELECT
-            d._Fld6004RRef AS org_id,
-            CAST(DATEADD(year, -2000, d._Date_Time) AS date) AS doc_date,
-            SUM(d._Fld6010) AS daily_total,
-            COUNT(*) AS doc_count
-        FROM _Document236 d
-        JOIN _Reference90 o ON d._Fld6004RRef = o._IDRRef
-        WHERE d._Posted = 0x01
-            AND d._Marked = 0x00
-            AND d._Date_Time >= %s AND d._Date_Time < %s
-            AND o._Marked = 0x00
-            AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
-            AND o._Description NOT LIKE N'яяя%%'
-        GROUP BY d._Fld6004RRef, CAST(DATEADD(year, -2000, d._Date_Time) AS date)
-        ORDER BY d._Fld6004RRef, doc_date
+        SELECT vt._Reference90_IDRRef AS org_id,
+               vt._Fld1526_RRRef AS status_val
+        FROM _Reference90_VT1523 vt
+        WHERE vt._Fld1525RRef = %s
+    """
+    cursor = conn.cursor(as_dict=True)
+    try:
+        cursor.execute(sql, (_STATUS_PROP_ID,))
+        result = {}
+        for row in cursor:
+            org_id = bytes(row["org_id"])
+            is_closed = bytes(row["status_val"]) == _STATUS_CLOSED_ID
+            result[org_id] = "Закрита" if is_closed else "Відкрита"
+        return result
+    finally:
+        cursor.close()
+
+
+def _fetch_daily_income(conn, year: int) -> dict:
+    """Fetch daily FOP income from accumulation register _AccumRg10618.
+
+    This register is the authoritative source for Книга Доходів (Income Book).
+    It already includes bank commission (GROSS), cash receipts, and returns
+    (negative amounts) — matching the official tax income report exactly.
+    """
+    sql = """
+        ;WITH fop_filter AS (
+            SELECT _IDRRef FROM _Reference90
+            WHERE _Marked = 0x00
+                AND (_Fld1495 LIKE N'%%ізична особа%%' OR _Fld1495 LIKE N'%%ФОП%%')
+                AND _Description NOT LIKE N'яяя%%'
+        )
+        SELECT r._Fld10619RRef AS org_id,
+               CAST(DATEADD(year, -2000, r._Period) AS date) AS doc_date,
+               SUM(r._Fld10621) AS daily_total,
+               COUNT(*) AS doc_count
+        FROM _AccumRg10618 r
+        WHERE r._Period >= %s AND r._Period < %s
+          AND r._Active = 0x01
+          AND r._Fld10619RRef IN (SELECT _IDRRef FROM fop_filter)
+        GROUP BY r._Fld10619RRef, CAST(DATEADD(year, -2000, r._Period) AS date)
+        ORDER BY r._Fld10619RRef, doc_date
     """
     bas_start = f"{year + BAS_YEAR_OFFSET}-01-01"
     bas_end = f"{year + BAS_YEAR_OFFSET + 1}-01-01"
@@ -588,6 +621,29 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 other_income[org_id][label]["count"] += 1
                 other_income[org_id][label]["total"] += amount
 
+        # Cash receipts (ПКО — _Document243)
+        sql_cash = """
+            SELECT d._Fld6492RRef AS org_id,
+                   SUM(d._Fld6493) AS total,
+                   COUNT(*) AS cnt
+            FROM _Document243 d
+            JOIN _Reference90 o ON d._Fld6492RRef = o._IDRRef
+            WHERE d._Posted = 0x01 AND d._Marked = 0x00
+                AND d._Date_Time >= %s AND d._Date_Time < %s
+                AND o._Marked = 0x00
+                AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
+                AND o._Description NOT LIKE N'яяя%%'
+            GROUP BY d._Fld6492RRef
+        """
+        cash_data = {}
+        cursor.execute(sql_cash, (bas_start, bas_end))
+        for row in cursor:
+            org_id = bytes(row["org_id"])
+            cash_data[org_id] = {
+                "count": row["cnt"],
+                "total": float(row["total"] or 0),
+            }
+
         sql_docs = """
             ;WITH store_roots AS (
                 SELECT _IDRRef FROM _Reference116
@@ -666,7 +722,7 @@ def _fetch_fop_stores(conn, year: int) -> dict:
         )
 
         result = defaultdict(list)
-        all_org_ids = set(terminal_data.keys()) | set(doc_data.keys()) | set(other_income.keys())
+        all_org_ids = set(terminal_data.keys()) | set(doc_data.keys()) | set(other_income.keys()) | set(cash_data.keys())
         mapped_count = 0
         unmapped_names = set()
 
@@ -730,6 +786,17 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                             "total": info["total"],
                             "source": "payment",
                         })
+
+            # 4) Cash receipts (ПКО — _Document243)
+            if org_id in cash_data:
+                info = cash_data[org_id]
+                if info["total"] > 0:
+                    result[org_id].append({
+                        "name": "Каса (готівка)",
+                        "doc_count": info["count"],
+                        "total": info["total"],
+                        "source": "cash",
+                    })
 
         if unmapped_names:
             logger.warning(
@@ -1143,6 +1210,8 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
 
         fop_groups = _fetch_fop_groups(conn)
 
+        fop_statuses = _fetch_fop_statuses(conn)
+
         # Seasonal coefficients from previous year
         seasonal_coefficients, network_coefficients = _fetch_seasonal_coefficients(conn, year)
 
@@ -1220,9 +1289,13 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         # Terminal changes
         tc = terminal_changes.get(fop_id, {})
 
+        org_status = fop_statuses.get(fop_id, "Відкрита")
+
         fop_entry = {
             "fop_name": fop["name"].strip(),
             "fop_edrpou": edrpou,
+            "org_status": org_status,
+            "x_studio_camunda_org_status": org_status,
             "ep_group": group,
             "total_income": round(analysis["total_income"], 2),
             "limit_amount": limit,

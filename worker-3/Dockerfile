@@ -5,7 +5,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY requirements.txt .
+COPY worker-3/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 FROM python:3.12-slim-bookworm
@@ -22,7 +22,10 @@ COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy worker source code
-COPY worker/ ./worker/
+COPY worker-3/ ./worker/
+
+# SSH key mount point
+VOLUME /root/.ssh
 
 ENV PYTHONUNBUFFERED=1
 

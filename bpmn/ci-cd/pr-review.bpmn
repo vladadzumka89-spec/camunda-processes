@@ -18,7 +18,7 @@
 
   <bpmn:process id="pr-review" name="PR Review" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="5.0" />
+      <zeebe:versionTag value="7.0" />
     </bpmn:extensionElements>
 
     <bpmn:startEvent id="evt_start" name="PR відкрито">
@@ -42,6 +42,7 @@
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;[review] PR #&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;Code Review&quot;), description: &quot;&lt;p&gt;Автоматичне ревʼю PR #&quot; + string(pr_number) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot;&lt;/p&gt;&quot;, create_process: true, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 237, bpmn_process_id: &quot;pr-review&quot;}" target="body" />
           <zeebe:input source="=&quot;odoo_create_response&quot;" target="result_variable_name" />
+          <zeebe:input source="=true" target="ignore_errors" />
           <zeebe:output source="=string(odoo_create_response.id)" target="parent_process_instance_key" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -58,6 +59,7 @@
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;[review] PR #&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;Code Review&quot;), description: &quot;&lt;p&gt;Автоматичне ревʼю PR #&quot; + string(pr_number) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot;&lt;/p&gt;&quot;, parent_process_instance_key: parent_process_instance_key, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 237, bpmn_process_id: &quot;pr-review&quot;}" target="body" />
           <zeebe:input source="=&quot;odoo_subtask_response&quot;" target="result_variable_name" />
+          <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_has_parent</bpmn:incoming>
@@ -87,9 +89,15 @@ Output: review_score, has_critical_issues</bpmn:documentation>
       <bpmn:outgoing>f_score_low</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <!-- ── Score OK: merge + publish ───────────────────────── -->
+    <!-- ── Score OK: check branch, then merge or skip ──────── -->
+    <bpmn:exclusiveGateway id="gw_branch" name="PR в staging?" default="f_branch_other">
+      <bpmn:incoming>f_score_ok</bpmn:incoming>
+      <bpmn:outgoing>f_branch_staging</bpmn:outgoing>
+      <bpmn:outgoing>f_branch_other</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
     <bpmn:serviceTask id="task_github_merge" name="Змержити PR в staging">
-      <bpmn:documentation>Автоматичний squash-merge PR через GitHub API при score >= 7.</bpmn:documentation>
+      <bpmn:documentation>Автоматичний squash-merge PR через GitHub API. Тільки для PRs в staging.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="github-merge" retries="2" />
         <zeebe:ioMapping>
@@ -98,7 +106,7 @@ Output: review_score, has_critical_issues</bpmn:documentation>
           <zeebe:input source="=if is defined(pr_title) and pr_title != null then pr_title else &quot;&quot;" target="pr_title" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>f_score_ok</bpmn:incoming>
+      <bpmn:incoming>f_branch_staging</bpmn:incoming>
       <bpmn:outgoing>f_merge_to_publish</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -129,6 +137,7 @@ Output: review_score, has_critical_issues</bpmn:documentation>
       <bpmn:incoming>f_merge_to_publish</bpmn:incoming>
       <bpmn:incoming>f_low_to_publish</bpmn:incoming>
       <bpmn:incoming>f_merge_fail_to_publish</bpmn:incoming>
+      <bpmn:incoming>f_branch_other</bpmn:incoming>
       <bpmn:outgoing>f_publish_to_end</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -159,9 +168,13 @@ Output: review_score, has_critical_issues</bpmn:documentation>
     <bpmn:sequenceFlow id="f_subtask_to_merge" sourceRef="ST_create_review_subtask" targetRef="gw_merge_parent" />
     <bpmn:sequenceFlow id="f_start_to_review" sourceRef="gw_merge_parent" targetRef="task_pr_agent" />
     <bpmn:sequenceFlow id="f_review_to_gw" sourceRef="task_pr_agent" targetRef="gw_score" />
-    <bpmn:sequenceFlow id="f_score_ok" name="OK" sourceRef="gw_score" targetRef="task_github_merge">
+    <bpmn:sequenceFlow id="f_score_ok" name="OK" sourceRef="gw_score" targetRef="gw_branch">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=review_score &gt;= 7 and has_critical_issues = false</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_branch_staging" name="staging" sourceRef="gw_branch" targetRef="task_github_merge">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(base_branch) and base_branch = "staging"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_branch_other" name="main/інше" sourceRef="gw_branch" targetRef="ST_publish_review_done" />
     <bpmn:sequenceFlow id="f_merge_to_publish" sourceRef="task_github_merge" targetRef="ST_publish_review_done" />
     <bpmn:sequenceFlow id="f_score_low" name="&lt; 7" sourceRef="gw_score" targetRef="task_comment_low" />
     <bpmn:sequenceFlow id="f_low_to_publish" sourceRef="task_comment_low" targetRef="ST_publish_review_done" />
@@ -204,27 +217,32 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         <dc:Bounds x="910" y="185" width="50" height="50" />
       </bpmndi:BPMNShape>
 
-      <!-- OK path -->
+      <!-- Branch check gateway -->
+      <bpmndi:BPMNShape id="gw_branch_di" bpmnElement="gw_branch" isMarkerVisible="true">
+        <dc:Bounds x="1040" y="185" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- OK path: merge -->
       <bpmndi:BPMNShape id="task_github_merge_di" bpmnElement="task_github_merge">
-        <dc:Bounds x="1040" y="170" width="100" height="80" />
+        <dc:Bounds x="1170" y="170" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Shared: publish + end -->
       <bpmndi:BPMNShape id="ST_publish_review_done_di" bpmnElement="ST_publish_review_done">
-        <dc:Bounds x="1220" y="170" width="100" height="80" />
+        <dc:Bounds x="1350" y="170" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="evt_end_di" bpmnElement="evt_end">
-        <dc:Bounds x="1400" y="192" width="36" height="36" />
+        <dc:Bounds x="1530" y="192" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <!-- Merge error boundary + comment -->
       <bpmndi:BPMNShape id="BE_merge_error_di" bpmnElement="BE_merge_error">
-        <dc:Bounds x="1072" y="232" width="36" height="36" />
+        <dc:Bounds x="1202" y="232" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="task_comment_merge_fail_di" bpmnElement="task_comment_merge_fail">
-        <dc:Bounds x="1040" y="420" width="100" height="80" />
+        <dc:Bounds x="1170" y="420" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Low score path Y=310 -->
@@ -270,16 +288,30 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         <di:waypoint x="910" y="210" />
       </bpmndi:BPMNEdge>
 
-      <!-- OK → merge -->
+      <!-- OK → branch check -->
       <bpmndi:BPMNEdge id="f_score_ok_di" bpmnElement="f_score_ok">
         <di:waypoint x="960" y="210" />
         <di:waypoint x="1040" y="210" />
       </bpmndi:BPMNEdge>
 
+      <!-- staging → merge -->
+      <bpmndi:BPMNEdge id="f_branch_staging_di" bpmnElement="f_branch_staging">
+        <di:waypoint x="1090" y="210" />
+        <di:waypoint x="1170" y="210" />
+      </bpmndi:BPMNEdge>
+
+      <!-- main/other → skip merge, go to publish -->
+      <bpmndi:BPMNEdge id="f_branch_other_di" bpmnElement="f_branch_other">
+        <di:waypoint x="1065" y="185" />
+        <di:waypoint x="1065" y="120" />
+        <di:waypoint x="1400" y="120" />
+        <di:waypoint x="1400" y="170" />
+      </bpmndi:BPMNEdge>
+
       <!-- merge → publish -->
       <bpmndi:BPMNEdge id="f_merge_to_publish_di" bpmnElement="f_merge_to_publish">
-        <di:waypoint x="1140" y="210" />
-        <di:waypoint x="1220" y="210" />
+        <di:waypoint x="1270" y="210" />
+        <di:waypoint x="1350" y="210" />
       </bpmndi:BPMNEdge>
 
       <!-- low score → comment -->
@@ -292,27 +324,27 @@ Output: review_score, has_critical_issues</bpmn:documentation>
       <!-- low comment → publish -->
       <bpmndi:BPMNEdge id="f_low_to_publish_di" bpmnElement="f_low_to_publish">
         <di:waypoint x="1140" y="340" />
-        <di:waypoint x="1270" y="340" />
-        <di:waypoint x="1270" y="250" />
+        <di:waypoint x="1400" y="340" />
+        <di:waypoint x="1400" y="250" />
       </bpmndi:BPMNEdge>
 
       <!-- merge error → comment merge fail -->
       <bpmndi:BPMNEdge id="f_merge_error_to_comment_di" bpmnElement="f_merge_error_to_comment">
-        <di:waypoint x="1090" y="268" />
-        <di:waypoint x="1090" y="420" />
+        <di:waypoint x="1220" y="268" />
+        <di:waypoint x="1220" y="420" />
       </bpmndi:BPMNEdge>
 
       <!-- merge fail comment → publish -->
       <bpmndi:BPMNEdge id="f_merge_fail_to_publish_di" bpmnElement="f_merge_fail_to_publish">
-        <di:waypoint x="1140" y="460" />
         <di:waypoint x="1270" y="460" />
-        <di:waypoint x="1270" y="250" />
+        <di:waypoint x="1400" y="460" />
+        <di:waypoint x="1400" y="250" />
       </bpmndi:BPMNEdge>
 
       <!-- publish → end -->
       <bpmndi:BPMNEdge id="f_publish_to_end_di" bpmnElement="f_publish_to_end">
-        <di:waypoint x="1320" y="210" />
-        <di:waypoint x="1400" y="210" />
+        <di:waypoint x="1450" y="210" />
+        <di:waypoint x="1530" y="210" />
       </bpmndi:BPMNEdge>
 
     </bpmndi:BPMNPlane>

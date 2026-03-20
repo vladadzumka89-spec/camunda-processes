@@ -16,7 +16,10 @@ from pyzeebe.job.job import JobController
 
 from .auth import ZeebeAuthConfig, create_channel, get_token_manager
 from .config import AppConfig
+from .github_client import GitHubClient
 from .handlers import register_all_handlers
+from .odoo_client import OdooClient
+from .ssh import AsyncSSHClient
 from .incident_janitor import (
     JANITOR_INTERVAL_SECONDS,
     cleanup_stale_incidents,
@@ -107,7 +110,14 @@ async def create_worker(config: AppConfig) -> ZeebeWorker:
     channel = create_channel(auth_config)
     worker = ZeebeWorker(channel, exception_handler=_exception_handler)
 
-    register_all_handlers(worker, config=config)
+    # Shared clients
+    ssh = AsyncSSHClient(key_path=config.ssh_key_path)
+    github = GitHubClient(
+        token=config.github.token,
+        deploy_pat=config.github.deploy_pat,
+    )
+    odoo = OdooClient(config=config.odoo)
+    register_all_handlers(worker, config=config, ssh=ssh, github=github, odoo=odoo)
 
     # Wrap all registered handlers to track active jobs
     for task in worker.tasks:
@@ -132,6 +142,26 @@ async def _release_active_jobs() -> None:
     _active_jobs.clear()
 
 
+async def _cleanup_orphan_clickbot(config: AppConfig) -> None:
+    """Kill orphan clickbot containers on all servers at startup.
+
+    When worker restarts, SSH sessions are lost but clickbot Docker
+    containers may still be running on remote servers. Clean them up
+    so the next deploy doesn't conflict.
+    """
+    ssh = AsyncSSHClient(key_path=config.ssh_key_path)
+    for name, server in config.servers.items():
+        try:
+            result = await ssh.run(
+                server,
+                f"cd {server.repo_dir} && docker compose -f docker-compose.clickbot.yml down -v 2>/dev/null || true",
+                timeout=30,
+            )
+            logger.info("Clickbot cleanup on %s (%s): exit %d", name, server.host, result.exit_code)
+        except Exception as exc:
+            logger.warning("Clickbot cleanup failed on %s: %s", name, exc)
+
+
 async def worker_loop(config: AppConfig, stop_event: asyncio.Event) -> None:
     """Zeebe worker loop with auto-restart on gRPC failures.
 
@@ -140,6 +170,9 @@ async def worker_loop(config: AppConfig, stop_event: asyncio.Event) -> None:
     Zeebe will reassign timed-out jobs automatically.
     """
     restart_delay = 5  # seconds between restart attempts
+
+    # Clean up orphan clickbot containers from previous run
+    await _cleanup_orphan_clickbot(config)
 
     while not stop_event.is_set():
         try:
