@@ -1365,12 +1365,13 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
     # Save report to file for dashboard endpoint
     _save_report_json(report_json)
 
+    # TODO: увімкнути створення задач після налаштування підпроцесу Process_0iy2u1a
     return {
         "report_date": today.isoformat(),
         "total_fops": len(fops),
         "total_analyzed": len(analyses),
-        "critical_count": len(critical_fops),
-        "critical_fops": critical_fops,  # only NEW — for BPMN multi-instance
+        "critical_count": 0,
+        "critical_fops": [],             # disabled until task creation is configured
         "report_json": report_json,      # all FOPs — for Odoo dashboard
     }
 
