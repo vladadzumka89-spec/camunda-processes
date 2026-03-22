@@ -156,7 +156,14 @@ Start Event
 | body | `body` | див. нижче |
 
 ```
-= {name: "<НАЗВА ПРОЦЕСУ>", create_process: true, _id: 252}
+= {name: "<НАЗВА ПРОЦЕСУ>", create_process: true, _id: <ID_ПРОЄКТУ>}
+```
+
+> **ВАЖЛИВО:** `_id` — це ID проєкту в Odoo. Він різний для кожного процесу. **Завжди запитуй у користувача** ID проєкту перед тим як прописувати. НЕ використовуй захардкоджене значення.
+> Щоб дізнатись ID: в Odoo відкрити потрібний проєкт → в URL буде число (наприклад `/web#id=252` → `_id: 252`).
+
+```text
+Приклад: _id: 252 — це проєкт "Запуск процесів". Для іншого проєкту буде інший ID.
 ```
 
 ---
@@ -237,7 +244,7 @@ User Task
 body: = {
   name: "⚠️ НАГАДУВАННЯ: <назва задачі>",
   description: "...",
-  _model: "project.project", _id: 252,
+  _model: "project.project", _id: <ID_ПРОЄКТУ>,
   x_studio_camunda_user_ids: emp.user_id,
   process_instance_key: process_instance_key
 }
@@ -248,7 +255,7 @@ body: = {
 body: = {
   name: "🔴 ЕСКАЛАЦІЯ: <що не зроблено>",
   description: "...",
-  _model: "project.project", _id: 252,
+  _model: "project.project", _id: <ID_ПРОЄКТУ>,
   process_instance_key: process_instance_key
 }
 ```
