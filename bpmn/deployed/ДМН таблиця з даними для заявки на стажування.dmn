@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_CheckFields" name="Перевірка обов&#39;язкових полів" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" exporterVersion="5.16.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <decision id="check-required-fields" name="Чи є всі дані по працівнику">
+    <decisionTable id="DecisionTable_1" hitPolicy="FIRST">
+      <input id="Input_1" label="Всі дані заповнені?">
+        <inputExpression id="InputExpression_1" typeRef="boolean">
+          <text>
+x_studio_camunda_surname != null
+and x_studio_camunda_first_name != null
+and x_studio_camunda_patronymic != null
+and x_studio_camunda_gender != null
+and x_studio_camunda_birth_date != null
+and x_studio_camunda_email != null
+and x_studio_camunda_phone != null
+and x_studio_camunda_start_date != null
+and x_studio_camunda_position_id != null
+and x_studio_camunda_tax_id != null
+and x_studio_camunda_passport_number != null
+and x_studio_camunda_passport_authority != null
+and x_studio_camunda_passport_date != null
+and x_studio_camunda_address != null
+and x_studio_camunda_pidrozdil != null
+and x_studio_camunda_file_passport_p1 != null
+and x_studio_camunda_file_passport_p2 != null
+and x_studio_camunda_file_ipn != null
+
+          </text>
+        </inputExpression>
+      </input>
+      <output id="Output_1" label="Всі дані заповнені" name="allDataComplete" typeRef="boolean" />
+      <rule id="Rule_1">
+        <inputEntry id="InputEntry_1_1">
+          <text>false</text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_1_1">
+          <text>false</text>
+        </outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <inputEntry id="InputEntry_2_1">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="OutputEntry_2_1">
+          <text>true</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram>
+      <dmndi:DMNShape dmnElementRef="check-required-fields">
+        <dc:Bounds height="80" width="180" x="160" y="100" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

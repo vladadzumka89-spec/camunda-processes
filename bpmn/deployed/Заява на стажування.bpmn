@@ -1,0 +1,1136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_1" name="Заява на стажування" processRef="Process_13xdec3" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_13xdec3" name="Заява на стажування" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Pracivnyk" name="Працівник">
+        <bpmn:flowNodeRef>Activity_1knnpn9</bpmn:flowNodeRef>
+        <bpmn:childLaneSet id="LaneSet_0kr89dg" />
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Revizor" name="Ревізор комерційний">
+        <bpmn:flowNodeRef>Event_060v2yh</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1c0jbtk</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Rekruter" name="Рекрутер">
+        <bpmn:flowNodeRef>Activity_1ud6hai</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_reject_end</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_verify_end</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_recruit_reject</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Avtomatyzator" name="Автоматизатор">
+        <bpmn:flowNodeRef>Gateway_0kwn5gi</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_142lamg</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_create_main_task</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_038uzqs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_odoo_xor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0grozq4</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_15o6pq5</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_184vrms</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0tjvt5f</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_1r11r5i</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0w3oehe</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_1m3mqmi</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_0u8v35g</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1r42sgq</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_01whfqk</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_0ml1wq5</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_0k90fqn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_104kkaa</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0j3z3z6</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0odd8s6</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Kerivnyk" name="Керівник">
+        <bpmn:flowNodeRef>Activity_1vhn1tf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_16wrue9</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_14r0q30</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_18szs5a</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0g0xrqb</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0pyk5en</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1gz6dh7</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_wait_5d</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_problem_decision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_0csfm75</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1hed96f</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1prbsyy</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_104j3nf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1mi4136</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_1mf74fc</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1cw099t</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0714no0</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_wait_timer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_1var6kw</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1jq8k7f</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_1no4dza</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Administrator" name="Адміністратор">
+        <bpmn:flowNodeRef>Activity_1l1x0hv</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1i8rce0</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_1l6mwyf" name="Павловський" />
+    </bpmn:laneSet>
+    <bpmn:userTask id="Activity_1knnpn9" name="Вкажи контактні дані">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Вкажи контактні дані&#34;, description: &#34;Заповніть контактні дані нового стажиста&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1wcwqge</bpmn:incoming>
+      <bpmn:outgoing>Flow_0e1frh4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1l1x0hv" name="Підписати журнали інструктажів для *ПІБ* нового працівника *дата прийому*&#34;">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Підписати журнали інструктажів&#34;, description: &#34;Підпишіть журнали інструктажів для нового працівника&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_19494i0</bpmn:incoming>
+      <bpmn:outgoing>Flow_13fszm6</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1i8rce0" name="Налаштувати вхід в Dubidoc за допомогою робочої пошти">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Налаштувати вхід в Dubidoc&#34;, description: &#34;Налаштуйте вхід в Dubidoc за допомогою робочої пошти&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: x_studio_camunda_mentor_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0en5aao</bpmn:incoming>
+      <bpmn:outgoing>Flow_0kunm1a</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:inclusiveGateway id="Gateway_0kwn5gi">
+      <bpmn:incoming>Flow_1ts18c3</bpmn:incoming>
+      <bpmn:incoming>Flow_0s1fyfr</bpmn:incoming>
+      <bpmn:incoming>Flow_13n4gsf</bpmn:incoming>
+      <bpmn:incoming>Flow_0e1frh4</bpmn:incoming>
+      <bpmn:incoming>Flow_13fszm6</bpmn:incoming>
+      <bpmn:outgoing>Flow_02lhlqa</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:endEvent id="Event_142lamg">
+      <bpmn:incoming>Flow_02lhlqa</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Activity_1vhn1tf" name="Ознайомитися з коментарем">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Ознайомитися з коментарем&#34;, description: &#34;Ознайомтесь з коментарем рекрутера та підтвердіть&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_142fxqm</bpmn:incoming>
+      <bpmn:outgoing>Flow_13n4gsf</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_16wrue9">
+      <bpmn:incoming>Flow_0nj2wpd</bpmn:incoming>
+      <bpmn:incoming>Flow_0ksveij</bpmn:incoming>
+      <bpmn:outgoing>Flow_143izeq</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0zdw56l</bpmn:outgoing>
+      <bpmn:outgoing>Flow_003wz6g</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1wcwqge</bpmn:outgoing>
+      <bpmn:outgoing>Flow_19494i0</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Activity_14r0q30" name="Провести іспит-знайомство з стажером">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Провести іспит-знайомство з стажером&#34;, description: &#34;Проведіть іспит-знайомство та залиште коментар щодо результату&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_143izeq</bpmn:incoming>
+      <bpmn:outgoing>Flow_142fxqm</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_18szs5a" name="Проставити ставку для працівника">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Проставити ставку для працівника&#34;, description: &#34;Проставте ставку для працівника в системі&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key, x_studio_camunda_credit_access_500: null}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0zdw56l</bpmn:incoming>
+      <bpmn:outgoing>Flow_0s1fyfr</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_0g0xrqb" name="Перевірити вірність оформлення телеграм">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Перевірити вірність оформлення телеграм&#34;, description: &#34;Перевірте правильність оформлення Telegram-акаунту працівника&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: x_studio_camunda_mentor_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_003wz6g</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ts18c3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_0pyk5en" name="Проінформувати людину про офіційний прийом">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Проінформувати людину про офіційний прийом&#34;, description: &#34;Повідомте працівника про умови та дату офіційного прийому&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: x_studio_camunda_mentor_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0hczsie</bpmn:incoming>
+      <bpmn:outgoing>Flow_1wyoz59</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1gz6dh7" name="Додати працівника в чати">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Додати працівника в чати&#34;, description: &#34;Додайте нового працівника до відповідних робочих чатів&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: x_studio_camunda_mentor_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_00o9h43</bpmn:incoming>
+      <bpmn:outgoing>Flow_0hczsie</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_wait_5d" name="Очікуємо рішення працівника">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Очікуємо рішення працівника&#34;, description: &#34;Працівник приймає рішення. Натисніть Готово щоб пропустити очікування.&#34;, _model: &#34;project.project&#34;, _id: 550,&#10; process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1wyoz59</bpmn:incoming>
+      <bpmn:outgoing>Flow_0hfczq2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_problem_decision" name="Рішення?" default="Flow_decision_continue">
+      <bpmn:incoming>Flow_0hfczq2</bpmn:incoming>
+      <bpmn:outgoing>Flow_decision_continue</bpmn:outgoing>
+      <bpmn:outgoing>Flow_decision_reject</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_0csfm75" default="Flow_0nj2wpd">
+      <bpmn:incoming>Flow_0854gd9</bpmn:incoming>
+      <bpmn:outgoing>Flow_0en5aao</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0nj2wpd</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Activity_1hed96f" name="Працевлаштовуємо працівника офіційно?">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Працевлаштовуємо працівника офіційно?&#34;, description: &#34;Вкажіть: офіційне оформлення (так/ні), посада (driver/admin/інша), ФОП (так/ні)&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: x_studio_camunda_mentor_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_decision_continue</bpmn:incoming>
+      <bpmn:outgoing>Flow_0854gd9</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Activity_1ud6hai" name="Перемістити картку кандидатв в Неактуальні">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/api/server-action&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;, &#34;X-API-Key&#34;:&#34;632b5ed6-091f-48db-bd01-1e60aeb10bfc&#34;}" target="headers" />
+          <zeebe:input source="={&#34;action_identifier&#34;: &#34;studio_customization.camunda_move_applicant_rejected&#34;, &#34;context&#34;: {}, &#34;payload&#34;: {&#34;applicant_id&#34;: odoo_applicant_id}}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_reject_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_00med7b</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="Event_reject_end">
+      <bpmn:incoming>Flow_reject_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Activity_create_main_task" name="Створити головне завдання">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Заява на стажування&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 550}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_odoo_default</bpmn:incoming>
+      <bpmn:outgoing>Flow_create_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="Event_verify_end">
+      <bpmn:incoming>Flow_decision_reject</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Activity_1prbsyy" name="Внести решту даних по працівнику">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Внести решту даних по працівнику&#34;, description: &#34;Внесіть всі дані по працівнику в систему&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: x_studio_camunda_mentor_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_173vlty</bpmn:incoming>
+      <bpmn:outgoing>Flow_170st20</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_038uzqs" default="Flow_173vlty">
+      <bpmn:incoming>Flow_1ytysgz</bpmn:incoming>
+      <bpmn:outgoing>Flow_14fmvml</bpmn:outgoing>
+      <bpmn:outgoing>Flow_173vlty</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_104j3nf" default="Flow_reject_no">
+      <bpmn:incoming>Flow_083d9jf</bpmn:incoming>
+      <bpmn:outgoing>Flow_reject_no</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0k3xys3</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Activity_1mi4136" name="Чи прийшов працівник на стажування">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Чи прийшов працівник на стажування&#34;, description: &#34;Зафіксуйте факт появи або неявки працівника на стажування&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: x_studio_camunda_mentor_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1ipcmyd</bpmn:incoming>
+      <bpmn:outgoing>Flow_083d9jf</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_odoo_xor" default="Flow_odoo_default">
+      <bpmn:incoming>Flow_to_odoo_xor</bpmn:incoming>
+      <bpmn:outgoing>Flow_odoo_default</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0x3o1yk</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_to_odoo_xor</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Activity_0grozq4" name="Створити користувача в ЄРП">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;СтворитиКористувача&#34;" target="featureCode" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_163pitc</bpmn:incoming>
+      <bpmn:outgoing>Flow_1t8secs</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_15o6pq5" name="Видалити з чатів">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Видалити з чатів&#34;, description: &#34;Видаліть працівника з усіх робочих чатів&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: x_studio_camunda_mentor_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1obaitj</bpmn:incoming>
+      <bpmn:outgoing>Flow_1fv92w4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:businessRuleTask id="Activity_184vrms" name="Чи є всі дані по працівнику">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="check-required-fields" resultVariable="all_data_present" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0k3xys3</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ytysgz</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:callActivity id="Activity_0tjvt5f" name="Створити фіз особу в ДО3 та прийом в ЄРП">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;СтворитиФізОсобу&#34;" target="featureCode" />
+          <zeebe:input source="=&#34;DO3&#34;" target="database" />
+          <zeebe:input source="=x_studio_camunda_surname" target="surname" />
+          <zeebe:input source="=x_studio_camunda_first_name" target="first_name" />
+          <zeebe:input source="=x_studio_camunda_patronymic" target="patronymic" />
+          <zeebe:input source="={&#10;  featureCode: &#34;СтворитиФізОсобу&#34;,&#10;  database: &#34;DO3&#34;,&#10;  first_name: x_studio_camunda_surname,&#10;  surname: x_studio_camunda_first_name,&#10;  patronymic: x_studio_camunda_patronymic&#10;}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:calledElement processId="Process_ov24drx" propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_170st20</bpmn:incoming>
+      <bpmn:incoming>Flow_14fmvml</bpmn:incoming>
+      <bpmn:outgoing>Flow_163pitc</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:parallelGateway id="Gateway_1r11r5i">
+      <bpmn:incoming>Flow_0kqz9se</bpmn:incoming>
+      <bpmn:outgoing>Flow_1vn805m</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1obaitj</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:serviceTask id="Activity_0w3oehe" name="Звільнити в ЄРП" zeebe:modelerTemplate="io.camunda.connectors.HttpJson.v2" zeebe:modelerTemplateVersion="12" zeebe:modelerTemplateIcon="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHZpZXdCb3g9IjAgMCAxOCAxOCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE3LjAzMzUgOC45OTk5N0MxNy4wMzM1IDEzLjQ0NzUgMTMuNDI4MSAxNy4wNTI5IDguOTgwNjUgMTcuMDUyOUM0LjUzMzE2IDE3LjA1MjkgMC45Mjc3NjUgMTMuNDQ3NSAwLjkyNzc2NSA4Ljk5OTk3QzAuOTI3NzY1IDQuNTUyNDggNC41MzMxNiAwLjk0NzA4MyA4Ljk4MDY1IDAuOTQ3MDgzQzEzLjQyODEgMC45NDcwODMgMTcuMDMzNSA0LjU1MjQ4IDE3LjAzMzUgOC45OTk5N1oiIGZpbGw9IiM1MDU1NjIiLz4KPHBhdGggZD0iTTQuOTMxMjYgMTQuMTU3MUw2Ljc4MTA2IDMuNzE0NzFIMTAuMTM3NUMxMS4xOTE3IDMuNzE0NzEgMTEuOTgyNCAzLjk4MzIzIDEyLjUwOTUgNC41MjAyN0MxMy4wNDY1IDUuMDQ3MzYgMTMuMzE1IDUuNzMzNTggMTMuMzE1IDYuNTc4OTJDMTMuMzE1IDcuNDQ0MTQgMTMuMDcxNCA4LjE1NTIyIDEyLjU4NDEgOC43MTIxNUMxMi4xMDY3IDkuMjU5MTMgMTEuNDU1MyA5LjYzNzA1IDEwLjYyOTggOS44NDU5TDEyLjA2MTkgMTQuMTU3MUgxMC4zMzE1TDkuMDMzNjQgMTAuMDI0OUg3LjI0MzUxTDYuNTEyNTQgMTQuMTU3MUg0LjkzMTI2Wk03LjQ5NzExIDguNTkyODFIOS4yNDI0OEM5Ljk5ODMyIDguNTkyODEgMTAuNTkwMSA4LjQyMzc0IDExLjAxNzcgOC4wODU2MUMxMS40NTUzIDcuNzM3NTMgMTEuNjc0MSA3LjI2NTEzIDExLjY3NDEgNi42Njg0MkMxMS42NzQxIDYuMTkxMDYgMTEuNTI0OSA1LjgxODExIDExLjIyNjUgNS41NDk1OUMxMC45MjgyIDUuMjcxMTMgMTAuNDU1OCA1LjEzMTkgOS44MDkzNiA1LjEzMTlIOC4xMDg3NEw3LjQ5NzExIDguNTkyODFaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="io.camunda:http-json:1" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="noAuth" target="authentication.type" />
+          <zeebe:input source="POST" target="method" />
+          <zeebe:input source="http://web.dobrom.com/edoc3/hs/tut/camunda_document" target="url" />
+          <zeebe:input source="=false" target="storeResponse" />
+          <zeebe:input source="=20" target="connectionTimeoutInSeconds" />
+          <zeebe:input source="=20" target="readTimeoutInSeconds" />
+          <zeebe:input source="={&#10;  &#34;documentID&#34;: documentID,&#10;  &#34;properties&#34; : &#10;{&#10;	&#34;СтворюватиФізичнуОсобу&#34;: true&#10;}&#10;}&#10;&#10;" target="body" />
+          <zeebe:input source="=false" target="ignoreNullValues" />
+        </zeebe:ioMapping>
+        <zeebe:taskHeaders>
+          <zeebe:header key="elementTemplateVersion" value="12" />
+          <zeebe:header key="elementTemplateId" value="io.camunda.connectors.HttpJson.v2" />
+          <zeebe:header key="retryBackoff" value="PT0S" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1vn805m</bpmn:incoming>
+      <bpmn:outgoing>Flow_0um5483</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_1m3mqmi" name="Скрипт звільнення запущений?">
+      <bpmn:incoming>Flow_0um5483</bpmn:incoming>
+      <bpmn:outgoing>Flow_0ayekxq</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0gf196k</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="Event_0u8v35g">
+      <bpmn:incoming>Flow_1bhvuz2</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Activity_1r42sgq" name="Закрити доступи">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Закрити доступи&#34;, description: &#34;Закрийте всі доступи для працівника що звільняється&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: responsible_user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0lohuzx</bpmn:incoming>
+      <bpmn:outgoing>Flow_1bhvuz2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:inclusiveGateway id="Gateway_01whfqk">
+      <bpmn:incoming>Flow_1fv92w4</bpmn:incoming>
+      <bpmn:incoming>Flow_19hqg7q</bpmn:incoming>
+      <bpmn:outgoing>Flow_0lohuzx</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_0ml1wq5" name="Співробітника звільнено?">
+      <bpmn:incoming>Flow_0alxa22</bpmn:incoming>
+      <bpmn:outgoing>Flow_19hqg7q</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="Event_0k90fqn" name="Процес перервано">
+      <bpmn:incoming>Flow_0gf196k</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateCatchEvent id="Event_104kkaa" name="Очікування створення звільнення">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="=if status = &#34;OK&#34; then {personID: personID, isAbort: false} else {Step: 3, ErrorMessage: &#34;Помилка створення звільнення: &#34; + string(status), isAbort: true}" target="op3" />
+          <zeebe:output source="=op3.personID" target="personID" />
+          <zeebe:output source="=op3.ErrorMessage" target="ErrorMessage" />
+          <zeebe:output source="=op3.isAbort" target="isAbort" />
+          <zeebe:output source="=op3.Step" target="Step" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0ayekxq</bpmn:incoming>
+      <bpmn:outgoing>Flow_0alxa22</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_1lhva0a" messageRef="Message_1iciko0" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="Activity_recruit_reject" name="Кандидат не підійшов, не прийшов">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Кандидат не підійшов, не прийшов: &#34; + emp.employee_name, description: &#34;Повідомити про відмову кандидата&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: emp.user_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_00med7b</bpmn:incoming>
+      <bpmn:outgoing>Flow_reject_to_end</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_1mf74fc" default="Flow_0kqz9se">
+      <bpmn:incoming>Flow_1gxtapo</bpmn:incoming>
+      <bpmn:outgoing>Flow_0i1pcvp</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0kqz9se</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Activity_1cw099t" name="Приймаємо працівника в внутрішньому обліку?">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Приймаємо працівника в внутрішньому обліку?&#34;, description: &#34;Прийміть рішення щодо прийому працівника у внутрішній облік&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: x_studio_camunda_mentor_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1t8secs</bpmn:incoming>
+      <bpmn:outgoing>Flow_1gxtapo</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:callActivity id="Activity_0714no0" name="Надання доступів">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_0h8z3ny" propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0i1pcvp</bpmn:incoming>
+      <bpmn:outgoing>Flow_00o9h43</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:boundaryEvent id="Event_wait_timer" name="5 днів" attachedToRef="Activity_wait_5d">
+      <bpmn:timerEventDefinition id="TimerEventDefinition_wait5d">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P5D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="Flow_1wcwqge" sourceRef="Gateway_16wrue9" targetRef="Activity_1knnpn9" />
+    <bpmn:sequenceFlow id="Flow_0e1frh4" sourceRef="Activity_1knnpn9" targetRef="Gateway_0kwn5gi" />
+    <bpmn:sequenceFlow id="Flow_19494i0" sourceRef="Gateway_16wrue9" targetRef="Activity_1l1x0hv" />
+    <bpmn:sequenceFlow id="Flow_13fszm6" sourceRef="Activity_1l1x0hv" targetRef="Gateway_0kwn5gi" />
+    <bpmn:sequenceFlow id="Flow_0en5aao" name="так" sourceRef="Gateway_0csfm75" targetRef="Activity_1i8rce0">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=x_studio_camunda_official_employment = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0kunm1a" sourceRef="Activity_1i8rce0" targetRef="Activity_0odd8s6" />
+    <bpmn:sequenceFlow id="Flow_13n4gsf" sourceRef="Activity_1vhn1tf" targetRef="Gateway_0kwn5gi" />
+    <bpmn:sequenceFlow id="Flow_0s1fyfr" sourceRef="Activity_18szs5a" targetRef="Gateway_0kwn5gi" />
+    <bpmn:sequenceFlow id="Flow_1ts18c3" sourceRef="Activity_0g0xrqb" targetRef="Gateway_0kwn5gi" />
+    <bpmn:sequenceFlow id="Flow_02lhlqa" sourceRef="Gateway_0kwn5gi" targetRef="Event_142lamg" />
+    <bpmn:sequenceFlow id="Flow_142fxqm" sourceRef="Activity_14r0q30" targetRef="Activity_1vhn1tf" />
+    <bpmn:sequenceFlow id="Flow_0nj2wpd" sourceRef="Gateway_0csfm75" targetRef="Gateway_16wrue9" />
+    <bpmn:sequenceFlow id="Flow_143izeq" sourceRef="Gateway_16wrue9" targetRef="Activity_14r0q30" />
+    <bpmn:sequenceFlow id="Flow_0zdw56l" sourceRef="Gateway_16wrue9" targetRef="Activity_18szs5a" />
+    <bpmn:sequenceFlow id="Flow_003wz6g" sourceRef="Gateway_16wrue9" targetRef="Activity_0g0xrqb" />
+    <bpmn:sequenceFlow id="Flow_0hczsie" sourceRef="Activity_1gz6dh7" targetRef="Activity_0pyk5en" />
+    <bpmn:sequenceFlow id="Flow_1wyoz59" sourceRef="Activity_0pyk5en" targetRef="Activity_wait_5d" />
+    <bpmn:sequenceFlow id="Flow_00o9h43" sourceRef="Activity_0714no0" targetRef="Activity_1gz6dh7" />
+    <bpmn:sequenceFlow id="Flow_0hfczq2" sourceRef="Activity_wait_5d" targetRef="Gateway_problem_decision" />
+    <bpmn:sequenceFlow id="Flow_decision_continue" name="Продовжити" sourceRef="Gateway_problem_decision" targetRef="Activity_1hed96f" />
+    <bpmn:sequenceFlow id="Flow_decision_reject" name="Відмовити" sourceRef="Gateway_problem_decision" targetRef="Event_verify_end">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_decision = "reject"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0854gd9" sourceRef="Activity_1hed96f" targetRef="Gateway_0csfm75" />
+    <bpmn:sequenceFlow id="Flow_reject_no" sourceRef="Gateway_104j3nf" targetRef="Activity_1ud6hai" />
+    <bpmn:sequenceFlow id="Flow_00med7b" sourceRef="Activity_1ud6hai" targetRef="Activity_recruit_reject" />
+    <bpmn:sequenceFlow id="Flow_reject_to_end" sourceRef="Activity_recruit_reject" targetRef="Event_reject_end" />
+    <bpmn:sequenceFlow id="Flow_odoo_default" sourceRef="Gateway_odoo_xor" targetRef="Activity_create_main_task" />
+    <bpmn:sequenceFlow id="Flow_173vlty" sourceRef="Gateway_038uzqs" targetRef="Activity_1prbsyy" />
+    <bpmn:sequenceFlow id="Flow_170st20" sourceRef="Activity_1prbsyy" targetRef="Activity_0tjvt5f" />
+    <bpmn:sequenceFlow id="Flow_1ytysgz" sourceRef="Activity_184vrms" targetRef="Gateway_038uzqs" />
+    <bpmn:sequenceFlow id="Flow_14fmvml" name="так" sourceRef="Gateway_038uzqs" targetRef="Activity_0tjvt5f">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= all_data_present = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_083d9jf" sourceRef="Activity_1mi4136" targetRef="Gateway_104j3nf" />
+    <bpmn:sequenceFlow id="Flow_0k3xys3" sourceRef="Gateway_104j3nf" targetRef="Activity_184vrms">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=x_studio_camunda_employee_arrived = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_to_odoo_xor" sourceRef="StartEvent_1" targetRef="Gateway_odoo_xor" />
+    <bpmn:sequenceFlow id="Flow_163pitc" sourceRef="Activity_0tjvt5f" targetRef="Activity_0grozq4" />
+    <bpmn:sequenceFlow id="Flow_1t8secs" sourceRef="Activity_0grozq4" targetRef="Activity_1cw099t" />
+    <bpmn:sequenceFlow id="Flow_1obaitj" sourceRef="Gateway_1r11r5i" targetRef="Activity_15o6pq5" />
+    <bpmn:sequenceFlow id="Flow_1fv92w4" sourceRef="Activity_15o6pq5" targetRef="Gateway_01whfqk" />
+    <bpmn:sequenceFlow id="Flow_0kqz9se" sourceRef="Gateway_1mf74fc" targetRef="Gateway_1r11r5i" />
+    <bpmn:sequenceFlow id="Flow_1vn805m" sourceRef="Gateway_1r11r5i" targetRef="Activity_0w3oehe" />
+    <bpmn:sequenceFlow id="Flow_0um5483" sourceRef="Activity_0w3oehe" targetRef="Gateway_1m3mqmi" />
+    <bpmn:sequenceFlow id="Flow_0ayekxq" sourceRef="Gateway_1m3mqmi" targetRef="Event_104kkaa">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0gf196k" name="помилка" sourceRef="Gateway_1m3mqmi" targetRef="Event_0k90fqn">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_1bhvuz2" sourceRef="Activity_1r42sgq" targetRef="Event_0u8v35g" />
+    <bpmn:sequenceFlow id="Flow_0lohuzx" sourceRef="Gateway_01whfqk" targetRef="Activity_1r42sgq" />
+    <bpmn:sequenceFlow id="Flow_19hqg7q" sourceRef="Gateway_0ml1wq5" targetRef="Gateway_01whfqk">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0alxa22" sourceRef="Event_104kkaa" targetRef="Gateway_0ml1wq5" />
+    <bpmn:sequenceFlow id="Flow_1yehuez" sourceRef="Activity_0odd8s6" targetRef="Activity_0j3z3z6" />
+    <bpmn:sequenceFlow id="Flow_0ksveij" sourceRef="Activity_0j3z3z6" targetRef="Gateway_16wrue9" />
+    <bpmn:sequenceFlow id="Flow_1gxtapo" sourceRef="Activity_1cw099t" targetRef="Gateway_1mf74fc" />
+    <bpmn:sequenceFlow id="Flow_0i1pcvp" sourceRef="Gateway_1mf74fc" targetRef="Activity_0714no0">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=x_studio_camunda_internal_accounting = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_create_to_merge" sourceRef="Activity_create_main_task" targetRef="Event_1var6kw" />
+    <bpmn:callActivity id="Activity_0j3z3z6" name="Надання доступів для водія">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_1vkyhuj" propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1yehuez</bpmn:incoming>
+      <bpmn:outgoing>Flow_0ksveij</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:userTask id="Activity_0odd8s6" name="Офіційний прийом">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0kunm1a</bpmn:incoming>
+      <bpmn:outgoing>Flow_1yehuez</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_0x3o1yk" sourceRef="Gateway_odoo_xor" targetRef="Event_1var6kw">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_1jesyfw" sourceRef="Activity_1c0jbtk" targetRef="Event_060v2yh" />
+    <bpmn:sequenceFlow id="Flow_1hmv8i7" sourceRef="Event_1var6kw" targetRef="Gateway_1no4dza" />
+    <bpmn:intermediateCatchEvent id="Event_1var6kw">
+      <bpmn:incoming>Flow_0x3o1yk</bpmn:incoming>
+      <bpmn:incoming>Flow_create_to_merge</bpmn:incoming>
+      <bpmn:outgoing>Flow_1hmv8i7</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_0kbd6ur">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1M</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="Activity_1jq8k7f" name="Чи потрібно працівнику ОЗ?">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Чи потрібно працівнику ОЗ?&#34;, description: &#34;Вкажіть чи потрібно видати основні засоби новому працівнику (так/ні)&#34;, _model: &#34;project.project&#34;, _id: 550, x_studio_camunda_user_ids: x_studio_camunda_mentor_id, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_06ye3n6</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ipcmyd</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_06ye3n6" sourceRef="Gateway_1no4dza" targetRef="Activity_1jq8k7f" />
+    <bpmn:endEvent id="Event_060v2yh">
+      <bpmn:incoming>Flow_1jesyfw</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:callActivity id="Activity_1c0jbtk" name="Видати ОЗ для працівника">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Видати ОЗ для працівника&#34;, description: &#34;Вкажіть чи потрібно видати основні засоби новому працівнику (так/ні)&#34;, _model: &#34;project.project&#34;, _id: 252, x_studio_camunda_user_ids: 48, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="=parent_process_instance_key" target="parent_process_instance_key" />
+        </zeebe:ioMapping>
+        <zeebe:calledElement processId="Process_1s0osfg" propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0shb395</bpmn:incoming>
+      <bpmn:outgoing>Flow_1jesyfw</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:parallelGateway id="Gateway_1no4dza">
+      <bpmn:incoming>Flow_1hmv8i7</bpmn:incoming>
+      <bpmn:outgoing>Flow_06ye3n6</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0shb395</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:sequenceFlow id="Flow_0shb395" sourceRef="Gateway_1no4dza" targetRef="Activity_1c0jbtk" />
+    <bpmn:sequenceFlow id="Flow_1ipcmyd" sourceRef="Activity_1jq8k7f" targetRef="Activity_1mi4136" />
+  </bpmn:process>
+  <bpmn:message id="Message_1iciko0" name="PersonCreated">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=documentID" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_1">
+      <bpmndi:BPMNShape id="Participant_1_di" bpmnElement="Participant_1" isHorizontal="true">
+        <dc:Bounds x="-2565" y="260" width="5600" height="1825" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_1l6mwyf_di" bpmnElement="Lane_1l6mwyf" isHorizontal="true">
+        <dc:Bounds x="-2535" y="1620" width="5570" height="120" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Administrator_di" bpmnElement="Lane_Administrator" isHorizontal="true">
+        <dc:Bounds x="-2535" y="1740" width="5570" height="345" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Kerivnyk_di" bpmnElement="Lane_Kerivnyk" isHorizontal="true">
+        <dc:Bounds x="-2535" y="260" width="5570" height="470" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Avtomatyzator_di" bpmnElement="Lane_Avtomatyzator" isHorizontal="true">
+        <dc:Bounds x="-2535" y="730" width="5570" height="440" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Rekruter_di" bpmnElement="Lane_Rekruter" isHorizontal="true">
+        <dc:Bounds x="-2535" y="1170" width="5570" height="100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Revizor_di" bpmnElement="Lane_Revizor" isHorizontal="true">
+        <dc:Bounds x="-2535" y="1270" width="5570" height="100" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Pracivnyk_di" bpmnElement="Lane_Pracivnyk" isHorizontal="true">
+        <dc:Bounds x="-2535" y="1370" width="5570" height="250" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0m38csl_di" bpmnElement="Activity_1knnpn9">
+        <dc:Bounds x="2000" y="1470" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1c8hefj_di" bpmnElement="Activity_1l1x0hv">
+        <dc:Bounds x="2050" y="1790" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1h61y0o_di" bpmnElement="Activity_1i8rce0">
+        <dc:Bounds x="773" y="1870" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1pdetgy_di" bpmnElement="Gateway_0kwn5gi">
+        <dc:Bounds x="2538" y="845" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_142lamg_di" bpmnElement="Event_142lamg">
+        <dc:Bounds x="2675" y="852" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_10wccpy_di" bpmnElement="Activity_1vhn1tf">
+        <dc:Bounds x="2163" y="430" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0vm6vwk_di" bpmnElement="Gateway_16wrue9">
+        <dc:Bounds x="1788" y="445" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0i50fge_di" bpmnElement="Activity_14r0q30">
+        <dc:Bounds x="1983" y="430" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0yf4mpd_di" bpmnElement="Activity_18szs5a">
+        <dc:Bounds x="1983" y="550" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_05p27u7_di" bpmnElement="Activity_0g0xrqb">
+        <dc:Bounds x="1983" y="320" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0dbhg42_di" bpmnElement="Activity_0pyk5en">
+        <dc:Bounds x="-37" y="560" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0v9cpmk_di" bpmnElement="Activity_1gz6dh7">
+        <dc:Bounds x="-177" y="560" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_wait_5d_di" bpmnElement="Activity_wait_5d">
+        <dc:Bounds x="123" y="560" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_problem_decision_di" bpmnElement="Gateway_problem_decision" isMarkerVisible="true">
+        <dc:Bounds x="278" y="575" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="284" y="553" width="50" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0csfm75_di" bpmnElement="Gateway_0csfm75" isMarkerVisible="true">
+        <dc:Bounds x="718" y="575" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0nmbzd1_di" bpmnElement="Activity_1hed96f">
+        <dc:Bounds x="533" y="560" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0pma4zp_di" bpmnElement="Activity_1ud6hai">
+        <dc:Bounds x="-1437" y="1180" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_reject_end_di" bpmnElement="Event_reject_end">
+        <dc:Bounds x="-1125" y="1202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_create_main_task_di" bpmnElement="Activity_create_main_task">
+        <dc:Bounds x="-2357" y="750" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_verify_end_di" bpmnElement="Event_verify_end">
+        <dc:Bounds x="390" y="1212" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1kn8gb4_di" bpmnElement="Activity_1prbsyy">
+        <dc:Bounds x="-1157" y="590" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_038uzqs_di" bpmnElement="Gateway_038uzqs" isMarkerVisible="true">
+        <dc:Bounds x="-1267" y="845" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_104j3nf_di" bpmnElement="Gateway_104j3nf" isMarkerVisible="true">
+        <dc:Bounds x="-1507" y="605" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1t1bjzn_di" bpmnElement="Activity_1mi4136">
+        <dc:Bounds x="-1657" y="590" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_odoo_xor_di" bpmnElement="Gateway_odoo_xor" isMarkerVisible="true">
+        <dc:Bounds x="-2427" y="845" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="-2517" y="852" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0o8ixgp_di" bpmnElement="Activity_0grozq4">
+        <dc:Bounds x="-667" y="830" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0kq2m7n_di" bpmnElement="Activity_15o6pq5">
+        <dc:Bounds x="-147" y="1070" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_034jhkd_di" bpmnElement="Activity_184vrms">
+        <dc:Bounds x="-1417" y="830" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0ov64zc_di" bpmnElement="Activity_0tjvt5f">
+        <dc:Bounds x="-967" y="830" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1n1iy5f_di" bpmnElement="Gateway_1r11r5i">
+        <dc:Bounds x="-342" y="1015" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0kadh8d_di" bpmnElement="Activity_0w3oehe">
+        <dc:Bounds x="-260" y="930" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1m3mqmi_di" bpmnElement="Gateway_1m3mqmi" isMarkerVisible="true">
+        <dc:Bounds x="-135" y="945" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="-141" y="1002" width="63" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0u8v35g_di" bpmnElement="Event_0u8v35g">
+        <dc:Bounds x="532" y="1002" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0j8zh0p_di" bpmnElement="Activity_1r42sgq">
+        <dc:Bounds x="370" y="980" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_12nxq08_di" bpmnElement="Gateway_01whfqk">
+        <dc:Bounds x="215" y="995" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0ml1wq5_di" bpmnElement="Gateway_0ml1wq5" isMarkerVisible="true">
+        <dc:Bounds x="45" y="945" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="44" y="1006" width="72" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0k90fqn_di" bpmnElement="Event_0k90fqn">
+        <dc:Bounds x="-128" y="792" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="-88" y="766" width="55" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0kw57sw_di" bpmnElement="Event_104kkaa">
+        <dc:Bounds x="-48" y="952" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="-49" y="1000" width="58" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_recruit_reject_di" bpmnElement="Activity_recruit_reject">
+        <dc:Bounds x="-1292" y="1180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1mf74fc_di" bpmnElement="Gateway_1mf74fc" isMarkerVisible="true">
+        <dc:Bounds x="-436" y="575" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_10mkgid_di" bpmnElement="Activity_1cw099t">
+        <dc:Bounds x="-590" y="560" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0gf6ymh_di" bpmnElement="Activity_0714no0">
+        <dc:Bounds x="-330" y="560" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0k0qlun_di" bpmnElement="Activity_0j3z3z6">
+        <dc:Bounds x="1200" y="850" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1aa63k6_di" bpmnElement="Activity_0odd8s6">
+        <dc:Bounds x="870" y="830" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_04x0wui_di" bpmnElement="Event_1var6kw">
+        <dc:Bounds x="-2238" y="612" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_14upcxy_di" bpmnElement="Activity_1jq8k7f">
+        <dc:Bounds x="-1990" y="590" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_060v2yh_di" bpmnElement="Event_060v2yh">
+        <dc:Bounds x="-1768" y="1292" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1eui9kr_di" bpmnElement="Activity_1c0jbtk">
+        <dc:Bounds x="-1960" y="1280" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_17vgf2x_di" bpmnElement="Gateway_1no4dza">
+        <dc:Bounds x="-2145" y="605" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_wait_timer_di" bpmnElement="Event_wait_timer">
+        <dc:Bounds x="173" y="622" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="176" y="665" width="31" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1wcwqge_di" bpmnElement="Flow_1wcwqge">
+        <di:waypoint x="1813" y="495" />
+        <di:waypoint x="1813" y="1510" />
+        <di:waypoint x="2000" y="1510" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0e1frh4_di" bpmnElement="Flow_0e1frh4">
+        <di:waypoint x="2100" y="1510" />
+        <di:waypoint x="2563" y="1510" />
+        <di:waypoint x="2563" y="895" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_19494i0_di" bpmnElement="Flow_19494i0">
+        <di:waypoint x="1813" y="495" />
+        <di:waypoint x="1813" y="1830" />
+        <di:waypoint x="2050" y="1830" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_13fszm6_di" bpmnElement="Flow_13fszm6">
+        <di:waypoint x="2150" y="1830" />
+        <di:waypoint x="2563" y="1830" />
+        <di:waypoint x="2563" y="895" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0en5aao_di" bpmnElement="Flow_0en5aao">
+        <di:waypoint x="743" y="625" />
+        <di:waypoint x="743" y="1920" />
+        <di:waypoint x="773" y="1920" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="750" y="1290" width="16" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0kunm1a_di" bpmnElement="Flow_0kunm1a">
+        <di:waypoint x="873" y="1910" />
+        <di:waypoint x="920" y="1910" />
+        <di:waypoint x="920" y="910" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_13n4gsf_di" bpmnElement="Flow_13n4gsf">
+        <di:waypoint x="2263" y="470" />
+        <di:waypoint x="2563" y="470" />
+        <di:waypoint x="2563" y="845" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0s1fyfr_di" bpmnElement="Flow_0s1fyfr">
+        <di:waypoint x="2083" y="590" />
+        <di:waypoint x="2563" y="590" />
+        <di:waypoint x="2563" y="845" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ts18c3_di" bpmnElement="Flow_1ts18c3">
+        <di:waypoint x="2083" y="360" />
+        <di:waypoint x="2563" y="360" />
+        <di:waypoint x="2563" y="845" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_02lhlqa_di" bpmnElement="Flow_02lhlqa">
+        <di:waypoint x="2588" y="870" />
+        <di:waypoint x="2675" y="870" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_142fxqm_di" bpmnElement="Flow_142fxqm">
+        <di:waypoint x="2083" y="470" />
+        <di:waypoint x="2163" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0nj2wpd_di" bpmnElement="Flow_0nj2wpd">
+        <di:waypoint x="743" y="575" />
+        <di:waypoint x="743" y="470" />
+        <di:waypoint x="1788" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_143izeq_di" bpmnElement="Flow_143izeq">
+        <di:waypoint x="1838" y="470" />
+        <di:waypoint x="1983" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0zdw56l_di" bpmnElement="Flow_0zdw56l">
+        <di:waypoint x="1813" y="495" />
+        <di:waypoint x="1813" y="590" />
+        <di:waypoint x="1983" y="590" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_003wz6g_di" bpmnElement="Flow_003wz6g">
+        <di:waypoint x="1813" y="445" />
+        <di:waypoint x="1813" y="360" />
+        <di:waypoint x="1983" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0hczsie_di" bpmnElement="Flow_0hczsie">
+        <di:waypoint x="-77" y="600" />
+        <di:waypoint x="-37" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1wyoz59_di" bpmnElement="Flow_1wyoz59">
+        <di:waypoint x="63" y="600" />
+        <di:waypoint x="123" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_00o9h43_di" bpmnElement="Flow_00o9h43">
+        <di:waypoint x="-230" y="600" />
+        <di:waypoint x="-177" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0hfczq2_di" bpmnElement="Flow_0hfczq2">
+        <di:waypoint x="223" y="600" />
+        <di:waypoint x="278" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_decision_continue_di" bpmnElement="Flow_decision_continue">
+        <di:waypoint x="328" y="600" />
+        <di:waypoint x="533" y="600" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="406" y="616" width="63" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_decision_reject_di" bpmnElement="Flow_decision_reject">
+        <di:waypoint x="303" y="625" />
+        <di:waypoint x="303" y="1230" />
+        <di:waypoint x="390" y="1230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="306" y="753" width="54" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0854gd9_di" bpmnElement="Flow_0854gd9">
+        <di:waypoint x="633" y="600" />
+        <di:waypoint x="718" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_reject_no_di" bpmnElement="Flow_reject_no">
+        <di:waypoint x="-1482" y="655" />
+        <di:waypoint x="-1482" y="1220" />
+        <di:waypoint x="-1437" y="1220" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="-2357" y="-36" width="9" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_00med7b_di" bpmnElement="Flow_00med7b">
+        <di:waypoint x="-1337" y="1220" />
+        <di:waypoint x="-1292" y="1220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_reject_to_end_di" bpmnElement="Flow_reject_to_end">
+        <di:waypoint x="-1192" y="1220" />
+        <di:waypoint x="-1125" y="1220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_odoo_default_di" bpmnElement="Flow_odoo_default">
+        <di:waypoint x="-2402" y="845" />
+        <di:waypoint x="-2402" y="790" />
+        <di:waypoint x="-2357" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_173vlty_di" bpmnElement="Flow_173vlty">
+        <di:waypoint x="-1242" y="845" />
+        <di:waypoint x="-1242" y="630" />
+        <di:waypoint x="-1157" y="630" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="786" y="1043" width="9" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_170st20_di" bpmnElement="Flow_170st20">
+        <di:waypoint x="-1057" y="630" />
+        <di:waypoint x="-917" y="630" />
+        <di:waypoint x="-917" y="830" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ytysgz_di" bpmnElement="Flow_1ytysgz">
+        <di:waypoint x="-1317" y="870" />
+        <di:waypoint x="-1267" y="870" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_14fmvml_di" bpmnElement="Flow_14fmvml">
+        <di:waypoint x="-1217" y="870" />
+        <di:waypoint x="-967" y="870" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="-1122" y="853" width="16" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_083d9jf_di" bpmnElement="Flow_083d9jf">
+        <di:waypoint x="-1557" y="630" />
+        <di:waypoint x="-1507" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0k3xys3_di" bpmnElement="Flow_0k3xys3">
+        <di:waypoint x="-1457" y="630" />
+        <di:waypoint x="-1367" y="630" />
+        <di:waypoint x="-1367" y="830" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_odoo_xor_di" bpmnElement="Flow_to_odoo_xor">
+        <di:waypoint x="-2481" y="870" />
+        <di:waypoint x="-2427" y="870" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_163pitc_di" bpmnElement="Flow_163pitc">
+        <di:waypoint x="-867" y="870" />
+        <di:waypoint x="-667" y="870" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1t8secs_di" bpmnElement="Flow_1t8secs">
+        <di:waypoint x="-567" y="870" />
+        <di:waypoint x="-540" y="870" />
+        <di:waypoint x="-540" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1obaitj_di" bpmnElement="Flow_1obaitj">
+        <di:waypoint x="-317" y="1065" />
+        <di:waypoint x="-317" y="1110" />
+        <di:waypoint x="-147" y="1110" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1fv92w4_di" bpmnElement="Flow_1fv92w4">
+        <di:waypoint x="-47" y="1110" />
+        <di:waypoint x="240" y="1110" />
+        <di:waypoint x="240" y="1045" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0kqz9se_di" bpmnElement="Flow_0kqz9se">
+        <di:waypoint x="-411" y="625" />
+        <di:waypoint x="-411" y="1040" />
+        <di:waypoint x="-342" y="1040" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1vn805m_di" bpmnElement="Flow_1vn805m">
+        <di:waypoint x="-317" y="1015" />
+        <di:waypoint x="-317" y="970" />
+        <di:waypoint x="-260" y="970" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0um5483_di" bpmnElement="Flow_0um5483">
+        <di:waypoint x="-160" y="970" />
+        <di:waypoint x="-135" y="970" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0ayekxq_di" bpmnElement="Flow_0ayekxq">
+        <di:waypoint x="-85" y="970" />
+        <di:waypoint x="-48" y="970" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0gf196k_di" bpmnElement="Flow_0gf196k">
+        <di:waypoint x="-110" y="945" />
+        <di:waypoint x="-110" y="828" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="-102" y="873" width="44" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1bhvuz2_di" bpmnElement="Flow_1bhvuz2">
+        <di:waypoint x="470" y="1020" />
+        <di:waypoint x="532" y="1020" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0lohuzx_di" bpmnElement="Flow_0lohuzx">
+        <di:waypoint x="265" y="1020" />
+        <di:waypoint x="370" y="1020" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_19hqg7q_di" bpmnElement="Flow_19hqg7q">
+        <di:waypoint x="95" y="970" />
+        <di:waypoint x="240" y="970" />
+        <di:waypoint x="240" y="995" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0alxa22_di" bpmnElement="Flow_0alxa22">
+        <di:waypoint x="-12" y="970" />
+        <di:waypoint x="45" y="970" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1yehuez_di" bpmnElement="Flow_1yehuez">
+        <di:waypoint x="970" y="870" />
+        <di:waypoint x="1200" y="870" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0ksveij_di" bpmnElement="Flow_0ksveij">
+        <di:waypoint x="1300" y="890" />
+        <di:waypoint x="1450" y="890" />
+        <di:waypoint x="1450" y="515" />
+        <di:waypoint x="1813" y="515" />
+        <di:waypoint x="1813" y="495" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1gxtapo_di" bpmnElement="Flow_1gxtapo">
+        <di:waypoint x="-490" y="600" />
+        <di:waypoint x="-436" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0i1pcvp_di" bpmnElement="Flow_0i1pcvp">
+        <di:waypoint x="-386" y="600" />
+        <di:waypoint x="-330" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_create_to_merge_di" bpmnElement="Flow_create_to_merge">
+        <di:waypoint x="-2307" y="750" />
+        <di:waypoint x="-2307" y="630" />
+        <di:waypoint x="-2238" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0x3o1yk_di" bpmnElement="Flow_0x3o1yk">
+        <di:waypoint x="-2402" y="895" />
+        <di:waypoint x="-2402" y="930" />
+        <di:waypoint x="-2220" y="930" />
+        <di:waypoint x="-2220" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1jesyfw_di" bpmnElement="Flow_1jesyfw">
+        <di:waypoint x="-1860" y="1320" />
+        <di:waypoint x="-1834" y="1320" />
+        <di:waypoint x="-1834" y="1310" />
+        <di:waypoint x="-1768" y="1310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1hmv8i7_di" bpmnElement="Flow_1hmv8i7">
+        <di:waypoint x="-2202" y="630" />
+        <di:waypoint x="-2145" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_06ye3n6_di" bpmnElement="Flow_06ye3n6">
+        <di:waypoint x="-2095" y="630" />
+        <di:waypoint x="-1990" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0shb395_di" bpmnElement="Flow_0shb395">
+        <di:waypoint x="-2120" y="655" />
+        <di:waypoint x="-2120" y="1340" />
+        <di:waypoint x="-1960" y="1340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ipcmyd_di" bpmnElement="Flow_1ipcmyd">
+        <di:waypoint x="-1890" y="630" />
+        <di:waypoint x="-1657" y="630" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
