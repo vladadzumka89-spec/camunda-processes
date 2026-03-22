@@ -398,6 +398,109 @@ x_studio_camunda_
 
 ---
 
+## Правила візуальної розкладки BPMN (DI координати)
+
+### Розміри елементів
+
+| Елемент | width x height |
+|---------|---------------|
+| Start/End Event | 36 x 36 |
+| Gateway | 50 x 50 |
+| Task (Service/User/Business Rule) | 100 x 80 |
+| Boundary Event | 36 x 36 |
+
+### Базові відступи
+
+| Константа | Значення | Опис |
+|-----------|----------|------|
+| POOL_X | 105 | Лівий край пулу |
+| POOL_Y | 90 | Верхній край пулу |
+| LANE_X | 135 | Початок елементів (POOL_X + 30 на label) |
+| H_SPACING | 80 | Мінімальний горизонтальний зазор між елементами |
+| V_PADDING | 30 | Вертикальний відступ від краю lane |
+| MIN_LANE_HEIGHT | 170 | Мінімальна висота lane з tasks |
+
+### Розрахунок розмірів
+
+```
+Pool width = max(2000, X_правого_елемента + 80 + 30)
+Pool height = сума висот всіх lanes
+Lane width = Pool width - 30
+Lane height = max(170, кількість_рядків * 120 + 60)
+```
+
+### Розташування елементів
+
+- Елементи розміщуються **по колонках** зліва направо з кроком ~180px
+- В кожній lane елементи центруються вертикально
+- Паралельні гілки (після AND gateway) — рознести по різних рядках з відступом мінімум 120px по Y
+- **НЕ ставити два елементи на однакові або близькі координати**
+
+### Маршрутизація стрілок (КРИТИЧНО)
+
+**❌ ЗАБОРОНЕНО:** діагональні стрілки з 2 waypoints через елементи
+
+**Шаблони маршрутизації:**
+
+**1. Горизонтальна (та сама lane, той самий Y):** 2 waypoints
+```xml
+<di:waypoint x="[source_right]" y="[center_y]" />
+<di:waypoint x="[target_left]" y="[center_y]" />
+```
+
+**2. L-форма (та сама lane, різний Y):** 4 waypoints
+```xml
+<di:waypoint x="[source_right]" y="[source_cy]" />
+<di:waypoint x="[source_right + 30]" y="[source_cy]" />
+<di:waypoint x="[source_right + 30]" y="[target_cy]" />
+<di:waypoint x="[target_left]" y="[target_cy]" />
+```
+
+**3. Z-форма (крос-lane, вперед):** 4 waypoints
+```xml
+<di:waypoint x="[source_right]" y="[source_cy]" />
+<di:waypoint x="[mid_x]" y="[source_cy]" />
+<di:waypoint x="[mid_x]" y="[target_cy]" />
+<di:waypoint x="[target_left]" y="[target_cy]" />
+```
+де `mid_x = (source_right + target_left) / 2`
+
+**4. Зворотній потік (loop назад):** 6 waypoints — маршрут ВГОРУ через коридор над пулом
+```xml
+<di:waypoint x="[source_left]" y="[source_cy]" />
+<di:waypoint x="[source_left - 20]" y="[source_cy]" />
+<di:waypoint x="[source_left - 20]" y="[POOL_Y - 10]" />
+<di:waypoint x="[target_left - 20]" y="[POOL_Y - 10]" />
+<di:waypoint x="[target_left - 20]" y="[target_cy]" />
+<di:waypoint x="[target_left]" y="[target_cy]" />
+```
+
+**5. Від boundary event (вниз/вбік):** 2-3 waypoints
+```xml
+<di:waypoint x="[be_cx]" y="[be_bottom]" />
+<di:waypoint x="[be_cx]" y="[target_cy]" />
+<di:waypoint x="[target_left]" y="[target_cy]" />
+```
+
+### Boundary events — розташування на задачі
+
+```
+Нагадування: x = task_x + 10,  y = task_y + task_h - 18
+Дедлайн:     x = task_x + 54,  y = task_y + task_h - 18
+```
+Обидва на нижній межі задачі, з відступом 44px між собою.
+
+### Анти-патерни розкладки
+
+❌ Два елементи з однаковими координатами (накладання)
+❌ Стрілка з 2 waypoints що йде по діагоналі через інший елемент
+❌ Елемент виходить за межі своєї lane
+❌ Boundary event відірваний від батьківського task
+❌ Паралельні гілки на однаковому Y (злипаються)
+❌ Зворотній потік (loop) що перетинає елементи — має йти через коридор над пулом
+
+---
+
 ## Правила роботи з Git та GitHub
 
 - **НЕ виконувати жодних git-дій** (commit, push, checkout, branch, merge, rebase тощо) без прямої вказівки користувача
