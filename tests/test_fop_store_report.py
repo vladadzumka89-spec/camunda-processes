@@ -100,7 +100,6 @@ class TestFetchTerminalBindings:
                 "store_name": "920 П Буковина Черн.",
                 "binding_date": "17.03.2026",
                 "fop_name": "ФОП Петренко В.В.",
-                "responsible": "Муляєво Наталія",
             },
         ]
         conn = self._make_conn(rows)
@@ -115,13 +114,11 @@ class TestFetchTerminalBindings:
                 "store_name": "920 П Буковина Черн.",
                 "binding_date": "16.12.2025",
                 "fop_name": "ФОП Іванов І.І.",
-                "responsible": "Зборов Олександр",
             },
             {
                 "store_name": "920 П Буковина Черн.",
                 "binding_date": "06.02.2026",
                 "fop_name": "ФОП Петренко В.В.",
-                "responsible": "Мікрилевська Інга",
             },
         ]
         conn = self._make_conn(rows)
@@ -170,8 +167,8 @@ class TestDetermineCurrentFop:
 
     def test_from_binding_history(self):
         bindings = [
-            {"date": "16.12.2025", "fop_name": "ФОП Іванов", "responsible": "A"},
-            {"date": "06.02.2026", "fop_name": "ФОП Петренко", "responsible": "B"},
+            {"date": "16.12.2025", "fop_name": "ФОП Іванов", },
+            {"date": "06.02.2026", "fop_name": "ФОП Петренко"},
         ]
         fops_list = [
             {"fop_name": "ФОП Іванов", "fop_edrpou": "111", "income_from_store": 500_000},
@@ -182,7 +179,7 @@ class TestDetermineCurrentFop:
 
     def test_from_binding_with_edrpou_match(self):
         bindings = [
-            {"date": "06.02.2026", "fop_name": "ФОП Петренко", "responsible": "B"},
+            {"date": "06.02.2026", "fop_name": "ФОП Петренко", },
         ]
         fops_list = [
             {"fop_name": "ФОП Іванов", "fop_edrpou": "111", "income_from_store": 100_000},
@@ -225,7 +222,7 @@ class TestEnrichStoresReport:
             "organization": "ФАМО",
         }
         bindings = [
-            {"date": "06.02.2026", "fop_name": "ФОП Петренко", "responsible": "Тест"},
+            {"date": "06.02.2026", "fop_name": "ФОП Петренко"},
         ]
         monthly = {1: 120_000, 2: 150_000, 3: 170_000}
         current_month = 3

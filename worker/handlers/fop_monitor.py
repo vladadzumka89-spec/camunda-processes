@@ -211,12 +211,15 @@ def _fetch_active_fops(conn, year: int) -> list:
             o._Fld1494 AS edrpou
         FROM _Document236 d
         JOIN _Reference90 o ON d._Fld6004RRef = o._IDRRef
+        JOIN _Document236_VT6023 vt ON vt._Document236_IDRRef = d._IDRRef
+        JOIN _Reference129 r129 ON r129._IDRRef = vt._Fld6037RRef
         WHERE d._Posted = 0x01
             AND d._Marked = 0x00
             AND d._Date_Time >= %s AND d._Date_Time < %s
             AND o._Marked = 0x00
             AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
             AND o._Description NOT LIKE N'яяя%%'
+            AND r129._Description = N'Стоимость проданных товаров (работ, услуг)'
         ORDER BY o._Description
     """
     bas_start = f"{year + BAS_YEAR_OFFSET}-01-01"
@@ -570,11 +573,14 @@ def _fetch_fop_stores(conn, year: int) -> dict:
             d._Fld6010 AS amount
         FROM _Document236 d
         JOIN _Reference90 o ON d._Fld6004RRef = o._IDRRef
+        JOIN _Document236_VT6023 vt ON vt._Document236_IDRRef = d._IDRRef
+        JOIN _Reference129 r129 ON r129._IDRRef = vt._Fld6037RRef
         WHERE d._Posted = 0x01 AND d._Marked = 0x00
             AND d._Date_Time >= %s AND d._Date_Time < %s
             AND o._Marked = 0x00
             AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
             AND o._Description NOT LIKE N'яяя%%'
+            AND r129._Description = N'Стоимость проданных товаров (работ, услуг)'
     """
     cursor = conn.cursor(as_dict=True)
     try:
@@ -957,11 +963,14 @@ def _fetch_seasonal_coefficients(conn, year: int) -> tuple[dict, dict]:
             d._Fld6010 AS amount
         FROM _Document236 d
         JOIN _Reference90 o ON d._Fld6004RRef = o._IDRRef
+        JOIN _Document236_VT6023 vt ON vt._Document236_IDRRef = d._IDRRef
+        JOIN _Reference129 r129 ON r129._IDRRef = vt._Fld6037RRef
         WHERE d._Posted = 0x01 AND d._Marked = 0x00
             AND d._Date_Time >= %s AND d._Date_Time < %s
             AND o._Marked = 0x00
             AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
             AND o._Description NOT LIKE N'яяя%%'
+            AND r129._Description = N'Стоимость проданных товаров (работ, услуг)'
     """
     cursor = conn.cursor(as_dict=True)
     try:
@@ -1056,11 +1065,14 @@ def _fetch_terminal_changes(conn, year: int) -> dict:
             d._Fld6019 AS purpose
         FROM _Document236 d
         JOIN _Reference90 o ON d._Fld6004RRef = o._IDRRef
+        JOIN _Document236_VT6023 vt ON vt._Document236_IDRRef = d._IDRRef
+        JOIN _Reference129 r129 ON r129._IDRRef = vt._Fld6037RRef
         WHERE d._Posted = 0x01 AND d._Marked = 0x00
             AND d._Date_Time >= %s AND d._Date_Time < %s
             AND o._Marked = 0x00
             AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
             AND o._Description NOT LIKE N'яяя%%'
+            AND r129._Description = N'Стоимость проданных товаров (работ, услуг)'
             AND d._Fld6019 LIKE N'%%cmps%%'
     """
     cursor = conn.cursor(as_dict=True)
@@ -1189,25 +1201,28 @@ def _fetch_monthly_store_income(conn, year: int) -> dict[str, dict[int, float]]:
 def _fetch_terminal_bindings(conn, year: int) -> dict[str, list[dict]]:
     """Fetch terminal binding history from BAS.
 
-    Source: "Прив'язка платіжних терміналів" table in 1C:FAMO.
-    Returns store_name → list of binding records sorted by date.
+    Source: РегистрСведений.ТУТ_ДополнительныеДанныеДляОтчетов
+    SQL table: _InfoRg28391, filtered by _Fld28393 = 'Терминал'.
 
-    Graceful degradation: returns {} on any DB error (table may not exist).
+    Fields:
+        _Fld28392RRef → _Reference90 (Організація / ФОП)
+        _Fld28393     → Свойство (filter: 'Терминал')
+        _Fld28396RRef → _Reference100 (Підрозділ / магазин)
+        _Period       → дата прив'язки (BAS offset +2000)
+
+    Returns store_name → list of binding records sorted by date.
+    Graceful degradation: returns {} on any DB error.
     """
-    # NOTE: Table/field names need verification against actual BAS DB schema.
-    # The table "ПривязкаПлатежныхТерминалов" maps to _InfoRg* or _Document*.
-    # Below is a placeholder SQL — update field names after schema discovery.
     sql = """
         SELECT
-            s._Description AS store_name,
+            r100._Description AS store_name,
             CONVERT(varchar, DATEADD(year, -2000, t._Period), 104) AS binding_date,
-            o._Description AS fop_name,
-            u._Description AS responsible
-        FROM _InfoRgXXXXX t                          -- TODO: real table name
-        JOIN _Reference116 s ON t._FldXXXXXRRef = s._IDRRef   -- store
-        JOIN _Reference90 o ON t._FldXXXXXRRef = o._IDRRef    -- counterparty (FOP)
-        LEFT JOIN _Reference84 u ON t._FldXXXXXRRef = u._IDRRef  -- responsible user
-        ORDER BY s._Description, t._Period
+            r90._Description AS fop_name
+        FROM _InfoRg28391 t
+        JOIN _Reference100 r100 ON r100._IDRRef = t._Fld28396RRef
+        JOIN _Reference90 r90 ON r90._IDRRef = t._Fld28392RRef
+        WHERE t._Fld28393 = N'Терминал'
+        ORDER BY r100._Description, t._Period
     """
     cursor = conn.cursor(as_dict=True)
     try:
@@ -1218,7 +1233,6 @@ def _fetch_terminal_bindings(conn, year: int) -> dict[str, list[dict]]:
             result[name].append({
                 "date": row["binding_date"],
                 "fop_name": row["fop_name"].strip() if row["fop_name"] else "",
-                "responsible": row["responsible"].strip() if row["responsible"] else "",
             })
         return dict(result)
     except Exception as e:
@@ -1623,7 +1637,7 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
             name = s["name"]
             if name not in store_agg:
                 store_agg[name] = {
-                    "store_name": name,
+                    "subdivision": name,
                     "source": s.get("source", ""),
                     "total_income": 0.0,
                     "fops": [],
@@ -1655,7 +1669,7 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
                 org = ""
         else:
             org = ""
-        data["organization"] = org
+        data["company"] = org
         data["fop_count"] = len(data["fops"])
         data["total_income"] = round(data["total_income"], 2)
 
