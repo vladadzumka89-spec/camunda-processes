@@ -16,168 +16,293 @@
 
     <decisionTable id="DecisionTable_OZ" hitPolicy="FIRST">
 
-      <!-- INPUT: ID підрозділу -->
+      <!-- INPUT 1: ID підрозділу -->
       <input id="Input_dept" label="ID підрозділу">
         <inputExpression id="InputExpr_dept" typeRef="number">
           <text>x_studio_camunda_pidrozdil</text>
         </inputExpression>
       </input>
 
+      <!-- INPUT 2: Посада -->
+      <input id="Input_position" label="Посада">
+        <inputExpression id="InputExpr_position" typeRef="string">
+          <text>x_studio_camunda_position_id</text>
+        </inputExpression>
+      </input>
+
       <!-- OUTPUT: перелік ОЗ для видачі -->
       <output id="Output_oz_list" label="Перелік ОЗ" name="oz_list" typeRef="string" />
 
-      <!-- Правило 1: 101 Call-center (ID 1424) — з навушниками -->
+      <!-- === 101 Call-center (ID 1424) — з гарнітурою === -->
       <rule id="Rule_callcenter">
         <description>101 Call-center</description>
-        <inputEntry id="IE_callcenter">
-          <text>1424</text>
-        </inputEntry>
-        <outputEntry id="OE_callcenter">
-          <text>"Навушники, ноутбук, монітор, стіл, стілець"</text>
-        </outputEntry>
+        <inputEntry id="IE_cc_dept"><text>1424</text></inputEntry>
+        <inputEntry id="IE_cc_pos"><text></text></inputEntry>
+        <outputEntry id="OE_cc"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло, гарнітура"</text></outputEntry>
       </rule>
 
-      <!-- Правило 2: 103 Офіс (ID 1399) -->
-      <rule id="Rule_office">
-        <description>103 Офіс</description>
-        <inputEntry id="IE_office">
-          <text>1399</text>
-        </inputEntry>
-        <outputEntry id="OE_office">
-          <text>"Ноутбук, монітор, стіл, стілець"</text>
-        </outputEntry>
+      <!-- === Комерційний відділ (ID 1401) — 2 монітори + гарнітура === -->
+      <rule id="Rule_commercial">
+        <description>Комерційний відділ</description>
+        <inputEntry id="IE_com_dept"><text>1401</text></inputEntry>
+        <inputEntry id="IE_com_pos"><text></text></inputEntry>
+        <outputEntry id="OE_com"><text>"2 монітори, ноутбук, мишка, килимок, стіл, крісло, гарнітура"</text></outputEntry>
       </rule>
 
-      <!-- Правило 3: 102 Фіни, бухи, кадри (ID 1425) -->
-      <rule id="Rule_finance">
-        <description>102 Фіни, бухи, кадри</description>
-        <inputEntry id="IE_finance">
-          <text>1425</text>
-        </inputEntry>
-        <outputEntry id="OE_finance">
-          <text>"Ноутбук, монітор, стіл, стілець"</text>
-        </outputEntry>
+      <!-- === 200 Логістичний центр (ID 1400) — Комірник: нічого === -->
+      <rule id="Rule_log_sk">
+        <description>200 Логістичний центр — Комірник</description>
+        <inputEntry id="IE_log_sk_dept"><text>1400</text></inputEntry>
+        <inputEntry id="IE_log_sk_pos"><text>"Комірник"</text></inputEntry>
+        <outputEntry id="OE_log_sk"><text>""</text></outputEntry>
       </rule>
 
-      <!-- Правило 4: 108 Бухгалтерія (ID 1472) -->
-      <rule id="Rule_accounting">
-        <description>108 Бухгалтерія</description>
-        <inputEntry id="IE_accounting">
-          <text>1472</text>
-        </inputEntry>
-        <outputEntry id="OE_accounting">
-          <text>"Ноутбук, монітор, стіл, стілець"</text>
-        </outputEntry>
-      </rule>
-
-      <!-- Правило 5: 110 Департамент якості (ID 1573) -->
-      <rule id="Rule_quality">
-        <description>110 Департамент якості</description>
-        <inputEntry id="IE_quality">
-          <text>1573</text>
-        </inputEntry>
-        <outputEntry id="OE_quality">
-          <text>"Ноутбук, монітор, стіл, стілець"</text>
-        </outputEntry>
-      </rule>
-
-      <!-- Правило 6: 131 Маркетинг (ID 1415) -->
-      <rule id="Rule_marketing">
-        <description>131 Маркетинг</description>
-        <inputEntry id="IE_marketing">
-          <text>1415</text>
-        </inputEntry>
-        <outputEntry id="OE_marketing">
-          <text>"Ноутбук, монітор, стіл, стілець"</text>
-        </outputEntry>
-      </rule>
-
-      <!-- Правило 7: 133 Фотографи (ID 1417) -->
-      <rule id="Rule_photo">
-        <description>133 Фотографи</description>
-        <inputEntry id="IE_photo">
-          <text>1417</text>
-        </inputEntry>
-        <outputEntry id="OE_photo">
-          <text>"Ноутбук, монітор, стіл, стілець"</text>
-        </outputEntry>
-      </rule>
-
-      <!-- Правило 8: 151 Рекрутинг (ID 1428) -->
-      <rule id="Rule_recruiting">
-        <description>151 Рекрутинг</description>
-        <inputEntry id="IE_recruiting">
-          <text>1428</text>
-        </inputEntry>
-        <outputEntry id="OE_recruiting">
-          <text>"Ноутбук, монітор, стіл, стілець"</text>
-        </outputEntry>
-      </rule>
-
-      <!-- Правило 9: 200 Логістичний центр (ID 1400) -->
+      <!-- === 200 Логістичний центр (ID 1400) — решта === -->
       <rule id="Rule_logistics">
         <description>200 Логістичний центр</description>
-        <inputEntry id="IE_logistics">
-          <text>1400</text>
-        </inputEntry>
-        <outputEntry id="OE_logistics">
-          <text>"Ноутбук, монітор, стіл, стілець"</text>
-        </outputEntry>
+        <inputEntry id="IE_log_dept"><text>1400</text></inputEntry>
+        <inputEntry id="IE_log_pos"><text></text></inputEntry>
+        <outputEntry id="OE_log"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
       </rule>
 
-      <!-- Правило 10: 208 Контент відділ (ID 1436) -->
-      <rule id="Rule_content">
-        <description>208 Контент відділ</description>
-        <inputEntry id="IE_content">
-          <text>1436</text>
-        </inputEntry>
-        <outputEntry id="OE_content">
-          <text>"Ноутбук, монітор, стіл, стілець"</text>
-        </outputEntry>
+      <!-- === 206 Відвантаження/доставка (ID 1435) — Комірник: нічого === -->
+      <rule id="Rule_206_sk">
+        <description>206 Відвантаження/доставка — Комірник</description>
+        <inputEntry id="IE_206_sk_dept"><text>1435</text></inputEntry>
+        <inputEntry id="IE_206_sk_pos"><text>"Комірник"</text></inputEntry>
+        <outputEntry id="OE_206_sk"><text>""</text></outputEntry>
       </rule>
 
-      <!-- Правило 11: 209 RnD (ID 1422) -->
-      <rule id="Rule_rnd">
-        <description>209 RnD</description>
-        <inputEntry id="IE_rnd">
-          <text>1422</text>
-        </inputEntry>
-        <outputEntry id="OE_rnd">
-          <text>"Ноутбук, монітор, стіл, стілець"</text>
-        </outputEntry>
+      <!-- === 206 Відвантаження/доставка (ID 1435) — решта === -->
+      <rule id="Rule_206">
+        <description>206 Відвантаження/доставка</description>
+        <inputEntry id="IE_206_dept"><text>1435</text></inputEntry>
+        <inputEntry id="IE_206_pos"><text></text></inputEntry>
+        <outputEntry id="OE_206"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
       </rule>
 
-      <!-- Правило 12: 400 Швейне виробництво (ID 1394) -->
+      <!-- === 202 Прийом/зберігання (ID 1434) — Комірник: нічого === -->
+      <rule id="Rule_202_sk">
+        <description>202 Прийом/зберігання — Комірник</description>
+        <inputEntry id="IE_202_sk_dept"><text>1434</text></inputEntry>
+        <inputEntry id="IE_202_sk_pos"><text>"Комірник"</text></inputEntry>
+        <outputEntry id="OE_202_sk"><text>""</text></outputEntry>
+      </rule>
+
+      <!-- === 202 Прийом/зберігання (ID 1434) — решта === -->
+      <rule id="Rule_202">
+        <description>202 Прийом/зберігання</description>
+        <inputEntry id="IE_202_dept"><text>1434</text></inputEntry>
+        <inputEntry id="IE_202_pos"><text></text></inputEntry>
+        <outputEntry id="OE_202"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 400 Швейне (ID 1394) — Конструктор: потужний ноутбук === -->
+      <rule id="Rule_sew_constr">
+        <description>400 Швейне — Конструктор</description>
+        <inputEntry id="IE_sew_c_dept"><text>1394</text></inputEntry>
+        <inputEntry id="IE_sew_c_pos"><text>"Конструктор"</text></inputEntry>
+        <outputEntry id="OE_sew_c"><text>"Монітор, ноутбук з потужнішими параметрами, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 400 Швейне (ID 1394) — Оператор === -->
+      <rule id="Rule_sew_oper">
+        <description>400 Швейне — Оператор</description>
+        <inputEntry id="IE_sew_o_dept"><text>1394</text></inputEntry>
+        <inputEntry id="IE_sew_o_pos"><text>"Оператор"</text></inputEntry>
+        <outputEntry id="OE_sew_o"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 400 Швейне (ID 1394) — решта === -->
       <rule id="Rule_sewing">
         <description>400 Швейне виробництво</description>
-        <inputEntry id="IE_sewing">
-          <text>1394</text>
-        </inputEntry>
-        <outputEntry id="OE_sewing">
-          <text>"Ноутбук, монітор, стіл, стілець"</text>
-        </outputEntry>
+        <inputEntry id="IE_sew_dept"><text>1394</text></inputEntry>
+        <inputEntry id="IE_sew_pos"><text></text></inputEntry>
+        <outputEntry id="OE_sew"><text>"Ноутбук, монітор, стіл, стілець"</text></outputEntry>
       </rule>
 
-      <!-- Правило 13: 600 Роздріб Фамо (ID 1414) -->
+      <!-- === 401 Розробка (ID 1602) — Конструктор: потужний ноутбук === -->
+      <rule id="Rule_401_constr">
+        <description>401 Розробка — Конструктор</description>
+        <inputEntry id="IE_401_c_dept"><text>1602</text></inputEntry>
+        <inputEntry id="IE_401_c_pos"><text>"Конструктор"</text></inputEntry>
+        <outputEntry id="OE_401_c"><text>"Монітор, ноутбук з потужнішими параметрами, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 401 Розробка (ID 1602) — Оператор === -->
+      <rule id="Rule_401_oper">
+        <description>401 Розробка — Оператор</description>
+        <inputEntry id="IE_401_o_dept"><text>1602</text></inputEntry>
+        <inputEntry id="IE_401_o_pos"><text>"Оператор"</text></inputEntry>
+        <outputEntry id="OE_401_o"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 401 Розробка (ID 1602) — решта === -->
+      <rule id="Rule_401">
+        <description>401 Розробка</description>
+        <inputEntry id="IE_401_dept"><text>1602</text></inputEntry>
+        <inputEntry id="IE_401_pos"><text></text></inputEntry>
+        <outputEntry id="OE_401"><text>"Ноутбук, монітор, стіл, стілець"</text></outputEntry>
+      </rule>
+
+      <!-- === 402 Поопераційний цех (ID 1405) — Конструктор: потужний ноутбук === -->
+      <rule id="Rule_402_constr">
+        <description>402 Поопераційний цех — Конструктор</description>
+        <inputEntry id="IE_402_c_dept"><text>1405</text></inputEntry>
+        <inputEntry id="IE_402_c_pos"><text>"Конструктор"</text></inputEntry>
+        <outputEntry id="OE_402_c"><text>"Монітор, ноутбук з потужнішими параметрами, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 402 Поопераційний цех (ID 1405) — Оператор === -->
+      <rule id="Rule_402_oper">
+        <description>402 Поопераційний цех — Оператор</description>
+        <inputEntry id="IE_402_o_dept"><text>1405</text></inputEntry>
+        <inputEntry id="IE_402_o_pos"><text>"Оператор"</text></inputEntry>
+        <outputEntry id="OE_402_o"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 402 Поопераційний цех (ID 1405) — решта === -->
+      <rule id="Rule_402">
+        <description>402 Поопераційний цех</description>
+        <inputEntry id="IE_402_dept"><text>1405</text></inputEntry>
+        <inputEntry id="IE_402_pos"><text></text></inputEntry>
+        <outputEntry id="OE_402"><text>"Ноутбук, монітор, стіл, стілець"</text></outputEntry>
+      </rule>
+
+      <!-- === 410 Підготовчий відділ (ID 1594) — Конструктор: потужний ноутбук === -->
+      <rule id="Rule_410_constr">
+        <description>410 Підготовчий відділ — Конструктор</description>
+        <inputEntry id="IE_410_c_dept"><text>1594</text></inputEntry>
+        <inputEntry id="IE_410_c_pos"><text>"Конструктор"</text></inputEntry>
+        <outputEntry id="OE_410_c"><text>"Монітор, ноутбук з потужнішими параметрами, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 410 Підготовчий відділ (ID 1594) — Оператор === -->
+      <rule id="Rule_410_oper">
+        <description>410 Підготовчий відділ — Оператор</description>
+        <inputEntry id="IE_410_o_dept"><text>1594</text></inputEntry>
+        <inputEntry id="IE_410_o_pos"><text>"Оператор"</text></inputEntry>
+        <outputEntry id="OE_410_o"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 410 Підготовчий відділ (ID 1594) — решта === -->
+      <rule id="Rule_410">
+        <description>410 Підготовчий відділ</description>
+        <inputEntry id="IE_410_dept"><text>1594</text></inputEntry>
+        <inputEntry id="IE_410_pos"><text></text></inputEntry>
+        <outputEntry id="OE_410"><text>"Ноутбук, монітор, стіл, стілець"</text></outputEntry>
+      </rule>
+
+      <!-- === 420 Виробництво цехи (ID 1603) — Конструктор: потужний ноутбук === -->
+      <rule id="Rule_420_constr">
+        <description>420 Виробництво (цехи) — Конструктор</description>
+        <inputEntry id="IE_420_c_dept"><text>1603</text></inputEntry>
+        <inputEntry id="IE_420_c_pos"><text>"Конструктор"</text></inputEntry>
+        <outputEntry id="OE_420_c"><text>"Монітор, ноутбук з потужнішими параметрами, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 420 Виробництво цехи (ID 1603) — Оператор === -->
+      <rule id="Rule_420_oper">
+        <description>420 Виробництво (цехи) — Оператор</description>
+        <inputEntry id="IE_420_o_dept"><text>1603</text></inputEntry>
+        <inputEntry id="IE_420_o_pos"><text>"Оператор"</text></inputEntry>
+        <outputEntry id="OE_420_o"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 420 Виробництво цехи (ID 1603) — решта === -->
+      <rule id="Rule_420">
+        <description>420 Виробництво (цехи)</description>
+        <inputEntry id="IE_420_dept"><text>1603</text></inputEntry>
+        <inputEntry id="IE_420_pos"><text></text></inputEntry>
+        <outputEntry id="OE_420"><text>"Ноутбук, монітор, стіл, стілець"</text></outputEntry>
+      </rule>
+
+      <!-- === 103 Офіс (ID 1399) === -->
+      <rule id="Rule_office">
+        <description>103 Офіс</description>
+        <inputEntry id="IE_off_dept"><text>1399</text></inputEntry>
+        <inputEntry id="IE_off_pos"><text></text></inputEntry>
+        <outputEntry id="OE_off"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 102 Фіни, бухи, кадри (ID 1425) === -->
+      <rule id="Rule_finance">
+        <description>102 Фіни, бухи, кадри</description>
+        <inputEntry id="IE_fin_dept"><text>1425</text></inputEntry>
+        <inputEntry id="IE_fin_pos"><text></text></inputEntry>
+        <outputEntry id="OE_fin"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 108 Бухгалтерія (ID 1472) === -->
+      <rule id="Rule_accounting">
+        <description>108 Бухгалтерія</description>
+        <inputEntry id="IE_acc_dept"><text>1472</text></inputEntry>
+        <inputEntry id="IE_acc_pos"><text></text></inputEntry>
+        <outputEntry id="OE_acc"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 110 Департамент якості (ID 1573) === -->
+      <rule id="Rule_quality">
+        <description>110 Департамент якості</description>
+        <inputEntry id="IE_qual_dept"><text>1573</text></inputEntry>
+        <inputEntry id="IE_qual_pos"><text></text></inputEntry>
+        <outputEntry id="OE_qual"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 131 Маркетинг (ID 1415) === -->
+      <rule id="Rule_marketing">
+        <description>131 Маркетинг</description>
+        <inputEntry id="IE_mark_dept"><text>1415</text></inputEntry>
+        <inputEntry id="IE_mark_pos"><text></text></inputEntry>
+        <outputEntry id="OE_mark"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 133 Фотографи (ID 1417) === -->
+      <rule id="Rule_photo">
+        <description>133 Фотографи</description>
+        <inputEntry id="IE_ph_dept"><text>1417</text></inputEntry>
+        <inputEntry id="IE_ph_pos"><text></text></inputEntry>
+        <outputEntry id="OE_ph"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 151 Рекрутинг (ID 1428) === -->
+      <rule id="Rule_recruiting">
+        <description>151 Рекрутинг</description>
+        <inputEntry id="IE_rec_dept"><text>1428</text></inputEntry>
+        <inputEntry id="IE_rec_pos"><text></text></inputEntry>
+        <outputEntry id="OE_rec"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 208 Контент відділ (ID 1436) === -->
+      <rule id="Rule_content">
+        <description>208 Контент відділ</description>
+        <inputEntry id="IE_cont_dept"><text>1436</text></inputEntry>
+        <inputEntry id="IE_cont_pos"><text></text></inputEntry>
+        <outputEntry id="OE_cont"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 209 RnD (ID 1422) === -->
+      <rule id="Rule_rnd">
+        <description>209 RnD</description>
+        <inputEntry id="IE_rnd_dept"><text>1422</text></inputEntry>
+        <inputEntry id="IE_rnd_pos"><text></text></inputEntry>
+        <outputEntry id="OE_rnd"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
+      </rule>
+
+      <!-- === 600 Роздріб Фамо (ID 1414) === -->
       <rule id="Rule_famo">
         <description>600 Роздріб Фамо</description>
-        <inputEntry id="IE_famo">
-          <text>1414</text>
-        </inputEntry>
-        <outputEntry id="OE_famo">
-          <text>"Ноутбук, монітор, стіл, стілець"</text>
-        </outputEntry>
+        <inputEntry id="IE_famo_dept"><text>1414</text></inputEntry>
+        <inputEntry id="IE_famo_pos"><text></text></inputEntry>
+        <outputEntry id="OE_famo"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
       </rule>
 
-      <!-- Правило default: інший підрозділ -->
+      <!-- === Default: інший підрозділ === -->
       <rule id="Rule_default">
         <description>Інший підрозділ</description>
-        <inputEntry id="IE_default">
-          <text></text>
-        </inputEntry>
-        <outputEntry id="OE_default">
-          <text>"Ноутбук, монітор, стіл, стілець"</text>
-        </outputEntry>
+        <inputEntry id="IE_def_dept"><text></text></inputEntry>
+        <inputEntry id="IE_def_pos"><text></text></inputEntry>
+        <outputEntry id="OE_def"><text>"Монітор, ноутбук, мишка, килимок, стіл, крісло"</text></outputEntry>
       </rule>
 
     </decisionTable>
