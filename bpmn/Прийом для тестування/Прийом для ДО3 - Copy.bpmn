@@ -1,0 +1,414 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_DO3_Test" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:process id="Process_0p6254o" name="Інтеграція ДО3 (тест)" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1" name="Старт">
+      <bpmn:outgoing>Flow_To_Form</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_To_Form" sourceRef="StartEvent_1" targetRef="Gateway_04z50k3" />
+    <bpmn:serviceTask id="ST1_CreateDoc" name="(1) Створити документ" zeebe:modelerTemplate="io.camunda.connectors.HttpJson.v2" zeebe:modelerTemplateVersion="12" zeebe:modelerTemplateIcon="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHZpZXdCb3g9IjAgMCAxOCAxOCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE3LjAzMzUgOC45OTk5N0MxNy4wMzM1IDEzLjQ0NzUgMTMuNDI4MSAxNy4wNTI5IDguOTgwNjUgMTcuMDUyOUM0LjUzMzE2IDE3LjA1MjkgMC45Mjc3NjUgMTMuNDQ3NSAwLjkyNzc2NSA4Ljk5OTk3QzAuOTI3NzY1IDQuNTUyNDggNC41MzMxNiAwLjk0NzA4MyA4Ljk4MDY1IDAuOTQ3MDgzQzEzLjQyODEgMC45NDcwODMgMTcuMDMzNSA0LjU1MjQ4IDE3LjAzMzUgOC45OTk5N1oiIGZpbGw9IiM1MDU1NjIiLz4KPHBhdGggZD0iTTQuOTMxMjYgMTQuMTU3MUw2Ljc4MTA2IDMuNzE0NzFIMTAuMTM3NUMxMS4xOTE3IDMuNzE0NzEgMTEuOTgyNCAzLjk4MzIzIDEyLjUwOTUgNC41MjAyN0MxMy4wNDY1IDUuMDQ3MzYgMTMuMzE1IDUuNzMzNTggMTMuMzE1IDYuNTc4OTJDMTMuMzE1IDcuNDQ0MTQgMTMuMDcxNCA4LjE1NTIyIDEyLjU4NDEgOC43MTIxNUMxMi4xMDY3IDkuMjU5MTMgMTEuNDU1MyA5LjYzNzA1IDEwLjYyOTggOS44NDU5TDEyLjA2MTkgMTQuMTU3MUgxMC4zMzE1TDkuMDMzNjQgMTAuMDI0OUg3LjI0MzUxTDYuNTEyNTQgMTQuMTU3MUg0LjkzMTI2Wk03LjQ5NzExIDguNTkyODFIOS4yNDI0OEM5Ljk5ODMyIDguNTkyODEgMTAuNTkwMSA4LjQyMzc0IDExLjAxNzcgOC4wODU2MUMxMS40NTUzIDcuNzM3NTMgMTEuNjc0MSA3LjI2NTEzIDExLjY3NDEgNi42Njg0MkMxMS42NzQxIDYuMTkxMDYgMTEuNTI0OSA1LjgxODExIDExLjIyNjUgNS41NDk1OUMxMC45MjgyIDUuMjcxMTMgMTAuNDU1OCA1LjEzMTkgOS44MDkzNiA1LjEzMTlIOC4xMDg3NEw3LjQ5NzExIDguNTkyODFaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="io.camunda:http-json:1" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="elementTemplateVersion" value="12" />
+          <zeebe:header key="elementTemplateId" value="io.camunda.connectors.HttpJson.v2" />
+          <zeebe:header key="resultVariable" value="apiResult" />
+          <zeebe:header key="resultExpression" value="=if response.status = 200 or response.status = 201 then&#10;    if response.body.status = &#34;OK&#34; then&#10;        {documentID: response.body.documentID, isAbort: false}&#10;    else&#10;        {Step: 1, ErrorMessage: response.body.message, isAbort: true}&#10;else&#10;    {Step: 1, ErrorMessage: &#34;REST Error: &#34; + string(response.status), isAbort: true}&#10;" />
+          <zeebe:header key="retryBackoff" value="PT0S" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="basic" target="authentication.type" />
+          <zeebe:input source="camunda" target="authentication.username" />
+          <zeebe:input source="14412" target="authentication.password" />
+          <zeebe:input source="POST" target="method" />
+          <zeebe:input source="http://web.dobrom.com/dev_edoc3_abarkin/hs/tut/camunda_document" target="url" />
+          <zeebe:input source="=false" target="storeResponse" />
+          <zeebe:input source="=150" target="connectionTimeoutInSeconds" />
+          <zeebe:input source="=150" target="readTimeoutInSeconds" />
+          <zeebe:input source="={&#10;  &#34;featureCode&#34;: &#34;СтворитиФізОсобу&#34;,&#10;  &#34;database&#34;: &#34;DO3&#34;,&#10;  &#34;createDocument&#34;: true,&#10;   &#34;documentType&#34;: &#34;Заява на стажування.&#34;,&#10;  &#34;properties&#34;: {&#10;    &#34;Подразделение&#34;: &#34;601 Квартал&#34;,&#10;    &#34;Прізвище&#34;: &#34;Тестовий&#34;,&#10;    &#34;Імя&#34;: &#34;Тест&#34;,&#10;    &#34;ПоБатькові&#34;: &#34;Тестович&#34;,&#10;    &#34;ДатаЗ&#34;: &#34;20260216000000&#34;,&#10;    &#34;ДатаПо&#34;: &#34;20260220000000&#34;&#10;    &#10;  },&#10;  &#34;attachedFile&#34;: attachedFile&#10;}&#10;" target="body" />
+          <zeebe:input source="=false" target="ignoreNullValues" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0usrsb8</bpmn:incoming>
+      <bpmn:incoming>Flow_1j7ozgi</bpmn:incoming>
+      <bpmn:outgoing>Flow_ST1_to_GW1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_ST1_to_GW1" sourceRef="ST1_CreateDoc" targetRef="GW1" />
+    <bpmn:exclusiveGateway id="GW1" name="Документ створено?">
+      <bpmn:incoming>Flow_ST1_to_GW1</bpmn:incoming>
+      <bpmn:outgoing>Flow_GW1_ok</bpmn:outgoing>
+      <bpmn:outgoing>Flow_GW1_err</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_GW1_ok" name="OK" sourceRef="GW1" targetRef="ST2_TriggerFO">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_GW1_err" name="Помилка" sourceRef="GW1" targetRef="EndEvent_Abort">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:serviceTask id="ST2_TriggerFO" name="(2) Запустити скрипт ФО" zeebe:modelerTemplate="io.camunda.connectors.HttpJson.v2" zeebe:modelerTemplateVersion="12" zeebe:modelerTemplateIcon="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHZpZXdCb3g9IjAgMCAxOCAxOCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE3LjAzMzUgOC45OTk5N0MxNy4wMzM1IDEzLjQ0NzUgMTMuNDI4MSAxNy4wNTI5IDguOTgwNjUgMTcuMDUyOUM0LjUzMzE2IDE3LjA1MjkgMC45Mjc3NjUgMTMuNDQ3NSAwLjkyNzc2NSA4Ljk5OTk3QzAuOTI3NzY1IDQuNTUyNDggNC41MzMxNiAwLjk0NzA4MyA4Ljk4MDY1IDAuOTQ3MDgzQzEzLjQyODEgMC45NDcwODMgMTcuMDMzNSA0LjU1MjQ4IDE3LjAzMzUgOC45OTk5N1oiIGZpbGw9IiM1MDU1NjIiLz4KPHBhdGggZD0iTTQuOTMxMjYgMTQuMTU3MUw2Ljc4MTA2IDMuNzE0NzFIMTAuMTM3NUMxMS4xOTE3IDMuNzE0NzEgMTEuOTgyNCAzLjk4MzIzIDEyLjUwOTUgNC41MjAyN0MxMy4wNDY1IDUuMDQ3MzYgMTMuMzE1IDUuNzMzNTggMTMuMzE1IDYuNTc4OTJDMTMuMzE1IDcuNDQ0MTQgMTMuMDcxNCA4LjE1NTIyIDEyLjU4NDEgOC43MTIxNUMxMi4xMDY3IDkuMjU5MTMgMTEuNDU1MyA5LjYzNzA1IDEwLjYyOTggOS44NDU5TDEyLjA2MTkgMTQuMTU3MUgxMC4zMzE1TDkuMDMzNjQgMTAuMDI0OUg3LjI0MzUxTDYuNTEyNTQgMTQuMTU3MUg0LjkzMTI2Wk03LjQ5NzExIDguNTkyODFIOS4yNDI0OEM5Ljk5ODMyIDguNTkyODEgMTAuNTkwMSA4LjQyMzc0IDExLjAxNzcgOC4wODU2MUMxMS40NTUzIDcuNzM3NTMgMTEuNjc0MSA3LjI2NTEzIDExLjY3NDEgNi42Njg0MkMxMS42NzQxIDYuMTkxMDYgMTEuNTI0OSA1LjgxODExIDExLjIyNjUgNS41NDk1OUMxMC45MjgyIDUuMjcxMTMgMTAuNDU1OCA1LjEzMTkgOS44MDkzNiA1LjEzMTlIOC4xMDg3NEw3LjQ5NzExIDguNTkyODFaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="io.camunda:http-json:1" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="elementTemplateVersion" value="12" />
+          <zeebe:header key="elementTemplateId" value="io.camunda.connectors.HttpJson.v2" />
+          <zeebe:header key="resultVariable" value="apiResult2" />
+          <zeebe:header key="resultExpression" value="=if response.status = 200 or response.status = 201 then&#10;    if response.body.status = &#34;OK&#34; then&#10;        {isAbort: false}&#10;    else&#10;        {Step: 2, ErrorMessage: response.body.message, isAbort: true}&#10;else&#10;    {Step: 2, ErrorMessage: &#34;REST Error Step 2&#34;, isAbort: true}" />
+          <zeebe:header key="retryBackoff" value="PT0S" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="basic" target="authentication.type" />
+          <zeebe:input source="camunda" target="authentication.username" />
+          <zeebe:input source="14412" target="authentication.password" />
+          <zeebe:input source="POST" target="method" />
+          <zeebe:input source="http://web.dobrom.com/dev_edoc3_abarkin/hs/tut/camunda_document" target="url" />
+          <zeebe:input source="=false" target="storeResponse" />
+          <zeebe:input source="=150" target="connectionTimeoutInSeconds" />
+          <zeebe:input source="=150" target="readTimeoutInSeconds" />
+          <zeebe:input source="={&#10;  &#34;documentID&#34;: documentID,&#10;  &#34;properties&#34; : &#10;{&#10;	&#34;СтворюватиФізичнуОсобу&#34;: true&#10;}&#10;}&#10;&#10;" target="body" />
+          <zeebe:input source="=false" target="ignoreNullValues" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_GW1_ok</bpmn:incoming>
+      <bpmn:outgoing>Flow_ST2_to_GW2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_ST2_to_GW2" sourceRef="ST2_TriggerFO" targetRef="GW2" />
+    <bpmn:exclusiveGateway id="GW2" name="Скрипт ФО запущено?">
+      <bpmn:incoming>Flow_ST2_to_GW2</bpmn:incoming>
+      <bpmn:outgoing>Flow_GW2_err</bpmn:outgoing>
+      <bpmn:outgoing>Flow_GW2_ok</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_GW2_err" name="Помилка" sourceRef="GW2" targetRef="EndEvent_Abort">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:intermediateCatchEvent id="Msg1_PersonCreated" name="Очікування:&#10;ФО створено">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="=if status = &#34;OK&#34; then {personID: personID, isAbort: false} else {Step: 3, ErrorMessage: &#34;Помилка створення ФО: &#34; + string(status), isAbort: true}" target="op3" />
+          <zeebe:output source="=op3.personID" target="personID" />
+          <zeebe:output source="=op3.ErrorMessage" target="ErrorMessage" />
+          <zeebe:output source="=op3.isAbort" target="isAbort" />
+          <zeebe:output source="=op3.Step" target="Step" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_GW2_ok</bpmn:incoming>
+      <bpmn:outgoing>Flow_Msg1_to_GW3</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_PersonCreated" messageRef="Msg_PersonCreated" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:sequenceFlow id="Flow_Msg1_to_GW3" sourceRef="Msg1_PersonCreated" targetRef="GW3" />
+    <bpmn:exclusiveGateway id="GW3" name="ФО створено?">
+      <bpmn:incoming>Flow_Msg1_to_GW3</bpmn:incoming>
+      <bpmn:outgoing>Flow_GW3_ok</bpmn:outgoing>
+      <bpmn:outgoing>Flow_GW3_err</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_GW3_ok" name="OK" sourceRef="GW3" targetRef="Event_0uwu6ji">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_GW3_err" name="Помилка" sourceRef="GW3" targetRef="EndEvent_Abort">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:serviceTask id="ST3_TriggerEmployee" name="(4) Запустити скрипт Співробітника" zeebe:modelerTemplate="io.camunda.connectors.HttpJson.v2" zeebe:modelerTemplateVersion="12" zeebe:modelerTemplateIcon="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHZpZXdCb3g9IjAgMCAxOCAxOCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE3LjAzMzUgOC45OTk5N0MxNy4wMzM1IDEzLjQ0NzUgMTMuNDI4MSAxNy4wNTI5IDguOTgwNjUgMTcuMDUyOUM0LjUzMzE2IDE3LjA1MjkgMC45Mjc3NjUgMTMuNDQ3NSAwLjkyNzc2NSA4Ljk5OTk3QzAuOTI3NzY1IDQuNTUyNDggNC41MzMxNiAwLjk0NzA4MyA4Ljk4MDY1IDAuOTQ3MDgzQzEzLjQyODEgMC45NDcwODMgMTcuMDMzNSA0LjU1MjQ4IDE3LjAzMzUgOC45OTk5N1oiIGZpbGw9IiM1MDU1NjIiLz4KPHBhdGggZD0iTTQuOTMxMjYgMTQuMTU3MUw2Ljc4MTA2IDMuNzE0NzFIMTAuMTM3NUMxMS4xOTE3IDMuNzE0NzEgMTEuOTgyNCAzLjk4MzIzIDEyLjUwOTUgNC41MjAyN0MxMy4wNDY1IDUuMDQ3MzYgMTMuMzE1IDUuNzMzNTggMTMuMzE1IDYuNTc4OTJDMTMuMzE1IDcuNDQ0MTQgMTMuMDcxNCA4LjE1NTIyIDEyLjU4NDEgOC43MTIxNUMxMi4xMDY3IDkuMjU5MTMgMTEuNDU1MyA5LjYzNzA1IDEwLjYyOTggOS44NDU5TDEyLjA2MTkgMTQuMTU3MUgxMC4zMzE1TDkuMDMzNjQgMTAuMDI0OUg3LjI0MzUxTDYuNTEyNTQgMTQuMTU3MUg0LjkzMTI2Wk03LjQ5NzExIDguNTkyODFIOS4yNDI0OEM5Ljk5ODMyIDguNTkyODEgMTAuNTkwMSA4LjQyMzc0IDExLjAxNzcgOC4wODU2MUMxMS40NTUzIDcuNzM3NTMgMTEuNjc0MSA3LjI2NTEzIDExLjY3NDEgNi42Njg0MkMxMS42NzQxIDYuMTkxMDYgMTEuNTI0OSA1LjgxODExIDExLjIyNjUgNS41NDk1OUMxMC45MjgyIDUuMjcxMTMgMTAuNDU1OCA1LjEzMTkgOS44MDkzNiA1LjEzMTlIOC4xMDg3NEw3LjQ5NzExIDguNTkyODFaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="io.camunda:http-json:1" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="elementTemplateVersion" value="12" />
+          <zeebe:header key="elementTemplateId" value="io.camunda.connectors.HttpJson.v2" />
+          <zeebe:header key="resultVariable" value="apiResult3" />
+          <zeebe:header key="resultExpression" value="=if response.status = 200 or response.status = 201 then&#10;    if response.body.status = &#34;OK&#34; then&#10;        {isAbort: false}&#10;    else&#10;        {Step: 2, ErrorMessage: response.body.message, isAbort: true}&#10;else&#10;    {Step: 2, ErrorMessage: &#34;REST Error Step 2&#34;, isAbort: true}" />
+          <zeebe:header key="retryBackoff" value="PT0S" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="basic" target="authentication.type" />
+          <zeebe:input source="camunda" target="authentication.username" />
+          <zeebe:input source="14412" target="authentication.password" />
+          <zeebe:input source="POST" target="method" />
+          <zeebe:input source="http://web.dobrom.com/dev_edoc3_abarkin/hs/tut/camunda_document" target="url" />
+          <zeebe:input source="=false" target="storeResponse" />
+          <zeebe:input source="=150" target="connectionTimeoutInSeconds" />
+          <zeebe:input source="=150" target="readTimeoutInSeconds" />
+          <zeebe:input source="={&#10;  &#34;documentID&#34;: documentID,&#10;  &#34;properties&#34; : &#10;{&#10;  &#34;СтворюватиСпівробітника&#34;: true&#10;}  &#10;}&#10;" target="body" />
+          <zeebe:input source="=false" target="ignoreNullValues" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1ci8mfi</bpmn:incoming>
+      <bpmn:outgoing>Flow_ST3_to_GW4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_ST3_to_GW4" sourceRef="ST3_TriggerEmployee" targetRef="GW4" />
+    <bpmn:exclusiveGateway id="GW4" name="Скрипт запущено?">
+      <bpmn:incoming>Flow_ST3_to_GW4</bpmn:incoming>
+      <bpmn:outgoing>Flow_GW4_ok</bpmn:outgoing>
+      <bpmn:outgoing>Flow_GW4_err</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_GW4_ok" name="OK" sourceRef="GW4" targetRef="Msg2_EmployeeCreated">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_GW4_err" name="Помилка" sourceRef="GW4" targetRef="EndEvent_Abort">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:intermediateCatchEvent id="Msg2_EmployeeCreated" name="Очікування:&#10;Співробітника створено">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="=if status = &#34;OK&#34; then {personID: personID, isAbort: false} else {Step: 3, ErrorMessage: &#34;Помилка створення ФО: &#34; + string(status), isAbort: true}" target="op3" />
+          <zeebe:output source="=op3.personID" target="personID" />
+          <zeebe:output source="=op3.ErrorMessage" target="ErrorMessage" />
+          <zeebe:output source="=op3.isAbort" target="isAbort" />
+          <zeebe:output source="=op3.Step" target="Step" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_GW4_ok</bpmn:incoming>
+      <bpmn:outgoing>Flow_Msg2_to_GW5</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_EmployeeCreated" messageRef="Msg_PersonCreated" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:sequenceFlow id="Flow_Msg2_to_GW5" sourceRef="Msg2_EmployeeCreated" targetRef="GW5" />
+    <bpmn:exclusiveGateway id="GW5" name="Співробітника створено?">
+      <bpmn:incoming>Flow_Msg2_to_GW5</bpmn:incoming>
+      <bpmn:outgoing>Flow_GW5_ok</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_GW5_ok" name="Завершено" sourceRef="GW5" targetRef="EndEvent_Success">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:endEvent id="EndEvent_Abort" name="Процес перервано">
+      <bpmn:incoming>Flow_GW1_err</bpmn:incoming>
+      <bpmn:incoming>Flow_GW2_err</bpmn:incoming>
+      <bpmn:incoming>Flow_GW3_err</bpmn:incoming>
+      <bpmn:incoming>Flow_GW4_err</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_Success" name="Успіх">
+      <bpmn:incoming>Flow_GW5_ok</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_GW2_ok" name="OK" sourceRef="GW2" targetRef="Msg1_PersonCreated">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isAbort = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:intermediateCatchEvent id="Event_0uwu6ji">
+      <bpmn:incoming>Flow_GW3_ok</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ci8mfi</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_1jg6bjd">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1M</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:sequenceFlow id="Flow_1ci8mfi" sourceRef="Event_0uwu6ji" targetRef="ST3_TriggerEmployee" />
+    <bpmn:exclusiveGateway id="Gateway_04z50k3" default="Flow_03g5jzf">
+      <bpmn:incoming>Flow_To_Form</bpmn:incoming>
+      <bpmn:outgoing>Flow_03g5jzf</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0usrsb8</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_03g5jzf" sourceRef="Gateway_04z50k3" targetRef="Activity_1kvdj6h" />
+    <bpmn:serviceTask id="Activity_1kvdj6h" name="Створити головне завдання &#34;Заява на стажування&#34;">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Заява на стажування&#34;, &#10; create_process: true,&#10;_model: &#34;project.project&#34;,&#10; x_studio_camunda_applicant_id: odoo_applicant_id,&#10;_id: 252}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_03g5jzf</bpmn:incoming>
+      <bpmn:outgoing>Flow_1j7ozgi</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0usrsb8" sourceRef="Gateway_04z50k3" targetRef="ST1_CreateDoc">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_1j7ozgi" sourceRef="Activity_1kvdj6h" targetRef="ST1_CreateDoc" />
+  </bpmn:process>
+  <bpmn:message id="Msg_PersonCreated" name="PersonCreated">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=documentID" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Msg_EmployeeCreated" name="EmployeeCreated">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=documentID" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_06j486q" name="Message_06j486q" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_0p6254o">
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="-78" y="242" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="-75" y="285" width="31" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST1_CreateDoc_di" bpmnElement="ST1_CreateDoc">
+        <dc:Bounds x="310" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW1_di" bpmnElement="GW1" isMarkerVisible="true">
+        <dc:Bounds x="465" y="235" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="463" y="205" width="54" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST2_TriggerFO_di" bpmnElement="ST2_TriggerFO">
+        <dc:Bounds x="610" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW2_di" bpmnElement="GW2" isMarkerVisible="true">
+        <dc:Bounds x="755" y="235" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="752" y="205" width="57" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Msg1_PersonCreated_di" bpmnElement="Msg1_PersonCreated">
+        <dc:Bounds x="882" y="242" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="866" y="291" width="68" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW3_di" bpmnElement="GW3" isMarkerVisible="true">
+        <dc:Bounds x="975" y="235" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="963" y="205" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST3_TriggerEmployee_di" bpmnElement="ST3_TriggerEmployee">
+        <dc:Bounds x="1150" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW4_di" bpmnElement="GW4" isMarkerVisible="true">
+        <dc:Bounds x="1310" y="235" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1295" y="205" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Msg2_EmployeeCreated_di" bpmnElement="Msg2_EmployeeCreated">
+        <dc:Bounds x="1417" y="242" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1393" y="285" width="84" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW5_di" bpmnElement="GW5" isMarkerVisible="true">
+        <dc:Bounds x="1510" y="235" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1490" y="205" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Abort_di" bpmnElement="EndEvent_Abort">
+        <dc:Bounds x="847" y="412" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="817" y="455" width="96" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Success_di" bpmnElement="EndEvent_Success">
+        <dc:Bounds x="1622" y="242" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1626" y="285" width="28" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0b6pj1n_di" bpmnElement="Event_0uwu6ji">
+        <dc:Bounds x="1072" y="242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_04z50k3_di" bpmnElement="Gateway_04z50k3" isMarkerVisible="true">
+        <dc:Bounds x="-5" y="235" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0547oey_di" bpmnElement="Activity_1kvdj6h">
+        <dc:Bounds x="90" y="360" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_To_Form_di" bpmnElement="Flow_To_Form">
+        <di:waypoint x="-42" y="260" />
+        <di:waypoint x="-5" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ST1_to_GW1_di" bpmnElement="Flow_ST1_to_GW1">
+        <di:waypoint x="410" y="260" />
+        <di:waypoint x="465" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_GW1_ok_di" bpmnElement="Flow_GW1_ok">
+        <di:waypoint x="515" y="260" />
+        <di:waypoint x="610" y="260" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="555" y="242" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_GW1_err_di" bpmnElement="Flow_GW1_err">
+        <di:waypoint x="490" y="285" />
+        <di:waypoint x="490" y="430" />
+        <di:waypoint x="847" y="430" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="495" y="350" width="46" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ST2_to_GW2_di" bpmnElement="Flow_ST2_to_GW2">
+        <di:waypoint x="710" y="260" />
+        <di:waypoint x="755" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_GW2_err_di" bpmnElement="Flow_GW2_err">
+        <di:waypoint x="780" y="285" />
+        <di:waypoint x="780" y="430" />
+        <di:waypoint x="847" y="430" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="785" y="354" width="46" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Msg1_to_GW3_di" bpmnElement="Flow_Msg1_to_GW3">
+        <di:waypoint x="918" y="260" />
+        <di:waypoint x="975" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_GW3_ok_di" bpmnElement="Flow_GW3_ok">
+        <di:waypoint x="1025" y="260" />
+        <di:waypoint x="1072" y="260" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1027" y="242" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_GW3_err_di" bpmnElement="Flow_GW3_err">
+        <di:waypoint x="1000" y="285" />
+        <di:waypoint x="1000" y="430" />
+        <di:waypoint x="883" y="430" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1005" y="350" width="46" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ST3_to_GW4_di" bpmnElement="Flow_ST3_to_GW4">
+        <di:waypoint x="1250" y="260" />
+        <di:waypoint x="1310" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_GW4_ok_di" bpmnElement="Flow_GW4_ok">
+        <di:waypoint x="1360" y="260" />
+        <di:waypoint x="1417" y="260" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1380" y="242" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_GW4_err_di" bpmnElement="Flow_GW4_err">
+        <di:waypoint x="1335" y="285" />
+        <di:waypoint x="1335" y="430" />
+        <di:waypoint x="883" y="430" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1340" y="350" width="46" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Msg2_to_GW5_di" bpmnElement="Flow_Msg2_to_GW5">
+        <di:waypoint x="1453" y="260" />
+        <di:waypoint x="1510" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_GW5_ok_di" bpmnElement="Flow_GW5_ok">
+        <di:waypoint x="1560" y="260" />
+        <di:waypoint x="1622" y="260" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1563" y="242" width="59" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_GW2_ok_di" bpmnElement="Flow_GW2_ok">
+        <di:waypoint x="805" y="260" />
+        <di:waypoint x="882" y="260" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="819" y="242" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ci8mfi_di" bpmnElement="Flow_1ci8mfi">
+        <di:waypoint x="1108" y="260" />
+        <di:waypoint x="1150" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_03g5jzf_di" bpmnElement="Flow_03g5jzf">
+        <di:waypoint x="20" y="285" />
+        <di:waypoint x="20" y="400" />
+        <di:waypoint x="90" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0usrsb8_di" bpmnElement="Flow_0usrsb8">
+        <di:waypoint x="45" y="260" />
+        <di:waypoint x="310" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1j7ozgi_di" bpmnElement="Flow_1j7ozgi">
+        <di:waypoint x="190" y="400" />
+        <di:waypoint x="360" y="400" />
+        <di:waypoint x="360" y="300" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
