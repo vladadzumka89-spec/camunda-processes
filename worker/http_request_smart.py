@@ -6,33 +6,23 @@ Integrated into the main worker via register_http_smart_handlers().
 
 import logging
 import os
-import time
 
 import httpx
 from pyzeebe import Job
 
 logger = logging.getLogger(__name__)
 
-
-class TaskListenerCompleted(Exception):
-    """Raised after task listener job is completed via REST API to skip pyzeebe's gRPC completion."""
-    pass
-
-
 CAMUNDA_REST_URL = os.getenv("CAMUNDA_REST_URL", "http://orchestration:8080")
+CAMUNDA_REST_USER = os.getenv("CAMUNDA_REST_USER", "demo")
+CAMUNDA_REST_PASSWORD = os.getenv("CAMUNDA_REST_PASSWORD", "demo")
 ZEEBE_CLIENT_ID = os.getenv("ZEEBE_CLIENT_ID", "orchestration")
 ZEEBE_CLIENT_SECRET = os.getenv("ZEEBE_CLIENT_SECRET", "")
-ZEEBE_TOKEN_URL = os.getenv("ZEEBE_TOKEN_URL", "")
-
-_cached_token = {"access_token": None, "expires_at": 0}
+ZEEBE_TOKEN_URL = os.getenv("ZEEBE_TOKEN_URL", "http://keycloak:18080/auth/realms/camunda-platform/protocol/openid-connect/token")
 
 
 async def _get_oauth_token(client: httpx.AsyncClient) -> str:
-    """Get OAuth2 token from Keycloak, with simple caching."""
-    if _cached_token["access_token"] and time.time() < _cached_token["expires_at"] - 30:
-        return _cached_token["access_token"]
-
-    resp = await client.post(
+    """Get OAuth2 token for Operate API."""
+    response = await client.post(
         ZEEBE_TOKEN_URL,
         data={
             "grant_type": "client_credentials",
@@ -41,33 +31,31 @@ async def _get_oauth_token(client: httpx.AsyncClient) -> str:
         },
         timeout=10.0,
     )
-    data = resp.json()
-    _cached_token["access_token"] = data["access_token"]
-    _cached_token["expires_at"] = time.time() + data.get("expires_in", 300)
-    return data["access_token"]
-
-
-async def _camunda_rest_request(client: httpx.AsyncClient, method: str, path: str, **kwargs) -> httpx.Response:
-    """Make authenticated request to Camunda REST API."""
-    token = await _get_oauth_token(client)
-    return await client.request(
-        method, f"{CAMUNDA_REST_URL}{path}",
-        headers={"Authorization": f"Bearer {token}"},
-        timeout=10.0,
-        **kwargs,
-    )
+    response.raise_for_status()
+    return response.json()["access_token"]
 
 
 async def get_parent_process_instance_key(process_instance_key) -> str:
-    """Check if this process instance is a subprocess (Call Activity) and return parent key."""
+    """Check if this process instance is a subprocess (Call Activity) and return parent key.
+    Uses Operate API v1 which reliably returns parentKey for subprocesses.
+    """
+    url = f"{CAMUNDA_REST_URL}/v1/process-instances/search"
+
     async with httpx.AsyncClient() as client:
         try:
-            response = await _camunda_rest_request(
-                client, "POST", "/v1/process-instances/search",
+            token = await _get_oauth_token(client)
+            response = await client.post(
+                url,
                 json={"filter": {"key": int(process_instance_key)}},
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=5.0,
             )
             if response.status_code == 200:
-                items = response.json().get("items", [])
+                data = response.json()
+                items = data.get("items", [])
                 if items:
                     parent_key = items[0].get("parentKey")
                     if parent_key and parent_key not in (-1, 0):
@@ -82,15 +70,25 @@ async def get_parent_process_instance_key(process_instance_key) -> str:
 
 
 async def get_user_task_key(process_instance_key: str, element_id: str) -> str:
-    """Look up user_task_key via Camunda REST API."""
+    """Look up user_task_key via Camunda REST API (basic auth)."""
+    url = f"{CAMUNDA_REST_URL}/v2/user-tasks/search"
+    payload = {
+        "filter": {
+            "processInstanceKey": int(process_instance_key),
+            "elementId": element_id
+        }
+    }
+
     async with httpx.AsyncClient() as client:
         try:
-            response = await _camunda_rest_request(
-                client, "POST", "/v2/user-tasks/search",
-                json={"filter": {"processInstanceKey": int(process_instance_key), "elementId": element_id}},
+            response = await client.post(
+                url, json=payload,
+                auth=(CAMUNDA_REST_USER, CAMUNDA_REST_PASSWORD),
+                timeout=10.0,
             )
             if response.status_code == 200:
-                items = response.json().get("items", [])
+                data = response.json()
+                items = data.get("items", [])
                 if items:
                     user_task_key = str(items[0].get("userTaskKey"))
                     logger.info(f"Found user_task_key: {user_task_key}")
@@ -115,14 +113,9 @@ def register_http_smart_handlers(worker, config=None):
         method: str = "POST",
         body: dict = None,
         headers: dict = None,
-        result_variable_name: str = None,
-        ignore_errors: bool = False,
-        **kwargs,
+        result_variable_name: str = None
     ):
-        is_task_listener = bool(
-            job.custom_headers and "io.camunda.zeebe:userTaskKey" in job.custom_headers
-        )
-        logger.info(f"[{job.process_instance_key}] is_task_listener={is_task_listener}, custom_headers={job.custom_headers}")
+        is_task_listener = not job.element_instance_key or job.element_instance_key == 0
 
         user_task_key = None
 
@@ -142,11 +135,17 @@ def register_http_smart_handlers(worker, config=None):
             )
             logger.info(f"Got user_task_key from REST API: {user_task_key}")
 
+        metadata = {
+            "process_instance_key": job.process_instance_key,
+            "element_instance_key": job.element_instance_key if job.element_instance_key else None,
+            "bpmn_process_id": job.bpmn_process_id,
+            "element_id": job.element_id if hasattr(job, 'element_id') else None,
+            "job_key": job.key,
+            "user_task_key": user_task_key
+        }
+
         payload = body if body else {}
-        payload["process_instance_key"] = job.process_instance_key
-        payload["element_instance_key"] = job.element_instance_key
-        if user_task_key:
-            payload["user_task_key"] = user_task_key
+        payload.update(metadata)
 
         parent_key = await get_parent_process_instance_key(job.process_instance_key)
         if parent_key:
@@ -175,24 +174,16 @@ def register_http_smart_handlers(worker, config=None):
 
                 if response.status_code >= 400:
                     error_msg = f"HTTP {response.status_code}: {response_body}"
-                    if ignore_errors:
-                        logger.warning(f"[{job.process_instance_key}] {error_msg} (ignore_errors=True, continuing)")
-                    else:
-                        logger.error(error_msg)
-                        raise Exception(error_msg)
+                    logger.error(error_msg)
+                    raise Exception(error_msg)
 
                 logger.info(f"Success. Status: {response.status_code}")
 
-                if is_task_listener:
-                    logger.info("Task Listener detected - completing via REST API without variables")
-                    complete_resp = await _camunda_rest_request(
-                        client, "POST", f"/v2/jobs/{job.key}/completion",
-                        json={},
-                    )
-                    logger.info(f"REST API job completion status: {complete_resp.status_code}")
-                    raise TaskListenerCompleted()
-
                 result = {"process_instance_key": job.process_instance_key}
+
+                if is_task_listener:
+                    logger.warning(f"Task Listener detected - skipping variable return to avoid loop")
+                    return
 
                 if result_variable_name:
                     logger.info(f"Returning data into variable: '{result_variable_name}'")
