@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:process id="Process_u1bry4s" name="Збір розмірів працівника" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
+    <bpmn:startEvent id="StartEvent_1" name="">
+      <bpmn:extensionElements />
+      <bpmn:outgoing>Flow_18u8f6a</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:endEvent id="Event_08eo3xq">
+      <bpmn:incoming>Flow_137ysju</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_18u8f6a" sourceRef="StartEvent_1" targetRef="Gateway_18w0mpx" />
+    <bpmn:sequenceFlow id="Flow_178ii0a" sourceRef="Activity_1s7hxq5" targetRef="Activity_0yx0iju" />
+    <bpmn:serviceTask id="Activity_1s7hxq5" name="Створити головне завдання &#34;Задача для адміністратора&#34;">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Вибір сертифікатів до дня народження працівника&#34;, &#10; create_process: true,&#10;_model: &#34;project.project&#34;,&#10;_id: 252}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:taskDefinition type="http-request-smart" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0xdvmtj</bpmn:incoming>
+      <bpmn:outgoing>Flow_178ii0a</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_18w0mpx" name="" default="Flow_0xdvmtj">
+      <bpmn:incoming>Flow_18u8f6a</bpmn:incoming>
+      <bpmn:outgoing>Flow_0zu401u</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0xdvmtj</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_0zu401u" sourceRef="Gateway_18w0mpx" targetRef="Activity_0yx0iju">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0xdvmtj" sourceRef="Gateway_18w0mpx" targetRef="Activity_1s7hxq5" />
+    <bpmn:serviceTask id="Activity_0yx0iju" name="Отримати список адміністраторів в Оду">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/api/server-action&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;,&#10;&#34;X-API-Key&#34;:&#34;632b5ed6-091f-48db-bd01-1e60aeb10bfc&#34;}" target="headers" />
+          <zeebe:input source="={&#10;    &#34;action_identifier&#34;: &#34;studio_customization._03c8968e-ba5a-43c9-839d-90197c29c03d&#34;,&#10;    &#34;context&#34;: {},&#10;    &#34;payload&#34;: {&#10;      &#34;groups&#34;: [151]&#10;    }&#10;}" target="body" />
+          <zeebe:input source="=&#34;result&#34;" target="result_variable_name" />
+          <zeebe:output source="=result.data" target="employees" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0zu401u</bpmn:incoming>
+      <bpmn:incoming>Flow_178ii0a</bpmn:incoming>
+      <bpmn:outgoing>Flow_1sygqsb</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="Activity_1abeljt" name="Задача &#34;Задача для адміністратора&#34;">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={&#10;  name: &#34;Обери сертифікат до дня народження &#34; + emp.employee_name,&#10;  description: &#34;&#60;p&#62;Це обовʼязкове завдання. Воно потрібне, щоб ми підготували для тебе подарунок — сертифікат на &#60;b&#62;2500 грн&#60;/b&#62;.&#60;/p&#62;&#60;br&#62;&#60;p&#62;&#60;b&#62;Що потрібно зробити:&#60;/b&#62;&#60;/p&#62;&#60;ol&#62;&#60;li&#62;У верхній частині задачі знайди поле «Обери сертифікат до дня народження».&#60;/li&#62;&#60;li&#62;Натисни на нього та обери один варіант: &#60;b&#62;Famo/Pinky&#60;/b&#62; чи &#60;b&#62;Технопростір&#60;/b&#62;.&#60;/li&#62;&#60;li&#62;Після вибору обовʼязково натисни кнопку &#60;b&#62;«Завершено»&#60;/b&#62; у верхній частині задачі. Якщо не натиснути «Завершено», вибір не збережеться і сертифікат не буде підготовлений.&#60;/li&#62;&#60;/ol&#62;&#60;br&#62;&#60;p&#62;&#60;b&#62;Як скористатися сертифікатом:&#60;/b&#62;&#60;/p&#62;&#60;ol&#62;&#60;li&#62;Сертифікат діє у вибраній мережі магазинів. Номінал &#60;b&#62;2500 грн&#60;/b&#62;.&#60;/li&#62;&#60;li&#62;Завітай до магазину та скажи на касі, що ти працівник компанії (для співробітників, які працюють понад 3 місяці, діє гуртова знижка).&#60;/li&#62;&#60;li&#62;Якщо потрібного товару немає в магазині — оформи онлайн-замовлення, але оплата сертифікатом завжди здійснюється лише у фізичному магазині.&#60;/li&#62;&#60;/ol&#62;&#34;,&#10;  _model: &#34;project.project&#34;,&#10;  _id: 252,&#10;  x_studio_camunda_user_ids: emp.user_id,&#10;   process_instance_key: process_instance_key&#10;}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1sygqsb</bpmn:incoming>
+      <bpmn:outgoing>Flow_137ysju</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics>
+        <bpmn:extensionElements>
+          <zeebe:loopCharacteristics inputCollection="=employees" inputElement="emp" outputCollection="" />
+        </bpmn:extensionElements>
+      </bpmn:multiInstanceLoopCharacteristics>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_1sygqsb" sourceRef="Activity_0yx0iju" targetRef="Activity_1abeljt" />
+    <bpmn:sequenceFlow id="Flow_137ysju" sourceRef="Activity_1abeljt" targetRef="Event_08eo3xq" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_u1bry4s">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="150" y="172" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_08eo3xq_di" bpmnElement="Event_08eo3xq">
+        <dc:Bounds x="932" y="100" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1vj3ebr_di" bpmnElement="Activity_1s7hxq5">
+        <dc:Bounds x="360" y="200" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_18w0mpx_di" bpmnElement="Gateway_18w0mpx" isMarkerVisible="true">
+        <dc:Bounds x="245" y="165" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0fr57ii_di" bpmnElement="Activity_0yx0iju">
+        <dc:Bounds x="550" y="78" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_03nfy84_di" bpmnElement="Activity_1abeljt">
+        <dc:Bounds x="740" y="78" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_18u8f6a_di" bpmnElement="Flow_18u8f6a">
+        <di:waypoint x="186" y="190" />
+        <di:waypoint x="245" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_178ii0a_di" bpmnElement="Flow_178ii0a">
+        <di:waypoint x="410" y="200" />
+        <di:waypoint x="410" y="118" />
+        <di:waypoint x="550" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0zu401u_di" bpmnElement="Flow_0zu401u">
+        <di:waypoint x="270" y="165" />
+        <di:waypoint x="270" y="118" />
+        <di:waypoint x="550" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0xdvmtj_di" bpmnElement="Flow_0xdvmtj">
+        <di:waypoint x="270" y="215" />
+        <di:waypoint x="270" y="240" />
+        <di:waypoint x="360" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1sygqsb_di" bpmnElement="Flow_1sygqsb">
+        <di:waypoint x="650" y="118" />
+        <di:waypoint x="740" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_137ysju_di" bpmnElement="Flow_137ysju">
+        <di:waypoint x="840" y="118" />
+        <di:waypoint x="932" y="118" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
