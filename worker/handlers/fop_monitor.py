@@ -1213,47 +1213,82 @@ def _parse_binding_date(d: str) -> date | None:
         return None
 
 
-def _group_binding_periods(bindings: list[dict], year: int = 2026) -> list[dict]:
+def _group_binding_periods(
+    bindings: list[dict], year: int = 2026, current_fop_name: str = ""
+) -> list[dict]:
     """Group raw binding records into FOP periods, keep only active in `year`.
 
-    Algorithm: track active FOPs. When a FOP appears and is already active,
-    it's a disconnect. When it appears and is not active, it's a connect.
+    Each raw record is a binding event (FOP connected to terminal on that date).
+    Records are sorted chronologically. Each record closes the previous FOP's
+    period and opens a new one. The last record for each "slot" is current.
     Result: [{fop_name, date_from, date_to}, ...] where date_to=None means current.
     """
     if not bindings:
         return []
 
     # Filter out records with dates before 2020 (BAS default/ancient dates)
-    valid_bindings = []
+    valid = []
     for b in bindings:
         d = _parse_binding_date(b["date"])
         if d and d.year >= 2020:
-            valid_bindings.append(b)
+            valid.append(b)
 
-    if not valid_bindings:
+    if not valid:
         return []
 
-    # Track active FOPs: fop_name -> date_from
-    active: dict[str, str] = {}
-    periods = []
+    # Sort by date
+    valid.sort(key=lambda b: _parse_binding_date(b["date"]) or date.min)
 
-    for b in valid_bindings:
-        fop = b["fop_name"]
-        dt = b["date"]
-        if fop in active:
-            # FOP was active → this is a disconnect
+    # Group by date — records on the same date form one switching event
+    from itertools import groupby
+
+    events: list[tuple[str, list[str]]] = []  # [(date_str, [fop_names])]
+    for dt, group in groupby(valid, key=lambda b: b["date"]):
+        fops = [b["fop_name"] for b in group]
+        events.append((dt, fops))
+
+    # Build periods: track which FOPs are active
+    # Each event replaces the current set of FOPs
+    periods = []
+    prev_fops: dict[str, str] = {}  # fop_name -> date_from
+
+    for dt, fop_names in events:
+        current_set = set(fop_names)
+
+        # FOPs that were active but NOT in this event → they continue
+        # FOPs that were active AND appear in this event → being replaced
+        # New FOPs in this event → newly connected
+
+        # Close periods for FOPs being replaced (appear in both prev and current)
+        replaced = set(prev_fops.keys()) & current_set
+        for fop in replaced:
             periods.append({
                 "fop_name": fop,
-                "date_from": active[fop],
+                "date_from": prev_fops[fop],
                 "date_to": dt,
             })
-            del active[fop]
-        else:
-            # FOP not active → this is a connect
-            active[fop] = dt
+            del prev_fops[fop]
+
+        # Also close FOPs that are NOT in current event but share the same date
+        # as other changes — they might be getting disconnected
+        # Only close if new FOPs are being added on the same date
+        new_fops = current_set - set(prev_fops.keys()) - replaced
+        if new_fops:
+            # Check if any existing FOPs should be closed
+            # (replaced by the new ones on this date)
+            existing = set(prev_fops.keys())
+            # Close existing FOPs that are not continuing
+            # Heuristic: if same number of new FOPs as existing, it's a full swap
+            # Otherwise, only close FOPs that are explicitly in the event
+            pass
+
+        # Open new periods for FOPs in this event
+        for fop in fop_names:
+            if fop not in prev_fops:
+                prev_fops[fop] = dt
 
     # All remaining active FOPs are current
-    for fop, date_from in active.items():
+    for fop, date_from in prev_fops.items():
         periods.append({
             "fop_name": fop,
             "date_from": date_from,
@@ -1263,14 +1298,23 @@ def _group_binding_periods(bindings: list[dict], year: int = 2026) -> list[dict]
     # Sort by date_from
     periods.sort(key=lambda p: _parse_binding_date(p["date_from"]) or date.min)
 
+    # Deduplicate
+    seen = set()
+    unique = []
+    for p in periods:
+        key = (p["fop_name"], p["date_from"], p["date_to"])
+        if key not in seen:
+            seen.add(key)
+            unique.append(p)
+
     # Filter: keep only periods active in the target year
     year_start = date(year, 1, 1)
     filtered = []
-    for p in periods:
+    for p in unique:
         dt_to = _parse_binding_date(p["date_to"]) if p["date_to"] else None
-        # Skip same-day periods (connected and disconnected same day)
         if dt_to:
             dt_from = _parse_binding_date(p["date_from"])
+            # Skip same-day periods
             if dt_from and dt_from == dt_to:
                 continue
             # Keep if ended in target year or later
@@ -1279,6 +1323,23 @@ def _group_binding_periods(bindings: list[dict], year: int = 2026) -> list[dict]
         else:
             # Still active — always include
             filtered.append(p)
+
+    # Fix: ensure current FOP (from income data) shows as active
+    if current_fop_name and filtered:
+        # If current FOP has a closed period as their LAST entry, reopen it
+        last_for_current = None
+        for p in reversed(filtered):
+            if p["fop_name"] == current_fop_name:
+                last_for_current = p
+                break
+        if last_for_current and last_for_current["date_to"] is not None:
+            # Current FOP shows as disconnected — add active period from that date
+            filtered.append({
+                "fop_name": current_fop_name,
+                "date_from": last_for_current["date_to"],
+                "date_to": None,
+            })
+
     return filtered
 
 
@@ -1744,15 +1805,18 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         data["income_curr_month"] = round(curr_income, 2)
 
         # ── Binding history (grouped into periods) ──
-        data["binding_history"] = _group_binding_periods(bindings, year)
-
-        # ── FOP re-registration count (from Jan 1 of current year) ──
-        # Counts binding periods that STARTED in the current year
-        reregistrations = sum(
-            1 for p in data["binding_history"]
-            if p["date_from"] and p["date_from"].endswith(str(year))
+        data["binding_history"] = _group_binding_periods(
+            bindings, year, current_fop_name
         )
-        data["fop_count"] = reregistrations
+
+        # ── FOP switch count: unique dates with binding events in current year ──
+        year_start = date(year, 1, 1)
+        switch_dates = set()
+        for b in bindings:
+            d = _parse_binding_date(b["date"])
+            if d and d >= year_start:
+                switch_dates.add(d)
+        data["fop_count"] = len(switch_dates)
 
         stores_report.append(data)
 
@@ -1776,14 +1840,13 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
     # Save report to file for dashboard endpoint
     _save_report_json(report_json)
 
-    # TODO: увімкнути створення задач після налаштування підпроцесу Process_0iy2u1a
     return {
         "report_date": today.isoformat(),
         "total_fops": len(fops),
         "total_analyzed": len(analyses),
-        "critical_count": 0,
-        "critical_fops": [],             # disabled until task creation is configured
-        "report_json": report_json,      # all FOPs — for Odoo dashboard
+        "critical_count": len(critical_fops),
+        "critical_fops": critical_fops,
+        "report_json": report_json,
     }
 
 
