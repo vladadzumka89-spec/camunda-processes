@@ -18,29 +18,41 @@
 
   <bpmn:process id="pr-review" name="PR Review" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="7.0" />
+      <zeebe:versionTag value="10.0" />
     </bpmn:extensionElements>
 
     <bpmn:startEvent id="evt_start" name="PR відкрито">
-      <bpmn:outgoing>f_start_to_parent_check</bpmn:outgoing>
+      <bpmn:outgoing>f_start_to_mapping</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_start" messageRef="Message_pr_review" />
     </bpmn:startEvent>
 
+    <!-- ── DMN: GitHub username → Odoo user ID ─────────────── -->
+    <bpmn:businessRuleTask id="BRT_user_mapping" name="GitHub → Odoo [DMN]">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="github-user-mapping" resultVariable="github_user_mapping" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=pr_author" target="github_username" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_start_to_mapping</bpmn:incoming>
+      <bpmn:outgoing>f_mapping_to_parent_check</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
     <!-- ── CHECK: standalone or child process? ─────────────── -->
     <bpmn:exclusiveGateway id="gw_parent_check" name="Є батьківський процес?" default="f_no_parent">
-      <bpmn:incoming>f_start_to_parent_check</bpmn:incoming>
+      <bpmn:incoming>f_mapping_to_parent_check</bpmn:incoming>
       <bpmn:outgoing>f_has_parent</bpmn:outgoing>
       <bpmn:outgoing>f_no_parent</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
     <bpmn:serviceTask id="ST_create_review_task" name="Створити задачу ревʼю в Odoo">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;[review] PR #&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;Code Review&quot;), description: &quot;&lt;p&gt;Автоматичне ревʼю PR #&quot; + string(pr_number) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot;&lt;/p&gt;&quot;, create_process: true, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 237, bpmn_process_id: &quot;pr-review&quot;}" target="body" />
+          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[review] PR #&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;Code Review&quot;), description: &quot;&lt;p&gt;&lt;b&gt;PR:&lt;/b&gt; &lt;a href='&quot; + (if is defined(pr_url) and pr_url != null then pr_url else &quot;&quot;) + &quot;'&gt;#&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;&quot;) + &quot;&lt;/a&gt;&lt;br/&gt;&lt;b&gt;Автор:&lt;/b&gt; &quot; + (if is defined(pr_author) and pr_author != null then pr_author else &quot;—&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Гілка:&lt;/b&gt; &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot; → &quot; + (if is defined(base_branch) and base_branch != null then base_branch else &quot;unknown&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Репо:&lt;/b&gt; &quot; + (if is defined(repository) and repository != null then repository else &quot;—&quot;) + &quot;&lt;/p&gt;&quot;, create_process: true, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560, bpmn_process_id: &quot;pr-review&quot;, x_studio_camunda_user_ids: if github_user_mapping != null then github_user_mapping.odoo_user_id else null}" target="body" />
           <zeebe:input source="=&quot;odoo_create_response&quot;" target="result_variable_name" />
           <zeebe:input source="=true" target="ignore_errors" />
           <zeebe:output source="=string(odoo_create_response.id)" target="parent_process_instance_key" />
@@ -52,12 +64,12 @@
 
     <bpmn:serviceTask id="ST_create_review_subtask" name="Створити підзадачу ревʼю в Odoo">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;[review] PR #&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;Code Review&quot;), description: &quot;&lt;p&gt;Автоматичне ревʼю PR #&quot; + string(pr_number) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot;&lt;/p&gt;&quot;, parent_process_instance_key: parent_process_instance_key, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 237, bpmn_process_id: &quot;pr-review&quot;}" target="body" />
+          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[review] PR #&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;Code Review&quot;), description: &quot;&lt;p&gt;&lt;b&gt;PR:&lt;/b&gt; &lt;a href='&quot; + (if is defined(pr_url) and pr_url != null then pr_url else &quot;&quot;) + &quot;'&gt;#&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;&quot;) + &quot;&lt;/a&gt;&lt;br/&gt;&lt;b&gt;Автор:&lt;/b&gt; &quot; + (if is defined(pr_author) and pr_author != null then pr_author else &quot;—&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Гілка:&lt;/b&gt; &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot; → &quot; + (if is defined(base_branch) and base_branch != null then base_branch else &quot;unknown&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Репо:&lt;/b&gt; &quot; + (if is defined(repository) and repository != null then repository else &quot;—&quot;) + &quot;&lt;/p&gt;&quot;, parent_process_instance_key: parent_process_instance_key, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560, bpmn_process_id: &quot;pr-review&quot;, x_studio_camunda_user_ids: if github_user_mapping != null then github_user_mapping.odoo_user_id else null}" target="body" />
           <zeebe:input source="=&quot;odoo_subtask_response&quot;" target="result_variable_name" />
           <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
@@ -80,11 +92,27 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         <zeebe:taskDefinition type="pr-agent-review" retries="2" />
       </bpmn:extensionElements>
       <bpmn:incoming>f_start_to_review</bpmn:incoming>
-      <bpmn:outgoing>f_review_to_gw</bpmn:outgoing>
+      <bpmn:outgoing>f_review_to_odoo</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── NEW: Odoo subtask — review result (always) ──────── -->
+    <bpmn:serviceTask id="ST_odoo_review_result" name="🔍 Результат ревʼю → Odoo">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[review] 🔍 Результат ревʼю PR #&quot; + string(pr_number), description: &quot;&lt;p&gt;&lt;b&gt;PR:&lt;/b&gt; &lt;a href='&quot; + (if is defined(pr_url) and pr_url != null then pr_url else &quot;&quot;) + &quot;'&gt;#&quot; + string(pr_number) + &quot;&lt;/a&gt;&lt;br/&gt;&lt;b&gt;Автор:&lt;/b&gt; &quot; + (if is defined(pr_author) and pr_author != null then pr_author else &quot;—&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Гілка:&lt;/b&gt; &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot; → &quot; + (if is defined(base_branch) and base_branch != null then base_branch else &quot;unknown&quot;) + &quot;&lt;hr/&gt;&lt;b&gt;Score:&lt;/b&gt; &lt;b&gt;&quot; + string(review_score) + &quot;/10&lt;/b&gt;&lt;br/&gt;&lt;b&gt;Критичні проблеми:&lt;/b&gt; &quot; + (if is defined(has_critical_issues) and has_critical_issues = true then &quot;Так ⚠️&quot; else &quot;Ні ✅&quot;) + &quot;&lt;/p&gt;&quot;, parent_process_instance_key: if is defined(parent_process_instance_key) and parent_process_instance_key != null then parent_process_instance_key else process_instance_key}" target="body" />
+          <zeebe:input source="=true" target="ignore_errors" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_review_to_odoo</bpmn:incoming>
+      <bpmn:outgoing>f_review_result_to_gw</bpmn:outgoing>
     </bpmn:serviceTask>
 
     <bpmn:exclusiveGateway id="gw_score" name="Оцінка &gt;= 7?" default="f_score_low">
-      <bpmn:incoming>f_review_to_gw</bpmn:incoming>
+      <bpmn:incoming>f_review_result_to_gw</bpmn:incoming>
       <bpmn:outgoing>f_score_ok</bpmn:outgoing>
       <bpmn:outgoing>f_score_low</bpmn:outgoing>
     </bpmn:exclusiveGateway>
@@ -107,7 +135,7 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_branch_staging</bpmn:incoming>
-      <bpmn:outgoing>f_merge_to_publish</bpmn:outgoing>
+      <bpmn:outgoing>f_merge_to_odoo</bpmn:outgoing>
     </bpmn:serviceTask>
 
     <bpmn:boundaryEvent id="BE_merge_error" name="Merge не вдався" attachedToRef="task_github_merge">
@@ -123,29 +151,42 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_error_to_comment</bpmn:incoming>
-      <bpmn:outgoing>f_merge_fail_to_publish</bpmn:outgoing>
+      <bpmn:outgoing>f_merge_fail_to_odoo</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:serviceTask id="ST_publish_review_done" name="Публікувати результат ревʼю">
+    <!-- ── NEW: Odoo subtask — merge OK ────────────────────── -->
+    <bpmn:serviceTask id="ST_odoo_merge_ok" name="✅ Merge OK → Odoo">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="publish-message" retries="2" />
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;msg_review_done&quot;" target="message_name" />
-          <zeebe:input source="=string(pr_number)" target="correlation_key" />
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[review] ✅ PR #&quot; + string(pr_number) + &quot; змержено в staging&quot;, description: &quot;&lt;p&gt;&lt;b&gt;PR:&lt;/b&gt; &lt;a href='&quot; + (if is defined(pr_url) and pr_url != null then pr_url else &quot;&quot;) + &quot;'&gt;#&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;&quot;) + &quot;&lt;/a&gt;&lt;br/&gt;&lt;b&gt;Автор:&lt;/b&gt; &quot; + (if is defined(pr_author) and pr_author != null then pr_author else &quot;—&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Гілка:&lt;/b&gt; &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot; → staging&lt;hr/&gt;✅ Merge успішний. Далі буде автоматичний деплой на staging.&lt;/p&gt;&quot;, parent_process_instance_key: if is defined(parent_process_instance_key) and parent_process_instance_key != null then parent_process_instance_key else process_instance_key}" target="body" />
+          <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>f_merge_to_publish</bpmn:incoming>
-      <bpmn:incoming>f_low_to_publish</bpmn:incoming>
-      <bpmn:incoming>f_merge_fail_to_publish</bpmn:incoming>
-      <bpmn:incoming>f_branch_other</bpmn:incoming>
-      <bpmn:outgoing>f_publish_to_end</bpmn:outgoing>
+      <bpmn:incoming>f_merge_to_odoo</bpmn:incoming>
+      <bpmn:outgoing>f_merge_ok_to_publish</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:endEvent id="evt_end" name="Ревʼю завершено">
-      <bpmn:incoming>f_publish_to_end</bpmn:incoming>
-    </bpmn:endEvent>
+    <!-- ── NEW: Odoo subtask — review passed (not staging) ─── -->
+    <bpmn:serviceTask id="ST_odoo_review_passed" name="✅ Ревʼю OK → Odoo">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[review] ✅ PR #&quot; + string(pr_number) + &quot; пройшов ревʼю (score &quot; + string(review_score) + &quot;/10)&quot;, description: &quot;&lt;p&gt;&lt;b&gt;PR:&lt;/b&gt; &lt;a href='&quot; + (if is defined(pr_url) and pr_url != null then pr_url else &quot;&quot;) + &quot;'&gt;#&quot; + string(pr_number) + &quot;&lt;/a&gt;&lt;br/&gt;&lt;b&gt;Автор:&lt;/b&gt; &quot; + (if is defined(pr_author) and pr_author != null then pr_author else &quot;—&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Гілка:&lt;/b&gt; &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot; → &quot; + (if is defined(base_branch) and base_branch != null then base_branch else &quot;unknown&quot;) + &quot;&lt;hr/&gt;✅ Ревʼю пройдено (score &quot; + string(review_score) + &quot;/10). Auto-merge не виконується — PR не в staging.&lt;/p&gt;&quot;, parent_process_instance_key: if is defined(parent_process_instance_key) and parent_process_instance_key != null then parent_process_instance_key else process_instance_key}" target="body" />
+          <zeebe:input source="=true" target="ignore_errors" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_branch_other</bpmn:incoming>
+      <bpmn:outgoing>f_passed_to_publish</bpmn:outgoing>
+    </bpmn:serviceTask>
 
-    <!-- ── Score LOW: comment + publish + end ──────────────── -->
+    <!-- ── Score LOW: comment + Odoo subtask ──────────────── -->
     <bpmn:serviceTask id="task_comment_low" name="Коментар: не пройшло ревʼю">
       <bpmn:documentation>Коментар на PR: score &lt; 7, merge відхилено.</bpmn:documentation>
       <bpmn:extensionElements>
@@ -155,11 +196,64 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_score_low</bpmn:incoming>
-      <bpmn:outgoing>f_low_to_publish</bpmn:outgoing>
+      <bpmn:outgoing>f_low_to_odoo</bpmn:outgoing>
     </bpmn:serviceTask>
 
+    <!-- ── NEW: Odoo subtask — review rejected ─────────────── -->
+    <bpmn:serviceTask id="ST_odoo_review_rejected" name="❌ Ревʼю rejected → Odoo">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[review] ❌ PR #&quot; + string(pr_number) + &quot; не пройшов ревʼю (score &quot; + string(review_score) + &quot;/10)&quot;, description: &quot;&lt;p&gt;&lt;b&gt;PR:&lt;/b&gt; &lt;a href='&quot; + (if is defined(pr_url) and pr_url != null then pr_url else &quot;&quot;) + &quot;'&gt;#&quot; + string(pr_number) + &quot;&lt;/a&gt;&lt;br/&gt;&lt;b&gt;Автор:&lt;/b&gt; &quot; + (if is defined(pr_author) and pr_author != null then pr_author else &quot;—&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Гілка:&lt;/b&gt; &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot; → &quot; + (if is defined(base_branch) and base_branch != null then base_branch else &quot;unknown&quot;) + &quot;&lt;hr/&gt;❌ Ревʼю не пройдено (score &quot; + string(review_score) + &quot;/10). Потрібні виправлення та повторний push.&lt;/p&gt;&quot;, parent_process_instance_key: if is defined(parent_process_instance_key) and parent_process_instance_key != null then parent_process_instance_key else process_instance_key}" target="body" />
+          <zeebe:input source="=true" target="ignore_errors" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_low_to_odoo</bpmn:incoming>
+      <bpmn:outgoing>f_rejected_to_publish</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── NEW: Odoo subtask — merge failed ────────────────── -->
+    <bpmn:serviceTask id="ST_odoo_merge_failed" name="⚠️ Merge failed → Odoo">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
+          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[review] ⚠️ Merge PR #&quot; + string(pr_number) + &quot; не вдався&quot;, description: &quot;&lt;p&gt;&lt;b&gt;PR:&lt;/b&gt; &lt;a href='&quot; + (if is defined(pr_url) and pr_url != null then pr_url else &quot;&quot;) + &quot;'&gt;#&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;&quot;) + &quot;&lt;/a&gt;&lt;br/&gt;&lt;b&gt;Автор:&lt;/b&gt; &quot; + (if is defined(pr_author) and pr_author != null then pr_author else &quot;—&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Гілка:&lt;/b&gt; &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot; → staging&lt;hr/&gt;⚠️ Auto-merge заблоковано (конфлікти або branch protection). Потрібен ручний merge.&lt;/p&gt;&quot;, parent_process_instance_key: if is defined(parent_process_instance_key) and parent_process_instance_key != null then parent_process_instance_key else process_instance_key}" target="body" />
+          <zeebe:input source="=true" target="ignore_errors" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_merge_fail_to_odoo</bpmn:incoming>
+      <bpmn:outgoing>f_merge_failed_to_publish</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── Publish + End ─────────────────────────────────────── -->
+    <bpmn:serviceTask id="ST_publish_review_done" name="Публікувати результат ревʼю">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="publish-message" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;msg_review_done&quot;" target="message_name" />
+          <zeebe:input source="=string(pr_number)" target="correlation_key" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_merge_ok_to_publish</bpmn:incoming>
+      <bpmn:incoming>f_rejected_to_publish</bpmn:incoming>
+      <bpmn:incoming>f_merge_failed_to_publish</bpmn:incoming>
+      <bpmn:incoming>f_passed_to_publish</bpmn:incoming>
+      <bpmn:outgoing>f_publish_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="evt_end" name="Ревʼю завершено">
+      <bpmn:incoming>f_publish_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
     <!-- ── Sequence flows ──────────────────────────────────── -->
-    <bpmn:sequenceFlow id="f_start_to_parent_check" sourceRef="evt_start" targetRef="gw_parent_check" />
+    <bpmn:sequenceFlow id="f_start_to_mapping" sourceRef="evt_start" targetRef="BRT_user_mapping" />
+    <bpmn:sequenceFlow id="f_mapping_to_parent_check" sourceRef="BRT_user_mapping" targetRef="gw_parent_check" />
     <bpmn:sequenceFlow id="f_has_parent" name="Так" sourceRef="gw_parent_check" targetRef="ST_create_review_subtask">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(parent_process_instance_key) and parent_process_instance_key != null</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
@@ -167,20 +261,52 @@ Output: review_score, has_critical_issues</bpmn:documentation>
     <bpmn:sequenceFlow id="f_created_to_merge" sourceRef="ST_create_review_task" targetRef="gw_merge_parent" />
     <bpmn:sequenceFlow id="f_subtask_to_merge" sourceRef="ST_create_review_subtask" targetRef="gw_merge_parent" />
     <bpmn:sequenceFlow id="f_start_to_review" sourceRef="gw_merge_parent" targetRef="task_pr_agent" />
-    <bpmn:sequenceFlow id="f_review_to_gw" sourceRef="task_pr_agent" targetRef="gw_score" />
+    <bpmn:sequenceFlow id="f_review_to_odoo" sourceRef="task_pr_agent" targetRef="ST_odoo_review_result" />
+    <bpmn:sequenceFlow id="f_review_result_to_gw" sourceRef="ST_odoo_review_result" targetRef="gw_score" />
     <bpmn:sequenceFlow id="f_score_ok" name="OK" sourceRef="gw_score" targetRef="gw_branch">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=review_score &gt;= 7 and has_critical_issues = false</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="f_branch_staging" name="staging" sourceRef="gw_branch" targetRef="task_github_merge">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(base_branch) and base_branch = "staging"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="f_branch_other" name="main/інше" sourceRef="gw_branch" targetRef="ST_publish_review_done" />
-    <bpmn:sequenceFlow id="f_merge_to_publish" sourceRef="task_github_merge" targetRef="ST_publish_review_done" />
+    <bpmn:sequenceFlow id="f_branch_other" name="main/інше" sourceRef="gw_branch" targetRef="ST_odoo_review_passed" />
+    <bpmn:sequenceFlow id="f_merge_to_odoo" sourceRef="task_github_merge" targetRef="ST_odoo_merge_ok" />
+    <bpmn:sequenceFlow id="f_merge_ok_to_publish" sourceRef="ST_odoo_merge_ok" targetRef="ST_publish_review_done" />
+    <bpmn:sequenceFlow id="f_passed_to_publish" sourceRef="ST_odoo_review_passed" targetRef="ST_publish_review_done" />
     <bpmn:sequenceFlow id="f_score_low" name="&lt; 7" sourceRef="gw_score" targetRef="task_comment_low" />
-    <bpmn:sequenceFlow id="f_low_to_publish" sourceRef="task_comment_low" targetRef="ST_publish_review_done" />
+    <bpmn:sequenceFlow id="f_low_to_odoo" sourceRef="task_comment_low" targetRef="ST_odoo_review_rejected" />
+    <bpmn:sequenceFlow id="f_rejected_to_publish" sourceRef="ST_odoo_review_rejected" targetRef="ST_publish_review_done" />
     <bpmn:sequenceFlow id="f_merge_error_to_comment" sourceRef="BE_merge_error" targetRef="task_comment_merge_fail" />
-    <bpmn:sequenceFlow id="f_merge_fail_to_publish" sourceRef="task_comment_merge_fail" targetRef="ST_publish_review_done" />
+    <bpmn:sequenceFlow id="f_merge_fail_to_odoo" sourceRef="task_comment_merge_fail" targetRef="ST_odoo_merge_failed" />
+    <bpmn:sequenceFlow id="f_merge_failed_to_publish" sourceRef="ST_odoo_merge_failed" targetRef="ST_publish_review_done" />
     <bpmn:sequenceFlow id="f_publish_to_end" sourceRef="ST_publish_review_done" targetRef="evt_end" />
+
+    <!-- ── Error Event Subprocess (Catch-all) ──────────────────── -->
+    <bpmn:subProcess id="subprocess_error_review" name="Обробка помилок ревʼю" triggeredByEvent="true">
+      <bpmn:startEvent id="evt_error_catch_review" name="Помилка ревʼю">
+        <bpmn:outgoing>f_err_to_notify_review</bpmn:outgoing>
+        <bpmn:errorEventDefinition id="ErrorDef_catch_review" />
+      </bpmn:startEvent>
+      <bpmn:serviceTask id="ST_error_notify_review" name="❌ Помилка ревʼю → Odoo">
+        <bpmn:extensionElements>
+          <zeebe:taskDefinition type="http-request-cicd" retries="2" />
+          <zeebe:ioMapping>
+            <zeebe:input source="=&quot;POST&quot;" target="method" />
+            <zeebe:input source="=odoo_webhook_url" target="url" />
+            <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+            <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[review] ❌ Помилка ревʼю PR #&quot; + string(pr_number), description: &quot;&lt;p&gt;Критична помилка під час автоматичного ревʼю PR #&quot; + string(pr_number) + &quot;.&lt;/p&gt;&quot;, parent_process_instance_key: if is defined(parent_process_instance_key) and parent_process_instance_key != null then parent_process_instance_key else process_instance_key}" target="body" />
+            <zeebe:input source="=true" target="ignore_errors" />
+          </zeebe:ioMapping>
+        </bpmn:extensionElements>
+        <bpmn:incoming>f_err_to_notify_review</bpmn:incoming>
+        <bpmn:outgoing>f_err_to_end_review</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:endEvent id="evt_error_end_review" name="Ревʼю завершено з помилкою">
+        <bpmn:incoming>f_err_to_end_review</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="f_err_to_notify_review" sourceRef="evt_error_catch_review" targetRef="ST_error_notify_review" />
+      <bpmn:sequenceFlow id="f_err_to_end_review" sourceRef="ST_error_notify_review" targetRef="evt_error_end_review" />
+    </bpmn:subProcess>
 
   </bpmn:process>
 
@@ -193,158 +319,243 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         <dc:Bounds x="170" y="192" width="36" height="36" />
       </bpmndi:BPMNShape>
 
+      <!-- DMN: GitHub → Odoo mapping -->
+      <bpmndi:BPMNShape id="BRT_user_mapping_di" bpmnElement="BRT_user_mapping">
+        <dc:Bounds x="270" y="170" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
       <bpmndi:BPMNShape id="gw_parent_check_di" bpmnElement="gw_parent_check" isMarkerVisible="true">
-        <dc:Bounds x="290" y="185" width="50" height="50" />
+        <dc:Bounds x="470" y="185" width="50" height="50" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="ST_create_review_subtask_di" bpmnElement="ST_create_review_subtask">
-        <dc:Bounds x="420" y="90" width="100" height="80" />
+        <dc:Bounds x="600" y="90" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="ST_create_review_task_di" bpmnElement="ST_create_review_task">
-        <dc:Bounds x="420" y="170" width="100" height="80" />
+        <dc:Bounds x="600" y="170" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="gw_merge_parent_di" bpmnElement="gw_merge_parent" isMarkerVisible="true">
-        <dc:Bounds x="600" y="185" width="50" height="50" />
+        <dc:Bounds x="780" y="185" width="50" height="50" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="task_pr_agent_di" bpmnElement="task_pr_agent">
-        <dc:Bounds x="730" y="170" width="100" height="80" />
+        <dc:Bounds x="910" y="170" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Odoo review result -->
+      <bpmndi:BPMNShape id="ST_odoo_review_result_di" bpmnElement="ST_odoo_review_result">
+        <dc:Bounds x="1090" y="170" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="gw_score_di" bpmnElement="gw_score" isMarkerVisible="true">
-        <dc:Bounds x="910" y="185" width="50" height="50" />
+        <dc:Bounds x="1270" y="185" width="50" height="50" />
       </bpmndi:BPMNShape>
 
       <!-- Branch check gateway -->
       <bpmndi:BPMNShape id="gw_branch_di" bpmnElement="gw_branch" isMarkerVisible="true">
-        <dc:Bounds x="1040" y="185" width="50" height="50" />
+        <dc:Bounds x="1400" y="185" width="50" height="50" />
       </bpmndi:BPMNShape>
 
-      <!-- OK path: merge -->
+      <!-- OK+staging path: merge -->
       <bpmndi:BPMNShape id="task_github_merge_di" bpmnElement="task_github_merge">
-        <dc:Bounds x="1170" y="170" width="100" height="80" />
-      </bpmndi:BPMNShape>
-
-      <!-- Shared: publish + end -->
-      <bpmndi:BPMNShape id="ST_publish_review_done_di" bpmnElement="ST_publish_review_done">
-        <dc:Bounds x="1350" y="170" width="100" height="80" />
-      </bpmndi:BPMNShape>
-
-      <bpmndi:BPMNShape id="evt_end_di" bpmnElement="evt_end">
-        <dc:Bounds x="1530" y="192" width="36" height="36" />
+        <dc:Bounds x="1530" y="170" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Merge error boundary + comment -->
       <bpmndi:BPMNShape id="BE_merge_error_di" bpmnElement="BE_merge_error">
-        <dc:Bounds x="1202" y="232" width="36" height="36" />
+        <dc:Bounds x="1562" y="232" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="task_comment_merge_fail_di" bpmnElement="task_comment_merge_fail">
-        <dc:Bounds x="1170" y="420" width="100" height="80" />
+        <dc:Bounds x="1530" y="420" width="100" height="80" />
       </bpmndi:BPMNShape>
 
-      <!-- Low score path Y=310 -->
+      <!-- Low score path Y=300 -->
       <bpmndi:BPMNShape id="task_comment_low_di" bpmnElement="task_comment_low">
-        <dc:Bounds x="1040" y="300" width="100" height="80" />
+        <dc:Bounds x="1400" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Odoo subtask shapes -->
+      <bpmndi:BPMNShape id="ST_odoo_review_passed_di" bpmnElement="ST_odoo_review_passed">
+        <dc:Bounds x="1580" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="ST_odoo_merge_ok_di" bpmnElement="ST_odoo_merge_ok">
+        <dc:Bounds x="1710" y="170" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="ST_odoo_review_rejected_di" bpmnElement="ST_odoo_review_rejected">
+        <dc:Bounds x="1580" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="ST_odoo_merge_failed_di" bpmnElement="ST_odoo_merge_failed">
+        <dc:Bounds x="1710" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Shared: publish + end -->
+      <bpmndi:BPMNShape id="ST_publish_review_done_di" bpmnElement="ST_publish_review_done">
+        <dc:Bounds x="1890" y="170" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="evt_end_di" bpmnElement="evt_end">
+        <dc:Bounds x="2070" y="192" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <!-- ── Edges ─────────────────────────────────────────── -->
-      <bpmndi:BPMNEdge id="f_start_to_parent_check_di" bpmnElement="f_start_to_parent_check">
+      <bpmndi:BPMNEdge id="f_start_to_mapping_di" bpmnElement="f_start_to_mapping">
         <di:waypoint x="206" y="210" />
-        <di:waypoint x="290" y="210" />
+        <di:waypoint x="270" y="210" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f_mapping_to_parent_check_di" bpmnElement="f_mapping_to_parent_check">
+        <di:waypoint x="370" y="210" />
+        <di:waypoint x="470" y="210" />
       </bpmndi:BPMNEdge>
 
       <bpmndi:BPMNEdge id="f_has_parent_di" bpmnElement="f_has_parent">
-        <di:waypoint x="315" y="185" />
-        <di:waypoint x="315" y="130" />
-        <di:waypoint x="420" y="130" />
+        <di:waypoint x="495" y="185" />
+        <di:waypoint x="495" y="130" />
+        <di:waypoint x="600" y="130" />
       </bpmndi:BPMNEdge>
 
       <bpmndi:BPMNEdge id="f_no_parent_di" bpmnElement="f_no_parent">
-        <di:waypoint x="340" y="210" />
-        <di:waypoint x="420" y="210" />
-      </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="f_subtask_to_merge_di" bpmnElement="f_subtask_to_merge">
-        <di:waypoint x="520" y="130" />
-        <di:waypoint x="625" y="130" />
-        <di:waypoint x="625" y="185" />
-      </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="f_created_to_merge_di" bpmnElement="f_created_to_merge">
         <di:waypoint x="520" y="210" />
         <di:waypoint x="600" y="210" />
       </bpmndi:BPMNEdge>
 
-      <bpmndi:BPMNEdge id="f_start_to_review_di" bpmnElement="f_start_to_review">
-        <di:waypoint x="650" y="210" />
-        <di:waypoint x="730" y="210" />
+      <bpmndi:BPMNEdge id="f_subtask_to_merge_di" bpmnElement="f_subtask_to_merge">
+        <di:waypoint x="700" y="130" />
+        <di:waypoint x="805" y="130" />
+        <di:waypoint x="805" y="185" />
       </bpmndi:BPMNEdge>
 
-      <bpmndi:BPMNEdge id="f_review_to_gw_di" bpmnElement="f_review_to_gw">
+      <bpmndi:BPMNEdge id="f_created_to_merge_di" bpmnElement="f_created_to_merge">
+        <di:waypoint x="700" y="210" />
+        <di:waypoint x="780" y="210" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f_start_to_review_di" bpmnElement="f_start_to_review">
         <di:waypoint x="830" y="210" />
         <di:waypoint x="910" y="210" />
       </bpmndi:BPMNEdge>
 
+      <!-- pr_agent → odoo review result -->
+      <bpmndi:BPMNEdge id="f_review_to_odoo_di" bpmnElement="f_review_to_odoo">
+        <di:waypoint x="1010" y="210" />
+        <di:waypoint x="1090" y="210" />
+      </bpmndi:BPMNEdge>
+
+      <!-- odoo review result → score gateway -->
+      <bpmndi:BPMNEdge id="f_review_result_to_gw_di" bpmnElement="f_review_result_to_gw">
+        <di:waypoint x="1190" y="210" />
+        <di:waypoint x="1270" y="210" />
+      </bpmndi:BPMNEdge>
+
       <!-- OK → branch check -->
       <bpmndi:BPMNEdge id="f_score_ok_di" bpmnElement="f_score_ok">
-        <di:waypoint x="960" y="210" />
-        <di:waypoint x="1040" y="210" />
+        <di:waypoint x="1320" y="210" />
+        <di:waypoint x="1400" y="210" />
       </bpmndi:BPMNEdge>
 
       <!-- staging → merge -->
       <bpmndi:BPMNEdge id="f_branch_staging_di" bpmnElement="f_branch_staging">
-        <di:waypoint x="1090" y="210" />
-        <di:waypoint x="1170" y="210" />
+        <di:waypoint x="1450" y="210" />
+        <di:waypoint x="1530" y="210" />
       </bpmndi:BPMNEdge>
 
-      <!-- main/other → skip merge, go to publish -->
+      <!-- main/other → odoo review passed -->
       <bpmndi:BPMNEdge id="f_branch_other_di" bpmnElement="f_branch_other">
-        <di:waypoint x="1065" y="185" />
-        <di:waypoint x="1065" y="120" />
-        <di:waypoint x="1400" y="120" />
-        <di:waypoint x="1400" y="170" />
+        <di:waypoint x="1425" y="185" />
+        <di:waypoint x="1425" y="120" />
+        <di:waypoint x="1580" y="120" />
       </bpmndi:BPMNEdge>
 
-      <!-- merge → publish -->
-      <bpmndi:BPMNEdge id="f_merge_to_publish_di" bpmnElement="f_merge_to_publish">
-        <di:waypoint x="1270" y="210" />
-        <di:waypoint x="1350" y="210" />
+      <!-- merge → odoo merge ok -->
+      <bpmndi:BPMNEdge id="f_merge_to_odoo_di" bpmnElement="f_merge_to_odoo">
+        <di:waypoint x="1630" y="210" />
+        <di:waypoint x="1710" y="210" />
+      </bpmndi:BPMNEdge>
+
+      <!-- odoo merge ok → publish -->
+      <bpmndi:BPMNEdge id="f_merge_ok_to_publish_di" bpmnElement="f_merge_ok_to_publish">
+        <di:waypoint x="1810" y="210" />
+        <di:waypoint x="1890" y="210" />
+      </bpmndi:BPMNEdge>
+
+      <!-- odoo review passed → publish -->
+      <bpmndi:BPMNEdge id="f_passed_to_publish_di" bpmnElement="f_passed_to_publish">
+        <di:waypoint x="1680" y="120" />
+        <di:waypoint x="1940" y="120" />
+        <di:waypoint x="1940" y="170" />
       </bpmndi:BPMNEdge>
 
       <!-- low score → comment -->
       <bpmndi:BPMNEdge id="f_score_low_di" bpmnElement="f_score_low">
-        <di:waypoint x="935" y="235" />
-        <di:waypoint x="935" y="340" />
-        <di:waypoint x="1040" y="340" />
+        <di:waypoint x="1295" y="235" />
+        <di:waypoint x="1295" y="340" />
+        <di:waypoint x="1400" y="340" />
       </bpmndi:BPMNEdge>
 
-      <!-- low comment → publish -->
-      <bpmndi:BPMNEdge id="f_low_to_publish_di" bpmnElement="f_low_to_publish">
-        <di:waypoint x="1140" y="340" />
-        <di:waypoint x="1400" y="340" />
-        <di:waypoint x="1400" y="250" />
+      <!-- low comment → odoo review rejected -->
+      <bpmndi:BPMNEdge id="f_low_to_odoo_di" bpmnElement="f_low_to_odoo">
+        <di:waypoint x="1500" y="340" />
+        <di:waypoint x="1580" y="340" />
+      </bpmndi:BPMNEdge>
+
+      <!-- odoo review rejected → publish -->
+      <bpmndi:BPMNEdge id="f_rejected_to_publish_di" bpmnElement="f_rejected_to_publish">
+        <di:waypoint x="1680" y="340" />
+        <di:waypoint x="1940" y="340" />
+        <di:waypoint x="1940" y="250" />
       </bpmndi:BPMNEdge>
 
       <!-- merge error → comment merge fail -->
       <bpmndi:BPMNEdge id="f_merge_error_to_comment_di" bpmnElement="f_merge_error_to_comment">
-        <di:waypoint x="1220" y="268" />
-        <di:waypoint x="1220" y="420" />
+        <di:waypoint x="1580" y="268" />
+        <di:waypoint x="1580" y="420" />
       </bpmndi:BPMNEdge>
 
-      <!-- merge fail comment → publish -->
-      <bpmndi:BPMNEdge id="f_merge_fail_to_publish_di" bpmnElement="f_merge_fail_to_publish">
-        <di:waypoint x="1270" y="460" />
-        <di:waypoint x="1400" y="460" />
-        <di:waypoint x="1400" y="250" />
+      <!-- merge fail comment → odoo merge failed -->
+      <bpmndi:BPMNEdge id="f_merge_fail_to_odoo_di" bpmnElement="f_merge_fail_to_odoo">
+        <di:waypoint x="1630" y="460" />
+        <di:waypoint x="1710" y="460" />
+      </bpmndi:BPMNEdge>
+
+      <!-- odoo merge failed → publish -->
+      <bpmndi:BPMNEdge id="f_merge_failed_to_publish_di" bpmnElement="f_merge_failed_to_publish">
+        <di:waypoint x="1810" y="460" />
+        <di:waypoint x="1940" y="460" />
+        <di:waypoint x="1940" y="250" />
       </bpmndi:BPMNEdge>
 
       <!-- publish → end -->
       <bpmndi:BPMNEdge id="f_publish_to_end_di" bpmnElement="f_publish_to_end">
-        <di:waypoint x="1450" y="210" />
-        <di:waypoint x="1530" y="210" />
+        <di:waypoint x="1990" y="210" />
+        <di:waypoint x="2070" y="210" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Error Event Subprocess -->
+      <bpmndi:BPMNShape id="subprocess_error_review_di" bpmnElement="subprocess_error_review" isExpanded="true">
+        <dc:Bounds x="170" y="560" width="480" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="evt_error_catch_review_di" bpmnElement="evt_error_catch_review">
+        <dc:Bounds x="200" y="602" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_error_notify_review_di" bpmnElement="ST_error_notify_review">
+        <dc:Bounds x="288" y="580" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="evt_error_end_review_di" bpmnElement="evt_error_end_review">
+        <dc:Bounds x="478" y="602" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_err_to_notify_review_di" bpmnElement="f_err_to_notify_review">
+        <di:waypoint x="236" y="620" />
+        <di:waypoint x="288" y="620" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_err_to_end_review_di" bpmnElement="f_err_to_end_review">
+        <di:waypoint x="428" y="620" />
+        <di:waypoint x="478" y="620" />
       </bpmndi:BPMNEdge>
 
     </bpmndi:BPMNPlane>

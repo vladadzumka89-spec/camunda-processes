@@ -23,12 +23,12 @@
     <bpmn:serviceTask id="ST_create_task" name="Створити задачу в Odoo">
       <bpmn:documentation>Створює задачу в Odoo через webhook. Використовує task_name та task_description з input.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: task_name, description: task_description, _model: &quot;project.project&quot;, _id: 252, process_instance_key: correlation_key}" target="body" />
+          <zeebe:input source="={name: task_name, description: task_description, _model: &quot;project.project&quot;, _id: odoo_project_id, process_instance_key: correlation_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_start_to_create</bpmn:incoming>
@@ -54,12 +54,12 @@ Odoo automation надсилає webhook з результатом.</bpmn:docume
     <bpmn:serviceTask id="ST_rem" name="⚠️ Нагадування">
       <bpmn:documentation>Створює нагадування в Odoo.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;⚠️ НАГАДУВАННЯ: &quot; + task_name, description: &quot;&lt;p&gt;⚠️ НАГАДУВАННЯ: Задача очікує на виконання.&lt;/p&gt;&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: correlation_key}" target="body" />
+          <zeebe:input source="={name: &quot;⚠️ НАГАДУВАННЯ: &quot; + task_name, description: &quot;&lt;p&gt;⚠️ НАГАДУВАННЯ: Задача очікує на виконання.&lt;/p&gt;&quot;, _model: &quot;project.project&quot;, _id: odoo_project_id, process_instance_key: correlation_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_rem</bpmn:incoming>
@@ -81,12 +81,12 @@ Odoo automation надсилає webhook з результатом.</bpmn:docume
     <bpmn:serviceTask id="ST_esc" name="🔴 Ескалація">
       <bpmn:documentation>Створює ескалаційну задачу в Odoo для керівника.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;🔴 ЕСКАЛАЦІЯ: &quot; + task_name, description: &quot;Задача не виконана вчасно. Потрібне втручання керівника.&quot;, _model: &quot;project.project&quot;, _id: 252, process_instance_key: correlation_key}" target="body" />
+          <zeebe:input source="={name: &quot;🔴 ЕСКАЛАЦІЯ: &quot; + task_name, description: &quot;Задача не виконана вчасно. Потрібне втручання керівника.&quot;, _model: &quot;project.project&quot;, _id: odoo_project_id, process_instance_key: correlation_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_ded</bpmn:incoming>

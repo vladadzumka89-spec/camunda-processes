@@ -3,7 +3,7 @@
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
   <bpmn:process id="deploy-process" name="Deploy Process" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="9.0" />
+      <zeebe:versionTag value="11.0" />
     </bpmn:extensionElements>
     <bpmn:startEvent id="evt_start" name="Початок деплою">
       <bpmn:outgoing>f_start_to_parent_check</bpmn:outgoing>
@@ -15,12 +15,12 @@
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="ST_create_deploy_task" name="Створити задачу деплою в Odoo">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;[deploy] Деплой &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;), description: &quot;&lt;p&gt;Автоматичний деплой на &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;/p&gt;&quot;, create_process: true, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 237, bpmn_process_id: &quot;deploy-process&quot;}" target="body" />
+          <zeebe:input source="={name: &quot;[deploy] &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot; ← &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;) + (if is defined(pr_number) and pr_number != null then &quot; (PR #&quot; + string(pr_number) + &quot;)&quot; else &quot;&quot;) + (if is defined(pr_title) and pr_title != null and pr_title != &quot;&quot; then &quot; — &quot; + pr_title else &quot;&quot;) + (if is defined(pusher) and pusher != null and pusher != &quot;&quot; then &quot; by @&quot; + pusher else &quot;&quot;), description: &quot;&lt;p&gt;&lt;b&gt;Сервер:&lt;/b&gt; &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Гілка:&lt;/b&gt; &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;) + &quot;&lt;br/&gt;&lt;b&gt;SHA:&lt;/b&gt; &quot; + (if is defined(trigger_sha) and trigger_sha != null then trigger_sha else &quot;—&quot;) + (if is defined(pr_number) and pr_number != null then &quot;&lt;br/&gt;&lt;b&gt;PR:&lt;/b&gt; #&quot; + string(pr_number) else &quot;&quot;) + (if is defined(compare_url) and compare_url != null and compare_url != &quot;&quot; then &quot;&lt;br/&gt;&lt;b&gt;Diff:&lt;/b&gt; &lt;a href=\&quot;&quot; + compare_url + &quot;\&quot;&gt;GitHub&lt;/a&gt;&quot; else &quot;&quot;) + (if is defined(pusher) and pusher != null and pusher != &quot;&quot; then &quot;&lt;br/&gt;&lt;b&gt;Автор:&lt;/b&gt; &quot; + pusher else &quot;&quot;) + &quot;&lt;/p&gt;&quot;, create_process: true, _model: &quot;project.project&quot;, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560, bpmn_process_id: &quot;deploy-process&quot;}" target="body" />
           <zeebe:input source="=&quot;odoo_create_response&quot;" target="result_variable_name" />
           <zeebe:output source="=string(odoo_create_response.id)" target="parent_process_instance_key" />
         </zeebe:ioMapping>
@@ -30,12 +30,12 @@
     </bpmn:serviceTask>
     <bpmn:serviceTask id="ST_create_subtask" name="Створити підзадачу деплою в Odoo">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;[deploy] Деплой &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;), description: &quot;&lt;p&gt;Автоматичний деплой на &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;/p&gt;&quot;, parent_process_instance_key: parent_process_instance_key, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 237, bpmn_process_id: &quot;deploy-process&quot;}" target="body" />
+          <zeebe:input source="={name: &quot;[deploy] &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot; ← &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;), description: &quot;&lt;p&gt;Автоматичний деплой на &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;/p&gt;&quot;, parent_process_instance_key: parent_process_instance_key, _model: &quot;project.project&quot;, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560, bpmn_process_id: &quot;deploy-process&quot;}" target="body" />
           <zeebe:input source="=&quot;odoo_subtask_response&quot;" target="result_variable_name" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -53,6 +53,9 @@ Retry 3x з інтервалом 5s.
 Output: old_commit, new_commit, has_changes</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="git-pull" retries="3" />
+        <zeebe:executionListeners>
+          <zeebe:executionListener eventType="end" type="progress" retries="3" />
+        </zeebe:executionListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>f_checkpoint_to_pull</bpmn:incoming>
       <bpmn:outgoing>f_pull_to_detect</bpmn:outgoing>
@@ -62,6 +65,9 @@ Output: old_commit, new_commit, has_changes</bpmn:documentation>
 Output: changed_modules (CSV або порожній)</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="detect-modules" retries="1" />
+        <zeebe:executionListeners>
+          <zeebe:executionListener eventType="end" type="progress" retries="3" />
+        </zeebe:executionListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>f_pull_to_detect</bpmn:incoming>
       <bpmn:outgoing>f_detect_to_gw</bpmn:outgoing>
@@ -79,6 +85,9 @@ Output: changed_modules (CSV або порожній)</bpmn:documentation>
           <zeebe:input source="=if is defined(trigger_sha) and trigger_sha != null then trigger_sha else &quot;none&quot;" target="correlation_key" />
           <zeebe:input source="=true" target="no_changes" />
         </zeebe:ioMapping>
+        <zeebe:executionListeners>
+          <zeebe:executionListener eventType="end" type="progress" retries="3" />
+        </zeebe:executionListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>f_no_changes</bpmn:incoming>
       <bpmn:outgoing>f_no_changes_end</bpmn:outgoing>
@@ -98,6 +107,9 @@ Output: changed_modules (CSV або порожній)</bpmn:documentation>
       <bpmn:documentation>Створює зліпок через HTTP API перед деплоєм.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="db-checkpoint" retries="2" />
+        <zeebe:executionListeners>
+          <zeebe:executionListener eventType="end" type="progress" retries="3" />
+        </zeebe:executionListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>f_remove_to_checkpoint</bpmn:incoming>
       <bpmn:outgoing>f_checkpoint_to_pull</bpmn:outgoing>
@@ -109,6 +121,9 @@ docker compose run --rm web odoo-bin -d DB -u MODULES --stop-after-init --no-htt
 Output: modules_updated</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="module-update" retries="1" />
+        <zeebe:executionListeners>
+          <zeebe:executionListener eventType="end" type="progress" retries="3" />
+        </zeebe:executionListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>f_has_changes</bpmn:incoming>
       <bpmn:outgoing>f10</bpmn:outgoing>
@@ -118,6 +133,9 @@ Output: modules_updated</bpmn:documentation>
 Запускає Odoo: docker compose up -d</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="cache-clear" retries="1" />
+        <zeebe:executionListeners>
+          <zeebe:executionListener eventType="end" type="progress" retries="3" />
+        </zeebe:executionListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>f_clickbot_report_to_cache</bpmn:incoming>
       <bpmn:incoming>f_clickbot_report_error_to_cache</bpmn:incoming>
@@ -129,6 +147,9 @@ Output: modules_updated</bpmn:documentation>
 Output: smoke_passed</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="smoke-test" retries="1" />
+        <zeebe:executionListeners>
+          <zeebe:executionListener eventType="end" type="progress" retries="3" />
+        </zeebe:executionListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>f10</bpmn:incoming>
       <bpmn:outgoing>f_smoke_to_gw_clickbot</bpmn:outgoing>
@@ -137,6 +158,9 @@ Output: smoke_passed</bpmn:documentation>
       <bpmn:documentation>curl -sf http://localhost:PORT/web/login (24 спроби x 10s)</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-verify" retries="3" />
+        <zeebe:executionListeners>
+          <zeebe:executionListener eventType="end" type="progress" retries="3" />
+        </zeebe:executionListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>f12</bpmn:incoming>
       <bpmn:outgoing>f_http_to_save</bpmn:outgoing>
@@ -159,6 +183,9 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
           <zeebe:input source="=db_name" target="db_name" />
           <zeebe:input source="=if is defined(test_mode) and test_mode != null then test_mode else &quot;light&quot;" target="test_mode" />
         </zeebe:ioMapping>
+        <zeebe:executionListeners>
+          <zeebe:executionListener eventType="end" type="progress" retries="3" />
+        </zeebe:executionListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>f_run_clickbot</bpmn:incoming>
       <bpmn:outgoing>f_clickbot_to_merge</bpmn:outgoing>
@@ -171,12 +198,12 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
     <bpmn:serviceTask id="ST_clickbot_report" name="📋 Звіт тестування → Odoo">
       <bpmn:documentation>Створює підзадачу в Odoo з повними результатами clickbot тестів.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;[deploy] 🤖 Результати Clickbot тестів&quot;, description: &quot;&lt;p&gt;Сервер: &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(branch) and branch != null then branch else &quot;unknown&quot;) + &quot;&lt;br/&gt;Результат: &quot; + (if is defined(clickbot_passed) and clickbot_passed = true then &quot;✅ PASSED&quot; else &quot;❌ FAILED&quot;) + &quot;&lt;/p&gt;&lt;pre&gt;&quot; + (if is defined(clickbot_report) and clickbot_report != null then clickbot_report else &quot;Clickbot не запускався&quot;) + &quot;&lt;/pre&gt;&quot;, parent_process_instance_key: if is defined(parent_process_instance_key) and parent_process_instance_key != null then parent_process_instance_key else process_instance_key}" target="body" />
+          <zeebe:input source="={name: &quot;[deploy] 🤖 Результати Clickbot тестів&quot;, description: &quot;&lt;p&gt;Сервер: &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(branch) and branch != null then branch else &quot;unknown&quot;) + &quot;&lt;br/&gt;Результат: &quot; + (if is defined(clickbot_passed) and clickbot_passed = true then &quot;✅ PASSED&quot; else &quot;❌ FAILED&quot;) + &quot;&lt;/p&gt;&lt;pre&gt;&quot; + (if is defined(clickbot_report) and clickbot_report != null then clickbot_report else &quot;Clickbot не запускався&quot;) + &quot;&lt;/pre&gt;&quot;, _model: &quot;project.project&quot;, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560, parent_process_instance_key: if is defined(parent_process_instance_key) and parent_process_instance_key != null then parent_process_instance_key else process_instance_key}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_to_clickbot_report</bpmn:incoming>
@@ -190,6 +217,9 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
       <bpmn:documentation>Записує new_commit SHA у .deploy-state/deploy_state_BRANCH</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="save-deploy-state" retries="1" />
+        <zeebe:executionListeners>
+          <zeebe:executionListener eventType="end" type="progress" retries="3" />
+        </zeebe:executionListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>f_http_to_save</bpmn:incoming>
       <bpmn:outgoing>f18</bpmn:outgoing>
@@ -216,12 +246,12 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
       <bpmn:serviceTask id="ST_error_odoo_task" name="❌ Створити задачу про помилку в Odoo">
         <bpmn:documentation>Створює підзадачу в Odoo про помилку деплою з деталями помилки.</bpmn:documentation>
         <bpmn:extensionElements>
-          <zeebe:taskDefinition type="http-request-smart" retries="2" />
+          <zeebe:taskDefinition type="http-request-cicd" retries="2" />
           <zeebe:ioMapping>
             <zeebe:input source="=&quot;POST&quot;" target="method" />
-            <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+            <zeebe:input source="=odoo_webhook_url" target="url" />
             <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-            <zeebe:input source="={name: &quot;[deploy] ❌ Помилка деплою&quot;, description: &quot;&lt;p&gt;Сервер: &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(branch) and branch != null then branch else &quot;unknown&quot;) + &quot;&lt;br/&gt;Код помилки: &quot; + (if is defined(caught_error_code) and caught_error_code != null then caught_error_code else &quot;—&quot;) + &quot;&lt;br/&gt;Деталі: &quot; + (if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Невідома помилка&quot;) + &quot;&lt;br/&gt;&lt;br/&gt;Автоматичний rollback виконано.&lt;/p&gt;&quot;, parent_process_instance_key: if is defined(parent_process_instance_key) and parent_process_instance_key != null then parent_process_instance_key else process_instance_key}" target="body" />
+            <zeebe:input source="={name: &quot;[deploy] ❌ Помилка деплою&quot;, description: &quot;&lt;p&gt;Сервер: &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(branch) and branch != null then branch else &quot;unknown&quot;) + &quot;&lt;br/&gt;Код помилки: &quot; + (if is defined(caught_error_code) and caught_error_code != null then caught_error_code else &quot;—&quot;) + &quot;&lt;br/&gt;Деталі: &quot; + (if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Невідома помилка&quot;) + &quot;&lt;br/&gt;&lt;br/&gt;Автоматичний rollback виконано.&lt;/p&gt;&quot;, _model: &quot;project.project&quot;, parent_process_instance_key: if is defined(parent_process_instance_key) and parent_process_instance_key != null then parent_process_instance_key else process_instance_key}" target="body" />
             <zeebe:input source="=true" target="ignore_errors" />
           </zeebe:ioMapping>
         </bpmn:extensionElements>

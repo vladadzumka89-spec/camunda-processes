@@ -69,12 +69,12 @@ FEEL script task — виконується engine, без worker.</bpmn:documen
     <bpmn:serviceTask id="ST_create_sync_task" name="Створити задачу Upstream Sync в Odoo">
       <bpmn:documentation>Створює батьківську задачу для upstream sync через http-request-smart.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;[upstream-sync] Upstream Sync&quot; + (if is defined(dry_run) and dry_run = true then &quot; [DRY RUN]&quot; else &quot;&quot;), _id: odoo_project_id, create_process: true}" target="body" />
+          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[upstream-sync] Upstream Sync&quot; + (if is defined(dry_run) and dry_run = true then &quot; [DRY RUN]&quot; else &quot;&quot;), _id: odoo_project_id, create_process: true}" target="body" />
           <zeebe:input source="=&quot;odoo_response&quot;" target="result_variable_name" />
           <zeebe:output source="=string(odoo_response.id)" target="odoo_task_id" />
         </zeebe:ioMapping>
@@ -243,6 +243,7 @@ Output: sync_branch</bpmn:documentation>
           <zeebe:input source="=&quot;full&quot;" target="test_mode" />
           <zeebe:input source="=process_instance_key" target="parent_process_instance_key" />
           <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
+          <zeebe:input source="=odoo_webhook_url" target="odoo_webhook_url" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_no_conflicts</bpmn:incoming>
@@ -263,12 +264,12 @@ Output: sync_branch</bpmn:documentation>
 Sync branch запушений — розробник пулить на демку і фіксить конфлікти.
 Після виправлення закриває задачу → процес деплоїть демку і продовжується.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: conflict_task_name, description: conflict_description}" target="body" />
+          <zeebe:input source="={_model: &quot;project.project&quot;, name: conflict_task_name, description: conflict_description}" target="body" />
           <zeebe:input source="=&quot;odoo_response&quot;" target="result_variable_name" />
           <zeebe:output source="=string(odoo_response.id)" target="odoo_task_id" />
         </zeebe:ioMapping>
@@ -301,12 +302,12 @@ Sync branch запушений — розробник пулить на демк
 Використовує review_task_name та review_description з render-sync-html.
 Процес чекає поки задачу закриють.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: review_task_name, description: review_description}" target="body" />
+          <zeebe:input source="={_model: &quot;project.project&quot;, name: review_task_name, description: review_description}" target="body" />
           <zeebe:input source="=&quot;odoo_response&quot;" target="result_variable_name" />
           <zeebe:output source="=string(odoo_response.id)" target="odoo_task_id" />
         </zeebe:ioMapping>
@@ -357,6 +358,7 @@ Sync branch запушений — розробник пулить на демк
           <zeebe:input source="=&quot;full&quot;" target="test_mode" />
           <zeebe:input source="=process_instance_key" target="parent_process_instance_key" />
           <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
+          <zeebe:input source="=odoo_webhook_url" target="odoo_webhook_url" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_to_deploy_staging</bpmn:incoming>
@@ -431,12 +433,12 @@ Sync branch запушений — розробник пулить на демк
       <bpmn:serviceTask id="ST_error_notify_sync" name="❌ Створити задачу про помилку в Odoo">
         <bpmn:documentation>Створює підзадачу в Odoo про помилку upstream sync з деталями.</bpmn:documentation>
         <bpmn:extensionElements>
-          <zeebe:taskDefinition type="http-request-smart" retries="2" />
+          <zeebe:taskDefinition type="http-request-cicd" retries="2" />
           <zeebe:ioMapping>
             <zeebe:input source="=&quot;POST&quot;" target="method" />
-            <zeebe:input source="=&quot;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&quot;" target="url" />
+            <zeebe:input source="=odoo_webhook_url" target="url" />
             <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-            <zeebe:input source="={name: &quot;[upstream-sync] ❌ Помилка синхронізації&quot;, description: &quot;&lt;p&gt;Код помилки: &quot; + (if is defined(caught_error_code) and caught_error_code != null then caught_error_code else &quot;—&quot;) + &quot;&lt;br/&gt;Деталі: &quot; + (if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Невідома помилка&quot;) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(upstream_branch) and upstream_branch != null then upstream_branch else &quot;19.0&quot;) + &quot;&lt;br/&gt;Dry run: &quot; + (if is defined(dry_run) and dry_run = true then &quot;так&quot; else &quot;ні&quot;) + (if is defined(sync_branch) and sync_branch != null then &quot;&lt;br/&gt;Sync branch: &quot; + sync_branch else &quot;&quot;) + &quot;&lt;/p&gt;&quot;}" target="body" />
+            <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[upstream-sync] ❌ Помилка синхронізації&quot;, description: &quot;&lt;p&gt;Код помилки: &quot; + (if is defined(caught_error_code) and caught_error_code != null then caught_error_code else &quot;—&quot;) + &quot;&lt;br/&gt;Деталі: &quot; + (if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Невідома помилка&quot;) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(upstream_branch) and upstream_branch != null then upstream_branch else &quot;19.0&quot;) + &quot;&lt;br/&gt;Dry run: &quot; + (if is defined(dry_run) and dry_run = true then &quot;так&quot; else &quot;ні&quot;) + (if is defined(sync_branch) and sync_branch != null then &quot;&lt;br/&gt;Sync branch: &quot; + sync_branch else &quot;&quot;) + &quot;&lt;/p&gt;&quot;}" target="body" />
             <zeebe:input source="=true" target="ignore_errors" />
           </zeebe:ioMapping>
         </bpmn:extensionElements>

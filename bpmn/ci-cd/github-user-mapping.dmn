@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions
+  xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+  xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+  xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+  id="Definitions_GithubUserMapping"
+  name="Маппінг GitHub → Odoo"
+  namespace="http://camunda.org/schema/1.0/dmn"
+  exporter="Camunda Modeler"
+  exporterVersion="5.16.0"
+  modeler:executionPlatform="Camunda Cloud"
+  modeler:executionPlatformVersion="8.8.0">
+
+  <decision id="github-user-mapping" name="GitHub username → Odoo user ID">
+
+    <decisionTable id="DT_github_user" hitPolicy="FIRST">
+
+      <input id="Input_github" label="GitHub username">
+        <inputExpression id="IE_github" typeRef="string">
+          <text>github_username</text>
+        </inputExpression>
+      </input>
+
+      <output id="Output_odoo_user_id" label="Odoo User ID" name="odoo_user_id" typeRef="number" />
+      <output id="Output_odoo_user_name" label="ПІБ" name="odoo_user_name" typeRef="string" />
+
+      <rule id="Rule_kozakvs">
+        <inputEntry id="IE_kozakvs">
+          <text>"kozakvs"</text>
+        </inputEntry>
+        <outputEntry id="OE_kozakvs_id">
+          <text>216</text>
+        </outputEntry>
+        <outputEntry id="OE_kozakvs_name">
+          <text>"Козак Владислав Сергійович"</text>
+        </outputEntry>
+      </rule>
+
+      <rule id="Rule_thecapibara">
+        <inputEntry id="IE_thecapibara">
+          <text>"thecapibara"</text>
+        </inputEntry>
+        <outputEntry id="OE_thecapibara_id">
+          <text>565</text>
+        </outputEntry>
+        <outputEntry id="OE_thecapibara_name">
+          <text>"Павлюк Віталій Андрійович"</text>
+        </outputEntry>
+      </rule>
+
+      <rule id="Rule_ivanka">
+        <inputEntry id="IE_ivanka">
+          <text>"Ivanka-shevchenko"</text>
+        </inputEntry>
+        <outputEntry id="OE_ivanka_id">
+          <text>20</text>
+        </outputEntry>
+        <outputEntry id="OE_ivanka_name">
+          <text>"Шевченко Іванна Олегівна"</text>
+        </outputEntry>
+      </rule>
+
+      <rule id="Rule_abarkin">
+        <inputEntry id="IE_abarkin">
+          <text>"abarkin-tut"</text>
+        </inputEntry>
+        <outputEntry id="OE_abarkin_id">
+          <text>6</text>
+        </outputEntry>
+        <outputEntry id="OE_abarkin_name">
+          <text>"Абаркін Павло Сергійович"</text>
+        </outputEntry>
+      </rule>
+
+      <rule id="Rule_denis">
+        <inputEntry id="IE_denis">
+          <text>"DenisHodymchuk"</text>
+        </inputEntry>
+        <outputEntry id="OE_denis_id">
+          <text>19</text>
+        </outputEntry>
+        <outputEntry id="OE_denis_name">
+          <text>"Годимчук Денис Дмитрович"</text>
+        </outputEntry>
+      </rule>
+
+      <rule id="Rule_strembitskyi">
+        <inputEntry id="IE_strembitskyi">
+          <text>"strembitskyi"</text>
+        </inputEntry>
+        <outputEntry id="OE_strembitskyi_id">
+          <text>59</text>
+        </outputEntry>
+        <outputEntry id="OE_strembitskyi_name">
+          <text>"Стрембіцький Владислав Віталійович"</text>
+        </outputEntry>
+      </rule>
+
+      <!-- Default: невідомий username → null -->
+      <rule id="Rule_default">
+        <inputEntry id="IE_default">
+          <text>not(null)</text>
+        </inputEntry>
+        <outputEntry id="OE_default_id">
+          <text>null</text>
+        </outputEntry>
+        <outputEntry id="OE_default_name">
+          <text>null</text>
+        </outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram>
+      <dmndi:DMNShape dmnElementRef="github-user-mapping">
+        <dc:Bounds height="80" width="180" x="160" y="100" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+
+</definitions>
