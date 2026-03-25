@@ -13,9 +13,6 @@ from __future__ import annotations
 from pyzeebe import ZeebeWorker
 
 from ..config import AppConfig
-from ..github_client import GitHubClient
-from ..odoo_client import OdooClient
-from ..ssh import AsyncSSHClient
 from ..http_request_smart import register_http_smart_handlers
 from .ocr import register_ocr_handlers
 
@@ -23,9 +20,6 @@ from .ocr import register_ocr_handlers
 def register_all_handlers(
     worker: ZeebeWorker,
     config: AppConfig,
-    ssh: AsyncSSHClient,
-    github: GitHubClient,
-    odoo: OdooClient,
 ) -> None:
     """Register non-CI/CD task handlers with the Zeebe worker.
 
