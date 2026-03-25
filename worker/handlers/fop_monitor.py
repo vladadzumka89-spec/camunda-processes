@@ -570,7 +570,8 @@ def _fetch_fop_stores(conn, year: int) -> dict:
         SELECT
             d._Fld6004RRef AS org_id,
             d._Fld6019 AS purpose,
-            d._Fld6010 AS amount
+            d._Fld6010 AS amount,
+            MONTH(DATEADD(year, -2000, d._Date_Time)) AS mn
         FROM _Document236 d
         JOIN _Reference90 o ON d._Fld6004RRef = o._IDRRef
         JOIN _Document236_VT6023 vt ON vt._Document236_IDRRef = d._IDRRef
@@ -601,11 +602,15 @@ def _fetch_fop_stores(conn, year: int) -> dict:
         tc_sub_global = defaultdict(set)  # terminal_code → {sub_codes}
         tc_sub_per_fop = defaultdict(lambda: defaultdict(set))  # org → tc → {sub_codes}
         pinky_tc_map = defaultdict(lambda: defaultdict(set))  # org → name → {terminal_codes}
+        # Monthly income tracking per raw terminal name and per category label
+        monthly_cmps = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))  # org→name→month→total
+        monthly_other = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))  # org→label→month→total
 
         for row in cursor:
             org_id = bytes(row["org_id"])
             purpose = row["purpose"] or ""
             amount = float(row["amount"] or 0)
+            month = row["mn"]
             cat = _classify_payment(purpose)
 
             if cat == "cmps":
@@ -613,6 +618,7 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 if name:
                     terminal_data[org_id][name]["count"] += 1
                     terminal_data[org_id][name]["total"] += amount
+                    monthly_cmps[org_id][name][month] += amount
                     if sub_code:
                         terminal_data[org_id][name]["code"] = sub_code
                     if tc:
@@ -626,6 +632,7 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 label = _CAT_LABELS[cat]
                 other_income[org_id][label]["count"] += 1
                 other_income[org_id][label]["total"] += amount
+                monthly_other[org_id][label][month] += amount
 
         # Cash receipts (ПКО — _Document243)
         sql_cash = """
@@ -773,8 +780,9 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                         mapped_count += 1
                     else:
                         unmapped_names.add(name)
+                    resolved_name = subdivision or name
                     result[org_id].append({
-                        "name": subdivision or name,
+                        "name": resolved_name,
                         "doc_count": info["count"],
                         "total": info["total"],
                         "source": "terminal",
@@ -812,6 +820,49 @@ def _fetch_fop_stores(conn, year: int) -> dict:
             )
         logger.info("Термінал→підрозділ: %d зіставлено", mapped_count)
 
+        # Build raw→resolved name mapping for monthly data
+        name_map = {}  # (org_id, raw_name) → resolved_name
+        for org_id in all_org_ids:
+            if org_id in terminal_data:
+                code_lookup_m = sub_data["code_lookup"]
+                for raw_name in terminal_data[org_id]:
+                    info = terminal_data[org_id][raw_name]
+                    resolved = None
+                    if info["code"] and info["code"] in code_lookup_m:
+                        resolved = code_lookup_m[info["code"]]
+                    if not resolved:
+                        resolved = _match_terminal_to_subdivision(raw_name, sub_data)
+                    if not resolved and raw_name.lower().strip() in ("pinky", "pinki"):
+                        for tc in pinky_tc_map.get(org_id, {}).get(raw_name, set()):
+                            pf = tc_sub_per_fop.get(org_id, {}).get(tc, set())
+                            if len(pf) == 1:
+                                sc = next(iter(pf))
+                                if sc in code_lookup_m:
+                                    resolved = code_lookup_m[sc]
+                                    break
+                            gl = tc_sub_global.get(tc, set())
+                            if len(gl) == 1:
+                                sc = next(iter(gl))
+                                if sc in code_lookup_m:
+                                    resolved = code_lookup_m[sc]
+                                    break
+                    name_map[(org_id, raw_name)] = resolved or raw_name
+
+        # Build store-level monthly income (aggregated across all FOPs)
+        store_monthly: dict[str, dict[int, float]] = defaultdict(lambda: defaultdict(float))
+        for org_id in all_org_ids:
+            # cmps monthly → resolved names
+            if org_id in monthly_cmps:
+                for raw_name, months in monthly_cmps[org_id].items():
+                    resolved = name_map.get((org_id, raw_name), raw_name)
+                    for mn, amt in months.items():
+                        store_monthly[resolved][mn] += amt
+            # non-cmps monthly (labels already match)
+            if org_id in monthly_other:
+                for label, months in monthly_other[org_id].items():
+                    for mn, amt in months.items():
+                        store_monthly[label][mn] += amt
+
         # Merge duplicate subdivision names per FOP
         merged = defaultdict(list)
         for org_id, stores in result.items():
@@ -828,7 +879,7 @@ def _fetch_fop_stores(conn, year: int) -> dict:
             # Re-sort by total descending
             merged[org_id].sort(key=lambda x: -x["total"])
 
-        return merged
+        return merged, {k: dict(v) for k, v in store_monthly.items()}
     finally:
         cursor.close()
 
@@ -1106,97 +1157,6 @@ def _fetch_terminal_changes(conn, year: int) -> dict:
     return result
 
 
-def _fetch_monthly_store_income(conn, year: int) -> dict[str, dict[int, float]]:
-    """Fetch monthly income per store from document-based sales.
-
-    Uses _Document247/_Document238/_Document213 (same as _fetch_fop_stores document part)
-    grouped by month for growth calculation.
-
-    Graceful degradation: returns {} on any DB error.
-
-    Returns:
-        {store_name: {month_number: total_income}}
-    """
-    bas_start = f"{year + BAS_YEAR_OFFSET}-01-01"
-    bas_end = f"{year + BAS_YEAR_OFFSET + 1}-01-01"
-
-    sql = """
-        ;WITH store_roots AS (
-            SELECT _IDRRef FROM _Reference116
-            WHERE _Description IN (N'500 Магазини', N'600 Магазини',
-                                   N'900 Пінкі', N'900 Пінкі  Сайт')
-        ),
-        store_tree AS (
-            SELECT _IDRRef FROM _Reference116
-            WHERE _IDRRef IN (SELECT _IDRRef FROM store_roots)
-            UNION ALL
-            SELECT c._IDRRef FROM _Reference116 c
-            JOIN store_tree t ON c._ParentIDRRef = t._IDRRef
-        ),
-        fop_filter AS (
-            SELECT _IDRRef FROM _Reference90
-            WHERE _Marked = 0x00
-                AND (_Fld1495 LIKE N'%%ізична особа%%' OR _Fld1495 LIKE N'%%ФОП%%')
-                AND _Description NOT LIKE N'яяя%%'
-        ),
-        monthly_sales AS (
-            SELECT d._Fld6687RRef AS store_id,
-                   MONTH(DATEADD(year, -2000, d._Date_Time)) AS mn,
-                   SUM(d._Fld6704) AS total
-            FROM _Document247 d
-            WHERE d._Posted = 0x01 AND d._Marked = 0x00
-                AND d._Date_Time >= %s AND d._Date_Time < %s
-                AND d._Fld6686RRef IN (SELECT _IDRRef FROM fop_filter)
-                AND d._Fld6687RRef IN (SELECT _IDRRef FROM store_tree)
-            GROUP BY d._Fld6687RRef, MONTH(DATEADD(year, -2000, d._Date_Time))
-
-            UNION ALL
-
-            SELECT d._Fld6104RRef, MONTH(DATEADD(year, -2000, d._Date_Time)),
-                   SUM(d._Fld6119)
-            FROM _Document238 d
-            WHERE d._Posted = 0x01 AND d._Marked = 0x00
-                AND d._Date_Time >= %s AND d._Date_Time < %s
-                AND d._Fld6103RRef IN (SELECT _IDRRef FROM fop_filter)
-                AND d._Fld6104RRef IN (SELECT _IDRRef FROM store_tree)
-            GROUP BY d._Fld6104RRef, MONTH(DATEADD(year, -2000, d._Date_Time))
-
-            UNION ALL
-
-            SELECT d._Fld5011RRef, MONTH(DATEADD(year, -2000, d._Date_Time)),
-                   SUM(d._Fld5016)
-            FROM _Document213 d
-            WHERE d._Posted = 0x01 AND d._Marked = 0x00
-                AND d._Date_Time >= %s AND d._Date_Time < %s
-                AND d._Fld5008RRef IN (SELECT _IDRRef FROM fop_filter)
-                AND d._Fld5011RRef IN (SELECT _IDRRef FROM store_tree)
-            GROUP BY d._Fld5011RRef, MONTH(DATEADD(year, -2000, d._Date_Time))
-        )
-        SELECT s._Description AS store_name,
-               ms.mn AS income_month,
-               SUM(ms.total) AS monthly_total
-        FROM monthly_sales ms
-        JOIN _Reference116 s ON ms.store_id = s._IDRRef
-        GROUP BY s._Description, ms.mn
-        ORDER BY s._Description, ms.mn
-    """
-    cursor = conn.cursor(as_dict=True)
-    try:
-        cursor.execute(sql, (bas_start, bas_end) * 3)
-        result: dict[str, dict[int, float]] = defaultdict(dict)
-        for row in cursor:
-            name = row["store_name"].strip()
-            month = row["income_month"]
-            result[name][month] = round(float(row["monthly_total"] or 0), 2)
-        return dict(result)
-    except Exception as e:
-        logger.warning(
-            "Не вдалося завантажити помісячний дохід магазинів: %s", e
-        )
-        return {}
-    finally:
-        cursor.close()
-
 
 def _fetch_terminal_bindings(conn, year: int) -> dict[str, list[dict]]:
     """Fetch terminal binding history from BAS.
@@ -1242,6 +1202,84 @@ def _fetch_terminal_bindings(conn, year: int) -> dict[str, list[dict]]:
         return {}
     finally:
         cursor.close()
+
+
+def _parse_binding_date(d: str) -> date | None:
+    """Parse dd.mm.yyyy binding date string."""
+    try:
+        parts = d.split(".")
+        return date(int(parts[2]), int(parts[1]), int(parts[0]))
+    except (ValueError, IndexError):
+        return None
+
+
+def _group_binding_periods(bindings: list[dict], year: int = 2026) -> list[dict]:
+    """Group raw binding records into FOP periods, keep only active in `year`.
+
+    Algorithm: track active FOPs. When a FOP appears and is already active,
+    it's a disconnect. When it appears and is not active, it's a connect.
+    Result: [{fop_name, date_from, date_to}, ...] where date_to=None means current.
+    """
+    if not bindings:
+        return []
+
+    # Filter out records with dates before 2020 (BAS default/ancient dates)
+    valid_bindings = []
+    for b in bindings:
+        d = _parse_binding_date(b["date"])
+        if d and d.year >= 2020:
+            valid_bindings.append(b)
+
+    if not valid_bindings:
+        return []
+
+    # Track active FOPs: fop_name -> date_from
+    active: dict[str, str] = {}
+    periods = []
+
+    for b in valid_bindings:
+        fop = b["fop_name"]
+        dt = b["date"]
+        if fop in active:
+            # FOP was active → this is a disconnect
+            periods.append({
+                "fop_name": fop,
+                "date_from": active[fop],
+                "date_to": dt,
+            })
+            del active[fop]
+        else:
+            # FOP not active → this is a connect
+            active[fop] = dt
+
+    # All remaining active FOPs are current
+    for fop, date_from in active.items():
+        periods.append({
+            "fop_name": fop,
+            "date_from": date_from,
+            "date_to": None,
+        })
+
+    # Sort by date_from
+    periods.sort(key=lambda p: _parse_binding_date(p["date_from"]) or date.min)
+
+    # Filter: keep only periods active in the target year
+    year_start = date(year, 1, 1)
+    filtered = []
+    for p in periods:
+        dt_to = _parse_binding_date(p["date_to"]) if p["date_to"] else None
+        # Skip same-day periods (connected and disconnected same day)
+        if dt_to:
+            dt_from = _parse_binding_date(p["date_from"])
+            if dt_from and dt_from == dt_to:
+                continue
+            # Keep if ended in target year or later
+            if dt_to >= year_start:
+                filtered.append(p)
+        else:
+            # Still active — always include
+            filtered.append(p)
+    return filtered
 
 
 def _calc_growth_percent(prev: float, curr: float) -> float | None:
@@ -1470,7 +1508,7 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         daily_income = _fetch_daily_income(conn, year)
         logger.info("Завантажено дані по %d ФОПах", len(daily_income))
 
-        fop_stores = _fetch_fop_stores(conn, year)
+        fop_stores, monthly_store_income = _fetch_fop_stores(conn, year)
         logger.info("Магазини: зв'язки для %d ФОПів", len(fop_stores))
 
         fop_groups = _fetch_fop_groups(conn)
@@ -1487,8 +1525,6 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         monthly_history = _fetch_monthly_history(conn, year)
         logger.info("Місячна історія: %d ФОПів", len(monthly_history))
 
-        # Monthly income per store (for growth calculation)
-        monthly_store_income = _fetch_monthly_store_income(conn, year)
         logger.info("Помісячний дохід: %d магазинів", len(monthly_store_income))
 
         # Terminal binding history (store ↔ FOP switches)
@@ -1670,10 +1706,9 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         else:
             org = ""
         data["company"] = org
-        data["fop_count"] = len(data["fops"])
         data["total_income"] = round(data["total_income"], 2)
 
-        # ── New: current FOP ──
+        # ── Current FOP ──
         bindings = terminal_bindings.get(name, [])
         current_fop_name, current_fop_edrpou = _determine_current_fop(
             bindings, data["fops"]
@@ -1700,7 +1735,7 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
             if current_fop_limit > 0 else 0.0
         )
 
-        # ── New: growth ──
+        # ── Growth ──
         store_monthly = monthly_store_income.get(name, {})
         curr_income = store_monthly.get(current_month, 0)
         prev_income = store_monthly.get(prev_month, 0) if prev_month > 0 else 0
@@ -1708,8 +1743,16 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         data["income_prev_month"] = round(prev_income, 2)
         data["income_curr_month"] = round(curr_income, 2)
 
-        # ── New: binding history ──
-        data["binding_history"] = bindings
+        # ── Binding history (grouped into periods) ──
+        data["binding_history"] = _group_binding_periods(bindings, year)
+
+        # ── FOP re-registration count (from Jan 1 of current year) ──
+        # Counts binding periods that STARTED in the current year
+        reregistrations = sum(
+            1 for p in data["binding_history"]
+            if p["date_from"] and p["date_from"].endswith(str(year))
+        )
+        data["fop_count"] = reregistrations
 
         stores_report.append(data)
 
