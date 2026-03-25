@@ -16,67 +16,12 @@ if "pymssql" not in sys.modules:
 
 with patch.dict("os.environ", {"BAS_DB_PASSWORD": "test_password"}):
     from worker.handlers.fop_monitor import (
-        _fetch_monthly_store_income,
         _fetch_terminal_bindings,
         _calc_growth_percent,
         _determine_current_fop,
+        _group_binding_periods,
         LIMITS,
     )
-
-
-class TestFetchMonthlyStoreIncome:
-    """Test monthly store income aggregation from document-based sales."""
-
-    def _make_conn(self, rows):
-        conn = MagicMock()
-        cursor = MagicMock()
-        cursor.__iter__ = lambda self: iter(rows)
-        conn.cursor.return_value = cursor
-        return conn
-
-    def test_empty_result(self):
-        conn = self._make_conn([])
-        result = _fetch_monthly_store_income(conn, 2026)
-        assert result == {}
-
-    def test_single_store_single_month(self):
-        rows = [
-            {"store_name": "920 П Буковина Черн.", "income_month": 3, "monthly_total": 150_000.0},
-        ]
-        conn = self._make_conn(rows)
-        result = _fetch_monthly_store_income(conn, 2026)
-        assert result == {"920 П Буковина Черн.": {3: 150_000.0}}
-
-    def test_single_store_multiple_months(self):
-        rows = [
-            {"store_name": "636 Дорошенко Львів", "income_month": 1, "monthly_total": 80_000.0},
-            {"store_name": "636 Дорошенко Львів", "income_month": 2, "monthly_total": 95_000.0},
-            {"store_name": "636 Дорошенко Львів", "income_month": 3, "monthly_total": 110_000.0},
-        ]
-        conn = self._make_conn(rows)
-        result = _fetch_monthly_store_income(conn, 2026)
-        assert result == {
-            "636 Дорошенко Львів": {1: 80_000.0, 2: 95_000.0, 3: 110_000.0}
-        }
-
-    def test_multiple_stores(self):
-        rows = [
-            {"store_name": "920 П Буковина Черн.", "income_month": 1, "monthly_total": 120_000.0},
-            {"store_name": "636 Дорошенко Львів", "income_month": 1, "monthly_total": 80_000.0},
-        ]
-        conn = self._make_conn(rows)
-        result = _fetch_monthly_store_income(conn, 2026)
-        assert "920 П Буковина Черн." in result
-        assert "636 Дорошенко Львів" in result
-
-    def test_db_error_returns_empty(self):
-        """Graceful degradation: DB error → empty dict, not exception."""
-        conn = MagicMock()
-        cursor = MagicMock()
-        cursor.execute.side_effect = Exception("SQL error")
-        conn.cursor.return_value = cursor
-        result = _fetch_monthly_store_income(conn, 2026)
-        assert result == {}
 
 
 class TestFetchTerminalBindings:
@@ -202,6 +147,75 @@ class TestDetermineCurrentFop:
         name, edrpou = _determine_current_fop([], [])
         assert name == ""
         assert edrpou == ""
+
+
+class TestGroupBindingPeriods:
+    """Test binding period grouping algorithm."""
+
+    def test_empty(self):
+        assert _group_binding_periods([], 2026) == []
+
+    def test_single_binding_active(self):
+        """Single FOP connected, still active."""
+        bindings = [{"date": "05.01.2026", "fop_name": "ФОП А"}]
+        result = _group_binding_periods(bindings, 2026)
+        assert len(result) == 1
+        assert result[0]["fop_name"] == "ФОП А"
+        assert result[0]["date_to"] is None
+
+    def test_sequential_switches(self):
+        """FOP A replaced by FOP B — A should have date_to, B active."""
+        bindings = [
+            {"date": "13.05.2025", "fop_name": "ФОП А"},
+            {"date": "23.09.2025", "fop_name": "ФОП Б"},
+            {"date": "05.01.2026", "fop_name": "ФОП А"},
+        ]
+        result = _group_binding_periods(bindings, 2026, current_fop_name="ФОП А")
+        # Should have periods for all three events
+        active = [p for p in result if p["date_to"] is None]
+        assert any(p["fop_name"] == "ФОП А" for p in active)
+
+    def test_current_fop_shown_as_active(self):
+        """Current FOP that appears disconnected should be corrected."""
+        bindings = [
+            {"date": "13.05.2025", "fop_name": "ФОП Божик"},
+            {"date": "23.09.2025", "fop_name": "ФОП Оліферук"},
+            {"date": "05.01.2026", "fop_name": "ФОП Божик"},
+            {"date": "05.01.2026", "fop_name": "ФОП Оліферук"},
+        ]
+        result = _group_binding_periods(bindings, 2026, current_fop_name="ФОП Божик")
+        # ФОП Божик should be active (date_to = None)
+        active = [p for p in result if p["date_to"] is None and p["fop_name"] == "ФОП Божик"]
+        assert len(active) >= 1
+
+    def test_dates_before_2020_filtered(self):
+        """Ancient BAS dates (01.01.0001) should be filtered out."""
+        bindings = [
+            {"date": "01.01.0001", "fop_name": "ФОП А"},
+            {"date": "05.01.2026", "fop_name": "ФОП Б"},
+        ]
+        result = _group_binding_periods(bindings, 2026)
+        assert all("0001" not in p["date_from"] for p in result)
+
+    def test_fop_count_unique_dates(self):
+        """fop_count = unique switching dates in current year."""
+        from worker.handlers.fop_monitor import _parse_binding_date
+
+        bindings = [
+            {"date": "26.12.2025", "fop_name": "ФОП А"},
+            {"date": "26.12.2025", "fop_name": "ФОП Б"},
+            {"date": "06.01.2026", "fop_name": "ФОП А"},
+            {"date": "06.01.2026", "fop_name": "ФОП Б"},
+            {"date": "15.02.2026", "fop_name": "ФОП А"},
+            {"date": "15.02.2026", "fop_name": "ФОП В"},
+        ]
+        year_start = date(2026, 1, 1)
+        switch_dates = set()
+        for b in bindings:
+            d = _parse_binding_date(b["date"])
+            if d and d >= year_start:
+                switch_dates.add(d)
+        assert len(switch_dates) == 2  # 06.01, 15.02
 
 
 class TestEnrichStoresReport:

@@ -14,6 +14,7 @@ from pyzeebe import ZeebeWorker
 
 from ..config import AppConfig
 from ..http_request_smart import register_http_smart_handlers
+from .fop_monitor import register_fop_monitor_handlers
 from .ocr import register_ocr_handlers
 
 
@@ -26,10 +27,12 @@ def register_all_handlers(
     Task types registered:
         HTTP Smart (1): http-request-smart
         OCR (1):        invoice-data-extractor
-    Total: 2 task types
+        FOP Monitor (1): fop-limit-check
+    Total: 3 task types
 
     CI/CD tasks (deploy, github, sync, audit, clickbot, notify)
     are handled by worker2 — do NOT register them here.
     """
     register_http_smart_handlers(worker, config)
     register_ocr_handlers(worker, config)
+    register_fop_monitor_handlers(worker, config)
