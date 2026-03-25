@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:process id="Process_escalation" name="Ескалація" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
+    <bpmn:startEvent id="Esc_start" name="Старт ескалації">
+      <bpmn:outgoing>Flow_start_to_mgr</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="Esc_notify_manager" name="🚨 Сповістити керівника">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/856de24a-ef9f-463d-8493-ef2521977830&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={&#10;  _model: &#34;project.task&#34;,&#10;  _id: odoo_task_id,&#10;  message: &#34;🚨 ЕСКАЛАЦІЯ! Дедлайн задачі прострочено. Працівник не виконав задачу вчасно.&#34;,&#10;  escalation_level: 1,&#10;  add_follower: true&#10;}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_start_to_mgr</bpmn:incoming>
+      <bpmn:outgoing>Flow_mgr_to_wait1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="Esc_wait_1" name="Очікування">
+      <bpmn:incoming>Flow_mgr_to_wait1</bpmn:incoming>
+      <bpmn:outgoing>Flow_wait1_to_senior</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_wait1">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">="PT1H"</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="Esc_notify_senior" name="🚨 Сповістити керівника керівника">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/856de24a-ef9f-463d-8493-ef2521977830&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={&#10;  _model: &#34;project.task&#34;,&#10;  _id: odoo_task_id,&#10;  message: &#34;🚨 ЕСКАЛАЦІЯ! Дедлайн задачі прострочено. Працівник не виконав задачу вчасно.&#34;,&#10;  escalation_level: 2,&#10;  add_follower: true&#10;}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_wait1_to_senior</bpmn:incoming>
+      <bpmn:outgoing>Flow_senior_to_wait2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="Esc_wait_2" name="Очікування">
+      <bpmn:incoming>Flow_senior_to_wait2</bpmn:incoming>
+      <bpmn:outgoing>Flow_wait2_to_gw</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_wait2">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">="PT1H"</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="Esc_gw_department" name="Підрозділ 600,900,500?">
+      <bpmn:incoming>Flow_wait2_to_gw</bpmn:incoming>
+      <bpmn:outgoing>Flow_gw_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_gw_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Esc_notify_top" name="🔴 Сповістити вище керівництво">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/856de24a-ef9f-463d-8493-ef2521977830&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={&#10;  _model: &#34;project.task&#34;,&#10;  _id: odoo_task_id,&#10;  message: &#34;🚨 ЕСКАЛАЦІЯ! Дедлайн задачі прострочено. Працівник не виконав задачу вчасно.&#34;,&#10;  escalation_level: 3,&#10;  add_follower: true&#10;}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_gw_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_top_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Esc_notify_dept_head" name="🔴 Сповістити керівника підрозділу">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/1ba7c970-a3b5-4e99-b5ed-c9c1b7032dda&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={&#10;  _model: &#34;project.task&#34;,&#10;  _id: odoo_task_id,&#10;  message: &#34;🔴 ЕСКАЛАЦІЯ (рівень 3)! Задача критично прострочена.&#34;,&#10;  escalation_level: 4,&#10;  add_follower: true&#10;}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_gw_yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_dept_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Esc_gw_merge">
+      <bpmn:incoming>Flow_dept_to_merge</bpmn:incoming>
+      <bpmn:incoming>Flow_top_to_merge</bpmn:incoming>
+      <bpmn:outgoing>Flow_merge_to_end</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="Esc_end" name="Ескалація завершена">
+      <bpmn:incoming>Flow_merge_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_start_to_mgr" sourceRef="Esc_start" targetRef="Esc_notify_manager" />
+    <bpmn:sequenceFlow id="Flow_mgr_to_wait1" sourceRef="Esc_notify_manager" targetRef="Esc_wait_1" />
+    <bpmn:sequenceFlow id="Flow_wait1_to_senior" sourceRef="Esc_wait_1" targetRef="Esc_notify_senior" />
+    <bpmn:sequenceFlow id="Flow_senior_to_wait2" sourceRef="Esc_notify_senior" targetRef="Esc_wait_2" />
+    <bpmn:sequenceFlow id="Flow_wait2_to_gw" sourceRef="Esc_wait_2" targetRef="Esc_gw_department" />
+    <bpmn:sequenceFlow id="Flow_gw_no" name="ні" sourceRef="Esc_gw_department" targetRef="Esc_notify_top">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= not(list contains([600, 900, 500], department_id))</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_gw_yes" name="так" sourceRef="Esc_gw_department" targetRef="Esc_notify_dept_head">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= list contains([600, 900, 500], department_id)</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_top_to_merge" sourceRef="Esc_notify_top" targetRef="Esc_gw_merge" />
+    <bpmn:sequenceFlow id="Flow_dept_to_merge" sourceRef="Esc_notify_dept_head" targetRef="Esc_gw_merge" />
+    <bpmn:sequenceFlow id="Flow_merge_to_end" sourceRef="Esc_gw_merge" targetRef="Esc_end" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_escalation">
+      <bpmndi:BPMNShape id="Esc_start_di" bpmnElement="Esc_start">
+        <dc:Bounds x="160" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="136" y="295" width="84" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Esc_notify_manager_di" bpmnElement="Esc_notify_manager">
+        <dc:Bounds x="240" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Esc_wait_1_di" bpmnElement="Esc_wait_1">
+        <dc:Bounds x="392" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="381" y="295" width="58" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Esc_notify_senior_di" bpmnElement="Esc_notify_senior">
+        <dc:Bounds x="480" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Esc_wait_2_di" bpmnElement="Esc_wait_2">
+        <dc:Bounds x="632" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="621" y="295" width="58" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Esc_gw_department_di" bpmnElement="Esc_gw_department" isMarkerVisible="true">
+        <dc:Bounds x="705" y="245" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="765" y="256" width="68" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Esc_notify_top_di" bpmnElement="Esc_notify_top">
+        <dc:Bounds x="850" y="140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Esc_notify_dept_head_di" bpmnElement="Esc_notify_dept_head">
+        <dc:Bounds x="850" y="330" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Esc_gw_merge_di" bpmnElement="Esc_gw_merge" isMarkerVisible="true">
+        <dc:Bounds x="995" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Esc_end_di" bpmnElement="Esc_end">
+        <dc:Bounds x="1092" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1082" y="295" width="57" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_start_to_mgr_di" bpmnElement="Flow_start_to_mgr">
+        <di:waypoint x="196" y="270" />
+        <di:waypoint x="240" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_mgr_to_wait1_di" bpmnElement="Flow_mgr_to_wait1">
+        <di:waypoint x="340" y="270" />
+        <di:waypoint x="392" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_wait1_to_senior_di" bpmnElement="Flow_wait1_to_senior">
+        <di:waypoint x="428" y="270" />
+        <di:waypoint x="480" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_senior_to_wait2_di" bpmnElement="Flow_senior_to_wait2">
+        <di:waypoint x="580" y="270" />
+        <di:waypoint x="632" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_wait2_to_gw_di" bpmnElement="Flow_wait2_to_gw">
+        <di:waypoint x="668" y="270" />
+        <di:waypoint x="705" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_gw_no_di" bpmnElement="Flow_gw_no">
+        <di:waypoint x="730" y="245" />
+        <di:waypoint x="730" y="180" />
+        <di:waypoint x="850" y="180" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="772" y="163" width="9" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_gw_yes_di" bpmnElement="Flow_gw_yes">
+        <di:waypoint x="730" y="295" />
+        <di:waypoint x="730" y="370" />
+        <di:waypoint x="850" y="370" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="771" y="353" width="16" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_top_to_merge_di" bpmnElement="Flow_top_to_merge">
+        <di:waypoint x="950" y="180" />
+        <di:waypoint x="1020" y="180" />
+        <di:waypoint x="1020" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_dept_to_merge_di" bpmnElement="Flow_dept_to_merge">
+        <di:waypoint x="950" y="370" />
+        <di:waypoint x="1020" y="370" />
+        <di:waypoint x="1020" y="295" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_merge_to_end_di" bpmnElement="Flow_merge_to_end">
+        <di:waypoint x="1045" y="270" />
+        <di:waypoint x="1092" y="270" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

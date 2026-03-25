@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:process id="Process_u1bry4s" name="Задача для адміністратора" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_18u8f6a</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:endEvent id="Event_08eo3xq">
+      <bpmn:incoming>Flow_137ysju</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_18u8f6a" sourceRef="StartEvent_1" targetRef="Gateway_18w0mpx" />
+    <bpmn:sequenceFlow id="Flow_178ii0a" sourceRef="Activity_1s7hxq5" targetRef="Activity_0yx0iju" />
+    <bpmn:serviceTask id="Activity_1s7hxq5" name="Створити головне завдання &#34;Задача для адміністратора&#34;">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Задача для адміністратора&#34;, &#10; create_process: true,&#10;_model: &#34;project.project&#34;,&#10;_id: 252}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:taskDefinition type="http-request-smart" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0xdvmtj</bpmn:incoming>
+      <bpmn:outgoing>Flow_178ii0a</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_18w0mpx" default="Flow_0xdvmtj">
+      <bpmn:incoming>Flow_18u8f6a</bpmn:incoming>
+      <bpmn:outgoing>Flow_0zu401u</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0xdvmtj</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_0zu401u" sourceRef="Gateway_18w0mpx" targetRef="Activity_0yx0iju">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0xdvmtj" sourceRef="Gateway_18w0mpx" targetRef="Activity_1s7hxq5" />
+    <bpmn:serviceTask id="Activity_0yx0iju" name="Отримати список адміністраторів в Оду">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/api/server-action&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;,&#10;&#34;X-API-Key&#34;:&#34;632b5ed6-091f-48db-bd01-1e60aeb10bfc&#34;}" target="headers" />
+          <zeebe:input source="={&#10;  &#34;action_identifier&#34;: &#34;studio_customization._4df8b2ca-76eb-4bef-bd5c-1597a406825b&#34;,&#10;  &#34;context&#34;: {},&#10;  &#34;payload&#34;: {&#10;    &#34;groups&#34;: [if x_studio_camunda_famo = true then 600 else if x_studio_camunda_technoprostir = true then 500 else if x_studio_camunda_pinky = true then 900 else 0]&#10;  }&#10;}" target="body" />
+          <zeebe:input source="=&#34;result&#34;" target="result_variable_name" />
+          <zeebe:output source="=result.data.data" target="employees" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0zu401u</bpmn:incoming>
+      <bpmn:incoming>Flow_178ii0a</bpmn:incoming>
+      <bpmn:outgoing>Flow_1sygqsb</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="Activity_1abeljt" name="Задача &#34;Задача для адміністратора&#34;">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Задача для адміністратора&#34; + emp.employee_name, &#10; description: &#34;Опис задачі&#34;,&#10;_model: &#34;project.project&#34;,&#10; x_studio_camunda_user_id: emp.user_id,&#10;_id: 252}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1sygqsb</bpmn:incoming>
+      <bpmn:outgoing>Flow_137ysju</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics>
+        <bpmn:extensionElements>
+          <zeebe:loopCharacteristics inputCollection="=employees" inputElement="emp" />
+        </bpmn:extensionElements>
+      </bpmn:multiInstanceLoopCharacteristics>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_1sygqsb" sourceRef="Activity_0yx0iju" targetRef="Activity_1abeljt" />
+    <bpmn:sequenceFlow id="Flow_137ysju" sourceRef="Activity_1abeljt" targetRef="Event_08eo3xq" />
+    <bpmn:boundaryEvent id="BoundaryTimer_2h" name="Нагадування" cancelActivity="false" attachedToRef="Activity_1abeljt">
+      <bpmn:outgoing>Flow_2h_to_notify</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_2h">
+        <bpmn:timeDate xsi:type="bpmn:tFormalExpression">=date and time(x_studio_camunda_deadline) - duration("PT2H")</bpmn:timeDate>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Service_notify_2h" name="⏰ Надіслати нагадування працівнику">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/1ba7c970-a3b5-4e99-b5ed-c9c1b7032dda&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={&#10;  _model: &#34;project.task&#34;,&#10;  _id: odoo_task_id,&#10;  message: &#34;⏰ Нагадуємо! Через 2 години у вас закінчується дедлайн. Будь ласка, завершіть задачу вчасно.&#34;&#10;}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_2h_to_notify</bpmn:incoming>
+      <bpmn:outgoing>Flow_2h_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_reminder">
+      <bpmn:incoming>Flow_2h_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_2h_to_notify" sourceRef="BoundaryTimer_2h" targetRef="Service_notify_2h" />
+    <bpmn:sequenceFlow id="Flow_2h_to_end" sourceRef="Service_notify_2h" targetRef="End_reminder" />
+    <bpmn:boundaryEvent id="BoundaryTimer_escalation" name="Дедлайн прострочено" cancelActivity="false" attachedToRef="Activity_1abeljt">
+      <bpmn:outgoing>Flow_esc_to_subprocess</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_escalation">
+        <bpmn:timeDate xsi:type="bpmn:tFormalExpression">=date and time(x_studio_camunda_deadline)</bpmn:timeDate>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:endEvent id="End_escalation" name="Ескалація завершена">
+      <bpmn:incoming>Flow_subprocess_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_subprocess_to_end" sourceRef="Subprocess_escalation" targetRef="End_escalation" />
+    <bpmn:sequenceFlow id="Flow_esc_to_subprocess" sourceRef="BoundaryTimer_escalation" targetRef="Subprocess_escalation" />
+    <bpmn:callActivity id="Subprocess_escalation" name="Ескалація">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_escalation" propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_esc_to_subprocess</bpmn:incoming>
+      <bpmn:outgoing>Flow_subprocess_to_end</bpmn:outgoing>
+    </bpmn:callActivity>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_u1bry4s">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="150" y="130" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_08eo3xq_di" bpmnElement="Event_08eo3xq">
+        <dc:Bounds x="902" y="52" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1vj3ebr_di" bpmnElement="Activity_1s7hxq5">
+        <dc:Bounds x="320" y="200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_18w0mpx_di" bpmnElement="Gateway_18w0mpx" isMarkerVisible="true">
+        <dc:Bounds x="245" y="123" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0fr57ii_di" bpmnElement="Activity_0yx0iju">
+        <dc:Bounds x="540" y="30" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_03nfy84_di" bpmnElement="Activity_1abeljt">
+        <dc:Bounds x="720" y="30" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Service_notify_2h_di" bpmnElement="Service_notify_2h">
+        <dc:Bounds x="620" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_reminder_di" bpmnElement="End_reminder">
+        <dc:Bounds x="522" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_escalation_di" bpmnElement="End_escalation">
+        <dc:Bounds x="972" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="962" y="225" width="57" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_18cup2z_di" bpmnElement="Subprocess_escalation">
+        <dc:Bounds x="830" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryTimer_escalation_di" bpmnElement="BoundaryTimer_escalation">
+        <dc:Bounds x="792" y="92" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="830" y="100" width="55" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryTimer_2h_di" bpmnElement="BoundaryTimer_2h">
+        <dc:Bounds x="722" y="92" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="650" y="120" width="72" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_18u8f6a_di" bpmnElement="Flow_18u8f6a">
+        <di:waypoint x="186" y="148" />
+        <di:waypoint x="245" y="148" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_178ii0a_di" bpmnElement="Flow_178ii0a">
+        <di:waypoint x="420" y="240" />
+        <di:waypoint x="500" y="240" />
+        <di:waypoint x="500" y="70" />
+        <di:waypoint x="540" y="70" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0zu401u_di" bpmnElement="Flow_0zu401u">
+        <di:waypoint x="270" y="123" />
+        <di:waypoint x="270" y="70" />
+        <di:waypoint x="540" y="70" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0xdvmtj_di" bpmnElement="Flow_0xdvmtj">
+        <di:waypoint x="270" y="173" />
+        <di:waypoint x="270" y="240" />
+        <di:waypoint x="320" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1sygqsb_di" bpmnElement="Flow_1sygqsb">
+        <di:waypoint x="640" y="70" />
+        <di:waypoint x="720" y="70" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_137ysju_di" bpmnElement="Flow_137ysju">
+        <di:waypoint x="820" y="70" />
+        <di:waypoint x="902" y="70" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2h_to_notify_di" bpmnElement="Flow_2h_to_notify">
+        <di:waypoint x="740" y="128" />
+        <di:waypoint x="740" y="200" />
+        <di:waypoint x="720" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2h_to_end_di" bpmnElement="Flow_2h_to_end">
+        <di:waypoint x="620" y="200" />
+        <di:waypoint x="558" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_subprocess_to_end_di" bpmnElement="Flow_subprocess_to_end">
+        <di:waypoint x="930" y="200" />
+        <di:waypoint x="972" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_esc_to_subprocess_di" bpmnElement="Flow_esc_to_subprocess">
+        <di:waypoint x="810" y="128" />
+        <di:waypoint x="810" y="200" />
+        <di:waypoint x="830" y="200" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
