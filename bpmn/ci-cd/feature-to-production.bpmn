@@ -31,12 +31,12 @@
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="task_create_odoo" name="Створити задачу в Odoo">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: if is defined(task_name) and task_name != null and task_name != &#34;&#34; then task_name else &#34;[feature] Нова задача&#34;, description: if is defined(task_description) and task_description != null then task_description else &#34;&#34;, _id: odoo_project_id, create_process: true}" target="body" />
+          <zeebe:input source="={_model: &#34;project.project&#34;, name: if is defined(task_name) and task_name != null and task_name != &#34;&#34; then task_name else &#34;[feature] Нова задача&#34;, description: if is defined(task_description) and task_description != null then task_description else &#34;&#34;, _id: odoo_project_id, create_process: true}" target="body" />
           <zeebe:input source="=&#34;odoo_response&#34;" target="result_variable_name" />
           <zeebe:output source="=string(odoo_response.id)" target="odoo_task_id" />
           <zeebe:output source="=process_instance_key" target="process_instance_key" />
@@ -87,6 +87,8 @@
           <zeebe:input source="=string(process_instance_key)" target="correlation_key" />
           <zeebe:input source="=&#34;R/PT4H&#34;" target="reminder_cycle" />
           <zeebe:input source="=&#34;P3D&#34;" target="deadline_duration" />
+          <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
+          <zeebe:input source="=odoo_webhook_url" target="odoo_webhook_url" />
           <zeebe:output source="=staging_approved" target="staging_approved" />
           <zeebe:output source="=comment" target="staging_comment" />
         </zeebe:ioMapping>
@@ -131,6 +133,8 @@
           <zeebe:input source="=string(process_instance_key)" target="correlation_key" />
           <zeebe:input source="=&#34;R/PT4H&#34;" target="reminder_cycle" />
           <zeebe:input source="=&#34;P3D&#34;" target="deadline_duration" />
+          <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
+          <zeebe:input source="=odoo_webhook_url" target="odoo_webhook_url" />
           <zeebe:output source="=merge_approved" target="merge_approved" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -174,6 +178,8 @@
           <zeebe:input source="=string(process_instance_key)" target="correlation_key" />
           <zeebe:input source="=&#34;R/PT4H&#34;" target="reminder_cycle" />
           <zeebe:input source="=&#34;P1D&#34;" target="deadline_duration" />
+          <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
+          <zeebe:input source="=odoo_webhook_url" target="odoo_webhook_url" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_github_merge_to_verify_prod</bpmn:incoming>
@@ -207,12 +213,12 @@
     </bpmn:boundaryEvent>
     <bpmn:serviceTask id="task_send_rework_reminder" name="Створити задачу: нагадування про виправлення">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+          <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;⏰ Нагадування: PR #&#34; + string(pr_number) + &#34; потребує виправлення&#34;, description: &#34;&#60;p&#62;⏰ Нагадування: PR #&#34; + string(pr_number) + &#34; потребує виправлення. Пушніть зміни в гілку &#34; + head_branch + &#34;.&#60;/p&#62;&#34;}" target="body" />
+          <zeebe:input source="={_model: &#34;project.project&#34;, name: &#34;⏰ Нагадування: PR #&#34; + string(pr_number) + &#34; потребує виправлення&#34;, description: &#34;&#60;p&#62;⏰ Нагадування: PR #&#34; + string(pr_number) + &#34; потребує виправлення. Пушніть зміни в гілку &#34; + head_branch + &#34;.&#60;/p&#62;&#34;}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_rework_reminder</bpmn:incoming>
@@ -228,12 +234,12 @@
       </bpmn:startEvent>
       <bpmn:serviceTask id="ST_error_notify" name="Створити задачу: помилка пайплайну">
         <bpmn:extensionElements>
-          <zeebe:taskDefinition type="http-request-smart" retries="2" />
+          <zeebe:taskDefinition type="http-request-cicd" retries="2" />
           <zeebe:ioMapping>
             <zeebe:input source="=&#34;POST&#34;" target="method" />
-            <zeebe:input source="=&#34;https://odoo.dev.dobrom.com/web/hook/21c8dbff-86e8-4005-9bfc-9f77ee9b5c57&#34;" target="url" />
+            <zeebe:input source="=odoo_webhook_url" target="url" />
             <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-            <zeebe:input source="={name: &#34;[pipeline] ❌ Помилка CI/CD пайплайну&#34;, description: &#34;&#60;p&#62;Критична помилка в пайплайні для PR #&#34; + string(pr_number) + &#34;.&#60;/p&#62;&#34;}" target="body" />
+            <zeebe:input source="={_model: &#34;project.project&#34;, name: &#34;[pipeline] ❌ Помилка CI/CD пайплайну&#34;, description: &#34;&#60;p&#62;Критична помилка в пайплайні для PR #&#34; + string(pr_number) + &#34;.&#60;/p&#62;&#34;}" target="body" />
             <zeebe:input source="=true" target="ignore_errors" />
           </zeebe:ioMapping>
         </bpmn:extensionElements>
