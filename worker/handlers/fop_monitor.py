@@ -887,31 +887,33 @@ def _fetch_fop_stores(conn, year: int) -> dict:
 # ── Organization classification ────────────────────────────────────────
 
 
-def _determine_organization(stores: list) -> str:
-    """Classify FOP as ФАМО or Технопростір based on its store prefixes.
+_TECHNOPROSTIR_FOPS = {
+    "Абаркін Павло Сергійович",
+    "Абаркіна Наталія Олександрівна",
+    "Агошков Олександр Валерійович",
+    "Дарченко Євген Костянтинович",
+    "Джупина Михайло Володимирович",
+    "Івасюк Анастасія Дмитрівна",
+    "Козак Василь Миколайович",
+    "Козак Марія Іванівна",
+    "Козак Сергій Васильович",
+    "Козенко Юлія Василівна",
+    "Кравець Наталія Володимирівна",
+    "Кукура Крістіна Анатоліївна",
+    "Омельянчук Юлія Володимирівна",
+    "Савкова Вікторія Ігорівна",
+    "Ткачук Світлана Миколаївна",
+    "Шевченко Іванна Олегівна",
+    "Ялтуховський Олександр Ігорович",
+}
 
-    500 → Технопростір, 600/900 → ФАМО.
-    """
-    famo = 0.0
-    techno = 0.0
-    for s in stores:
-        name = s.get("name", "")
-        m = re.match(r'^(\d{3})\s', name)
-        if not m:
-            continue
-        prefix = int(m.group(1))
-        total = abs(s.get("total", 0))
-        if 500 <= prefix < 600:
-            techno += total
-        elif 600 <= prefix < 700 or 900 <= prefix < 1000:
-            famo += total
-    if famo > 0 and techno > 0:
-        return "ФАМО / Технопростір"
-    if famo > 0:
-        return "ФАМО"
-    if techno > 0:
+
+def _determine_organization(fop_name: str) -> str:
+    """Classify FOP as ФАМО or Технопростір by explicit list."""
+    name = fop_name.strip()
+    if name in _TECHNOPROSTIR_FOPS:
         return "Технопростір"
-    return "Невизначено"
+    return "ФАМО"
 
 
 # ── Monthly income history ─────────────────────────────────────────────
@@ -1633,12 +1635,13 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         tc = terminal_changes.get(fop_id, {})
 
         org_status = fop_statuses.get(fop_id, "Відкрита")
-        organization = _determine_organization(stores)
+        organization = _determine_organization(fop["name"])
         monthly = monthly_history.get(fop_id, [])
 
         fop_entry = {
             "fop_name": fop["name"].strip(),
             "fop_edrpou": edrpou,
+            "company": organization,
             "organization": organization,
             "org_status": org_status,
             "x_studio_camunda_org_status": org_status,
@@ -1725,17 +1728,6 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
     stores_report = []
     for name, data in sorted(store_agg.items(), key=lambda x: -x[1]["total_income"]):
         m = re.match(r'^(\d{3})\s', name)
-        if m:
-            pfx = int(m.group(1))
-            if 500 <= pfx < 600:
-                org = "Технопростір"
-            elif 600 <= pfx < 700 or 900 <= pfx < 1000:
-                org = "ФАМО"
-            else:
-                org = ""
-        else:
-            org = ""
-        data["company"] = org
         data["total_income"] = round(data["total_income"], 2)
 
         # ── Current FOP ──
@@ -1760,22 +1752,12 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
                 if tb_name.startswith(code + " ") and _has_useful_bindings(tb_bindings):
                     bindings = tb_bindings
                     break
-        # Fallback 2: match by store name (without code prefix)
-        # e.g. "514 Сакура КамПод" matches "657 Сакура КамПод"
-        if not bindings and m:
-            name_part = name[len(m.group(0)):].strip()
-            if len(name_part) >= 4:
-                for tb_name, tb_bindings in terminal_bindings.items():
-                    tb_m = re.match(r'^\d{3}\s+', tb_name)
-                    tb_name_part = tb_name[len(tb_m.group(0)):].strip() if tb_m else tb_name
-                    if tb_name_part == name_part and _has_useful_bindings(tb_bindings):
-                        bindings = tb_bindings
-                        break
         current_fop_name, current_fop_edrpou = _determine_current_fop(
             bindings, data["fops"]
         )
         data["current_fop_name"] = current_fop_name
         data["current_fop_edrpou"] = current_fop_edrpou
+        data["company"] = _determine_organization(current_fop_name)
 
         # Find FOP group → limit
         fop_match = next(
@@ -1844,8 +1826,8 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         "report_date": today.isoformat(),
         "total_fops": len(fops),
         "total_analyzed": len(analyses),
-        "critical_count": len(critical_fops),
-        "critical_fops": critical_fops,
+        "critical_count": 0,  # TODO: повернути len(critical_fops) коли user tasks будуть готові
+        "critical_fops": [],  # TODO: повернути critical_fops коли user tasks будуть готові
         "report_json": report_json,
     }
 

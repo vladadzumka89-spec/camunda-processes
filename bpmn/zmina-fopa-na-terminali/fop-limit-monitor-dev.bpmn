@@ -13,7 +13,7 @@
 
   <bpmn:process id="Process_fop_limit_monitor_dev" name="[DEV] Моніторинг лімітів ФОП" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="3.0" />
+      <zeebe:versionTag value="4.0" />
     </bpmn:extensionElements>
 
     <!-- Swim Lanes -->
@@ -23,6 +23,7 @@
         <bpmn:flowNodeRef>StartEvent_manual</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Merge_start</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>ST_fop_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_send_report</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>GW_has_critical</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>CA_fop_notification</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_done</bpmn:flowNodeRef>
@@ -58,12 +59,27 @@
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_to_check</bpmn:incoming>
-      <bpmn:outgoing>Flow_check_to_gw</bpmn:outgoing>
+      <bpmn:outgoing>Flow_check_to_report</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Service Task — відправка звіту в Odoo дашборд -->
+    <bpmn:serviceTask id="ST_send_report" name="Звіт в Odoo дашборд">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &quot;POST&quot;" target="method" />
+          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/bb450e05-4673-4cc9-9ba3-8674da99dc61&quot;" target="url" />
+          <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
+          <zeebe:input source="= {action: &quot;fop_limit_report&quot;, report: report_json}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_check_to_report</bpmn:incoming>
+      <bpmn:outgoing>Flow_report_to_gw</bpmn:outgoing>
     </bpmn:serviceTask>
 
     <!-- XOR Gateway — є критичні ФОП? -->
     <bpmn:exclusiveGateway id="GW_has_critical" name="Є критичні ФОП?" default="Flow_no_critical">
-      <bpmn:incoming>Flow_check_to_gw</bpmn:incoming>
+      <bpmn:incoming>Flow_report_to_gw</bpmn:incoming>
       <bpmn:outgoing>Flow_yes_critical</bpmn:outgoing>
       <bpmn:outgoing>Flow_no_critical</bpmn:outgoing>
     </bpmn:exclusiveGateway>
@@ -106,7 +122,8 @@
     <bpmn:sequenceFlow id="Flow_timer_to_merge" sourceRef="StartEvent_timer" targetRef="Merge_start" />
     <bpmn:sequenceFlow id="Flow_manual_to_merge" sourceRef="StartEvent_manual" targetRef="Merge_start" />
     <bpmn:sequenceFlow id="Flow_to_check" sourceRef="Merge_start" targetRef="ST_fop_check" />
-    <bpmn:sequenceFlow id="Flow_check_to_gw" sourceRef="ST_fop_check" targetRef="GW_has_critical" />
+    <bpmn:sequenceFlow id="Flow_check_to_report" sourceRef="ST_fop_check" targetRef="ST_send_report" />
+    <bpmn:sequenceFlow id="Flow_report_to_gw" sourceRef="ST_send_report" targetRef="GW_has_critical" />
     <bpmn:sequenceFlow id="Flow_yes_critical" name="Так" sourceRef="GW_has_critical" targetRef="CA_fop_notification">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= critical_count &gt; 0</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
@@ -120,7 +137,7 @@
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_fop_limit_monitor_dev">
 
       <bpmndi:BPMNShape id="Participant_pool_di" bpmnElement="Lane_system" isHorizontal="true">
-        <dc:Bounds x="105" y="90" width="1050" height="250" />
+        <dc:Bounds x="105" y="90" width="1230" height="250" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
@@ -147,22 +164,27 @@
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
+      <bpmndi:BPMNShape id="ST_send_report_di" bpmnElement="ST_send_report">
+        <dc:Bounds x="605" y="180" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
       <bpmndi:BPMNShape id="GW_has_critical_di" bpmnElement="GW_has_critical" isMarkerVisible="true">
-        <dc:Bounds x="635" y="195" width="50" height="50" />
+        <dc:Bounds x="795" y="195" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="620" y="165" width="80" height="27" />
+          <dc:Bounds x="780" y="165" width="80" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="CA_fop_notification_di" bpmnElement="CA_fop_notification">
-        <dc:Bounds x="775" y="180" width="100" height="80" />
+        <dc:Bounds x="935" y="180" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="End_done_di" bpmnElement="End_done">
-        <dc:Bounds x="977" y="202" width="36" height="36" />
+        <dc:Bounds x="1137" y="202" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="950" y="245" width="90" height="27" />
+          <dc:Bounds x="1110" y="245" width="90" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
@@ -185,32 +207,37 @@
         <di:waypoint x="445" y="220" />
       </bpmndi:BPMNEdge>
 
-      <bpmndi:BPMNEdge id="Flow_check_to_gw_di" bpmnElement="Flow_check_to_gw">
+      <bpmndi:BPMNEdge id="Flow_check_to_report_di" bpmnElement="Flow_check_to_report">
         <di:waypoint x="545" y="220" />
-        <di:waypoint x="635" y="220" />
+        <di:waypoint x="605" y="220" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_report_to_gw_di" bpmnElement="Flow_report_to_gw">
+        <di:waypoint x="705" y="220" />
+        <di:waypoint x="795" y="220" />
       </bpmndi:BPMNEdge>
 
       <bpmndi:BPMNEdge id="Flow_yes_critical_di" bpmnElement="Flow_yes_critical">
-        <di:waypoint x="685" y="220" />
-        <di:waypoint x="775" y="220" />
+        <di:waypoint x="845" y="220" />
+        <di:waypoint x="935" y="220" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="723" y="202" width="16" height="14" />
+          <dc:Bounds x="883" y="202" width="16" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
 
       <bpmndi:BPMNEdge id="Flow_no_critical_di" bpmnElement="Flow_no_critical">
-        <di:waypoint x="660" y="245" />
-        <di:waypoint x="660" y="300" />
-        <di:waypoint x="995" y="300" />
-        <di:waypoint x="995" y="238" />
+        <di:waypoint x="820" y="245" />
+        <di:waypoint x="820" y="300" />
+        <di:waypoint x="1155" y="300" />
+        <di:waypoint x="1155" y="238" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="820" y="282" width="14" height="14" />
+          <dc:Bounds x="980" y="282" width="14" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
 
       <bpmndi:BPMNEdge id="Flow_ca_to_end_di" bpmnElement="Flow_ca_to_end">
-        <di:waypoint x="875" y="220" />
-        <di:waypoint x="977" y="220" />
+        <di:waypoint x="1035" y="220" />
+        <di:waypoint x="1137" y="220" />
       </bpmndi:BPMNEdge>
 
     </bpmndi:BPMNPlane>
