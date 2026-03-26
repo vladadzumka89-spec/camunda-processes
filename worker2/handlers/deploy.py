@@ -489,7 +489,7 @@ def _build_version_compare_script(container: str, db_name: str) -> str:
         f'        print(\'\')\n'
         f'    else:\n'
         f'        parts = v.split(\'.\')\n'
-        f'        if len(parts) <= 3 and not (len(parts) >= 2 and parts[1] == \'0\' and int(parts[0]) >= 10):\n'
+        f'        if len(parts) <= 3 and not v.startswith(\'19.0\'):\n'
         f'            v = \'19.0.\' + v\n'
         f'        print(v)\n'
         f'except: print(\'\')\n'
