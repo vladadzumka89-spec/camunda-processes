@@ -28,6 +28,7 @@ Thumbs.db
 
 # Python
 __pycache__/
+.pytest_cache
 
 # Node (if workers use it)
 node_modules/

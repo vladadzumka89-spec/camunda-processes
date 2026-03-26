@@ -29,6 +29,7 @@
           <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: task_name, description: task_description, _model: &quot;project.project&quot;, _id: odoo_project_id, process_instance_key: correlation_key}" target="body" />
+          <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_start_to_create</bpmn:incoming>
@@ -60,6 +61,7 @@ Odoo automation надсилає webhook з результатом.</bpmn:docume
           <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;⚠️ НАГАДУВАННЯ: &quot; + task_name, description: &quot;&lt;p&gt;⚠️ НАГАДУВАННЯ: Задача очікує на виконання.&lt;/p&gt;&quot;, _model: &quot;project.project&quot;, _id: odoo_project_id, process_instance_key: correlation_key}" target="body" />
+          <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_rem</bpmn:incoming>
@@ -87,6 +89,7 @@ Odoo automation надсилає webhook з результатом.</bpmn:docume
           <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={name: &quot;🔴 ЕСКАЛАЦІЯ: &quot; + task_name, description: &quot;Задача не виконана вчасно. Потрібне втручання керівника.&quot;, _model: &quot;project.project&quot;, _id: odoo_project_id, process_instance_key: correlation_key}" target="body" />
+          <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_ded</bpmn:incoming>

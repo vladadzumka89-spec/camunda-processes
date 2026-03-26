@@ -76,7 +76,8 @@ FEEL script task — виконується engine, без worker.</bpmn:documen
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[upstream-sync] Upstream Sync&quot; + (if is defined(dry_run) and dry_run = true then &quot; [DRY RUN]&quot; else &quot;&quot;), _id: odoo_project_id, create_process: true}" target="body" />
           <zeebe:input source="=&quot;odoo_response&quot;" target="result_variable_name" />
-          <zeebe:output source="=string(odoo_response.id)" target="odoo_task_id" />
+          <zeebe:input source="=true" target="ignore_errors" />
+          <zeebe:output source="=if is defined(odoo_response) and odoo_response != null and is defined(odoo_response.id) then string(odoo_response.id) else string(process_instance_key)" target="odoo_task_id" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f01</bpmn:incoming>
@@ -271,7 +272,8 @@ Sync branch запушений — розробник пулить на демк
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={_model: &quot;project.project&quot;, name: conflict_task_name, description: conflict_description}" target="body" />
           <zeebe:input source="=&quot;odoo_response&quot;" target="result_variable_name" />
-          <zeebe:output source="=string(odoo_response.id)" target="odoo_task_id" />
+          <zeebe:input source="=true" target="ignore_errors" />
+          <zeebe:output source="=if is defined(odoo_response) and odoo_response != null and is defined(odoo_response.id) then string(odoo_response.id) else string(process_instance_key)" target="odoo_task_id" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_has_conflicts</bpmn:incoming>
@@ -309,7 +311,8 @@ Sync branch запушений — розробник пулить на демк
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={_model: &quot;project.project&quot;, name: review_task_name, description: review_description}" target="body" />
           <zeebe:input source="=&quot;odoo_response&quot;" target="result_variable_name" />
-          <zeebe:output source="=string(odoo_response.id)" target="odoo_task_id" />
+          <zeebe:input source="=true" target="ignore_errors" />
+          <zeebe:output source="=if is defined(odoo_response) and odoo_response != null and is defined(odoo_response.id) then string(odoo_response.id) else string(process_instance_key)" target="odoo_task_id" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_deploy_demo_to_review</bpmn:incoming>

@@ -16,7 +16,21 @@
       "Bash(python3 -c \"\nimport json\n\npath = '/home/karavaieva/.claude/plugins/marketplaces/claude-plugins-official/.claude-plugin/marketplace.json'\nwith open\\(path\\) as f:\n    data = json.load\\(f\\)\n\n# Find and fix plugins with invalid source type\nfixed = 0\nfor i, plugin in enumerate\\(data.get\\('plugins', []\\)\\):\n    src = plugin.get\\('source', {}\\)\n    if src.get\\('source'\\) == 'git-subdir':\n        print\\(f'Plugin {i}: {plugin[\\\\\"name\\\\\"]} — patching git-subdir → git'\\)\n        # Convert git-subdir to regular git source \\(keep url, drop unsupported path\\)\n        src['source'] = 'git'\n        fixed += 1\n\nprint\\(f'Fixed {fixed} plugin\\(s\\)'\\)\n\nwith open\\(path, 'w'\\) as f:\n    json.dump\\(data, f, indent=2\\)\n    f.write\\('\\\\n'\\)\n\")",
       "Bash(python3 -c \"\nimport json\npath = '/home/karavaieva/.claude/plugins/marketplaces/claude-plugins-official/.claude-plugin/marketplace.json'\nwith open\\(path\\) as f:\n    data = json.load\\(f\\)\nfor i, plugin in enumerate\\(data.get\\('plugins', []\\)\\):\n    src = plugin.get\\('source', {}\\)\n    if isinstance\\(src, dict\\):\n        print\\(f'{i}: {plugin.get\\(\\\\\"name\\\\\"\\)} — source type: {src.get\\(\\\\\"source\\\\\"\\)}'\\)\n    else:\n        print\\(f'{i}: {plugin.get\\(\\\\\"name\\\\\"\\)} — source is string: {src}'\\)\n\" 2>&1 | grep -E \"git-subdir|56:\")",
       "Bash(python3 << 'PYEOF'\nimport json\n\npath = '/home/karavaieva/.claude/plugins/marketplaces/claude-plugins-official/.claude-plugin/marketplace.json'\nwith open\\(path\\) as f:\n    data = json.load\\(f\\)\n\nplugin = data['plugins'][56]\nprint\\(\"Before:\", json.dumps\\(plugin['source'], indent=2\\)\\)\n\n# Fix: change git-subdir to git\nplugin['source']['source'] = 'git'\n\nprint\\(\"After:\", json.dumps\\(plugin['source'], indent=2\\)\\)\n\nwith open\\(path, 'w'\\) as f:\n    json.dump\\(data, f, indent=2\\)\n    f.write\\('\\\\n'\\)\n\nprint\\(\"Patched successfully\"\\)\nPYEOF)",
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "Bash(docker restart:*)",
+      "Bash(curl -s -X POST \"http://localhost:8088/v2/process-instances\" -u \"demo:demo\" -H \"Content-Type: application/json\" -d '{:*)",
+      "Bash(curl -s -X POST \"http://localhost:8088/v2/process-instances\" -u \"demo:demo\" -H \"Content-Type: application/json\" -d '{\"\"bpmnProcessId\"\": \"\"Process_fop_limit_monitor\"\", \"\"variables\"\": {\"\"days_ahead\"\": 14, \"\"skip_task_creation\"\": true}}')",
+      "Bash(curl -v -X POST \"http://localhost:8088/v2/process-instances\" -u \"demo:demo\" -H \"Content-Type: application/json\" -d '{\"\"bpmnProcessId\"\": \"\"Process_fop_limit_monitor\"\", \"\"variables\"\": {\"\"days_ahead\"\": 14}}')",
+      "Bash(curl -s -X POST \"http://localhost:18080/auth/realms/camunda-platform/protocol/openid-connect/token\" -d \"grant_type=client_credentials&client_id=zeebe&client_secret=zecret\")",
+      "Bash(python3 -c \":*)",
+      "Bash(docker compose:*)",
+      "Bash(python3 -m json.tool)",
+      "Bash(grep -r \"python-worker\\\\|worker\" docker-compose*.yaml)",
+      "Bash(grep -B5 \"container_name: python-worker$\" docker-compose-full.yaml)",
+      "Bash(docker stop:*)",
+      "Bash(docker rm:*)",
+      "Bash(curl -s -X POST https://o.tut.ua/api/server-action -H 'Content-Type: application/json' -H 'X-API-Key: 632b5ed6-091f-48db-bd01-1e60aeb10bfc' -d '{:*)",
+      "Bash(docker cp:*)"
     ]
   }
 }

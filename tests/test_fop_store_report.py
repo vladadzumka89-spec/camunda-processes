@@ -45,6 +45,7 @@ class TestFetchTerminalBindings:
                 "store_name": "920 П Буковина Черн.",
                 "binding_date": "17.03.2026",
                 "fop_name": "ФОП Петренко В.В.",
+                "value_date": "31.12.2099",
             },
         ]
         conn = self._make_conn(rows)
@@ -52,6 +53,7 @@ class TestFetchTerminalBindings:
         assert "920 П Буковина Черн." in result
         assert len(result["920 П Буковина Черн."]) == 1
         assert result["920 П Буковина Черн."][0]["fop_name"] == "ФОП Петренко В.В."
+        assert result["920 П Буковина Черн."][0]["value_date"] == "31.12.2099"
 
     def test_multiple_bindings_sorted(self):
         rows = [
@@ -59,11 +61,13 @@ class TestFetchTerminalBindings:
                 "store_name": "920 П Буковина Черн.",
                 "binding_date": "16.12.2025",
                 "fop_name": "ФОП Іванов І.І.",
+                "value_date": "31.12.2099",
             },
             {
                 "store_name": "920 П Буковина Черн.",
                 "binding_date": "06.02.2026",
                 "fop_name": "ФОП Петренко В.В.",
+                "value_date": "31.12.2099",
             },
         ]
         conn = self._make_conn(rows)
@@ -150,64 +154,138 @@ class TestDetermineCurrentFop:
 
 
 class TestGroupBindingPeriods:
-    """Test binding period grouping algorithm."""
+    """Test binding period grouping algorithm using value_date."""
 
     def test_empty(self):
         assert _group_binding_periods([], 2026) == []
 
-    def test_single_binding_active(self):
-        """Single FOP connected, still active."""
-        bindings = [{"date": "05.01.2026", "fop_name": "ФОП А"}]
+    def test_single_connection_active(self):
+        """Single FOP connected (value_date=2099), still active."""
+        bindings = [
+            {"date": "05.01.2026", "fop_name": "ФОП А", "value_date": "31.12.2099"},
+        ]
         result = _group_binding_periods(bindings, 2026)
         assert len(result) == 1
         assert result[0]["fop_name"] == "ФОП А"
         assert result[0]["date_to"] is None
 
-    def test_sequential_switches(self):
-        """FOP A replaced by FOP B — A should have date_to, B active."""
-        bindings = [
-            {"date": "13.05.2025", "fop_name": "ФОП А"},
-            {"date": "23.09.2025", "fop_name": "ФОП Б"},
-            {"date": "05.01.2026", "fop_name": "ФОП А"},
-        ]
-        result = _group_binding_periods(bindings, 2026, current_fop_name="ФОП А")
-        # Should have periods for all three events
-        active = [p for p in result if p["date_to"] is None]
-        assert any(p["fop_name"] == "ФОП А" for p in active)
+    def test_store920_full_history(self):
+        """Store 920 Буковина: Щербина → Томусяк → Павлівська.
 
-    def test_current_fop_shown_as_active(self):
-        """Current FOP that appears disconnected should be corrected."""
+        Real BAS data with value_date indicating connect/disconnect.
+        """
         bindings = [
-            {"date": "13.05.2025", "fop_name": "ФОП Божик"},
-            {"date": "23.09.2025", "fop_name": "ФОП Оліферук"},
-            {"date": "05.01.2026", "fop_name": "ФОП Божик"},
-            {"date": "05.01.2026", "fop_name": "ФОП Оліферук"},
+            {"date": "16.12.2025", "fop_name": "Щербина Анастасія", "value_date": "31.12.2099"},
+            {"date": "06.02.2026", "fop_name": "Щербина Анастасія", "value_date": "06.02.2026"},
+            {"date": "06.02.2026", "fop_name": "Томусяк Олег", "value_date": "31.12.2099"},
+            {"date": "17.03.2026", "fop_name": "Томусяк Олег", "value_date": "17.03.2026"},
+            {"date": "17.03.2026", "fop_name": "Павлівська Анастасія", "value_date": "31.12.2099"},
         ]
-        result = _group_binding_periods(bindings, 2026, current_fop_name="ФОП Божик")
-        # ФОП Божик should be active (date_to = None)
-        active = [p for p in result if p["date_to"] is None and p["fop_name"] == "ФОП Божик"]
-        assert len(active) >= 1
+        result = _group_binding_periods(bindings, 2026)
+        # Щербина: 16.12.2025 – 06.02.2026
+        shch = [p for p in result if p["fop_name"] == "Щербина Анастасія"]
+        assert len(shch) == 1
+        assert shch[0]["date_from"] == "16.12.2025"
+        assert shch[0]["date_to"] == "06.02.2026"
+        # Томусяк: 06.02.2026 – 17.03.2026
+        tom = [p for p in result if p["fop_name"] == "Томусяк Олег"]
+        assert len(tom) == 1
+        assert tom[0]["date_from"] == "06.02.2026"
+        assert tom[0]["date_to"] == "17.03.2026"
+        # Павлівська: 17.03.2026 – зараз
+        pavl = [p for p in result if p["fop_name"] == "Павлівська Анастасія"]
+        assert len(pavl) == 1
+        assert pavl[0]["date_to"] is None
+
+    def test_store636_full_history(self):
+        """Store 636 Дорошенко: Анікіна → Павлів → Омельянчук.
+
+        Initial record (01.01.0001) should be skipped.
+        """
+        bindings = [
+            {"date": "01.01.0001", "fop_name": "Анікіна Анастасія", "value_date": "01.01.0001"},
+            {"date": "17.12.2025", "fop_name": "Анікіна Анастасія", "value_date": "17.12.2025"},
+            {"date": "17.12.2025", "fop_name": "Павлів Марія", "value_date": "31.12.2099"},
+            {"date": "03.03.2026", "fop_name": "Павлів Марія", "value_date": "03.03.2026"},
+            {"date": "03.03.2026", "fop_name": "Омельянчук Василь", "value_date": "31.12.2099"},
+        ]
+        result = _group_binding_periods(bindings, 2026)
+        # Анікіна has no connection record (initial 0001 skipped) → not in output
+        anik = [p for p in result if p["fop_name"] == "Анікіна Анастасія"]
+        assert len(anik) == 0
+        # Павлів: 17.12.2025 – 03.03.2026
+        pavl = [p for p in result if p["fop_name"] == "Павлів Марія"]
+        assert len(pavl) == 1
+        assert pavl[0]["date_from"] == "17.12.2025"
+        assert pavl[0]["date_to"] == "03.03.2026"
+        # Омельянчук: 03.03.2026 – зараз
+        omel = [p for p in result if p["fop_name"] == "Омельянчук Василь"]
+        assert len(omel) == 1
+        assert omel[0]["date_to"] is None
+
+    def test_disconnection_without_connection_skipped(self):
+        """Disconnection record without prior connection is ignored."""
+        bindings = [
+            {"date": "06.01.2026", "fop_name": "ФОП А", "value_date": "06.01.2026"},
+            {"date": "06.01.2026", "fop_name": "ФОП Б", "value_date": "31.12.2099"},
+        ]
+        result = _group_binding_periods(bindings, 2026)
+        assert len(result) == 1
+        assert result[0]["fop_name"] == "ФОП Б"
+        assert result[0]["date_to"] is None
 
     def test_dates_before_2020_filtered(self):
         """Ancient BAS dates (01.01.0001) should be filtered out."""
         bindings = [
-            {"date": "01.01.0001", "fop_name": "ФОП А"},
-            {"date": "05.01.2026", "fop_name": "ФОП Б"},
+            {"date": "01.01.0001", "fop_name": "ФОП А", "value_date": "31.12.2099"},
+            {"date": "05.01.2026", "fop_name": "ФОП Б", "value_date": "31.12.2099"},
         ]
         result = _group_binding_periods(bindings, 2026)
-        assert all("0001" not in p["date_from"] for p in result)
+        assert len(result) == 1
+        assert result[0]["fop_name"] == "ФОП Б"
+
+    def test_connection_disconnected_before_year_filtered(self):
+        """Period that ended before target year should be filtered out."""
+        bindings = [
+            {"date": "10.03.2025", "fop_name": "ФОП А", "value_date": "31.12.2099"},
+            {"date": "08.08.2025", "fop_name": "ФОП А", "value_date": "08.08.2025"},
+            {"date": "08.08.2025", "fop_name": "ФОП Б", "value_date": "31.12.2099"},
+        ]
+        result = _group_binding_periods(bindings, 2026)
+        # ФОП А ended 08.08.2025 — before 2026, should be filtered
+        fop_a = [p for p in result if p["fop_name"] == "ФОП А"]
+        assert len(fop_a) == 0
+        # ФОП Б still active
+        fop_b = [p for p in result if p["fop_name"] == "ФОП Б"]
+        assert len(fop_b) == 1
+        assert fop_b[0]["date_to"] is None
+
+    def test_fop_reconnected_twice(self):
+        """FOP connected, disconnected, then reconnected."""
+        bindings = [
+            {"date": "01.09.2025", "fop_name": "ФОП А", "value_date": "31.12.2099"},
+            {"date": "01.12.2025", "fop_name": "ФОП А", "value_date": "01.12.2025"},
+            {"date": "01.12.2025", "fop_name": "ФОП Б", "value_date": "31.12.2099"},
+            {"date": "15.02.2026", "fop_name": "ФОП Б", "value_date": "15.02.2026"},
+            {"date": "15.02.2026", "fop_name": "ФОП А", "value_date": "31.12.2099"},
+        ]
+        result = _group_binding_periods(bindings, 2026)
+        fop_a = [p for p in result if p["fop_name"] == "ФОП А"]
+        # 2 periods: first closed 01.12.2025 (before 2026 → filtered), second active
+        assert len(fop_a) == 1
+        assert fop_a[0]["date_from"] == "15.02.2026"
+        assert fop_a[0]["date_to"] is None
 
     def test_fop_count_unique_dates(self):
         """fop_count = unique switching dates in current year."""
         from worker.handlers.fop_monitor import _parse_binding_date
 
         bindings = [
-            {"date": "26.12.2025", "fop_name": "ФОП А"},
-            {"date": "26.12.2025", "fop_name": "ФОП Б"},
-            {"date": "06.01.2026", "fop_name": "ФОП А"},
-            {"date": "06.01.2026", "fop_name": "ФОП Б"},
-            {"date": "15.02.2026", "fop_name": "ФОП А"},
-            {"date": "15.02.2026", "fop_name": "ФОП В"},
+            {"date": "26.12.2025", "fop_name": "ФОП А", "value_date": "31.12.2099"},
+            {"date": "06.01.2026", "fop_name": "ФОП А", "value_date": "06.01.2026"},
+            {"date": "06.01.2026", "fop_name": "ФОП Б", "value_date": "31.12.2099"},
+            {"date": "15.02.2026", "fop_name": "ФОП Б", "value_date": "15.02.2026"},
+            {"date": "15.02.2026", "fop_name": "ФОП В", "value_date": "31.12.2099"},
         ]
         year_start = date(2026, 1, 1)
         switch_dates = set()
@@ -236,7 +314,7 @@ class TestEnrichStoresReport:
             "organization": "ФАМО",
         }
         bindings = [
-            {"date": "06.02.2026", "fop_name": "ФОП Петренко"},
+            {"date": "06.02.2026", "fop_name": "ФОП Петренко", "value_date": "31.12.2099"},
         ]
         monthly = {1: 120_000, 2: 150_000, 3: 170_000}
         current_month = 3
