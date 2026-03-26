@@ -1275,9 +1275,16 @@ def _group_binding_periods(
 
         disc_dates = disconnections.get(fop, [])
         idx = disc_idx[fop]
-        if idx < len(disc_dates):
-            date_to = disc_dates[idx]
-            disc_idx[fop] = idx + 1
+        bd = _parse_binding_date(date_from)
+        # Find next disconnection that is on or after the connection date
+        while idx < len(disc_dates):
+            dd = _parse_binding_date(disc_dates[idx])
+            if dd and bd and dd >= bd:
+                date_to = disc_dates[idx]
+                disc_idx[fop] = idx + 1
+                break
+            idx += 1
+            disc_idx[fop] = idx
 
         periods.append({
             "fop_name": fop,
@@ -1733,13 +1740,37 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
 
         # ── Current FOP ──
         bindings = terminal_bindings.get(name, [])
-        # Fallback: match by subdivision code (first 3 digits) if exact name miss
+        # Check if bindings have any useful records (dates >= 2020)
+        _has_useful = any(
+            (d := _parse_binding_date(b["date"])) and d.year >= 2020
+            for b in bindings
+        )
+        if not _has_useful:
+            bindings = []
+        def _has_useful_bindings(bl: list) -> bool:
+            return any(
+                (d := _parse_binding_date(b["date"])) and d.year >= 2020
+                for b in bl
+            )
+
+        # Fallback 1: match by subdivision code (first 3 digits)
         if not bindings and m:
             code = m.group(1)
             for tb_name, tb_bindings in terminal_bindings.items():
-                if tb_name.startswith(code + " "):
+                if tb_name.startswith(code + " ") and _has_useful_bindings(tb_bindings):
                     bindings = tb_bindings
                     break
+        # Fallback 2: match by store name (without code prefix)
+        # e.g. "514 Сакура КамПод" matches "657 Сакура КамПод"
+        if not bindings and m:
+            name_part = name[len(m.group(0)):].strip()
+            if len(name_part) >= 4:
+                for tb_name, tb_bindings in terminal_bindings.items():
+                    tb_m = re.match(r'^\d{3}\s+', tb_name)
+                    tb_name_part = tb_name[len(tb_m.group(0)):].strip() if tb_m else tb_name
+                    if tb_name_part == name_part and _has_useful_bindings(tb_bindings):
+                        bindings = tb_bindings
+                        break
         current_fop_name, current_fop_edrpou = _determine_current_fop(
             bindings, data["fops"]
         )

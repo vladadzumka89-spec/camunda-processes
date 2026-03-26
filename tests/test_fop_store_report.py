@@ -260,6 +260,30 @@ class TestGroupBindingPeriods:
         assert len(fop_b) == 1
         assert fop_b[0]["date_to"] is None
 
+    def test_store617_disconnection_before_reconnection(self):
+        """Store 617: Волчелюк disconnected BEFORE reconnected.
+
+        Disconnection at 13.11.2025, reconnection at 08.01.2026.
+        The old disconnection must NOT close the new connection.
+        """
+        bindings = [
+            {"date": "13.11.2025", "fop_name": "Волчелюк Альона", "value_date": "13.11.2025"},
+            {"date": "13.11.2025", "fop_name": "Карплюк Марія", "value_date": "31.12.2099"},
+            {"date": "08.01.2026", "fop_name": "Волчелюк Альона", "value_date": "31.12.2099"},
+            {"date": "08.01.2026", "fop_name": "Карплюк Марія", "value_date": "08.01.2026"},
+        ]
+        result = _group_binding_periods(bindings, 2026)
+        # Карплюк: 13.11.2025 – 08.01.2026
+        karp = [p for p in result if p["fop_name"] == "Карплюк Марія"]
+        assert len(karp) == 1
+        assert karp[0]["date_from"] == "13.11.2025"
+        assert karp[0]["date_to"] == "08.01.2026"
+        # Волчелюк: 08.01.2026 – зараз (active)
+        volch = [p for p in result if p["fop_name"] == "Волчелюк Альона"]
+        assert len(volch) == 1
+        assert volch[0]["date_from"] == "08.01.2026"
+        assert volch[0]["date_to"] is None
+
     def test_fop_reconnected_twice(self):
         """FOP connected, disconnected, then reconnected."""
         bindings = [
