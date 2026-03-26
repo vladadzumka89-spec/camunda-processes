@@ -52,6 +52,7 @@
           <zeebe:input source="=if is defined(odoo_webhook_url) and odoo_webhook_url != null then odoo_webhook_url else &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[sync] Щонічний sync main → staging&quot;, _id: 560, create_process: true, bpmn_process_id: &quot;main-to-staging-sync&quot;}" target="body" />
+          <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_no_odoo_task</bpmn:incoming>
@@ -95,6 +96,7 @@ Push в GitHub тригерить deploy через webhook автоматичн
           <zeebe:input source="=if is defined(odoo_webhook_url) and odoo_webhook_url != null then odoo_webhook_url else &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[sync] ✅ Hard reset staging → main завершено&quot;, description: &quot;&lt;p&gt;✅ Staging скинуто до main (hard reset + force push). Deploy запуститься автоматично через webhook.&lt;/p&gt;&quot;}" target="body" />
+          <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_to_success</bpmn:incoming>

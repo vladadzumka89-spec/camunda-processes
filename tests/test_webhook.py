@@ -12,7 +12,7 @@ import pytest_asyncio
 from aiohttp.test_utils import TestClient, TestServer
 
 from worker.config import AppConfig
-from worker.webhook import WebhookServer
+from worker2.webhook import WebhookServer
 
 
 def _sign(body: bytes, secret: str) -> str:
@@ -110,14 +110,19 @@ async def test_github_valid_signature(client: TestClient, app_config: AppConfig)
         )
         assert resp.status == 200
         data = await resp.json()
-        assert data["message"] == "msg_pr_event"
+        assert "msg_pr_review" in data["messages"]
+        assert "msg_pr_event" in data["messages"]
         assert data["pr_number"] == 42
 
-        mock_client.publish_message.assert_awaited_once()
-        call_kwargs = mock_client.publish_message.call_args[1]
-        assert call_kwargs["name"] == "msg_pr_event"
-        assert call_kwargs["correlation_key"] == "feat/test"
-        assert call_kwargs["variables"]["pr_number"] == 42
+        assert mock_client.publish_message.await_count == 2
+        calls = mock_client.publish_message.call_args_list
+        review_call = calls[0][1]
+        assert review_call["name"] == "msg_pr_review"
+        assert review_call["correlation_key"] == "42"
+        event_call = calls[1][1]
+        assert event_call["name"] == "msg_pr_event"
+        assert event_call["correlation_key"] == "feat/test"
+        assert event_call["variables"]["pr_number"] == 42
 
 
 # ── Event routing ─────────────────────────────────────────
@@ -156,7 +161,8 @@ async def test_pr_to_staging_is_accepted(client: TestClient, app_config: AppConf
         )
         assert resp.status == 200
         data = await resp.json()
-        assert data["message"] == "msg_pr_event"
+        assert "msg_pr_review" in data["messages"]
+        assert "msg_pr_event" in data["messages"]
         assert data["pr_number"] == 10
 
 
@@ -227,11 +233,13 @@ async def test_synchronize_publishes_pr_updated(
         )
         assert resp.status == 200
         data = await resp.json()
-        assert data["message"] == "msg_pr_updated"
+        assert "msg_pr_review" in data["messages"]
+        assert "msg_pr_event" in data["messages"]
 
-        call_kwargs = mock_client.publish_message.call_args[1]
-        assert call_kwargs["name"] == "msg_pr_updated"
-        assert call_kwargs["correlation_key"] == "42"
+        assert mock_client.publish_message.await_count == 2
+        calls = mock_client.publish_message.call_args_list
+        assert calls[0][1]["name"] == "msg_pr_review"
+        assert calls[0][1]["correlation_key"] == "42"
 
 
 @pytest.mark.asyncio
@@ -512,7 +520,7 @@ async def test_push_staging_publishes_deploy_trigger(
 
         call_kwargs = mock_client.publish_message.call_args[1]
         assert call_kwargs["name"] == "msg_deploy_trigger"
-        assert call_kwargs["correlation_key"] == "abc123def456"
+        assert call_kwargs["correlation_key"] == "staging"
         assert call_kwargs["variables"]["trigger_sha"] == "abc123def456"
         assert call_kwargs["variables"]["server_host"] == "staging.example.com"
         assert call_kwargs["variables"]["branch"] == "staging"
