@@ -1165,19 +1165,24 @@ def _fetch_terminal_bindings(conn, year: int) -> dict[str, list[dict]]:
     SQL table: _InfoRg28391, filtered by _Fld28393 = 'Терминал'.
 
     Fields:
-        _Fld28392RRef → _Reference90 (Організація / ФОП)
-        _Fld28393     → Свойство (filter: 'Терминал')
-        _Fld28396RRef → _Reference100 (Підрозділ / магазин)
-        _Period       → дата прив'язки (BAS offset +2000)
+        _Fld28392RRef  → _Reference90 (Організація / ФОП)
+        _Fld28393      → Свойство (filter: 'Терминал')
+        _Fld28396RRef  → _Reference100 (Підрозділ / магазин)
+        _Period        → дата прив'язки (BAS offset +2000)
+        _Fld28394_T    → Значення (datetime): 31.12.2099 = підключений,
+                         інша дата = відключений
 
     Returns store_name → list of binding records sorted by date.
+    Each record: {date, fop_name, value_date} where value_date indicates
+    connection (year >= 2090) or disconnection (specific date).
     Graceful degradation: returns {} on any DB error.
     """
     sql = """
         SELECT
             r100._Description AS store_name,
             CONVERT(varchar, DATEADD(year, -2000, t._Period), 104) AS binding_date,
-            r90._Description AS fop_name
+            r90._Description AS fop_name,
+            CONVERT(varchar, DATEADD(year, -2000, t._Fld28394_T), 104) AS value_date
         FROM _InfoRg28391 t
         JOIN _Reference100 r100 ON r100._IDRRef = t._Fld28396RRef
         JOIN _Reference90 r90 ON r90._IDRRef = t._Fld28392RRef
@@ -1193,6 +1198,7 @@ def _fetch_terminal_bindings(conn, year: int) -> dict[str, list[dict]]:
             result[name].append({
                 "date": row["binding_date"],
                 "fop_name": row["fop_name"].strip() if row["fop_name"] else "",
+                "value_date": row["value_date"] or "",
             })
         return dict(result)
     except Exception as e:
@@ -1216,129 +1222,85 @@ def _parse_binding_date(d: str) -> date | None:
 def _group_binding_periods(
     bindings: list[dict], year: int = 2026, current_fop_name: str = ""
 ) -> list[dict]:
-    """Group raw binding records into FOP periods, keep only active in `year`.
+    """Build FOP periods from binding records using value_date.
 
-    Each raw record is a binding event (FOP connected to terminal on that date).
-    Records are sorted chronologically. Each record closes the previous FOP's
-    period and opens a new one. The last record for each "slot" is current.
-    Result: [{fop_name, date_from, date_to}, ...] where date_to=None means current.
+    Each record from BAS has:
+    - date: коли відбулась подія (Period)
+    - fop_name: ФОП
+    - value_date: "31.12.2099" = підключений, інша дата = відключений
+
+    Algorithm: pair connection records (value_date >= 2090) with their
+    corresponding disconnection records for the same FOP, sorted by date.
+
+    Result: [{fop_name, date_from, date_to}, ...] where date_to=None means
+    the FOP is currently active.
     """
     if not bindings:
         return []
 
-    # Filter out records with dates before 2020 (BAS default/ancient dates)
-    valid = []
-    for b in bindings:
-        d = _parse_binding_date(b["date"])
-        if d and d.year >= 2020:
-            valid.append(b)
+    # Separate into connections and disconnections using value_date
+    connections: list[dict] = []   # records where value_date year >= 2090
+    disconnections: dict[str, list[str]] = defaultdict(list)  # fop → [dates]
 
-    if not valid:
+    for b in bindings:
+        bd = _parse_binding_date(b["date"])
+        vd = _parse_binding_date(b.get("value_date", ""))
+        if not bd or bd.year < 2020:
+            continue
+        if vd and vd.year >= 2090:
+            connections.append(b)
+        elif vd and vd.year >= 2020:
+            disconnections[b["fop_name"]].append(b["date"])
+
+    if not connections:
         return []
 
-    # Sort by date
-    valid.sort(key=lambda b: _parse_binding_date(b["date"]) or date.min)
+    # Sort connections by date
+    connections.sort(key=lambda b: _parse_binding_date(b["date"]) or date.min)
 
-    # Group by date — records on the same date form one switching event
-    from itertools import groupby
+    # Sort disconnection dates per FOP
+    for fop in disconnections:
+        disconnections[fop].sort(
+            key=lambda d: _parse_binding_date(d) or date.min
+        )
 
-    events: list[tuple[str, list[str]]] = []  # [(date_str, [fop_names])]
-    for dt, group in groupby(valid, key=lambda b: b["date"]):
-        fops = [b["fop_name"] for b in group]
-        events.append((dt, fops))
+    # Build periods: match each connection with its next disconnection
+    disc_idx: dict[str, int] = defaultdict(int)  # fop → next disconnection index
+    periods: list[dict] = []
 
-    # Build periods: track which FOPs are active
-    # Each event replaces the current set of FOPs
-    periods = []
-    prev_fops: dict[str, str] = {}  # fop_name -> date_from
+    for c in connections:
+        fop = c["fop_name"]
+        date_from = c["date"]
+        date_to = None
 
-    for dt, fop_names in events:
-        current_set = set(fop_names)
+        disc_dates = disconnections.get(fop, [])
+        idx = disc_idx[fop]
+        if idx < len(disc_dates):
+            date_to = disc_dates[idx]
+            disc_idx[fop] = idx + 1
 
-        # FOPs that were active but NOT in this event → they continue
-        # FOPs that were active AND appear in this event → being replaced
-        # New FOPs in this event → newly connected
-
-        # Close periods for FOPs being replaced (appear in both prev and current)
-        replaced = set(prev_fops.keys()) & current_set
-        for fop in replaced:
-            periods.append({
-                "fop_name": fop,
-                "date_from": prev_fops[fop],
-                "date_to": dt,
-            })
-            del prev_fops[fop]
-
-        # Also close FOPs that are NOT in current event but share the same date
-        # as other changes — they might be getting disconnected
-        # Only close if new FOPs are being added on the same date
-        new_fops = current_set - set(prev_fops.keys()) - replaced
-        if new_fops:
-            # Check if any existing FOPs should be closed
-            # (replaced by the new ones on this date)
-            existing = set(prev_fops.keys())
-            # Close existing FOPs that are not continuing
-            # Heuristic: if same number of new FOPs as existing, it's a full swap
-            # Otherwise, only close FOPs that are explicitly in the event
-            pass
-
-        # Open new periods for FOPs in this event
-        for fop in fop_names:
-            if fop not in prev_fops:
-                prev_fops[fop] = dt
-
-    # All remaining active FOPs are current
-    for fop, date_from in prev_fops.items():
         periods.append({
             "fop_name": fop,
             "date_from": date_from,
-            "date_to": None,
+            "date_to": date_to,
         })
 
     # Sort by date_from
     periods.sort(key=lambda p: _parse_binding_date(p["date_from"]) or date.min)
 
-    # Deduplicate
-    seen = set()
-    unique = []
-    for p in periods:
-        key = (p["fop_name"], p["date_from"], p["date_to"])
-        if key not in seen:
-            seen.add(key)
-            unique.append(p)
-
-    # Filter: keep only periods active in the target year
+    # Filter: keep only periods active in the target year, skip same-day
     year_start = date(year, 1, 1)
     filtered = []
-    for p in unique:
+    for p in periods:
+        dt_from = _parse_binding_date(p["date_from"])
         dt_to = _parse_binding_date(p["date_to"]) if p["date_to"] else None
         if dt_to:
-            dt_from = _parse_binding_date(p["date_from"])
-            # Skip same-day periods
             if dt_from and dt_from == dt_to:
                 continue
-            # Keep if ended in target year or later
             if dt_to >= year_start:
                 filtered.append(p)
         else:
-            # Still active — always include
             filtered.append(p)
-
-    # Fix: ensure current FOP (from income data) shows as active
-    if current_fop_name and filtered:
-        # If current FOP has a closed period as their LAST entry, reopen it
-        last_for_current = None
-        for p in reversed(filtered):
-            if p["fop_name"] == current_fop_name:
-                last_for_current = p
-                break
-        if last_for_current and last_for_current["date_to"] is not None:
-            # Current FOP shows as disconnected — add active period from that date
-            filtered.append({
-                "fop_name": current_fop_name,
-                "date_from": last_for_current["date_to"],
-                "date_to": None,
-            })
 
     return filtered
 
@@ -1771,6 +1733,13 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
 
         # ── Current FOP ──
         bindings = terminal_bindings.get(name, [])
+        # Fallback: match by subdivision code (first 3 digits) if exact name miss
+        if not bindings and m:
+            code = m.group(1)
+            for tb_name, tb_bindings in terminal_bindings.items():
+                if tb_name.startswith(code + " "):
+                    bindings = tb_bindings
+                    break
         current_fop_name, current_fop_edrpou = _determine_current_fop(
             bindings, data["fops"]
         )
