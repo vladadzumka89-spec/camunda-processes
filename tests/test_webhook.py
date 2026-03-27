@@ -202,15 +202,63 @@ async def test_ready_for_review_ignored(client: TestClient, app_config: AppConfi
 async def test_synchronize_publishes_pr_updated(
     client: TestClient, app_config: AppConfig,
 ) -> None:
+    """PR synchronize (push) publishes msg_pr_updated in addition to review+event."""
     payload = {
         "action": "synchronize",
         "pull_request": {
             "number": 42,
             "title": "Test PR",
-            "html_url": "",
+            "html_url": "https://github.com/tut-ua/odoo-enterprise/pull/42",
             "user": {"login": "dev"},
             "base": {"ref": "main"},
-            "head": {"ref": "feat/test", "sha": "def456"},
+            "head": {"ref": "feat/test", "sha": "newsha123"},
+        },
+        "repository": {"full_name": "tut-ua/odoo-enterprise"},
+    }
+    body = json.dumps(payload).encode()
+    sig = _sign(body, app_config.github.webhook_secret)
+
+    with patch.object(WebhookServer, "_create_zeebe_client") as mock_factory:
+        mock_client = AsyncMock()
+        mock_client.publish_message = AsyncMock()
+        mock_factory.return_value = mock_client
+
+        resp = await client.post(
+            "/webhook/github",
+            data=body,
+            headers={
+                "X-GitHub-Event": "pull_request",
+                "X-Hub-Signature-256": sig,
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status == 200
+
+        assert mock_client.publish_message.await_count == 3
+        calls = mock_client.publish_message.call_args_list
+        names = [c[1]["name"] for c in calls]
+        assert "msg_pr_review" in names
+        assert "msg_pr_event" in names
+        assert "msg_pr_updated" in names
+
+        updated_call = next(c for c in calls if c[1]["name"] == "msg_pr_updated")
+        assert updated_call[1]["correlation_key"] == "42"
+
+
+@pytest.mark.asyncio
+async def test_pr_merged_publishes_message(client: TestClient, app_config: AppConfig) -> None:
+    """PR closed+merged publishes msg_pr_merged with pr_number correlation."""
+    payload = {
+        "action": "closed",
+        "pull_request": {
+            "number": 55,
+            "title": "feat: new feature",
+            "html_url": "https://github.com/tut-ua/odoo-enterprise/pull/55",
+            "user": {"login": "dev"},
+            "base": {"ref": "main"},
+            "head": {"ref": "feat/new", "sha": "def456"},
+            "merged": True,
+            "merge_commit_sha": "abc789",
         },
         "repository": {"full_name": "tut-ua/odoo-enterprise"},
     }
@@ -233,13 +281,48 @@ async def test_synchronize_publishes_pr_updated(
         )
         assert resp.status == 200
         data = await resp.json()
-        assert "msg_pr_review" in data["messages"]
-        assert "msg_pr_event" in data["messages"]
+        assert data["message"] == "msg_pr_merged"
+        assert data["pr_number"] == 55
 
-        assert mock_client.publish_message.await_count == 2
-        calls = mock_client.publish_message.call_args_list
-        assert calls[0][1]["name"] == "msg_pr_review"
-        assert calls[0][1]["correlation_key"] == "42"
+        mock_client.publish_message.assert_awaited_once()
+        call_kwargs = mock_client.publish_message.call_args[1]
+        assert call_kwargs["name"] == "msg_pr_merged"
+        assert call_kwargs["correlation_key"] == "55"
+        assert call_kwargs["variables"]["pr_number"] == 55
+        assert call_kwargs["variables"]["merge_commit_sha"] == "abc789"
+
+
+@pytest.mark.asyncio
+async def test_pr_closed_not_merged_ignored(client: TestClient, app_config: AppConfig) -> None:
+    """PR closed without merge is ignored."""
+    payload = {
+        "action": "closed",
+        "pull_request": {
+            "number": 56,
+            "title": "feat: abandoned",
+            "html_url": "",
+            "user": {"login": "dev"},
+            "base": {"ref": "main"},
+            "head": {"ref": "feat/abandoned"},
+            "merged": False,
+        },
+        "repository": {"full_name": "tut-ua/odoo-enterprise"},
+    }
+    body = json.dumps(payload).encode()
+    sig = _sign(body, app_config.github.webhook_secret)
+
+    resp = await client.post(
+        "/webhook/github",
+        data=body,
+        headers={
+            "X-GitHub-Event": "pull_request",
+            "X-Hub-Signature-256": sig,
+            "Content-Type": "application/json",
+        },
+    )
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["status"] == "ignored"
 
 
 @pytest.mark.asyncio
