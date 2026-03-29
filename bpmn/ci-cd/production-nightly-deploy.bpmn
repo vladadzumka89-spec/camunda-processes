@@ -16,12 +16,12 @@
     </bpmn:extensionElements>
 
     <!-- ── 1. Timer Start ────────────────────────────── -->
-    <bpmn:startEvent id="start_timer" name="Щодня 22:00 Київ">
-      <bpmn:documentation>CRON 0 0 20 * * * = 20:00 UTC = 22:00 EET (зимовий час).
-Влітку (EEST, UTC+3) буде 23:00 Київ.</bpmn:documentation>
+    <bpmn:startEvent id="start_timer" name="Щодня 23:30 EEST">
+      <bpmn:documentation>CRON 0 30 20 * * * = 20:30 UTC = 23:30 EEST (літній час).
+Взимку (EET, UTC+2) буде 22:30 Київ.</bpmn:documentation>
       <bpmn:outgoing>f_start_to_deploy</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerDef_nightly_prod">
-        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">0 0 20 * * *</bpmn:timeCycle>
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">0 30 20 * * *</bpmn:timeCycle>
       </bpmn:timerEventDefinition>
     </bpmn:startEvent>
 
@@ -35,6 +35,8 @@
           <zeebe:input source="=&quot;main&quot;" target="branch" />
           <zeebe:input source="=true" target="run_smoke_test" />
           <zeebe:input source="=&quot;light&quot;" target="test_mode" />
+          <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="odoo_webhook_url" />
+          <zeebe:input source="=560" target="odoo_project_id" />
           <zeebe:output source="=if is defined(has_changes) and has_changes != null then has_changes else false" target="has_changes" />
           <zeebe:output source="=if is defined(old_commit) and old_commit != null then old_commit else &quot;none&quot;" target="old_commit" />
           <zeebe:output source="=if is defined(new_commit) and new_commit != null then new_commit else &quot;none&quot;" target="new_commit" />
