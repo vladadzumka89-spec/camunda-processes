@@ -3,7 +3,7 @@
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
   <bpmn:process id="deploy-process" name="Deploy Process" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="11.0" />
+      <zeebe:versionTag value="13.0" />
     </bpmn:extensionElements>
     <bpmn:startEvent id="evt_start" name="Початок деплою">
       <bpmn:outgoing>f_start_to_parent_check</bpmn:outgoing>
@@ -20,7 +20,7 @@
           <zeebe:input source="=&quot;POST&quot;" target="method" />
           <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;[deploy] &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot; ← &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;) + (if is defined(pr_number) and pr_number != null then &quot; (PR #&quot; + string(pr_number) + &quot;)&quot; else &quot;&quot;) + (if is defined(pr_title) and pr_title != null and pr_title != &quot;&quot; then &quot; — &quot; + pr_title else &quot;&quot;) + (if is defined(pusher) and pusher != null and pusher != &quot;&quot; then &quot; by @&quot; + pusher else &quot;&quot;), description: &quot;&lt;p&gt;&lt;b&gt;Сервер:&lt;/b&gt; &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Гілка:&lt;/b&gt; &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;) + &quot;&lt;br/&gt;&lt;b&gt;SHA:&lt;/b&gt; &quot; + (if is defined(trigger_sha) and trigger_sha != null then trigger_sha else &quot;—&quot;) + (if is defined(pr_number) and pr_number != null then &quot;&lt;br/&gt;&lt;b&gt;PR:&lt;/b&gt; #&quot; + string(pr_number) else &quot;&quot;) + (if is defined(compare_url) and compare_url != null and compare_url != &quot;&quot; then &quot;&lt;br/&gt;&lt;b&gt;Diff:&lt;/b&gt; &lt;a href=\&quot;&quot; + compare_url + &quot;\&quot;&gt;GitHub&lt;/a&gt;&quot; else &quot;&quot;) + (if is defined(pusher) and pusher != null and pusher != &quot;&quot; then &quot;&lt;br/&gt;&lt;b&gt;Автор:&lt;/b&gt; &quot; + pusher else &quot;&quot;) + &quot;&lt;/p&gt;&quot;, create_process: true, _model: &quot;project.project&quot;, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560, bpmn_process_id: &quot;deploy-process&quot;}" target="body" />
+          <zeebe:input source="={name: &quot;[deploy] &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot; ← &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;) + (if is defined(pr_number) and pr_number != null then &quot; (PR #&quot; + string(pr_number) + &quot;)&quot; else &quot;&quot;) + (if is defined(pr_title) and pr_title != null and pr_title != &quot;&quot; then &quot; — &quot; + pr_title else &quot;&quot;) + (if is defined(pusher) and pusher != null and pusher != &quot;&quot; then &quot; by @&quot; + pusher else &quot;&quot;), description: &quot;&lt;p&gt;&lt;b&gt;Сервер:&lt;/b&gt; &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Гілка:&lt;/b&gt; &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;) + &quot;&lt;br/&gt;&lt;b&gt;SHA:&lt;/b&gt; &quot; + (if is defined(trigger_sha) and trigger_sha != null then trigger_sha else &quot;—&quot;) + (if is defined(pr_number) and pr_number != null then &quot;&lt;br/&gt;&lt;b&gt;PR:&lt;/b&gt; #&quot; + string(pr_number) else &quot;&quot;) + (if is defined(compare_url) and compare_url != null and compare_url != &quot;&quot; then &quot;&lt;br/&gt;&lt;b&gt;Diff:&lt;/b&gt; &lt;a href=\&quot;&quot; + compare_url + &quot;\&quot;&gt;GitHub&lt;/a&gt;&quot; else &quot;&quot;) + (if is defined(pusher) and pusher != null and pusher != &quot;&quot; then &quot;&lt;br/&gt;&lt;b&gt;Автор:&lt;/b&gt; &quot; + pusher else &quot;&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Процес:&lt;/b&gt; &lt;a href=&apos;http://camunda25.a.local:8088/operate/#/processes/&quot; + string(process_instance_key) + &quot;&apos;&gt;Переглянути в Operate&lt;/a&gt;&lt;/p&gt;&quot;, create_process: true, _model: &quot;project.project&quot;, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560, bpmn_process_id: &quot;deploy-process&quot;, process_instance_key: string(process_instance_key)}" target="body" />
           <zeebe:input source="=&quot;odoo_create_response&quot;" target="result_variable_name" />
           <zeebe:input source="=true" target="ignore_errors" />
           <zeebe:output source="=if is defined(odoo_create_response) and odoo_create_response != null and is defined(odoo_create_response.id) then string(odoo_create_response.id) else string(process_instance_key)" target="parent_process_instance_key" />
@@ -36,7 +36,7 @@
           <zeebe:input source="=&quot;POST&quot;" target="method" />
           <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;[deploy] &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot; ← &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;), description: &quot;&lt;p&gt;Автоматичний деплой на &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;/p&gt;&quot;, parent_process_instance_key: parent_process_instance_key, _model: &quot;project.project&quot;, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560, bpmn_process_id: &quot;deploy-process&quot;}" target="body" />
+          <zeebe:input source="={name: &quot;[deploy] &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot; ← &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;), description: &quot;&lt;p&gt;Автоматичний деплой на &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Процес:&lt;/b&gt; &lt;a href=&apos;http://camunda25.a.local:8088/operate/#/processes/&quot; + string(process_instance_key) + &quot;&apos;&gt;Переглянути в Operate&lt;/a&gt;&lt;/p&gt;&quot;, parent_process_instance_key: parent_process_instance_key, _model: &quot;project.project&quot;, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560, bpmn_process_id: &quot;deploy-process&quot;, process_instance_key: string(process_instance_key)}" target="body" />
           <zeebe:input source="=&quot;odoo_subtask_response&quot;" target="result_variable_name" />
           <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
@@ -139,8 +139,7 @@ Output: modules_updated</bpmn:documentation>
           <zeebe:executionListener eventType="end" type="progress" retries="3" />
         </zeebe:executionListeners>
       </bpmn:extensionElements>
-      <bpmn:incoming>f_clickbot_report_to_cache</bpmn:incoming>
-      <bpmn:incoming>f_clickbot_report_error_to_cache</bpmn:incoming>
+      <bpmn:incoming>f_merge_clickbot_to_cache</bpmn:incoming>
       <bpmn:outgoing>f12</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:serviceTask id="task_smoke_test" name="Перевірка запуску Odoo">
@@ -195,26 +194,8 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
     <bpmn:exclusiveGateway id="gw_merge_clickbot">
       <bpmn:incoming>f_skip_clickbot</bpmn:incoming>
       <bpmn:incoming>f_clickbot_to_merge</bpmn:incoming>
-      <bpmn:outgoing>f_merge_to_clickbot_report</bpmn:outgoing>
+      <bpmn:outgoing>f_merge_clickbot_to_cache</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:serviceTask id="ST_clickbot_report" name="📋 Звіт тестування → Odoo">
-      <bpmn:documentation>Створює підзадачу в Odoo з повними результатами clickbot тестів.</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=odoo_webhook_url" target="url" />
-          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;[deploy] 🤖 Результати Clickbot тестів&quot;, description: &quot;&lt;p&gt;Сервер: &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(branch) and branch != null then branch else &quot;unknown&quot;) + &quot;&lt;br/&gt;Результат: &quot; + (if is defined(clickbot_passed) and clickbot_passed = true then &quot;✅ PASSED&quot; else &quot;❌ FAILED&quot;) + &quot;&lt;/p&gt;&lt;pre&gt;&quot; + (if is defined(clickbot_report) and clickbot_report != null then clickbot_report else &quot;Clickbot не запускався&quot;) + &quot;&lt;/pre&gt;&quot;, _model: &quot;project.project&quot;, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560, parent_process_instance_key: if is defined(parent_process_instance_key) and parent_process_instance_key != null then parent_process_instance_key else process_instance_key}" target="body" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_merge_to_clickbot_report</bpmn:incoming>
-      <bpmn:outgoing>f_clickbot_report_to_cache</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:boundaryEvent id="evt_clickbot_report_error" name="Odoo недоступний" attachedToRef="ST_clickbot_report">
-      <bpmn:outgoing>f_clickbot_report_error_to_cache</bpmn:outgoing>
-      <bpmn:errorEventDefinition id="ErrorDef_clickbot_report" />
-    </bpmn:boundaryEvent>
     <bpmn:serviceTask id="task_save_state" name="Зберегти стан деплою">
       <bpmn:documentation>Записує new_commit SHA у .deploy-state/deploy_state_BRANCH</bpmn:documentation>
       <bpmn:extensionElements>
@@ -242,30 +223,15 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
     </bpmn:endEvent>
     <bpmn:subProcess id="subprocess_error" name="Обробка помилок деплою" triggeredByEvent="true">
       <bpmn:startEvent id="evt_error_catch" name="Помилка деплою">
-        <bpmn:outgoing>f_err_to_odoo</bpmn:outgoing>
+        <bpmn:outgoing>f_err_to_rollback</bpmn:outgoing>
         <bpmn:errorEventDefinition id="ErrorDef_catch" />
       </bpmn:startEvent>
-      <bpmn:serviceTask id="ST_error_odoo_task" name="❌ Створити задачу про помилку в Odoo">
-        <bpmn:documentation>Створює підзадачу в Odoo про помилку деплою з деталями помилки.</bpmn:documentation>
-        <bpmn:extensionElements>
-          <zeebe:taskDefinition type="http-request-cicd" retries="2" />
-          <zeebe:ioMapping>
-            <zeebe:input source="=&quot;POST&quot;" target="method" />
-            <zeebe:input source="=odoo_webhook_url" target="url" />
-            <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-            <zeebe:input source="={name: &quot;[deploy] ❌ Помилка деплою&quot;, description: &quot;&lt;p&gt;Сервер: &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;br/&gt;Гілка: &quot; + (if is defined(branch) and branch != null then branch else &quot;unknown&quot;) + &quot;&lt;br/&gt;Код помилки: &quot; + (if is defined(caught_error_code) and caught_error_code != null then caught_error_code else &quot;—&quot;) + &quot;&lt;br/&gt;Деталі: &quot; + (if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Невідома помилка&quot;) + &quot;&lt;br/&gt;&lt;br/&gt;Автоматичний rollback виконано.&lt;/p&gt;&quot;, _model: &quot;project.project&quot;, parent_process_instance_key: if is defined(parent_process_instance_key) and parent_process_instance_key != null then parent_process_instance_key else process_instance_key}" target="body" />
-            <zeebe:input source="=true" target="ignore_errors" />
-          </zeebe:ioMapping>
-        </bpmn:extensionElements>
-        <bpmn:incoming>f_err_to_odoo</bpmn:incoming>
-        <bpmn:outgoing>f_err_odoo_to_rollback</bpmn:outgoing>
-      </bpmn:serviceTask>
       <bpmn:serviceTask id="task_rollback" name="Відкат до попередньої версії">
         <bpmn:documentation>Відкат на зліпок через HTTP API.</bpmn:documentation>
         <bpmn:extensionElements>
           <zeebe:taskDefinition type="rollback" retries="5" />
         </bpmn:extensionElements>
-        <bpmn:incoming>f_err_odoo_to_rollback</bpmn:incoming>
+        <bpmn:incoming>f_err_to_rollback</bpmn:incoming>
         <bpmn:outgoing>f_err2</bpmn:outgoing>
       </bpmn:serviceTask>
       <bpmn:serviceTask id="ST_publish_deploy_failed" name="Повідомити про помилку">
@@ -285,8 +251,7 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <bpmn:incoming>f_err3</bpmn:incoming>
         <bpmn:errorEventDefinition id="ErrorDef_throw" errorRef="Error_deploy_failed" />
       </bpmn:endEvent>
-      <bpmn:sequenceFlow id="f_err_to_odoo" sourceRef="evt_error_catch" targetRef="ST_error_odoo_task" />
-      <bpmn:sequenceFlow id="f_err_odoo_to_rollback" sourceRef="ST_error_odoo_task" targetRef="task_rollback" />
+      <bpmn:sequenceFlow id="f_err_to_rollback" sourceRef="evt_error_catch" targetRef="task_rollback" />
       <bpmn:sequenceFlow id="f_err2" sourceRef="task_rollback" targetRef="ST_publish_deploy_failed" />
       <bpmn:sequenceFlow id="f_err3" sourceRef="ST_publish_deploy_failed" targetRef="evt_error_end" />
     </bpmn:subProcess>
@@ -314,9 +279,7 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(skip_clickbot) and skip_clickbot = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="f_clickbot_to_merge" sourceRef="task_clickbot" targetRef="gw_merge_clickbot" />
-    <bpmn:sequenceFlow id="f_merge_to_clickbot_report" sourceRef="gw_merge_clickbot" targetRef="ST_clickbot_report" />
-    <bpmn:sequenceFlow id="f_clickbot_report_to_cache" sourceRef="ST_clickbot_report" targetRef="task_cache_clear" />
-    <bpmn:sequenceFlow id="f_clickbot_report_error_to_cache" sourceRef="evt_clickbot_report_error" targetRef="task_cache_clear" />
+    <bpmn:sequenceFlow id="f_merge_clickbot_to_cache" sourceRef="gw_merge_clickbot" targetRef="task_cache_clear" />
     <bpmn:sequenceFlow id="f12" sourceRef="task_cache_clear" targetRef="task_http_verify" />
     <bpmn:sequenceFlow id="f_http_to_save" sourceRef="task_http_verify" targetRef="task_save_state" />
     <bpmn:sequenceFlow id="f18" sourceRef="task_save_state" targetRef="ST_publish_deploy_done" />
@@ -327,9 +290,6 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
       <!-- Error subprocess -->
       <bpmndi:BPMNShape id="evt_error_catch_di" bpmnElement="evt_error_catch">
         <dc:Bounds x="207" y="254" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_error_odoo_task_di" bpmnElement="ST_error_odoo_task">
-        <dc:Bounds x="291" y="225" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_rollback_di" bpmnElement="task_rollback">
         <dc:Bounds x="471" y="160" width="100" height="80" />
@@ -392,12 +352,6 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
       <bpmndi:BPMNShape id="gw_merge_clickbot_di" bpmnElement="gw_merge_clickbot" isMarkerVisible="true">
         <dc:Bounds x="2376" y="275" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_clickbot_report_di" bpmnElement="ST_clickbot_report">
-        <dc:Bounds x="2481" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="evt_clickbot_report_error_di" bpmnElement="evt_clickbot_report_error">
-        <dc:Bounds x="2535" y="322" width="36" height="36" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_cache_clear_di" bpmnElement="task_cache_clear">
         <dc:Bounds x="2661" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
@@ -414,16 +368,10 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <dc:Bounds x="3413" y="282" width="36" height="36" />
       </bpmndi:BPMNShape>
       <!-- Error subprocess edges -->
-      <bpmndi:BPMNEdge id="f_err_to_odoo_di" bpmnElement="f_err_to_odoo">
+      <bpmndi:BPMNEdge id="f_err_to_rollback_di" bpmnElement="f_err_to_rollback">
         <di:waypoint x="243" y="272" />
-        <di:waypoint x="273" y="272" />
-        <di:waypoint x="273" y="265" />
-        <di:waypoint x="291" y="265" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_err_odoo_to_rollback_di" bpmnElement="f_err_odoo_to_rollback">
-        <di:waypoint x="391" y="265" />
-        <di:waypoint x="421" y="265" />
-        <di:waypoint x="421" y="200" />
+        <di:waypoint x="357" y="272" />
+        <di:waypoint x="357" y="200" />
         <di:waypoint x="471" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_err2_di" bpmnElement="f_err2">
@@ -535,19 +483,9 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <di:waypoint x="2271" y="300" />
         <di:waypoint x="2376" y="300" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_merge_to_clickbot_report_di" bpmnElement="f_merge_to_clickbot_report">
+      <bpmndi:BPMNEdge id="f_merge_clickbot_to_cache_di" bpmnElement="f_merge_clickbot_to_cache">
         <di:waypoint x="2426" y="300" />
-        <di:waypoint x="2481" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_clickbot_report_to_cache_di" bpmnElement="f_clickbot_report_to_cache">
-        <di:waypoint x="2581" y="300" />
         <di:waypoint x="2661" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_clickbot_report_error_to_cache_di" bpmnElement="f_clickbot_report_error_to_cache">
-        <di:waypoint x="2553" y="358" />
-        <di:waypoint x="2553" y="410" />
-        <di:waypoint x="2711" y="410" />
-        <di:waypoint x="2711" y="340" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f12_di" bpmnElement="f12">
         <di:waypoint x="2761" y="300" />

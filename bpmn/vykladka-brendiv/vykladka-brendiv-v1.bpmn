@@ -1,0 +1,372 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.16.0">
+  <bpmn:collaboration id="Collaboration_BrandDisplay">
+    <bpmn:participant id="Participant_BrandDisplay" name="Викладка брендів у магазинах" processRef="Process_BrandDisplay" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_BrandDisplay" name="Викладка брендів у магазинах" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
+
+    <!-- ===== Swim Lanes ===== -->
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_system" name="Система (автоматично)">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_create_main</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Merge_odoo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_get_stores</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_success</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_rem_display</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_rem_display</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_store" name="Адмін магазину">
+        <bpmn:flowNodeRef>UT_brand_display</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_manager" name="Керівник (ескалація)">
+        <bpmn:flowNodeRef>UT_esc_display</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_esc_display</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- ===== Start Event ===== -->
+    <bpmn:startEvent id="StartEvent_1" name="Мерчик запустив викладку">
+      <bpmn:outgoing>Flow_to_odoo_check</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ===== XOR: Перевірка odoo_task_id ===== -->
+    <bpmn:exclusiveGateway id="GW_odoo_check" name="Задача в Odoo існує?" default="Flow_to_create_main">
+      <bpmn:incoming>Flow_to_odoo_check</bpmn:incoming>
+      <bpmn:outgoing>Flow_odoo_exists</bpmn:outgoing>
+      <bpmn:outgoing>Flow_to_create_main</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_to_odoo_check" sourceRef="StartEvent_1" targetRef="GW_odoo_check" />
+    <bpmn:sequenceFlow id="Flow_odoo_exists" name="Так" sourceRef="GW_odoo_check" targetRef="Merge_odoo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_to_create_main" sourceRef="GW_odoo_check" targetRef="ST_create_main" />
+
+    <!-- ===== ST: Створити головне завдання в Odoo ===== -->
+    <bpmn:serviceTask id="ST_create_main" name="Створити головне завдання">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Викладка брендів у магазинах&#34;, create_process: true, _model: &#34;project.project&#34;, _id: TODO_PROJECT_ID}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_create_main</bpmn:incoming>
+      <bpmn:outgoing>Flow_create_main_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_create_main_to_merge" sourceRef="ST_create_main" targetRef="Merge_odoo" />
+
+    <!-- ===== Merge Gateway ===== -->
+    <bpmn:exclusiveGateway id="Merge_odoo">
+      <bpmn:incoming>Flow_odoo_exists</bpmn:incoming>
+      <bpmn:incoming>Flow_create_main_to_merge</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_get_stores</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_to_get_stores" sourceRef="Merge_odoo" targetRef="ST_get_stores" />
+
+    <!-- ===== ST: Отримати список магазинів з Odoo ===== -->
+    <bpmn:serviceTask id="ST_get_stores" name="Отримати список магазинів">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/api/server-action&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;,&#10;&#34;X-API-Key&#34;:&#34;632b5ed6-091f-48db-bd01-1e60aeb10bfc&#34;}" target="headers" />
+          <zeebe:input source="={&#10;  &#34;action_identifier&#34;: &#34;studio_customization._4df8b2ca-76eb-4bef-bd5c-1597a406825b&#34;,&#10;  &#34;context&#34;: {},&#10;  &#34;payload&#34;: {&#10;    &#34;groups&#34;: [TODO_GROUP_ID]&#10;  }&#10;}" target="body" />
+          <zeebe:input source="=&#34;result&#34;" target="result_variable_name" />
+          <zeebe:output source="=result.data.data" target="employees" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_get_stores</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_brand_display</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_to_brand_display" sourceRef="ST_get_stores" targetRef="UT_brand_display" />
+
+    <!-- ===== User Task: Викладка брендів (multi-instance по магазинах) ===== -->
+    <bpmn:userTask id="UT_brand_display" name="Викладка брендів">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Викладка брендів — &#34; + emp.employee_name,&#10; description: &#34;Перейдіть у дашборд та заповніть статуси по кожному бренду (готово / немає в наявності)&#34;,&#10; _model: &#34;project.project&#34;,&#10; x_studio_camunda_user_id: emp.user_id,&#10; x_studio_camunda_dashboard_url: &#34;TODO_DASHBOARD_URL&#34;,&#10; _id: TODO_PROJECT_ID,&#10; process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_brand_display</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_end</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics>
+        <bpmn:extensionElements>
+          <zeebe:loopCharacteristics inputCollection="=employees" inputElement="emp" />
+        </bpmn:extensionElements>
+      </bpmn:multiInstanceLoopCharacteristics>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_to_end" sourceRef="UT_brand_display" targetRef="End_success" />
+
+    <!-- ===== Boundary: Нагадування (non-interrupting, R/PT24H) ===== -->
+    <bpmn:boundaryEvent id="BE_rem_display" name="Нагадування" cancelActivity="false" attachedToRef="UT_brand_display">
+      <bpmn:outgoing>Flow_rem_display</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_rem_display">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT24H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="Flow_rem_display" sourceRef="BE_rem_display" targetRef="ST_rem_display" />
+
+    <bpmn:serviceTask id="ST_rem_display" name="⚠️ Нагадування: викладка">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;⚠️ НАГАДУВАННЯ: Викладка брендів не виконана&#34;,&#10; description: &#34;Задача очікує на виконання. Перейдіть у дашборд та заповніть статуси.&#34;,&#10; _model: &#34;project.project&#34;,&#10; _id: TODO_PROJECT_ID,&#10; x_studio_camunda_user_id: emp.user_id,&#10; process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rem_display</bpmn:incoming>
+      <bpmn:outgoing>Flow_rem_display_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_rem_display_end" sourceRef="ST_rem_display" targetRef="End_rem_display" />
+    <bpmn:endEvent id="End_rem_display" name="Нагадування надіслано">
+      <bpmn:incoming>Flow_rem_display_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ===== Boundary: Дедлайн (non-interrupting, P3D) ===== -->
+    <bpmn:boundaryEvent id="BE_ded_display" name="Дедлайн" cancelActivity="false" attachedToRef="UT_brand_display">
+      <bpmn:outgoing>Flow_ded_display</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_ded_display">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="Flow_ded_display" sourceRef="BE_ded_display" targetRef="UT_esc_display" />
+
+    <!-- ===== User Task: Ескалація керівнику ===== -->
+    <bpmn:userTask id="UT_esc_display" name="🔴 ЕСКАЛАЦІЯ: Викладка не виконана">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;🔴 ЕСКАЛАЦІЯ: Викладка брендів не виконана&#34;,&#10; description: &#34;Адмін магазину не заповнив статуси викладки протягом встановленого терміну.&#34;,&#10; _model: &#34;project.project&#34;,&#10; _id: TODO_PROJECT_ID,&#10; process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ded_display</bpmn:incoming>
+      <bpmn:outgoing>Flow_esc_display_end</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_esc_display_end" sourceRef="UT_esc_display" targetRef="End_esc_display" />
+    <bpmn:endEvent id="End_esc_display" name="Ескалацію оброблено">
+      <bpmn:incoming>Flow_esc_display_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ===== End Event ===== -->
+    <bpmn:endEvent id="End_success" name="Викладку завершено">
+      <bpmn:incoming>Flow_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_BrandDisplay">
+
+      <!-- Pool -->
+      <bpmndi:BPMNShape id="Participant_BrandDisplay_di" bpmnElement="Participant_BrandDisplay" isHorizontal="true">
+        <dc:Bounds x="105" y="90" width="1300" height="710" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Lanes -->
+      <bpmndi:BPMNShape id="Lane_system_di" bpmnElement="Lane_system" isHorizontal="true">
+        <dc:Bounds x="135" y="90" width="1270" height="310" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_store_di" bpmnElement="Lane_store" isHorizontal="true">
+        <dc:Bounds x="135" y="400" width="1270" height="190" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_manager_di" bpmnElement="Lane_manager" isHorizontal="true">
+        <dc:Bounds x="135" y="590" width="1270" height="210" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- ===== Lane_system shapes ===== -->
+
+      <!-- StartEvent_1 -->
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="192" y="212" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="170" y="255" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- GW_odoo_check -->
+      <bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true">
+        <dc:Bounds x="285" y="205" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="265" y="262" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ST_create_main -->
+      <bpmndi:BPMNShape id="ST_create_main_di" bpmnElement="ST_create_main">
+        <dc:Bounds x="390" y="190" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Merge_odoo -->
+      <bpmndi:BPMNShape id="Merge_odoo_di" bpmnElement="Merge_odoo" isMarkerVisible="true">
+        <dc:Bounds x="545" y="205" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- ST_get_stores -->
+      <bpmndi:BPMNShape id="ST_get_stores_di" bpmnElement="ST_get_stores">
+        <dc:Bounds x="650" y="190" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- End_success -->
+      <bpmndi:BPMNShape id="End_success_di" bpmnElement="End_success">
+        <dc:Bounds x="1062" y="212" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1038" y="255" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ST_rem_display -->
+      <bpmndi:BPMNShape id="ST_rem_display_di" bpmnElement="ST_rem_display">
+        <dc:Bounds x="560" y="300" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- End_rem_display -->
+      <bpmndi:BPMNShape id="End_rem_display_di" bpmnElement="End_rem_display">
+        <dc:Bounds x="722" y="322" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="697" y="365" width="86" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ===== Lane_store shapes ===== -->
+
+      <!-- UT_brand_display -->
+      <bpmndi:BPMNShape id="UT_brand_display_di" bpmnElement="UT_brand_display">
+        <dc:Bounds x="800" y="455" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Boundary events on UT_brand_display -->
+      <bpmndi:BPMNShape id="BE_rem_display_di" bpmnElement="BE_rem_display">
+        <dc:Bounds x="810" y="517" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="790" y="560" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BE_ded_display_di" bpmnElement="BE_ded_display">
+        <dc:Bounds x="854" y="517" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="848" y="560" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ===== Lane_manager shapes ===== -->
+
+      <!-- UT_esc_display -->
+      <bpmndi:BPMNShape id="UT_esc_display_di" bpmnElement="UT_esc_display">
+        <dc:Bounds x="910" y="655" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- End_esc_display -->
+      <bpmndi:BPMNShape id="End_esc_display_di" bpmnElement="End_esc_display">
+        <dc:Bounds x="1072" y="677" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1046" y="720" width="88" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ===== Edges (Sequence Flows) ===== -->
+
+      <!-- Flow_to_odoo_check: Start → GW_odoo_check -->
+      <bpmndi:BPMNEdge id="Flow_to_odoo_check_di" bpmnElement="Flow_to_odoo_check">
+        <di:waypoint x="228" y="230" />
+        <di:waypoint x="285" y="230" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_odoo_exists: GW_odoo_check → Merge_odoo (bypass above) -->
+      <bpmndi:BPMNEdge id="Flow_odoo_exists_di" bpmnElement="Flow_odoo_exists">
+        <di:waypoint x="310" y="205" />
+        <di:waypoint x="310" y="145" />
+        <di:waypoint x="570" y="145" />
+        <di:waypoint x="570" y="205" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="432" y="127" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_to_create_main: GW_odoo_check → ST_create_main (default) -->
+      <bpmndi:BPMNEdge id="Flow_to_create_main_di" bpmnElement="Flow_to_create_main">
+        <di:waypoint x="335" y="230" />
+        <di:waypoint x="390" y="230" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_create_main_to_merge: ST_create_main → Merge_odoo -->
+      <bpmndi:BPMNEdge id="Flow_create_main_to_merge_di" bpmnElement="Flow_create_main_to_merge">
+        <di:waypoint x="490" y="230" />
+        <di:waypoint x="545" y="230" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_to_get_stores: Merge_odoo → ST_get_stores -->
+      <bpmndi:BPMNEdge id="Flow_to_get_stores_di" bpmnElement="Flow_to_get_stores">
+        <di:waypoint x="595" y="230" />
+        <di:waypoint x="650" y="230" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_to_brand_display: ST_get_stores → UT_brand_display (Z-form cross-lane) -->
+      <bpmndi:BPMNEdge id="Flow_to_brand_display_di" bpmnElement="Flow_to_brand_display">
+        <di:waypoint x="750" y="230" />
+        <di:waypoint x="775" y="230" />
+        <di:waypoint x="775" y="495" />
+        <di:waypoint x="800" y="495" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_to_end: UT_brand_display → End_success (Z-form cross-lane up) -->
+      <bpmndi:BPMNEdge id="Flow_to_end_di" bpmnElement="Flow_to_end">
+        <di:waypoint x="900" y="495" />
+        <di:waypoint x="980" y="495" />
+        <di:waypoint x="980" y="230" />
+        <di:waypoint x="1062" y="230" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_rem_display: BE_rem_display → ST_rem_display (up to Lane_system) -->
+      <bpmndi:BPMNEdge id="Flow_rem_display_di" bpmnElement="Flow_rem_display">
+        <di:waypoint x="810" y="535" />
+        <di:waypoint x="610" y="535" />
+        <di:waypoint x="610" y="380" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_rem_display_end: ST_rem_display → End_rem_display -->
+      <bpmndi:BPMNEdge id="Flow_rem_display_end_di" bpmnElement="Flow_rem_display_end">
+        <di:waypoint x="660" y="340" />
+        <di:waypoint x="722" y="340" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_ded_display: BE_ded_display → UT_esc_display (down to Lane_manager) -->
+      <bpmndi:BPMNEdge id="Flow_ded_display_di" bpmnElement="Flow_ded_display">
+        <di:waypoint x="872" y="553" />
+        <di:waypoint x="872" y="695" />
+        <di:waypoint x="910" y="695" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Flow_esc_display_end: UT_esc_display → End_esc_display -->
+      <bpmndi:BPMNEdge id="Flow_esc_display_end_di" bpmnElement="Flow_esc_display_end">
+        <di:waypoint x="1010" y="695" />
+        <di:waypoint x="1072" y="695" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

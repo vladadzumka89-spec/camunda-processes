@@ -150,7 +150,13 @@ class WebhookServer:
         logger.info("PR #%d action=%s, base=%s", pr_number, action, base_branch)
 
         if action in ('opened', 'reopened', 'synchronize'):
-            return await self._publish_pr_event(pr, payload)
+            result = await self._publish_pr_event(pr, payload)
+            if action == 'synchronize':
+                await self._publish_pr_updated(pr)
+            return result
+
+        if action == 'closed' and pr.get('merged', False):
+            return await self._publish_pr_merged(pr, payload)
 
         logger.info("Ignoring PR #%d action=%s", pr_number, action)
         return web.json_response({"status": "ignored", "action": action})
@@ -313,6 +319,37 @@ class WebhookServer:
             })
         except Exception as exc:
             logger.error("Failed to publish msg_pr_updated for PR #%d: %s", pr_number, exc)
+            return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
+
+    async def _publish_pr_merged(self, pr: dict, payload: dict) -> web.Response:
+        """Publish msg_pr_merged when a PR is merged."""
+        pr_number = pr.get('number', 0)
+        repo_full = payload.get('repository', {}).get('full_name', self._config.github.repository)
+
+        try:
+            client = self._create_zeebe_client()
+            await client.publish_message(
+                name="msg_pr_merged",
+                correlation_key=str(pr_number),
+                variables={
+                    "pr_number": pr_number,
+                    "pr_url": pr.get('html_url', ''),
+                    "pr_title": pr.get('title', ''),
+                    "merge_commit_sha": pr.get('merge_commit_sha', ''),
+                    "repository": repo_full,
+                    "base_branch": pr.get('base', {}).get('ref', ''),
+                    "head_branch": pr.get('head', {}).get('ref', ''),
+                },
+                time_to_live_in_milliseconds=3_600_000,
+            )
+            logger.info("Published msg_pr_merged for PR #%d", pr_number)
+            return web.json_response({
+                "status": "published",
+                "message": "msg_pr_merged",
+                "pr_number": pr_number,
+            })
+        except Exception as exc:
+            logger.error("Failed to publish msg_pr_merged for PR #%d: %s", pr_number, exc)
             return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
 
     # -- Odoo webhook ----------------------------------------------

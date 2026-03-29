@@ -155,6 +155,7 @@ curl -s -X POST "http://10.1.1.74:8088/v2/process-instances" \
       "task_description": "TASK_DESCRIPTION",
       "head_branch": "BRANCH_NAME",
       "odoo_project_id": 237,
+      "odoo_webhook_url": "https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50",
       "staging_host": "10.1.1.65",
       "staging_ssh_user": "root",
       "staging_repo_dir": "/opt/odoo-enterprise",

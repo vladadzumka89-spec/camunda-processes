@@ -220,7 +220,39 @@ def _fetch_active_fops(conn, year: int) -> list:
             AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
             AND o._Description NOT LIKE N'яяя%%'
             AND r129._Description = N'Стоимость проданных товаров (работ, услуг)'
-        ORDER BY o._Description
+            AND NOT EXISTS (
+                SELECT 1 FROM _Reference90_VT1523 vt_st
+                WHERE vt_st._Reference90_IDRRef = o._IDRRef
+                  AND vt_st._Fld1525RRef = 0x85d7ec0d9a794f5211ed6f042b93621a
+                  AND vt_st._Fld1526_RRRef = 0x85d7ec0d9a794f5211ed6f042b93621b
+            )
+
+        UNION
+
+        SELECT
+            o._IDRRef AS id,
+            o._Description AS name,
+            RTRIM(o._Fld1495) AS full_name,
+            o._Fld1494 AS edrpou
+        FROM _Reference90 o
+        JOIN _Reference90_VT1523 vt ON vt._Reference90_IDRRef = o._IDRRef
+        JOIN _Reference59 r59 ON r59._IDRRef = vt._Fld1526_RRRef
+        WHERE vt._Fld1526_RTRef = 0x0000003b
+            AND RTRIM(r59._Description) IN (N'ТП', N'ФАМО')
+            AND o._Marked = 0x00
+            AND o._Description NOT LIKE N'яяя%%'
+            AND o._Description NOT LIKE N'%%ТОВ%%'
+            AND o._Description NOT LIKE N'%%Техно Простір%%'
+            AND o._Description NOT LIKE N'%%Плюс Технопростір%%'
+            AND o._Description NOT LIKE N'%%ПКцентр%%'
+            AND NOT EXISTS (
+                SELECT 1 FROM _Reference90_VT1523 vt_st
+                WHERE vt_st._Reference90_IDRRef = o._IDRRef
+                  AND vt_st._Fld1525RRef = 0x85d7ec0d9a794f5211ed6f042b93621a
+                  AND vt_st._Fld1526_RRRef = 0x85d7ec0d9a794f5211ed6f042b93621b
+            )
+
+        ORDER BY name
     """
     bas_start = f"{year + BAS_YEAR_OFFSET}-01-01"
     bas_end = f"{year + BAS_YEAR_OFFSET + 1}-01-01"
@@ -345,8 +377,20 @@ def _translit_ukr(text: str) -> str:
 
 
 def _fetch_subdivision_lookup(conn) -> dict[str, str]:
-    """Build {translit_word: full_description} lookup from _Reference116 store tree."""
-    sql = """
+    """Build {translit_word: full_description} lookup from _Reference100
+    (Підрозділи організацій) — the catalog referenced by terminal codes
+    in bank statement payment purposes. Falls back to _Reference116
+    (Структурні одиниці) for entries not found in _Reference100.
+    """
+    # Primary source: _Reference100 (Підрозділи організацій)
+    # This is the catalog that terminal codes in bank statements refer to
+    sql_r100 = """
+        SELECT DISTINCT _Description FROM _Reference100
+        WHERE _Marked = 0x00
+          AND _Description LIKE N'[0-9][0-9][0-9] %'
+    """
+    # Secondary source: _Reference116 (Структурні одиниці)
+    sql_r116 = """
         ;WITH store_roots AS (
             SELECT _IDRRef FROM _Reference116
             WHERE _Description IN (N'500 Магазини', N'600 Магазини',
@@ -366,46 +410,56 @@ def _fetch_subdivision_lookup(conn) -> dict[str, str]:
     """
     cursor = conn.cursor(as_dict=True)
     try:
-        cursor.execute(sql)
-        # Build lookup: each significant word (translit) → full description
-        # Also store full translit → description for multi-word matching
         lookup = {}  # translit_key -> description
         all_subs = []  # [(description, set_of_translit_words)]
         code_lookup = {}  # "601" -> "601 Квартал Хмель"
 
-        for row in cursor:
-            desc = row["_Description"].strip()
-            # Only use entries with 3-digit number prefix: "601 Квартал Хмель"
-            # These are actual store subdivisions, not intermediate folders
+        def _process_row(desc: str) -> None:
             code_m = re.match(r'^(\d{3})\s', desc)
             if not code_m:
-                continue
+                return
+            code = code_m.group(1)
+            # Don't overwrite _Reference100 entries with _Reference116
+            if code in code_lookup:
+                return
+            code_lookup[code] = desc
 
-            code_lookup[code_m.group(1)] = desc
-
-            # "601 Квартал Хмель" → name_part = "Квартал Хмель"
             name_part = re.sub(r'^\d+\s*', '', desc).strip()
             if not name_part:
-                continue
-
+                return
             words = [w for w in name_part.split() if len(w) >= 2]
             translit_words = set()
             for w in words:
                 tw = _translit_ukr(w)
                 if len(tw) >= 2:
                     translit_words.add(tw)
-
             all_subs.append((desc, translit_words))
-
-            # Map each unique word ≥4 chars to this subdivision
             for tw in translit_words:
                 if len(tw) >= 4:
                     lookup[tw] = desc
-
-            # Map full translit name
             full_translit = _translit_ukr(name_part).replace(' ', '')
             if full_translit:
                 lookup[full_translit] = desc
+
+        # 1) Primary: _Reference100 (terminal codes reference this catalog)
+        cursor.execute(sql_r100)
+        r100_count = 0
+        for row in cursor:
+            desc = row["_Description"].strip()
+            _process_row(desc)
+            r100_count += 1
+        logger.info("_Reference100: %d записів, %d з кодами", r100_count, len(code_lookup))
+
+        # 2) Secondary: _Reference116 (fill gaps not covered by _Reference100)
+        r116_before = len(code_lookup)
+        cursor.execute(sql_r116)
+        for row in cursor:
+            desc = row["_Description"].strip()
+            _process_row(desc)
+        logger.info(
+            "_Reference116: додано %d нових кодів (було %d, стало %d)",
+            len(code_lookup) - r116_before, r116_before, len(code_lookup),
+        )
 
         return {"word_lookup": lookup, "subdivisions": all_subs, "code_lookup": code_lookup}
     finally:
@@ -585,7 +639,10 @@ def _fetch_fop_stores(conn, year: int) -> dict:
     """
     cursor = conn.cursor(as_dict=True)
     try:
+        import time as _time
+        _t0 = _time.time()
         cursor.execute(sql_payments, (bas_start, bas_end))
+        logger.info("sql_payments виконано за %.1f сек", _time.time() - _t0)
 
         _CAT_LABELS = {
             "mono": "101 Інтернет-магазин (Моно)",
@@ -649,6 +706,8 @@ def _fetch_fop_stores(conn, year: int) -> dict:
             GROUP BY d._Fld6492RRef
         """
         cash_data = {}
+        _t1 = _time.time()
+        logger.info("Початок sql_cash...")
         cursor.execute(sql_cash, (bas_start, bas_end))
         for row in cursor:
             org_id = bytes(row["org_id"])
@@ -657,6 +716,10 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 "total": float(row["total"] or 0),
             }
 
+        logger.info("sql_cash виконано за %.1f сек", _time.time() - _t1)
+
+        _t2 = _time.time()
+        logger.info("Початок sql_docs...")
         sql_docs = """
             ;WITH store_roots AS (
                 SELECT _IDRRef FROM _Reference116
@@ -669,6 +732,12 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 UNION ALL
                 SELECT c._IDRRef FROM _Reference116 c
                 JOIN store_tree t ON c._ParentIDRRef = t._IDRRef
+            ),
+            known_stores AS (
+                SELECT _IDRRef FROM store_tree
+                UNION
+                SELECT _IDRRef FROM _Reference100
+                WHERE _Description LIKE N'[0-9][0-9][0-9] %' AND _Marked = 0x00
             ),
             fop_filter AS (
                 SELECT _IDRRef FROM _Reference90
@@ -683,7 +752,7 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 WHERE d._Posted = 0x01 AND d._Marked = 0x00
                     AND d._Date_Time >= %s AND d._Date_Time < %s
                     AND d._Fld6686RRef IN (SELECT _IDRRef FROM fop_filter)
-                    AND d._Fld6687RRef IN (SELECT _IDRRef FROM store_tree)
+                    AND d._Fld6687RRef IN (SELECT _IDRRef FROM known_stores)
                 GROUP BY d._Fld6686RRef, d._Fld6687RRef
 
                 UNION ALL
@@ -694,7 +763,7 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 WHERE d._Posted = 0x01 AND d._Marked = 0x00
                     AND d._Date_Time >= %s AND d._Date_Time < %s
                     AND d._Fld6103RRef IN (SELECT _IDRRef FROM fop_filter)
-                    AND d._Fld6104RRef IN (SELECT _IDRRef FROM store_tree)
+                    AND d._Fld6104RRef IN (SELECT _IDRRef FROM known_stores)
                 GROUP BY d._Fld6103RRef, d._Fld6104RRef
 
                 UNION ALL
@@ -705,19 +774,32 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 WHERE d._Posted = 0x01 AND d._Marked = 0x00
                     AND d._Date_Time >= %s AND d._Date_Time < %s
                     AND d._Fld5008RRef IN (SELECT _IDRRef FROM fop_filter)
-                    AND d._Fld5011RRef IN (SELECT _IDRRef FROM store_tree)
+                    AND d._Fld5011RRef IN (SELECT _IDRRef FROM known_stores)
                 GROUP BY d._Fld5008RRef, d._Fld5011RRef
             )
-            SELECT a.org_id, s._Description AS store_name,
-                   SUM(a.doc_count) AS doc_count, SUM(a.total_sum) AS total_sum
-            FROM all_stores a
-            JOIN _Reference116 s ON a.store_id = s._IDRRef
-            GROUP BY a.org_id, s._Description
-            ORDER BY a.org_id, SUM(a.total_sum) DESC
+            ,resolved AS (
+                SELECT a.org_id, a.doc_count, a.total_sum,
+                       COALESCE(
+                           (SELECT TOP 1 MIN(x._Description) FROM _Reference100 x
+                            WHERE x._IDRRef = a.store_id
+                              AND x._Description LIKE N'[0-9][0-9][0-9] %'
+                              AND x._Marked = 0x00),
+                           r116._Description
+                       ) AS store_name
+                FROM all_stores a
+                LEFT JOIN _Reference116 r116 ON a.store_id = r116._IDRRef
+            )
+            SELECT org_id, store_name,
+                   SUM(doc_count) AS doc_count, SUM(total_sum) AS total_sum
+            FROM resolved
+            WHERE store_name IS NOT NULL
+            GROUP BY org_id, store_name
+            ORDER BY org_id, SUM(total_sum) DESC
         """
         cursor.execute(sql_docs, (bas_start, bas_end, bas_start, bas_end, bas_start, bas_end))
 
         doc_data = defaultdict(list)
+        doc_row_count = 0
         for row in cursor:
             org_id = bytes(row["org_id"])
             doc_data[org_id].append({
@@ -725,13 +807,21 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 "doc_count": row["doc_count"],
                 "total": float(row["total_sum"] or 0),
             })
+            doc_row_count += 1
+        logger.info(
+            "sql_docs виконано за %.1f сек: %d записів, %d ФОП",
+            _time.time() - _t2, doc_row_count, len(doc_data),
+        )
 
-        # Build terminal → subdivision mapping from _Reference116
+        # Build terminal → subdivision mapping
+        _t3 = _time.time()
         sub_data = _fetch_subdivision_lookup(conn)
         logger.info(
-            "Підрозділи: %d записів у lookup, %d підрозділів",
+            "subdivision_lookup за %.1f сек: %d записів, %d підрозділів, коди: %s",
+            _time.time() - _t3,
             len(sub_data["word_lookup"]),
             len(sub_data["subdivisions"]),
+            sorted(sub_data["code_lookup"].keys()),
         )
 
         result = defaultdict(list)
@@ -886,34 +976,75 @@ def _fetch_fop_stores(conn, year: int) -> dict:
 
 # ── Organization classification ────────────────────────────────────────
 
+# Module-level cache for FOP company mapping from BAS
+_fop_company_cache: dict[str, str] = {}
 
-_TECHNOPROSTIR_FOPS = {
-    "Абаркін Павло Сергійович",
-    "Абаркіна Наталія Олександрівна",
-    "Агошков Олександр Валерійович",
-    "Дарченко Євген Костянтинович",
-    "Джупина Михайло Володимирович",
-    "Івасюк Анастасія Дмитрівна",
-    "Козак Василь Миколайович",
-    "Козак Марія Іванівна",
-    "Козак Сергій Васильович",
-    "Козенко Юлія Василівна",
-    "Кравець Наталія Володимирівна",
-    "Кукура Крістіна Анатоліївна",
-    "Омельянчук Юлія Володимирівна",
-    "Савкова Вікторія Ігорівна",
-    "Ткачук Світлана Миколаївна",
-    "Шевченко Іванна Олегівна",
-    "Ялтуховський Олександр Ігорович",
-}
+
+def _fetch_fop_companies(conn) -> dict[str, str]:
+    """Fetch FOP → company mapping from BAS 'Принадлежність' attribute.
+
+    Source: _Reference90_VT1523 (Додаткові реквізити організацій)
+    Values: _Reference59 ('ТП' → Технопростір, 'ФАМО' → ФАМО)
+
+    Returns: {fop_name: 'Технопростір'|'ФАМО'}
+    """
+    sql = """
+        SELECT
+            RTRIM(o._Description) AS fop_name,
+            RTRIM(r59._Description) AS company
+        FROM _Reference90 o
+        JOIN _Reference90_VT1523 vt ON vt._Reference90_IDRRef = o._IDRRef
+        JOIN _Reference59 r59 ON r59._IDRRef = vt._Fld1526_RRRef
+        WHERE vt._Fld1526_RTRef = 0x0000003b
+          AND RTRIM(r59._Description) IN (N'ТП', N'ФАМО')
+          AND o._Marked = 0x00
+    """
+    _COMPANY_MAP = {"ТП": "Технопростір", "ФАМО": "ФАМО"}
+    cursor = conn.cursor(as_dict=True)
+    try:
+        cursor.execute(sql)
+        result = {}
+        for row in cursor:
+            name = row["fop_name"].strip()
+            raw = row["company"].strip()
+            result[name] = _COMPANY_MAP.get(raw, raw)
+        logger.info(
+            "Принадлежність ФОП з БАС: %d ТП, %d ФАМО",
+            sum(1 for v in result.values() if v == "Технопростір"),
+            sum(1 for v in result.values() if v == "ФАМО"),
+        )
+        return result
+    except Exception as e:
+        logger.warning("Не вдалося завантажити Принадлежність ФОП: %s", e)
+        return {}
+    finally:
+        cursor.close()
 
 
 def _determine_organization(fop_name: str) -> str:
-    """Classify FOP as ФАМО or Технопростір by explicit list."""
+    """Classify FOP as ФАМО or Технопростір using BAS data."""
     name = fop_name.strip()
-    if name in _TECHNOPROSTIR_FOPS:
-        return "Технопростір"
+    if name in _fop_company_cache:
+        return _fop_company_cache[name]
     return "ФАМО"
+
+
+def _determine_store_company(subdivision_name: str) -> str:
+    """Determine company by subdivision code prefix.
+
+    500-series → Технопростір
+    600-series, 900-series → ФАМО
+    No code → empty string (cannot determine)
+    """
+    m = re.match(r'^(\d)', subdivision_name)
+    if not m:
+        return ""
+    first_digit = m.group(1)
+    if first_digit == "5":
+        return "Технопростір"
+    if first_digit in ("6", "9"):
+        return "ФАМО"
+    return ""
 
 
 # ── Monthly income history ─────────────────────────────────────────────
@@ -1331,14 +1462,38 @@ def _determine_current_fop(
     """Determine current FOP for a store.
 
     Priority:
-    1. Last entry in binding_history (most accurate)
-    2. Fallback: FOP with highest income_from_store
+    1. Active period from binding history (date_to is None = still connected)
+    2. Last connection record (value_date year >= 2090)
+    3. Fallback: FOP with highest income_from_store
 
     Returns: (fop_name, fop_edrpou)
     """
     if bindings:
-        current_name = bindings[-1]["fop_name"]
-        # Try to find edrpou from fops_list
+        # Use _group_binding_periods to properly pair connections/disconnections
+        periods = _group_binding_periods(bindings)
+        # Find active period (date_to is None = FOP still connected)
+        active = [p for p in periods if p["date_to"] is None]
+        if active:
+            # Take the most recently connected active FOP
+            active.sort(
+                key=lambda p: _parse_binding_date(p["date_from"]) or date.min
+            )
+            current_name = active[-1]["fop_name"]
+        else:
+            # No active period — fall back to last connection record
+            conn_records = [
+                b for b in bindings
+                if (vd := _parse_binding_date(b.get("value_date", "")))
+                and vd.year >= 2090
+            ]
+            if conn_records:
+                conn_records.sort(
+                    key=lambda b: _parse_binding_date(b["date"]) or date.min
+                )
+                current_name = conn_records[-1]["fop_name"]
+            else:
+                current_name = bindings[-1]["fop_name"]
+
         for f in fops_list:
             if f["fop_name"] == current_name:
                 return current_name, f["fop_edrpou"]
@@ -1547,6 +1702,10 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
 
         fop_statuses = _fetch_fop_statuses(conn)
 
+        # FOP company mapping from BAS 'Принадлежність'
+        global _fop_company_cache
+        _fop_company_cache = _fetch_fop_companies(conn)
+
         # Seasonal coefficients from previous year
         seasonal_coefficients, network_coefficients = _fetch_seasonal_coefficients(conn, year)
 
@@ -1712,10 +1871,12 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
                     "fops": [],
                 }
             store_agg[name]["total_income"] += s.get("total", 0)
+            _total = s.get("total", 0)
             store_agg[name]["fops"].append({
                 "fop_name": fop_entry["fop_name"],
                 "fop_edrpou": fop_entry["fop_edrpou"],
-                "income_from_store": s.get("total", 0),
+                "income_from_store": _total,
+                "income_from_store_text": f"{_total:,.0f} грн".replace(",", " "),
                 "days_to_limit": fop_entry["days_to_limit"],
                 "organization": fop_entry.get("organization", ""),
             })
@@ -1757,7 +1918,7 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         )
         data["current_fop_name"] = current_fop_name
         data["current_fop_edrpou"] = current_fop_edrpou
-        data["company"] = _determine_organization(current_fop_name)
+        data["company"] = _determine_store_company(name) or _determine_organization(current_fop_name)
 
         # Find FOP group → limit
         fop_match = next(

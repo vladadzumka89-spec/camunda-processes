@@ -12,7 +12,7 @@
 
   <bpmn:process id="main-to-staging-sync" name="Main to Staging Sync" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="5.0" />
+      <zeebe:versionTag value="7.0" />
     </bpmn:extensionElements>
 
     <!-- ── Start Events ──────────────────────────────── -->
@@ -51,7 +51,7 @@
           <zeebe:input source="=&quot;POST&quot;" target="method" />
           <zeebe:input source="=if is defined(odoo_webhook_url) and odoo_webhook_url != null then odoo_webhook_url else &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[sync] Щонічний sync main → staging&quot;, _id: 560, create_process: true, bpmn_process_id: &quot;main-to-staging-sync&quot;}" target="body" />
+          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[sync] Щонічний sync main → staging&quot;, description: &quot;&lt;p&gt;&lt;b&gt;Процес:&lt;/b&gt; &lt;a href='http://camunda25.a.local:8088/operate/#/processes/&quot; + string(process_instance_key) + &quot;'&gt;Переглянути в Operate&lt;/a&gt;&lt;/p&gt;&quot;, _id: 560, create_process: true, bpmn_process_id: &quot;main-to-staging-sync&quot;, process_instance_key: string(process_instance_key)}" target="body" />
           <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -78,7 +78,7 @@ Push в GitHub тригерить deploy через webhook автоматичн
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_odoo_to_merge_task</bpmn:incoming>
-      <bpmn:outgoing>f_merge_to_success</bpmn:outgoing>
+      <bpmn:outgoing>f_merge_to_end</bpmn:outgoing>
     </bpmn:serviceTask>
 
     <bpmn:boundaryEvent id="evt_merge_error" name="Reset failed" attachedToRef="task_merge_main_staging">
@@ -86,47 +86,13 @@ Push в GitHub тригерить deploy через webhook автоматичн
       <bpmn:errorEventDefinition id="ErrorDef_merge" />
     </bpmn:boundaryEvent>
 
-    <!-- ── Success notification ──────────────────────── -->
-    <bpmn:serviceTask id="ST_notify_success" name="✅ Reset завершено → Odoo">
-      <bpmn:documentation>Нотифікація в Odoo про успішний hard reset staging до main. Deploy запуститься окремо через GitHub webhook.</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=if is defined(odoo_webhook_url) and odoo_webhook_url != null then odoo_webhook_url else &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[sync] ✅ Hard reset staging → main завершено&quot;, description: &quot;&lt;p&gt;✅ Staging скинуто до main (hard reset + force push). Deploy запуститься автоматично через webhook.&lt;/p&gt;&quot;}" target="body" />
-          <zeebe:input source="=true" target="ignore_errors" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_merge_to_success</bpmn:incoming>
-      <bpmn:outgoing>f_success_to_end</bpmn:outgoing>
-    </bpmn:serviceTask>
-
-    <!-- ── Error notification ────────────────────────── -->
-    <bpmn:serviceTask id="task_notify_fail" name="❌ Reset не вдався → Odoo">
-      <bpmn:documentation>Створює підзадачу в Odoo про помилку hard reset.</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=if is defined(odoo_webhook_url) and odoo_webhook_url != null then odoo_webhook_url else &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
-          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[sync] ❌ Hard reset staging → main не вдався&quot;, description: &quot;&lt;p&gt;❌ Hard reset staging → main не вдався. Потрібна ручна синхронізація.&lt;/p&gt;&quot;}" target="body" />
-          <zeebe:input source="=true" target="ignore_errors" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_merge_error</bpmn:incoming>
-      <bpmn:outgoing>f_notify_to_end_fail</bpmn:outgoing>
-    </bpmn:serviceTask>
-
     <!-- ── End events ────────────────────────────────── -->
     <bpmn:endEvent id="evt_end_success" name="Sync завершено">
-      <bpmn:incoming>f_success_to_end</bpmn:incoming>
+      <bpmn:incoming>f_merge_to_end</bpmn:incoming>
     </bpmn:endEvent>
 
     <bpmn:endEvent id="evt_end_fail" name="Reset не вдався">
-      <bpmn:incoming>f_notify_to_end_fail</bpmn:incoming>
+      <bpmn:incoming>f_merge_error</bpmn:incoming>
     </bpmn:endEvent>
 
     <!-- ── Sequence flows ────────────────────────────── -->
@@ -139,10 +105,8 @@ Push в GitHub тригерить deploy через webhook автоматичн
     <bpmn:sequenceFlow id="f_no_odoo_task" sourceRef="GW_odoo_check" targetRef="ST_create_main" />
     <bpmn:sequenceFlow id="f_created_to_merge" sourceRef="ST_create_main" targetRef="Merge_odoo" />
     <bpmn:sequenceFlow id="f_odoo_to_merge_task" sourceRef="Merge_odoo" targetRef="task_merge_main_staging" />
-    <bpmn:sequenceFlow id="f_merge_to_success" sourceRef="task_merge_main_staging" targetRef="ST_notify_success" />
-    <bpmn:sequenceFlow id="f_merge_error" sourceRef="evt_merge_error" targetRef="task_notify_fail" />
-    <bpmn:sequenceFlow id="f_success_to_end" sourceRef="ST_notify_success" targetRef="evt_end_success" />
-    <bpmn:sequenceFlow id="f_notify_to_end_fail" sourceRef="task_notify_fail" targetRef="evt_end_fail" />
+    <bpmn:sequenceFlow id="f_merge_to_end" sourceRef="task_merge_main_staging" targetRef="evt_end_success" />
+    <bpmn:sequenceFlow id="f_merge_error" sourceRef="evt_merge_error" targetRef="evt_end_fail" />
 
   </bpmn:process>
 
@@ -180,14 +144,6 @@ Push в GitHub тригерить deploy через webhook автоматичн
 
       <bpmndi:BPMNShape id="evt_merge_error_di" bpmnElement="evt_merge_error">
         <dc:Bounds x="720" y="202" width="36" height="36" />
-      </bpmndi:BPMNShape>
-
-      <bpmndi:BPMNShape id="ST_notify_success_di" bpmnElement="ST_notify_success">
-        <dc:Bounds x="868" y="140" width="100" height="80" />
-      </bpmndi:BPMNShape>
-
-      <bpmndi:BPMNShape id="task_notify_fail_di" bpmnElement="task_notify_fail">
-        <dc:Bounds x="780" y="340" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="evt_end_success_di" bpmnElement="evt_end_success">
@@ -237,24 +193,14 @@ Push в GitHub тригерить deploy через webhook автоматичн
         <di:waypoint x="688" y="180" />
       </bpmndi:BPMNEdge>
 
-      <bpmndi:BPMNEdge id="f_merge_to_success_di" bpmnElement="f_merge_to_success">
+      <bpmndi:BPMNEdge id="f_merge_to_end_di" bpmnElement="f_merge_to_end">
         <di:waypoint x="788" y="180" />
-        <di:waypoint x="868" y="180" />
+        <di:waypoint x="1048" y="180" />
       </bpmndi:BPMNEdge>
 
       <bpmndi:BPMNEdge id="f_merge_error_di" bpmnElement="f_merge_error">
         <di:waypoint x="738" y="238" />
         <di:waypoint x="738" y="380" />
-        <di:waypoint x="780" y="380" />
-      </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="f_success_to_end_di" bpmnElement="f_success_to_end">
-        <di:waypoint x="968" y="180" />
-        <di:waypoint x="1048" y="180" />
-      </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="f_notify_to_end_fail_di" bpmnElement="f_notify_to_end_fail">
-        <di:waypoint x="880" y="380" />
         <di:waypoint x="960" y="380" />
       </bpmndi:BPMNEdge>
 

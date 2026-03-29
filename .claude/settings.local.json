@@ -30,7 +30,8 @@
       "Bash(docker stop:*)",
       "Bash(docker rm:*)",
       "Bash(curl -s -X POST https://o.tut.ua/api/server-action -H 'Content-Type: application/json' -H 'X-API-Key: 632b5ed6-091f-48db-bd01-1e60aeb10bfc' -d '{:*)",
-      "Bash(docker cp:*)"
+      "Bash(docker cp:*)",
+      "Bash(grep -l \"multiInstance\\\\|boundaryEvent\" /opt/camunda/docker-compose-8.8/bpmn/**/*.bpmn)"
     ]
   }
 }
