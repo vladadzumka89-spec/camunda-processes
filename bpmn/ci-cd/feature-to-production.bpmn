@@ -71,7 +71,7 @@
           <zeebe:input source="=&quot;POST&quot;" target="method" />
           <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={_model: &quot;project.project&quot;, name: if is defined(task_description) and task_description != null and task_description != &quot;&quot; then task_description else &quot;[feature] Нова задача&quot;, description: if is defined(task_description) and task_description != null then task_description else &quot;&quot;, _id: odoo_project_id, create_process: true}" target="body" />
+          <zeebe:input source="={_model: &quot;project.project&quot;, name: if is defined(task_name) and task_name != null and task_name != &quot;&quot; then task_name else &quot;[feature] Нова задача&quot;, description: if is defined(task_description) and task_description != null then task_description else &quot;&quot;, _id: odoo_project_id, create_process: true}" target="body" />
           <zeebe:input source="=&quot;odoo_response&quot;" target="result_variable_name" />
           <zeebe:input source="=true" target="ignore_errors" />
           <zeebe:output source="=if is defined(odoo_response) and odoo_response != null and is defined(odoo_response.id) then string(odoo_response.id) else string(process_instance_key)" target="odoo_task_id" />
