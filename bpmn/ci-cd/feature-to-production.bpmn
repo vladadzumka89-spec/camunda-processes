@@ -35,11 +35,16 @@
       <zeebe:subscription correlationKey="=string(pr_number)" />
     </bpmn:extensionElements>
   </bpmn:message>
+  <bpmn:message id="Message_prod_deployed" name="msg_prod_deployed">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=string(pr_number)" />
+    </bpmn:extensionElements>
+  </bpmn:message>
 
   <!-- ── Process ───────────────────────────────────────── -->
   <bpmn:process id="feature-to-production" name="Feature to Production" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="8.0" />
+      <zeebe:versionTag value="9.0" />
     </bpmn:extensionElements>
 
     <!-- ── 1. Start + Odoo task ──────────────────────── -->
@@ -236,23 +241,12 @@
     </bpmn:intermediateCatchEvent>
 
     <!-- ── 10. Production deploy ─────────────────────── -->
-    <bpmn:callActivity id="call_verify_prod" name="Задеплоїте на production">
-      <bpmn:documentation>Call Activity: verification-process. Ручний деплой на production.</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:calledElement processId="verification-process" propagateAllChildVariables="false" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&quot;Задеплоїте на production: PR #&quot; + string(pr_number)" target="task_name" />
-          <zeebe:input source="=&quot;PR: &quot; + pr_url + &quot;\nЗмержено в main. Деплойте на production.&quot;" target="task_description" />
-          <zeebe:input source="=string(process_instance_key)" target="correlation_key" />
-          <zeebe:input source="=&quot;R/PT4H&quot;" target="reminder_cycle" />
-          <zeebe:input source="=&quot;P1D&quot;" target="deadline_duration" />
-          <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
-          <zeebe:input source="=odoo_webhook_url" target="odoo_webhook_url" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
+    <bpmn:intermediateCatchEvent id="catch_prod_deployed" name="Чекаємо деплой production">
+      <bpmn:documentation>Чекає msg_prod_deployed від production-nightly-deploy (correlation: pr_number). Деплой відбувається щодня о 22:00.</bpmn:documentation>
       <bpmn:incoming>f_merged_to_prod</bpmn:incoming>
       <bpmn:outgoing>f_prod_to_end</bpmn:outgoing>
-    </bpmn:callActivity>
+      <bpmn:messageEventDefinition id="MsgDef_prod_deployed" messageRef="Message_prod_deployed" />
+    </bpmn:intermediateCatchEvent>
 
     <!-- ── 11. End ───────────────────────────────────── -->
     <bpmn:endEvent id="evt_end_success" name="Фіча на production">
@@ -286,8 +280,8 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="f_staging_reject_to_rework" sourceRef="ST_comment_staging_reject" targetRef="catch_pr_updated" />
     <bpmn:sequenceFlow id="f_merge_task_to_catch" sourceRef="ST_create_merge_task" targetRef="catch_pr_merged" />
-    <bpmn:sequenceFlow id="f_merged_to_prod" sourceRef="catch_pr_merged" targetRef="call_verify_prod" />
-    <bpmn:sequenceFlow id="f_prod_to_end" sourceRef="call_verify_prod" targetRef="evt_end_success" />
+    <bpmn:sequenceFlow id="f_merged_to_prod" sourceRef="catch_pr_merged" targetRef="catch_prod_deployed" />
+    <bpmn:sequenceFlow id="f_prod_to_end" sourceRef="catch_prod_deployed" targetRef="evt_end_success" />
   </bpmn:process>
 
   <!-- ── Diagram ───────────────────────────────────────── -->
@@ -342,8 +336,8 @@
       <bpmndi:BPMNShape id="di_catch_pr_merged" bpmnElement="catch_pr_merged">
         <dc:Bounds x="1523" y="172" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="di_call_verify_prod" bpmnElement="call_verify_prod">
-        <dc:Bounds x="1609" y="150" width="100" height="80" />
+      <bpmndi:BPMNShape id="di_catch_prod_deployed" bpmnElement="catch_prod_deployed">
+        <dc:Bounds x="1641" y="172" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_evt_end_success" bpmnElement="evt_end_success">
         <dc:Bounds x="1759" y="172" width="36" height="36" />
@@ -503,15 +497,15 @@
         <di:waypoint x="1523" y="190" />
       </bpmndi:BPMNEdge>
 
-      <!-- catch_pr_merged → call_verify_prod (horizontal) -->
+      <!-- catch_pr_merged → catch_prod_deployed (horizontal) -->
       <bpmndi:BPMNEdge id="di_f_merged_to_prod" bpmnElement="f_merged_to_prod">
         <di:waypoint x="1559" y="190" />
-        <di:waypoint x="1609" y="190" />
+        <di:waypoint x="1641" y="190" />
       </bpmndi:BPMNEdge>
 
-      <!-- call_verify_prod → evt_end_success (horizontal) -->
+      <!-- catch_prod_deployed → evt_end_success (horizontal) -->
       <bpmndi:BPMNEdge id="di_f_prod_to_end" bpmnElement="f_prod_to_end">
-        <di:waypoint x="1709" y="190" />
+        <di:waypoint x="1677" y="190" />
         <di:waypoint x="1759" y="190" />
       </bpmndi:BPMNEdge>
 
