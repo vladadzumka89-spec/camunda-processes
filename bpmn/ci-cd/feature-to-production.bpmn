@@ -219,7 +219,7 @@
           <zeebe:input source="=&quot;POST&quot;" target="method" />
           <zeebe:input source="=odoo_webhook_url" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;Review та merge PR #&quot; + string(pr_number) + &quot; в main&quot;, description: &quot;PR: &quot; + pr_url + &quot;\nГілка: &quot; + head_branch + &quot;\nStagging перевірено ✅&quot;, _id: odoo_project_id, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;Review та merge PR #&quot; + string(pr_number) + &quot; в main&quot;, description: &quot;PR: &quot; + pr_url + &quot;\nГілка: &quot; + head_branch + &quot;\nStaging перевірено ✅&quot;, _id: odoo_project_id, process_instance_key: process_instance_key}" target="body" />
           <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
