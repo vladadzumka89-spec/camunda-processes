@@ -12,7 +12,7 @@
 
   <bpmn:process id="main-to-staging-sync" name="Main to Staging Sync" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="6.0" />
+      <zeebe:versionTag value="7.0" />
     </bpmn:extensionElements>
 
     <!-- ── Start Events ──────────────────────────────── -->
@@ -51,7 +51,7 @@
           <zeebe:input source="=&quot;POST&quot;" target="method" />
           <zeebe:input source="=if is defined(odoo_webhook_url) and odoo_webhook_url != null then odoo_webhook_url else &quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="url" />
           <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[sync] Щонічний sync main → staging&quot;, description: &quot;&lt;p&gt;&lt;b&gt;Процес:&lt;/b&gt; &lt;a href='http://camunda25.a.local:8088/operate/#/processes/&quot; + string(process_instance_key) + &quot;'&gt;Переглянути в Operate&lt;/a&gt;&lt;/p&gt;&quot;, _id: 560, create_process: true, bpmn_process_id: &quot;main-to-staging-sync&quot;}" target="body" />
+          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[sync] Щонічний sync main → staging&quot;, description: &quot;&lt;p&gt;&lt;b&gt;Процес:&lt;/b&gt; &lt;a href='http://camunda25.a.local:8088/operate/#/processes/&quot; + string(process_instance_key) + &quot;'&gt;Переглянути в Operate&lt;/a&gt;&lt;/p&gt;&quot;, _id: 560, create_process: true, bpmn_process_id: &quot;main-to-staging-sync&quot;, process_instance_key: string(process_instance_key)}" target="body" />
           <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
