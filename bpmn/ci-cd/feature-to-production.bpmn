@@ -35,6 +35,11 @@
       <zeebe:subscription correlationKey="=string(pr_number)" />
     </bpmn:extensionElements>
   </bpmn:message>
+  <bpmn:message id="Message_pr_ready" name="msg_pr_ready">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=string(pr_number)" />
+    </bpmn:extensionElements>
+  </bpmn:message>
   <bpmn:message id="Message_prod_deployed" name="msg_prod_deployed">
     <bpmn:extensionElements>
       <zeebe:subscription correlationKey="=string(pr_number)" />
@@ -44,7 +49,7 @@
   <!-- ── Process ───────────────────────────────────────── -->
   <bpmn:process id="feature-to-production" name="Feature to Production" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="9.0" />
+      <zeebe:versionTag value="10.0" />
     </bpmn:extensionElements>
 
     <!-- ── 1. Start + Odoo task ──────────────────────── -->
@@ -96,6 +101,7 @@
       <bpmn:documentation>Чекає msg_review_done від standalone pr-review процесу (correlation: pr_number).</bpmn:documentation>
       <bpmn:incoming>f_pr_to_review</bpmn:incoming>
       <bpmn:incoming>f_rework_to_review</bpmn:incoming>
+      <bpmn:incoming>f_staging_rework_to_review</bpmn:incoming>
       <bpmn:outgoing>f_review_to_score</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_review_done" messageRef="Message_review_done" />
     </bpmn:intermediateCatchEvent>
@@ -122,7 +128,6 @@
     <bpmn:receiveTask id="catch_pr_updated" name="Чекаємо оновлення PR" messageRef="Message_pr_updated">
       <bpmn:documentation>Чекає push нових комітів в PR (msg_pr_updated, correlation: pr_number).</bpmn:documentation>
       <bpmn:incoming>f_comment_to_wait</bpmn:incoming>
-      <bpmn:incoming>f_staging_reject_to_rework</bpmn:incoming>
       <bpmn:outgoing>f_rework_to_review</bpmn:outgoing>
     </bpmn:receiveTask>
 
@@ -172,48 +177,31 @@
     <bpmn:intermediateCatchEvent id="catch_staging_deployed" name="Чекаємо деплой staging">
       <bpmn:documentation>Чекає msg_deploy_done від deploy-process (correlation: merge_sha = trigger_sha).</bpmn:documentation>
       <bpmn:incoming>f_merge_to_deploy</bpmn:incoming>
-      <bpmn:outgoing>f_deploy_to_verify</bpmn:outgoing>
+      <bpmn:outgoing>f_deploy_to_event_gw</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_deploy_done" messageRef="Message_deploy_done" />
     </bpmn:intermediateCatchEvent>
 
-    <!-- ── 7. Verify staging ─────────────────────────── -->
-    <bpmn:callActivity id="call_verify_staging" name="Перевірити staging">
-      <bpmn:documentation>Call Activity: verification-process. Створює Odoo задачу, чекає результату.</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:calledElement processId="verification-process" propagateAllChildVariables="false" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&quot;Перевірити staging: &quot; + head_branch" target="task_name" />
-          <zeebe:input source="=&quot;PR: &quot; + pr_url + &quot;\nГілка: &quot; + head_branch" target="task_description" />
-          <zeebe:input source="=string(process_instance_key)" target="correlation_key" />
-          <zeebe:input source="=&quot;R/PT4H&quot;" target="reminder_cycle" />
-          <zeebe:input source="=&quot;P3D&quot;" target="deadline_duration" />
-          <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
-          <zeebe:input source="=odoo_webhook_url" target="odoo_webhook_url" />
-          <zeebe:output source="=staging_approved" target="staging_approved" />
-          <zeebe:output source="=if is defined(comment) and comment != null then comment else &quot;&quot;" target="staging_comment" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_deploy_to_verify</bpmn:incoming>
-      <bpmn:outgoing>f_verify_to_staging_gw</bpmn:outgoing>
-    </bpmn:callActivity>
+    <!-- ── 7. Event-based gateway: undraft або rework ── -->
+    <bpmn:eventBasedGateway id="GW_event_staging" name="Undraft чи push?">
+      <bpmn:documentation>Чекає на одну з двох подій: PR знято з draft (staging ок) або push нових комітів (rework).</bpmn:documentation>
+      <bpmn:incoming>f_deploy_to_event_gw</bpmn:incoming>
+      <bpmn:outgoing>f_event_to_ready</bpmn:outgoing>
+      <bpmn:outgoing>f_event_to_staging_rework</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
 
-    <bpmn:exclusiveGateway id="GW_staging_ok" name="Staging пройдено?" default="f_staging_ok">
-      <bpmn:incoming>f_verify_to_staging_gw</bpmn:incoming>
-      <bpmn:outgoing>f_staging_ok</bpmn:outgoing>
-      <bpmn:outgoing>f_staging_rejected</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
+    <bpmn:intermediateCatchEvent id="catch_pr_ready" name="PR знято з draft">
+      <bpmn:documentation>Розробник перевірив staging і зняв draft з PR — staging ок.</bpmn:documentation>
+      <bpmn:incoming>f_event_to_ready</bpmn:incoming>
+      <bpmn:outgoing>f_ready_to_merge_task</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_pr_ready" messageRef="Message_pr_ready" />
+    </bpmn:intermediateCatchEvent>
 
-    <!-- ── 7a. Staging rejected → comment → rework ───── -->
-    <bpmn:serviceTask id="ST_comment_staging_reject" name="Коментар: staging відхилено">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="github-comment" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&quot;⚠️ **Staging відхилено**: &quot; + (if is defined(staging_comment) and staging_comment != null and staging_comment != &quot;&quot; then staging_comment else &quot;без коментаря&quot;) + &quot;\nВиправте та пушніть зміни в `&quot; + head_branch + &quot;`.&quot;" target="comment_text" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_staging_rejected</bpmn:incoming>
-      <bpmn:outgoing>f_staging_reject_to_rework</bpmn:outgoing>
-    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="catch_staging_rework" name="Push: rework staging">
+      <bpmn:documentation>Розробник пушить фікс — staging не ок, потрібен rework.</bpmn:documentation>
+      <bpmn:incoming>f_event_to_staging_rework</bpmn:incoming>
+      <bpmn:outgoing>f_staging_rework_to_review</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_staging_rework" messageRef="Message_pr_updated" />
+    </bpmn:intermediateCatchEvent>
 
     <!-- ── 8. Create merge task in Odoo ──────────────── -->
     <bpmn:serviceTask id="ST_create_merge_task" name="Задача: review та merge PR">
@@ -228,7 +216,7 @@
           <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>f_staging_ok</bpmn:incoming>
+      <bpmn:incoming>f_ready_to_merge_task</bpmn:incoming>
       <bpmn:outgoing>f_merge_task_to_catch</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -272,13 +260,11 @@
     <bpmn:sequenceFlow id="f_rem_to_notify" sourceRef="BE_rem_rework" targetRef="ST_rem_rework" />
     <bpmn:sequenceFlow id="f_rem_to_end" sourceRef="ST_rem_rework" targetRef="End_rem_rework" />
     <bpmn:sequenceFlow id="f_merge_to_deploy" sourceRef="ST_merge_to_staging" targetRef="catch_staging_deployed" />
-    <bpmn:sequenceFlow id="f_deploy_to_verify" sourceRef="catch_staging_deployed" targetRef="call_verify_staging" />
-    <bpmn:sequenceFlow id="f_verify_to_staging_gw" sourceRef="call_verify_staging" targetRef="GW_staging_ok" />
-    <bpmn:sequenceFlow id="f_staging_ok" sourceRef="GW_staging_ok" targetRef="ST_create_merge_task" />
-    <bpmn:sequenceFlow id="f_staging_rejected" sourceRef="GW_staging_ok" targetRef="ST_comment_staging_reject">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=staging_approved = false</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="f_staging_reject_to_rework" sourceRef="ST_comment_staging_reject" targetRef="catch_pr_updated" />
+    <bpmn:sequenceFlow id="f_deploy_to_event_gw" sourceRef="catch_staging_deployed" targetRef="GW_event_staging" />
+    <bpmn:sequenceFlow id="f_event_to_ready" sourceRef="GW_event_staging" targetRef="catch_pr_ready" />
+    <bpmn:sequenceFlow id="f_event_to_staging_rework" sourceRef="GW_event_staging" targetRef="catch_staging_rework" />
+    <bpmn:sequenceFlow id="f_ready_to_merge_task" sourceRef="catch_pr_ready" targetRef="ST_create_merge_task" />
+    <bpmn:sequenceFlow id="f_staging_rework_to_review" sourceRef="catch_staging_rework" targetRef="catch_review_done" />
     <bpmn:sequenceFlow id="f_merge_task_to_catch" sourceRef="ST_create_merge_task" targetRef="catch_pr_merged" />
     <bpmn:sequenceFlow id="f_merged_to_prod" sourceRef="catch_pr_merged" targetRef="catch_prod_deployed" />
     <bpmn:sequenceFlow id="f_prod_to_end" sourceRef="catch_prod_deployed" targetRef="evt_end_success" />
@@ -324,11 +310,11 @@
       <bpmndi:BPMNShape id="di_catch_staging_deployed" bpmnElement="catch_staging_deployed">
         <dc:Bounds x="1037" y="172" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="di_call_verify_staging" bpmnElement="call_verify_staging">
-        <dc:Bounds x="1123" y="150" width="100" height="80" />
+      <bpmndi:BPMNShape id="di_GW_event_staging" bpmnElement="GW_event_staging">
+        <dc:Bounds x="1123" y="165" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="di_GW_staging_ok" bpmnElement="GW_staging_ok" isMarkerVisible="true">
-        <dc:Bounds x="1273" y="165" width="50" height="50" />
+      <bpmndi:BPMNShape id="di_catch_pr_ready" bpmnElement="catch_pr_ready">
+        <dc:Bounds x="1230" y="172" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_ST_create_merge_task" bpmnElement="ST_create_merge_task">
         <dc:Bounds x="1373" y="150" width="100" height="80" />
@@ -350,8 +336,8 @@
       <bpmndi:BPMNShape id="di_catch_pr_updated" bpmnElement="catch_pr_updated">
         <dc:Bounds x="887" y="310" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="di_ST_comment_staging_reject" bpmnElement="ST_comment_staging_reject">
-        <dc:Bounds x="1123" y="310" width="100" height="80" />
+      <bpmndi:BPMNShape id="di_catch_staging_rework" bpmnElement="catch_staging_rework">
+        <dc:Bounds x="1130" y="282" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <!-- Boundary event on catch_pr_updated -->
@@ -460,35 +446,38 @@
         <di:waypoint x="1037" y="190" />
       </bpmndi:BPMNEdge>
 
-      <!-- catch_staging_deployed → call_verify_staging (horizontal) -->
-      <bpmndi:BPMNEdge id="di_f_deploy_to_verify" bpmnElement="f_deploy_to_verify">
+      <!-- catch_staging_deployed → GW_event_staging (horizontal) -->
+      <bpmndi:BPMNEdge id="di_f_deploy_to_event_gw" bpmnElement="f_deploy_to_event_gw">
         <di:waypoint x="1073" y="190" />
         <di:waypoint x="1123" y="190" />
       </bpmndi:BPMNEdge>
 
-      <!-- call_verify_staging → GW_staging_ok (horizontal) -->
-      <bpmndi:BPMNEdge id="di_f_verify_to_staging_gw" bpmnElement="f_verify_to_staging_gw">
-        <di:waypoint x="1223" y="190" />
-        <di:waypoint x="1273" y="190" />
+      <!-- GW_event_staging → catch_pr_ready (horizontal) -->
+      <bpmndi:BPMNEdge id="di_f_event_to_ready" bpmnElement="f_event_to_ready">
+        <di:waypoint x="1173" y="190" />
+        <di:waypoint x="1230" y="190" />
       </bpmndi:BPMNEdge>
 
-      <!-- GW_staging_ok → ST_create_merge_task (horizontal, staging OK) -->
-      <bpmndi:BPMNEdge id="di_f_staging_ok" bpmnElement="f_staging_ok">
-        <di:waypoint x="1323" y="190" />
+      <!-- GW_event_staging → catch_staging_rework (down) -->
+      <bpmndi:BPMNEdge id="di_f_event_to_staging_rework" bpmnElement="f_event_to_staging_rework">
+        <di:waypoint x="1148" y="215" />
+        <di:waypoint x="1148" y="282" />
+      </bpmndi:BPMNEdge>
+
+      <!-- catch_pr_ready → ST_create_merge_task (horizontal) -->
+      <bpmndi:BPMNEdge id="di_f_ready_to_merge_task" bpmnElement="f_ready_to_merge_task">
+        <di:waypoint x="1266" y="190" />
         <di:waypoint x="1373" y="190" />
       </bpmndi:BPMNEdge>
 
-      <!-- GW_staging_ok → ST_comment_staging_reject (Z-shape, staging rejected) -->
-      <bpmndi:BPMNEdge id="di_f_staging_rejected" bpmnElement="f_staging_rejected">
-        <di:waypoint x="1298" y="215" />
-        <di:waypoint x="1298" y="350" />
-        <di:waypoint x="1223" y="350" />
-      </bpmndi:BPMNEdge>
-
-      <!-- ST_comment_staging_reject → catch_pr_updated (horizontal backward) -->
-      <bpmndi:BPMNEdge id="di_f_staging_reject_to_rework" bpmnElement="f_staging_reject_to_rework">
-        <di:waypoint x="1123" y="350" />
-        <di:waypoint x="987" y="350" />
+      <!-- catch_staging_rework → catch_review_done (loop back) -->
+      <bpmndi:BPMNEdge id="di_f_staging_rework_to_review" bpmnElement="f_staging_rework_to_review">
+        <di:waypoint x="1130" y="300" />
+        <di:waypoint x="860" y="300" />
+        <di:waypoint x="860" y="130" />
+        <di:waypoint x="699" y="130" />
+        <di:waypoint x="699" y="190" />
+        <di:waypoint x="701" y="190" />
       </bpmndi:BPMNEdge>
 
       <!-- ST_create_merge_task → catch_pr_merged (horizontal) -->

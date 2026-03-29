@@ -155,6 +155,9 @@ class WebhookServer:
                 await self._publish_pr_updated(pr)
             return result
 
+        if action == 'ready_for_review':
+            return await self._publish_pr_ready(pr)
+
         if action == 'closed' and pr.get('merged', False):
             return await self._publish_pr_merged(pr, payload)
 
@@ -319,6 +322,31 @@ class WebhookServer:
             })
         except Exception as exc:
             logger.error("Failed to publish msg_pr_updated for PR #%d: %s", pr_number, exc)
+            return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
+
+    async def _publish_pr_ready(self, pr: dict) -> web.Response:
+        """Publish msg_pr_ready when a draft PR is marked as ready for review."""
+        pr_number = pr.get('number', 0)
+
+        try:
+            client = self._create_zeebe_client()
+            await client.publish_message(
+                name="msg_pr_ready",
+                correlation_key=str(pr_number),
+                variables={
+                    "pr_number": pr_number,
+                    "pr_ready": True,
+                },
+                time_to_live_in_milliseconds=3_600_000,
+            )
+            logger.info("Published msg_pr_ready for PR #%d", pr_number)
+            return web.json_response({
+                "status": "published",
+                "message": "msg_pr_ready",
+                "pr_number": pr_number,
+            })
+        except Exception as exc:
+            logger.error("Failed to publish msg_pr_ready for PR #%d: %s", pr_number, exc)
             return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
 
     async def _publish_pr_merged(self, pr: dict, payload: dict) -> web.Response:

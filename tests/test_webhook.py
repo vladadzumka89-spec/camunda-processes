@@ -167,8 +167,8 @@ async def test_pr_to_staging_is_accepted(client: TestClient, app_config: AppConf
 
 
 @pytest.mark.asyncio
-async def test_ready_for_review_ignored(client: TestClient, app_config: AppConfig) -> None:
-    """ready_for_review is now ignored (undraft is done by the process)."""
+async def test_ready_for_review_publishes_pr_ready(client: TestClient, app_config: AppConfig) -> None:
+    """ready_for_review (undraft) publishes msg_pr_ready."""
     payload = {
         "action": "ready_for_review",
         "pull_request": {
@@ -184,18 +184,29 @@ async def test_ready_for_review_ignored(client: TestClient, app_config: AppConfi
     body = json.dumps(payload).encode()
     sig = _sign(body, app_config.github.webhook_secret)
 
-    resp = await client.post(
-        "/webhook/github",
-        data=body,
-        headers={
-            "X-GitHub-Event": "pull_request",
-            "X-Hub-Signature-256": sig,
-            "Content-Type": "application/json",
-        },
-    )
-    assert resp.status == 200
-    data = await resp.json()
-    assert data["status"] == "ignored"
+    with patch.object(WebhookServer, "_create_zeebe_client") as mock_factory:
+        mock_client = AsyncMock()
+        mock_client.publish_message = AsyncMock()
+        mock_factory.return_value = mock_client
+
+        resp = await client.post(
+            "/webhook/github",
+            data=body,
+            headers={
+                "X-GitHub-Event": "pull_request",
+                "X-Hub-Signature-256": sig,
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["message"] == "msg_pr_ready"
+        assert data["pr_number"] == 10
+
+        mock_client.publish_message.assert_awaited_once()
+        call_kwargs = mock_client.publish_message.call_args[1]
+        assert call_kwargs["name"] == "msg_pr_ready"
+        assert call_kwargs["correlation_key"] == "10"
 
 
 @pytest.mark.asyncio
