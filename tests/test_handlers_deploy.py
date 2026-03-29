@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from worker.config import AppConfig, ServerConfig
-from worker.handlers.deploy import register_deploy_handlers
-from worker.ssh import CommandResult, RemoteCommandError
+from worker2.config import AppConfig, ServerConfig
+from worker2.handlers.deploy import register_deploy_handlers
+from worker2.ssh import CommandResult, RemoteCommandError
 
 
 def _make_ssh_result(stdout: str = "", stderr: str = "", exit_code: int = 0) -> CommandResult:
@@ -735,7 +735,7 @@ async def test_save_deploy_state_permissions(handlers: dict, mock_ssh: AsyncMock
 @pytest.mark.asyncio
 async def test_save_deploy_state_handles_ssh_error(handlers, mock_ssh):
     """save-deploy-state should not raise on SSH failure — returns state_saved=False."""
-    from worker.ssh import RemoteCommandError
+    from worker2.ssh import RemoteCommandError
     mock_ssh.run.side_effect = RemoteCommandError("SSH failed", 1, "")
     result = await handlers["save-deploy-state"](
         server_host="staging",
@@ -1143,3 +1143,60 @@ async def test_first_deploy_full_flow(handlers: dict, mock_ssh: AsyncMock) -> No
     result = await handlers["rollback"](server_host="staging", old_commit="none")
     assert result == {}
     mock_ssh.run_in_repo.assert_not_awaited()
+
+
+# ══════════════════════════════════════════════════════════
+# extract-deployed-prs
+# ══════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_extract_deployed_prs_parses_pr_numbers(
+    handlers: dict,
+    mock_ssh: AsyncMock,
+) -> None:
+    """extract-deployed-prs parses PR numbers from git log output."""
+    mock_ssh.run.return_value = CommandResult(
+        stdout=(
+            "abc1234 feat: add login page (#123)\n"
+            "def5678 fix: broken redirect (#456)\n"
+            "ghi9012 chore: update deps\n"
+            "jkl3456 refactor: auth module (#789)\n"
+        ),
+        stderr="",
+        exit_code=0,
+    )
+
+    handler = handlers["extract-deployed-prs"]
+    result = await handler(
+        old_commit="aaa0000",
+        new_commit="bbb1111",
+        server_host="staging",
+    )
+
+    assert result["deployed_prs"] == [123, 456, 789]
+    mock_ssh.run.assert_awaited_once()
+    call_args = mock_ssh.run.call_args
+    assert "git log aaa0000..bbb1111" in str(call_args)
+
+
+@pytest.mark.asyncio
+async def test_extract_deployed_prs_empty_log(
+    handlers: dict,
+    mock_ssh: AsyncMock,
+) -> None:
+    """extract-deployed-prs returns empty array when no PRs found."""
+    mock_ssh.run.return_value = CommandResult(
+        stdout="abc1234 chore: no pr reference\n",
+        stderr="",
+        exit_code=0,
+    )
+
+    handler = handlers["extract-deployed-prs"]
+    result = await handler(
+        old_commit="aaa0000",
+        new_commit="bbb1111",
+        server_host="staging",
+    )
+
+    assert result["deployed_prs"] == []

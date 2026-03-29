@@ -459,6 +459,36 @@ def register_deploy_handlers(
         await _sleep(60)
         return {"checkpoint_created": True}
 
+    # ── extract-deployed-prs ──────────────────────────────────
+
+    @worker.task(task_type="extract-deployed-prs", timeout_ms=60_000)
+    async def extract_deployed_prs(
+        old_commit: str,
+        new_commit: str,
+        server_host: str = "production",
+        **kwargs: Any,
+    ) -> dict:
+        """Extract PR numbers from git log between two commits."""
+        server = config.resolve_server(server_host)
+        result = await ssh.run(
+            server,
+            f"cd {server.repo_dir} && git log {old_commit}..{new_commit} --oneline",
+            check=True,
+            timeout=30,
+        )
+
+        pr_numbers: list[int] = []
+        for line in result.stdout.strip().splitlines():
+            match = re.search(r"\(#(\d+)\)", line)
+            if match:
+                pr_numbers.append(int(match.group(1)))
+
+        logger.info(
+            "extract-deployed-prs: found %d PRs in %s..%s",
+            len(pr_numbers), old_commit[:8], new_commit[:8],
+        )
+        return {"deployed_prs": pr_numbers}
+
 
 # ── Helpers ────────────────────────────────────────────────────
 
