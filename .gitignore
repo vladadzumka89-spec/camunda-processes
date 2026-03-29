@@ -34,7 +34,7 @@ __pycache__/
 node_modules/
 
 # Docs (generated)
-docs/
+docs
 
 #temporary
 tmp
