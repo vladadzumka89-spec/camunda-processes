@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  id="Definitions_nightly_prod"
+  targetNamespace="http://tut.ua/bpmn/nightly-prod-deploy"
+  exporter="Claude Code" exporterVersion="3.0">
+
+  <!-- ── Process ───────────────────────────────────────── -->
+  <bpmn:process id="production-nightly-deploy" name="Production Nightly Deploy" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
+
+    <!-- ── 1. Timer Start ────────────────────────────── -->
+    <bpmn:startEvent id="start_timer" name="Щодня 22:00 Київ">
+      <bpmn:documentation>CRON 0 0 20 * * * = 20:00 UTC = 22:00 EET (зимовий час).
+Влітку (EEST, UTC+3) буде 23:00 Київ.</bpmn:documentation>
+      <bpmn:outgoing>f_start_to_deploy</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_nightly_prod">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">0 0 20 * * *</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:startEvent>
+
+    <!-- ── 2. Call deploy-process ─────────────────────── -->
+    <bpmn:callActivity id="call_deploy_prod" name="Деплой на production">
+      <bpmn:documentation>Call Activity: deploy-process для production server. Повертає has_changes, old_commit, new_commit.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="deploy-process" propagateAllChildVariables="false" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;production&quot;" target="server_host" />
+          <zeebe:input source="=&quot;main&quot;" target="branch" />
+          <zeebe:input source="=true" target="run_smoke_test" />
+          <zeebe:input source="=&quot;light&quot;" target="test_mode" />
+          <zeebe:output source="=if is defined(has_changes) and has_changes != null then has_changes else false" target="has_changes" />
+          <zeebe:output source="=if is defined(old_commit) and old_commit != null then old_commit else &quot;none&quot;" target="old_commit" />
+          <zeebe:output source="=if is defined(new_commit) and new_commit != null then new_commit else &quot;none&quot;" target="new_commit" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_start_to_deploy</bpmn:incoming>
+      <bpmn:outgoing>f_deploy_to_gw</bpmn:outgoing>
+    </bpmn:callActivity>
+
+    <!-- ── 3. Check changes ──────────────────────────── -->
+    <bpmn:exclusiveGateway id="GW_has_changes" name="Є зміни?" default="f_has_changes">
+      <bpmn:incoming>f_deploy_to_gw</bpmn:incoming>
+      <bpmn:outgoing>f_has_changes</bpmn:outgoing>
+      <bpmn:outgoing>f_no_changes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ── 3a. No changes → END ──────────────────────── -->
+    <bpmn:endEvent id="evt_end_no_changes" name="Без змін">
+      <bpmn:incoming>f_no_changes</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── 4. Extract PR numbers ─────────────────────── -->
+    <bpmn:serviceTask id="ST_extract_prs" name="Витягти номери PR">
+      <bpmn:documentation>SSH на production, git log old..new, парсить PR номери.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="extract-deployed-prs" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=old_commit" target="old_commit" />
+          <zeebe:input source="=new_commit" target="new_commit" />
+          <zeebe:input source="=&quot;production&quot;" target="server_host" />
+          <zeebe:output source="=deployed_prs" target="deployed_prs" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_has_changes</bpmn:incoming>
+      <bpmn:outgoing>f_extract_to_publish</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── 5. Publish msg_prod_deployed per PR ────────── -->
+    <bpmn:serviceTask id="ST_publish_per_pr" name="Повідомити FTP про деплой">
+      <bpmn:documentation>Multi-instance: для кожного PR публікує msg_prod_deployed.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="publish-message" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;msg_prod_deployed&quot;" target="message_name" />
+          <zeebe:input source="=string(pr_num)" target="correlation_key" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_extract_to_publish</bpmn:incoming>
+      <bpmn:outgoing>f_publish_to_end</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics>
+        <bpmn:extensionElements>
+          <zeebe:loopCharacteristics inputCollection="=deployed_prs" inputElement="pr_num" />
+        </bpmn:extensionElements>
+      </bpmn:multiInstanceLoopCharacteristics>
+    </bpmn:serviceTask>
+
+    <!-- ── 6. END ────────────────────────────────────── -->
+    <bpmn:endEvent id="evt_end_success" name="Production задеплоєно">
+      <bpmn:incoming>f_publish_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Sequence Flows ────────────────────────────── -->
+    <bpmn:sequenceFlow id="f_start_to_deploy" sourceRef="start_timer" targetRef="call_deploy_prod" />
+    <bpmn:sequenceFlow id="f_deploy_to_gw" sourceRef="call_deploy_prod" targetRef="GW_has_changes" />
+    <bpmn:sequenceFlow id="f_has_changes" sourceRef="GW_has_changes" targetRef="ST_extract_prs" />
+    <bpmn:sequenceFlow id="f_no_changes" sourceRef="GW_has_changes" targetRef="evt_end_no_changes">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=has_changes = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_extract_to_publish" sourceRef="ST_extract_prs" targetRef="ST_publish_per_pr" />
+    <bpmn:sequenceFlow id="f_publish_to_end" sourceRef="ST_publish_per_pr" targetRef="evt_end_success" />
+  </bpmn:process>
+
+  <!-- ── Diagram ───────────────────────────────────────── -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_nightly_prod">
+    <bpmndi:BPMNPlane id="BPMNPlane_nightly_prod" bpmnElement="production-nightly-deploy">
+      <bpmndi:BPMNShape id="di_start_timer" bpmnElement="start_timer">
+        <dc:Bounds x="165" y="172" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_call_deploy_prod" bpmnElement="call_deploy_prod">
+        <dc:Bounds x="271" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_GW_has_changes" bpmnElement="GW_has_changes" isMarkerVisible="true">
+        <dc:Bounds x="441" y="165" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_evt_end_no_changes" bpmnElement="evt_end_no_changes">
+        <dc:Bounds x="448" y="282" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_ST_extract_prs" bpmnElement="ST_extract_prs">
+        <dc:Bounds x="561" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_ST_publish_per_pr" bpmnElement="ST_publish_per_pr">
+        <dc:Bounds x="731" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_evt_end_success" bpmnElement="evt_end_success">
+        <dc:Bounds x="901" y="172" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="di_f_start_to_deploy" bpmnElement="f_start_to_deploy">
+        <di:waypoint x="201" y="190" />
+        <di:waypoint x="271" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f_deploy_to_gw" bpmnElement="f_deploy_to_gw">
+        <di:waypoint x="371" y="190" />
+        <di:waypoint x="441" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f_has_changes" bpmnElement="f_has_changes">
+        <di:waypoint x="491" y="190" />
+        <di:waypoint x="561" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f_no_changes" bpmnElement="f_no_changes">
+        <di:waypoint x="466" y="215" />
+        <di:waypoint x="466" y="282" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f_extract_to_publish" bpmnElement="f_extract_to_publish">
+        <di:waypoint x="661" y="190" />
+        <di:waypoint x="731" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f_publish_to_end" bpmnElement="f_publish_to_end">
+        <di:waypoint x="831" y="190" />
+        <di:waypoint x="901" y="190" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
