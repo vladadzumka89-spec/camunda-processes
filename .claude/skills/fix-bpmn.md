@@ -62,7 +62,9 @@ user_invocable: true
 - [ ] ST_create_main — Service Task з `http-request-smart` для створення головного завдання в Odoo
 - [ ] `_id` в body ST_create_main — значення від користувача (НЕ захардкоджене)
 - [ ] Swim lanes: мінімум 3 (Система / Виконавець / Керівник)
-- [ ] Кожен User Task — job-based з `<zeebe:userTask />` + `<zeebe:ioMapping>` для Odoo webhook
+- [ ] Кожен User Task — `<zeebe:userTask />` + `<zeebe:ioMapping>` для Odoo webhook
+- [ ] Кожен User Task має **Task Listener**: Event type = `Creating`, Listener type = `http-request-smart`, **Retries = `3`** (ОБОВ'ЯЗКОВО заповнити Retries, без нього воркер не отримає job)
+- [ ] User Task НЕ має одночасно Task Listener І Job worker type — тільки щось одне (інакше дублі)
 - [ ] Кожен User Task має 2 boundary events (обидва `cancelActivity="false"`):
   - Нагадування: `<bpmn:timeCycle>R/PT24H</bpmn:timeCycle>`
   - Дедлайн: `<bpmn:timeDuration>P3D</bpmn:timeDuration>`
