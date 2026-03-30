@@ -163,6 +163,12 @@ def register_http_smart_handlers(worker, config=None):
 
         # Validate URL early — BPMN must provide it via input mapping
         if not url:
+            if ignore_errors:
+                logger.warning(
+                    f"[{job.process_instance_key}] url is empty for element "
+                    f"'{job.element_id}' (ignore_errors=True, skipping)"
+                )
+                return {}
             raise ConfigError(
                 f"url is required but got None — check BPMN input mapping "
                 f"for element '{job.element_id}' in process '{job.bpmn_process_id}'"

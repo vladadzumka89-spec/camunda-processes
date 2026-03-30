@@ -151,7 +151,7 @@ class WebhookServer:
 
         if action in ('opened', 'reopened', 'synchronize'):
             result = await self._publish_pr_event(pr, payload)
-            if action == 'opened':
+            if action in ('opened', 'reopened'):
                 await self._publish_pr_opened(pr, payload)
             if action == 'synchronize':
                 await self._publish_pr_updated(pr)
@@ -356,24 +356,47 @@ class WebhookServer:
         try:
             import httpx
             from .http_request_smart import _camunda_rest_request
-            async with httpx.AsyncClient(timeout=10) as http:
+            async with httpx.AsyncClient(timeout=15) as http:
+                # Get all active FTP instances
                 resp = await _camunda_rest_request(
                     http, "POST", "/v1/process-instances/search",
                     json={
                         "filter": {
                             "processDefinitionId": "feature-to-production",
                             "state": "ACTIVE",
-                            "variables": [{"name": "head_branch", "value": head_branch}],
                         },
-                        "page": {"limit": 1},
+                        "page": {"limit": 50},
                     },
                 )
-                if resp.status_code == 200:
-                    items = resp.json().get("items", [])
-                    return len(items) > 0
+                if resp.status_code != 200:
+                    return True  # assume exists on API error
+
+                items = resp.json().get("items", [])
+                if not items:
+                    return False
+
+                # Check each instance's head_branch variable
+                for item in items:
+                    pik = item.get("key", 0)
+                    var_resp = await _camunda_rest_request(
+                        http, "POST", "/v1/variables/search",
+                        json={
+                            "filter": {
+                                "processInstanceKey": pik,
+                                "name": "head_branch",
+                            },
+                        },
+                    )
+                    if var_resp.status_code == 200:
+                        for v in var_resp.json().get("items", []):
+                            val = v.get("value", "").strip('"')
+                            if val == head_branch:
+                                logger.info("Found active FTP %d for branch %s", pik, head_branch)
+                                return True
+                return False
         except Exception as exc:
-            logger.warning("Failed to check active FTP: %s", exc)
-        return False
+            logger.warning("Failed to check active FTP: %s — assuming exists to prevent duplicates", exc)
+        return True
 
     async def _publish_pr_opened(self, pr: dict, payload: dict) -> web.Response:
         """Publish msg_pr_opened when a PR is first created. Triggers FTP auto-start."""
