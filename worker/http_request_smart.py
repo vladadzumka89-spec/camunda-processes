@@ -12,9 +12,13 @@ from pyzeebe import Job
 
 logger = logging.getLogger(__name__)
 
+
+class TaskListenerCompleted(Exception):
+    """Raised when a Task Listener job is completed via REST API."""
+    pass
+
+
 CAMUNDA_REST_URL = os.getenv("CAMUNDA_REST_URL", "http://orchestration:8080")
-CAMUNDA_REST_USER = os.getenv("CAMUNDA_REST_USER", "demo")
-CAMUNDA_REST_PASSWORD = os.getenv("CAMUNDA_REST_PASSWORD", "demo")
 ZEEBE_CLIENT_ID = os.getenv("ZEEBE_CLIENT_ID", "orchestration")
 ZEEBE_CLIENT_SECRET = os.getenv("ZEEBE_CLIENT_SECRET", "")
 ZEEBE_TOKEN_URL = os.getenv("ZEEBE_TOKEN_URL", "http://keycloak:18080/auth/realms/camunda-platform/protocol/openid-connect/token")
@@ -70,7 +74,7 @@ async def get_parent_process_instance_key(process_instance_key) -> str:
 
 
 async def get_user_task_key(process_instance_key: str, element_id: str) -> str:
-    """Look up user_task_key via Camunda REST API (basic auth)."""
+    """Look up user_task_key via Camunda REST API (Bearer token)."""
     url = f"{CAMUNDA_REST_URL}/v2/user-tasks/search"
     payload = {
         "filter": {
@@ -81,9 +85,13 @@ async def get_user_task_key(process_instance_key: str, element_id: str) -> str:
 
     async with httpx.AsyncClient() as client:
         try:
+            token = await _get_oauth_token(client)
             response = await client.post(
                 url, json=payload,
-                auth=(CAMUNDA_REST_USER, CAMUNDA_REST_PASSWORD),
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
                 timeout=10.0,
             )
             if response.status_code == 200:
