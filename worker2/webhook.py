@@ -151,6 +151,8 @@ class WebhookServer:
 
         if action in ('opened', 'reopened', 'synchronize'):
             result = await self._publish_pr_event(pr, payload)
+            if action == 'opened':
+                await self._publish_pr_opened(pr, payload)
             if action == 'synchronize':
                 await self._publish_pr_updated(pr)
             return result
@@ -347,6 +349,41 @@ class WebhookServer:
             })
         except Exception as exc:
             logger.error("Failed to publish msg_pr_ready for PR #%d: %s", pr_number, exc)
+            return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
+
+    async def _publish_pr_opened(self, pr: dict, payload: dict) -> web.Response:
+        """Publish msg_pr_opened when a PR is first created. Triggers FTP auto-start."""
+        pr_number = pr.get('number', 0)
+        repo_full = payload.get('repository', {}).get('full_name', self._config.github.repository)
+
+        variables: dict[str, Any] = {
+            "pr_number": pr_number,
+            "pr_url": pr.get('html_url', ''),
+            "pr_title": pr.get('title', ''),
+            "pr_author": pr.get('user', {}).get('login', ''),
+            "repository": repo_full,
+            "base_branch": pr.get('base', {}).get('ref', 'main'),
+            "head_branch": pr.get('head', {}).get('ref', ''),
+            "odoo_project_id": self._config.odoo.project_id,
+            "odoo_webhook_url": self._config.odoo.webhook_url,
+        }
+
+        try:
+            client = self._create_zeebe_client()
+            await client.publish_message(
+                name="msg_pr_opened",
+                correlation_key=variables.get("head_branch", ""),
+                variables=variables,
+                time_to_live_in_milliseconds=3_600_000,
+            )
+            logger.info("Published msg_pr_opened for PR #%d", pr_number)
+            return web.json_response({
+                "status": "published",
+                "message": "msg_pr_opened",
+                "pr_number": pr_number,
+            })
+        except Exception as exc:
+            logger.error("Failed to publish msg_pr_opened for PR #%d: %s", pr_number, exc)
             return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
 
     async def _publish_pr_merged(self, pr: dict, payload: dict) -> web.Response:
