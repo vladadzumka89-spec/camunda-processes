@@ -1,4 +1,30 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \":*)",
+      "Bash(curl -s -X POST \"http://localhost:18080/auth/realms/camunda-platform/protocol/openid-connect/token\" -d \"grant_type=client_credentials\" -d \"client_id=zeebe\" -d \"client_secret=zecret\" -d \"audience=zeebe-api\")",
+      "Bash(curl -s -X POST \"http://localhost:8088/v2/process-instances\" -u \"demo:demo\" -H \"Content-Type: application/json\" -d '{\"\"\"\"processDefinitionId\"\"\"\":\"\"\"\"Process_fop_limit_monitor_dev\"\"\"\",\"\"\"\"variables\"\"\"\":{\"\"\"\"days_ahead\"\"\"\":14}}')",
+      "Bash(curl -s -v -X POST \"http://localhost:8088/v2/process-instances\" -u \"demo:demo\" -H \"Content-Type: application/json\" -d '{\"\"\"\"processDefinitionId\"\"\"\":\"\"\"\"Process_fop_limit_monitor_dev\"\"\"\",\"\"\"\"variables\"\"\"\":{\"\"\"\"days_ahead\"\"\"\":14}}')",
+      "Bash(docker logs:*)",
+      "Bash(curl -s -u demo:demo http://localhost:8088/v2/incidents/search -H 'Content-Type: application/json' -d {\"\"size\"\":20})",
+      "Bash(curl -s -u demo:demo http://localhost:8088/v2/process-instances/search -H 'Content-Type: application/json' -d '{\"\"\"\"filter\"\"\"\":{\"\"\"\"processDefinitionName\"\"\"\":\"\"\"\"Сповіщення про зміну ФОП\"\"\"\"},\"\"\"\"size\"\"\"\":5,\"\"\"\"sort\"\"\"\":[{\"\"\"\"field\"\"\"\":\"\"\"\"startDate\"\"\"\",\"\"\"\"order\"\"\"\":\"\"\"\"DESC\"\"\"\"}]}')",
+      "Bash(curl -s -u demo:demo http://localhost:8088/v2/process-instances/search -H 'Content-Type: application/json' -d '{\"\"\"\"filter\"\"\"\":{\"\"\"\"processDefinitionName\"\"\"\":\"\"\"\"Моніторинг лімітів ФОП\"\"\"\"},\"\"\"\"size\"\"\"\":5,\"\"\"\"sort\"\"\"\":[{\"\"\"\"field\"\"\"\":\"\"\"\"startDate\"\"\"\",\"\"\"\"order\"\"\"\":\"\"\"\"DESC\"\"\"\"}]}')",
+      "Bash(curl -s -X POST http://localhost:18080/auth/realms/camunda-platform/protocol/openid-connect/token -d \"grant_type=client_credentials&client_id=zeebe&client_secret=zecret\")",
+      "Bash(grep -i ZEEBE_CLIENT /opt/camunda/docker-compose-8.8/docker-compose*.yaml)",
+      "Bash(docker exec python-worker python3 -c \":*)",
+      "Bash(getent hosts:*)",
+      "Bash(curl -s --connect-timeout 3 http://camunda25.a.local:8088/v2/topology)",
+      "Bash(curl -s --connect-timeout 3 http://camunda25.a.local:18080/auth/realms/camunda-platform)",
+      "Bash(curl -s --connect-timeout 5 http://camunda25.a.local:8088/v2/topology -u demo:demo)",
+      "Bash(curl -s -X POST \"http://localhost:8088/v2/process-instances\" -u \"demo:demo\" -H \"Content-Type: application/json\" -d '{:*)",
+      "Bash(curl -s -w \"\\\\nHTTP_CODE: %{http_code}\" -X POST \"http://localhost:8088/v2/process-instances\" -u \"demo:demo\" -H \"Content-Type: application/json\" -d '{\"\"processDefinitionId\"\":\"\"Process_0iy2u1a\"\",\"\"variables\"\":{\"\"fop_name\"\":\"\"Тестовий ФОП Петренко\"\",\"\"fop_edrpou\"\":\"\"1234567890\"\",\"\"ep_group\"\":2,\"\"total_income\"\":4500000,\"\"limit_amount\"\":5000000,\"\"income_percent\"\":90,\"\"days_to_limit\"\":7,\"\"projected_date\"\":\"\"2026-04-06\"\",\"\"stores\"\":\"\"Магазин Центральний, Магазин Південний\"\",\"\"stores_count\"\":2,\"\"trend_ratio\"\":1.2}}')",
+      "Bash(curl -s -w \"\\\\nHTTP_CODE: %{http_code}\" -X POST \"http://localhost:8088/v2/process-instances\" -u \"demo:demo\" -H \"Content-Type: application/json\" -d '{\"\"\"\"processDefinitionId\"\"\"\":\"\"\"\"Process_0iy2u1a\"\"\"\",\"\"\"\"variables\"\"\"\":{\"\"\"\"fop_name\"\"\"\":\"\"\"\"Тестовий ФОП Петренко\"\"\"\",\"\"\"\"fop_edrpou\"\"\"\":\"\"\"\"1234567890\"\"\"\",\"\"\"\"ep_group\"\"\"\":2,\"\"\"\"total_income\"\"\"\":4500000,\"\"\"\"limit_amount\"\"\"\":5000000,\"\"\"\"income_percent\"\"\"\":90,\"\"\"\"days_to_limit\"\"\"\":7,\"\"\"\"projected_date\"\"\"\":\"\"\"\"2026-04-06\"\"\"\",\"\"\"\"stores\"\"\"\":\"\"\"\"Магазин Центральний, Магазин Південний\"\"\"\",\"\"\"\"stores_count\"\"\"\":2,\"\"\"\"trend_ratio\"\"\"\":1.2}}' -v)",
+      "Bash(curl -s -X POST \"http://localhost:18080/auth/realms/camunda-platform/protocol/openid-connect/token\" -d \"grant_type=client_credentials&client_id=orchestration&client_secret=oUV-An_2FED-qYTT\")",
+      "Bash(curl -s -X POST \"http://localhost:8088/v2/process-instances\" -u \"demo:demo\" -H \"Content-Type: application/json\" -d '{\"\"\"\"processDefinitionId\"\"\"\":\"\"\"\"Process_fop_limit_monitor_dev\"\"\"\"}')",
+      "Bash(curl -s -v -X POST \"http://localhost:8088/v2/process-instances\" -u \"demo:demo\" -H \"Content-Type: application/json\" -d '{\"\"\"\"processDefinitionId\"\"\"\":\"\"\"\"Process_fop_limit_monitor_dev\"\"\"\"}')",
+      "Bash(curl -s http://localhost:9001/reports/fop/latest)"
+    ]
+  },
   "enabledPlugins": {
     "superpowers@claude-plugins-official": true
   }

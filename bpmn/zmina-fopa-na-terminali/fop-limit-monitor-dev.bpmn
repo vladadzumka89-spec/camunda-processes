@@ -34,7 +34,7 @@
     <bpmn:startEvent id="StartEvent_timer" name="Щоденна перевірка">
       <bpmn:outgoing>Flow_timer_to_merge</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerDef_1">
-        <bpmn:timeCycle>R/2026-03-19T06:00:00Z/P1D</bpmn:timeCycle>
+        <bpmn:timeCycle>R/2026-03-30T05:00:00Z/P1D</bpmn:timeCycle>
       </bpmn:timerEventDefinition>
     </bpmn:startEvent>
 

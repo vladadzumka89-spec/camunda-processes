@@ -359,6 +359,37 @@ def _fetch_daily_income(conn, year: int) -> dict:
         cursor.close()
 
 
+def _fetch_q4_prev_year_income(conn, year: int) -> dict[bytes, float]:
+    """Fetch total FOP income for Q4 of previous year (Oct-Dec).
+
+    Uses the same _AccumRg10618 register as _fetch_daily_income.
+    Returns: {org_id_bytes: total_q4_income}
+    """
+    prev_year = year - 1
+    bas_q4_start = f"{prev_year + BAS_YEAR_OFFSET}-10-01"
+    bas_q4_end = f"{prev_year + BAS_YEAR_OFFSET + 1}-01-01"
+    sql = """
+        SELECT r._Fld10619RRef AS org_id,
+               SUM(r._Fld10621) AS total
+        FROM _AccumRg10618 r
+        WHERE r._Period >= %s AND r._Period < %s
+          AND r._Active = 0x01
+        GROUP BY r._Fld10619RRef
+    """
+    cursor = conn.cursor(as_dict=True)
+    try:
+        cursor.execute(sql, (bas_q4_start, bas_q4_end))
+        result = {}
+        for row in cursor:
+            org_id = bytes(row["org_id"])
+            total = float(row["total"] or 0)
+            if total != 0:
+                result[org_id] = total
+        return result
+    finally:
+        cursor.close()
+
+
 # ── Terminal → Subdivision mapping ─────────────────────────────────────
 
 _TRANSLIT = {
@@ -394,7 +425,8 @@ def _fetch_subdivision_lookup(conn) -> dict[str, str]:
         ;WITH store_roots AS (
             SELECT _IDRRef FROM _Reference116
             WHERE _Description IN (N'500 Магазини', N'600 Магазини',
-                                   N'900 Пінкі', N'900 Пінкі  Сайт')
+                                   N'900 Пінкі', N'900 Пінкі  Сайт',
+                                   N'Фамо обладнання')
         ),
         store_tree AS (
             SELECT _IDRRef FROM _Reference116
@@ -406,7 +438,8 @@ def _fetch_subdivision_lookup(conn) -> dict[str, str]:
         SELECT _Description FROM _Reference116
         WHERE _IDRRef IN (SELECT _IDRRef FROM store_tree)
             AND _Description NOT IN (N'500 Магазини', N'600 Магазини',
-                                     N'900 Пінкі', N'900 Пінкі  Сайт')
+                                     N'900 Пінкі', N'900 Пінкі  Сайт',
+                                     N'Фамо обладнання')
     """
     cursor = conn.cursor(as_dict=True)
     try:
@@ -414,16 +447,22 @@ def _fetch_subdivision_lookup(conn) -> dict[str, str]:
         all_subs = []  # [(description, set_of_translit_words)]
         code_lookup = {}  # "601" -> "601 Квартал Хмель"
 
+        seen_descs = set()  # avoid exact duplicate descriptions
+
         def _process_row(desc: str) -> None:
+            if desc in seen_descs:
+                return
+            seen_descs.add(desc)
+
             code_m = re.match(r'^(\d{3})\s', desc)
             if not code_m:
                 return
             code = code_m.group(1)
-            # Don't overwrite _Reference100 entries with _Reference116
-            if code in code_lookup:
-                return
-            code_lookup[code] = desc
+            # First entry wins for direct code lookup
+            if code not in code_lookup:
+                code_lookup[code] = desc
 
+            # Always add to word matching (multiple names per code is OK)
             name_part = re.sub(r'^\d+\s*', '', desc).strip()
             if not name_part:
                 return
@@ -490,8 +529,14 @@ _TERMINAL_DIRECT = {
 def _match_terminal_to_subdivision(
     terminal_name: str,
     sub_data: dict,
+    preferred_prefix: str | None = None,
 ) -> str | None:
-    """Match English terminal name to Ukrainian subdivision from _Reference116."""
+    """Match English terminal name to Ukrainian subdivision from _Reference116.
+
+    Args:
+        preferred_prefix: '5' for ТП, '6' for ФАМО — used to disambiguate
+            when the same terminal name matches multiple subdivisions.
+    """
     tn = terminal_name.lower().strip()
     word_lookup = sub_data["word_lookup"]
     subdivisions = sub_data["subdivisions"]
@@ -510,7 +555,11 @@ def _match_terminal_to_subdivision(
     # 1) Direct full-name match (no spaces)
     tn_nospace = tn.replace(' ', '')
     if tn_nospace in word_lookup:
-        return word_lookup[tn_nospace]
+        wl_match = word_lookup[tn_nospace]
+        # If no preference or match already has the right prefix, use it
+        if not preferred_prefix or wl_match[:1] == preferred_prefix:
+            return wl_match
+        # Otherwise fall through to scoring which respects preferred_prefix
 
     # 2) Word-set matching: find subdivision with most overlapping words
     _NOISE_WORDS = {"famo", "mag"}
@@ -531,6 +580,7 @@ def _match_terminal_to_subdivision(
     best_match = None
     best_score = 0
     best_sub_size = 999  # prefer smaller subdivisions (more specific)
+    best_pref = False  # tracks if best match has preferred prefix
 
     for desc, sub_words in subdivisions:
         if not sub_words:
@@ -544,22 +594,33 @@ def _match_terminal_to_subdivision(
         score = 0
         for tw in terminal_words:
             for sw in sub_words:
-                # Match: first 4 chars equal, containment, or y/i equivalence
                 tw_norm = tw.replace('y', 'i')
                 sw_norm = sw.replace('y', 'i')
-                if (len(tw) >= 4 and len(sw) >= 4 and
-                    (tw[:4] == sw[:4] or tw_norm[:4] == sw_norm[:4])) or \
-                   (len(tw) >= 3 and len(sw) >= 3 and
+                # Exact or containment match → 2 points
+                if (len(tw) >= 3 and len(sw) >= 3 and
                     (tw in sw or sw in tw or tw_norm in sw_norm or sw_norm in tw_norm)):
+                    score += 2
+                    break
+                # Prefix match (first 4 chars) → 1 point
+                if (len(tw) >= 4 and len(sw) >= 4 and
+                    (tw[:4] == sw[:4] or tw_norm[:4] == sw_norm[:4])):
                     score += 1
                     break
-        # Prefer: higher score → fewer unmatched sub_words (more specific)
+        if score <= 0:
+            continue
+        # Check if this subdivision matches the preferred company prefix
+        has_pref = bool(preferred_prefix and desc[:1] == preferred_prefix)
         sub_size = len(sub_words)
-        if score > best_score or (score == best_score and score > 0
-                                   and sub_size < best_sub_size):
+        # Pick this match if: better score, or same score + preferred prefix wins,
+        # or same score + same pref + more specific (fewer words)
+        if (score > best_score
+            or (score == best_score and has_pref and not best_pref)
+            or (score == best_score and has_pref == best_pref
+                and sub_size < best_sub_size)):
             best_score = score
             best_match = desc
             best_sub_size = sub_size
+            best_pref = has_pref
 
     return best_match if best_score > 0 else None
 
@@ -619,13 +680,15 @@ def _parse_terminal_name(purpose: str) -> tuple[str | None, str | None, str | No
 def _fetch_fop_stores(conn, year: int) -> dict:
     bas_start = f"{year + BAS_YEAR_OFFSET}-01-01"
     bas_end = f"{year + BAS_YEAR_OFFSET + 1}-01-01"
+    recent_cutoff = date.today() - timedelta(days=14)
 
     sql_payments = """
         SELECT
             d._Fld6004RRef AS org_id,
             d._Fld6019 AS purpose,
             d._Fld6010 AS amount,
-            MONTH(DATEADD(year, -2000, d._Date_Time)) AS mn
+            MONTH(DATEADD(year, -2000, d._Date_Time)) AS mn,
+            DATEADD(year, -2000, d._Date_Time) AS pay_date
         FROM _Document236 d
         JOIN _Reference90 o ON d._Fld6004RRef = o._IDRRef
         JOIN _Document236_VT6023 vt ON vt._Document236_IDRRef = d._IDRRef
@@ -668,6 +731,7 @@ def _fetch_fop_stores(conn, year: int) -> dict:
             purpose = row["purpose"] or ""
             amount = float(row["amount"] or 0)
             month = row["mn"]
+            pay_date = row["pay_date"]
             cat = _classify_payment(purpose)
 
             if cat == "cmps":
@@ -689,6 +753,13 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 label = _CAT_LABELS[cat]
                 other_income[org_id][label]["count"] += 1
                 other_income[org_id][label]["total"] += amount
+                cur_last = other_income[org_id][label].get("last_date")
+                if pay_date and (cur_last is None or pay_date > cur_last):
+                    other_income[org_id][label]["last_date"] = pay_date
+                if pay_date and hasattr(pay_date, 'date') and pay_date.date() >= recent_cutoff:
+                    other_income[org_id][label]["recent_income"] = (
+                        other_income[org_id][label].get("recent_income", 0) + amount
+                    )
                 monthly_other[org_id][label][month] += amount
 
         # Cash receipts (ПКО — _Document243)
@@ -724,7 +795,8 @@ def _fetch_fop_stores(conn, year: int) -> dict:
             ;WITH store_roots AS (
                 SELECT _IDRRef FROM _Reference116
                 WHERE _Description IN (N'500 Магазини', N'600 Магазини',
-                                       N'900 Пінкі', N'900 Пінкі  Сайт')
+                                       N'900 Пінкі', N'900 Пінкі  Сайт',
+                                       N'Фамо обладнання')
             ),
             store_tree AS (
                 SELECT _IDRRef FROM _Reference116
@@ -824,6 +896,20 @@ def _fetch_fop_stores(conn, year: int) -> dict:
             sorted(sub_data["code_lookup"].keys()),
         )
 
+        # Fetch FOP company mapping (ТП/ФАМО) for subdivision disambiguation
+        fop_companies = _fetch_fop_companies(conn)
+        _COMPANY_PREFIX = {"Технопростір": "5", "ФАМО": "6"}
+        # Build org_id → preferred_prefix: quick lookup of FOP names
+        _org_prefix: dict[bytes, str | None] = {}
+        cursor2 = conn.cursor(as_dict=True)
+        cursor2.execute("SELECT _IDRRef AS id, RTRIM(_Description) AS name FROM _Reference90")
+        for _r in cursor2:
+            _name = _r["name"]
+            _comp = fop_companies.get(_name)
+            if _comp:
+                _org_prefix[bytes(_r["id"])] = _COMPANY_PREFIX.get(_comp)
+        cursor2.close()
+
         result = defaultdict(list)
         all_org_ids = set(terminal_data.keys()) | set(doc_data.keys()) | set(other_income.keys()) | set(cash_data.keys())
         mapped_count = 0
@@ -839,6 +925,7 @@ def _fetch_fop_stores(conn, year: int) -> dict:
             # 2) cmps: terminal payments (PrivatBank)
             if org_id in terminal_data:
                 code_lookup = sub_data["code_lookup"]
+                pref = _org_prefix.get(org_id)
                 for name, info in sorted(
                     terminal_data[org_id].items(), key=lambda x: -x[1]["total"]
                 ):
@@ -848,7 +935,7 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                         subdivision = code_lookup[info["code"]]
                     # 2b) Fallback: transliteration matching
                     if not subdivision:
-                        subdivision = _match_terminal_to_subdivision(name, sub_data)
+                        subdivision = _match_terminal_to_subdivision(name, sub_data, preferred_prefix=pref)
                     # 2c) For generic PINKY — resolve via terminal code mapping
                     if not subdivision and name.lower().strip() in ("pinky", "pinki"):
                         for tc in pinky_tc_map.get(org_id, {}).get(name, set()):
@@ -884,11 +971,14 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                     other_income[org_id].items(), key=lambda x: -x[1]["total"]
                 ):
                     if info["total"] > 0:
+                        _ld = info.get("last_date")
                         result[org_id].append({
                             "name": cat_name,
                             "doc_count": info["count"],
                             "total": info["total"],
                             "source": "payment",
+                            "last_date": _ld.isoformat() if _ld else None,
+                            "recent_income": info.get("recent_income", 0),
                         })
 
             # 4) Cash receipts (ПКО — _Document243)
@@ -921,7 +1011,7 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                     if info["code"] and info["code"] in code_lookup_m:
                         resolved = code_lookup_m[info["code"]]
                     if not resolved:
-                        resolved = _match_terminal_to_subdivision(raw_name, sub_data)
+                        resolved = _match_terminal_to_subdivision(raw_name, sub_data, preferred_prefix=_org_prefix.get(org_id))
                     if not resolved and raw_name.lower().strip() in ("pinky", "pinki"):
                         for tc in pinky_tc_map.get(org_id, {}).get(raw_name, set()):
                             pf = tc_sub_per_fop.get(org_id, {}).get(tc, set())
@@ -1500,7 +1590,14 @@ def _determine_current_fop(
         return current_name, ""
 
     if fops_list:
-        best = max(fops_list, key=lambda f: f.get("income_from_store", 0))
+        # For payment-type stores (Mono, LiqPay etc.) prefer FOP with
+        # the highest recent income (last 14 days) — this correctly picks
+        # the currently assigned FOP after a switch.
+        fops_with_recent = [f for f in fops_list if f.get("recent_income", 0) > 0]
+        if fops_with_recent:
+            best = max(fops_with_recent, key=lambda f: f["recent_income"])
+        else:
+            best = max(fops_list, key=lambda f: f.get("income_from_store", 0))
         return best["fop_name"], best["fop_edrpou"]
 
     return "", ""
@@ -1523,7 +1620,25 @@ def _analyze_fop(
     fop_stores: list | None = None,
 ) -> dict | None:
     if not daily_data:
-        return None
+        # FOPs with no income still need an analysis entry
+        days_elapsed = (today - date(year, 1, 1)).days + 1
+        days_remaining = (date(year, 12, 31) - today).days
+        limit_dates = {}
+        for grp, lim in LIMITS.items():
+            limit_dates[grp] = {
+                "date": None,
+                "already_exceeded": False,
+            }
+        return {
+            "total_income": 0.0,
+            "days_elapsed": days_elapsed,
+            "days_remaining": days_remaining,
+            "trend_ratio": 0.0,
+            "mean_daily": 0.0,
+            "projected_total": 0.0,
+            "limit_dates": limit_dates,
+            "active_days": 0,
+        }
 
     year_start = date(year, 1, 1)
     year_end = date(year, 12, 31)
@@ -1695,6 +1810,9 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         daily_income = _fetch_daily_income(conn, year)
         logger.info("Завантажено дані по %d ФОПах", len(daily_income))
 
+        q4_prev_income = _fetch_q4_prev_year_income(conn, year)
+        logger.info("Q4 %d дохід: %d ФОПів", year - 1, len(q4_prev_income))
+
         fop_stores, monthly_store_income = _fetch_fop_stores(conn, year)
         logger.info("Магазини: зв'язки для %d ФОПів", len(fop_stores))
 
@@ -1782,7 +1900,9 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         stores = fop_stores.get(fop_id, [])
         stores_list = [
             {"name": s["name"], "doc_count": s["doc_count"],
-             "total": s["total"], "source": s.get("source", "document")}
+             "total": s["total"], "source": s.get("source", "document"),
+             "last_date": s.get("last_date"),
+             "recent_income": s.get("recent_income", 0)}
             for s in stores
         ]
         stores_text = "\n".join(
@@ -1797,6 +1917,9 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         organization = _determine_organization(fop["name"])
         monthly = monthly_history.get(fop_id, [])
 
+        q4_income = round(q4_prev_income.get(fop_id, 0), 2)
+        total_with_q4 = round(analysis["total_income"] + q4_income, 2)
+
         fop_entry = {
             "fop_name": fop["name"].strip(),
             "fop_edrpou": edrpou,
@@ -1806,6 +1929,8 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
             "x_studio_camunda_org_status": org_status,
             "ep_group": group,
             "total_income": round(analysis["total_income"], 2),
+            "x_studio_camunda_income_q4": q4_income,
+            "x_studio_camunda_income_cumulative": total_with_q4,
             "limit_amount": limit,
             "income_percent": _safe_pct(analysis["total_income"], limit),
             "days_to_limit": days_to_limit,
@@ -1879,6 +2004,8 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
                 "income_from_store_text": f"{_total:,.0f} грн".replace(",", " "),
                 "days_to_limit": fop_entry["days_to_limit"],
                 "organization": fop_entry.get("organization", ""),
+                "last_date": s.get("last_date"),
+                "recent_income": s.get("recent_income", 0),
             })
 
     # Determine current month for growth calculation
