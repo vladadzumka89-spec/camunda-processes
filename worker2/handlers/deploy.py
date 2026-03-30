@@ -69,9 +69,10 @@ def register_deploy_handlers(
 
             await retry(_fetch, max_attempts=3, delay=5.0)
 
-            # Checkout
+            # Reset local changes and checkout
             await ssh.run_in_repo(
                 server,
+                f"git reset --hard HEAD && git clean -fd && "
                 f"git checkout -B {branch} origin/{branch}",
                 check=True,
             )

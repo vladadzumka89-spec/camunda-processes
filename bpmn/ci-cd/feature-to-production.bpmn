@@ -96,6 +96,7 @@
       <bpmn:incoming>f_odoo_to_review</bpmn:incoming>
       <bpmn:incoming>f_rework_to_review</bpmn:incoming>
       <bpmn:incoming>f_staging_rework_to_review</bpmn:incoming>
+      <bpmn:incoming>f_deploy_failed_to_rework</bpmn:incoming>
       <bpmn:outgoing>f_review_to_score</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_review_done" messageRef="Message_review_done" />
     </bpmn:intermediateCatchEvent>
@@ -145,11 +146,12 @@
     <bpmn:serviceTask id="ST_merge_to_staging" name="Замерджити в staging">
       <bpmn:documentation>Merge feature branch в staging (git merge -X theirs). Повертає merge_sha.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="merge-feature-to-staging" retries="1" />
+        <zeebe:taskDefinition type="merge-feature-to-staging" retries="5" />
         <zeebe:ioMapping>
           <zeebe:input source="=head_branch" target="feature_branch" />
           <zeebe:input source="=&#34;staging&#34;" target="server_host" />
           <zeebe:output source="=merge_sha" target="merge_sha" />
+          <zeebe:output source="=false" target="deploy_failed" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_score_ok</bpmn:incoming>
@@ -158,12 +160,31 @@
     <bpmn:intermediateCatchEvent id="catch_staging_deployed" name="Чекаємо деплой staging">
       <bpmn:documentation>Чекає msg_deploy_done від deploy-process (correlation: merge_sha = trigger_sha).</bpmn:documentation>
       <bpmn:incoming>f_merge_to_deploy</bpmn:incoming>
-      <bpmn:outgoing>f_deploy_to_event_gw</bpmn:outgoing>
+      <bpmn:outgoing>f_deploy_to_check</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_deploy_done" messageRef="Message_deploy_done" />
     </bpmn:intermediateCatchEvent>
+
+    <!-- ── Deploy OK check ───────────────────────────── -->
+    <bpmn:exclusiveGateway id="GW_deploy_ok" name="Deploy OK?" default="f_deploy_ok">
+      <bpmn:incoming>f_deploy_to_check</bpmn:incoming>
+      <bpmn:outgoing>f_deploy_ok</bpmn:outgoing>
+      <bpmn:outgoing>f_deploy_failed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="ST_comment_deploy_failed" name="Коментар: deploy failed">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-comment" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;❌ Staging deploy failed. Потрібне виправлення. Пушніть зміни в `&#34; + head_branch + &#34;`.&#34;" target="comment_text" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_deploy_failed</bpmn:incoming>
+      <bpmn:outgoing>f_deploy_failed_to_rework</bpmn:outgoing>
+    </bpmn:serviceTask>
+
     <bpmn:eventBasedGateway id="GW_event_staging" name="Undraft чи push?">
       <bpmn:documentation>Чекає на одну з двох подій: PR знято з draft (staging ок) або push нових комітів (rework).</bpmn:documentation>
-      <bpmn:incoming>f_deploy_to_event_gw</bpmn:incoming>
+      <bpmn:incoming>f_deploy_ok</bpmn:incoming>
       <bpmn:outgoing>f_event_to_ready</bpmn:outgoing>
       <bpmn:outgoing>f_event_to_staging_rework</bpmn:outgoing>
     </bpmn:eventBasedGateway>
@@ -229,7 +250,12 @@
     <bpmn:sequenceFlow id="f_rem_to_notify" sourceRef="BE_rem_rework" targetRef="ST_rem_rework" />
     <bpmn:sequenceFlow id="f_rem_to_end" sourceRef="ST_rem_rework" targetRef="End_rem_rework" />
     <bpmn:sequenceFlow id="f_merge_to_deploy" sourceRef="ST_merge_to_staging" targetRef="catch_staging_deployed" />
-    <bpmn:sequenceFlow id="f_deploy_to_event_gw" sourceRef="catch_staging_deployed" targetRef="GW_event_staging" />
+    <bpmn:sequenceFlow id="f_deploy_to_check" sourceRef="catch_staging_deployed" targetRef="GW_deploy_ok" />
+    <bpmn:sequenceFlow id="f_deploy_ok" sourceRef="GW_deploy_ok" targetRef="GW_event_staging" />
+    <bpmn:sequenceFlow id="f_deploy_failed" sourceRef="GW_deploy_ok" targetRef="ST_comment_deploy_failed">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(deploy_failed) and deploy_failed = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_deploy_failed_to_rework" sourceRef="ST_comment_deploy_failed" targetRef="catch_review_done" />
     <bpmn:sequenceFlow id="f_event_to_ready" sourceRef="GW_event_staging" targetRef="catch_pr_ready" />
     <bpmn:sequenceFlow id="f_event_to_staging_rework" sourceRef="GW_event_staging" targetRef="catch_staging_rework" />
     <bpmn:sequenceFlow id="f_ready_to_merge_task" sourceRef="catch_pr_ready" targetRef="ST_create_merge_task" />

@@ -9,6 +9,8 @@
   targetNamespace="http://tut.ua/bpmn/nightly-prod-deploy"
   exporter="Claude Code" exporterVersion="3.0">
 
+  <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
+
   <!-- ── Process ───────────────────────────────────────── -->
   <bpmn:process id="production-nightly-deploy" name="Production Nightly Deploy" isExecutable="true">
     <bpmn:extensionElements>
@@ -45,6 +47,16 @@
       <bpmn:incoming>f_start_to_deploy</bpmn:incoming>
       <bpmn:outgoing>f_deploy_to_gw</bpmn:outgoing>
     </bpmn:callActivity>
+
+    <!-- ── 2a. Deploy error → end without notification ── -->
+    <bpmn:boundaryEvent id="BE_deploy_error" name="Deploy failed" attachedToRef="call_deploy_prod">
+      <bpmn:outgoing>f_error_to_end</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_deploy_failed" errorRef="Error_deploy_failed" />
+    </bpmn:boundaryEvent>
+
+    <bpmn:endEvent id="evt_end_deploy_failed" name="Deploy failed — чекаємо наступну ніч">
+      <bpmn:incoming>f_error_to_end</bpmn:incoming>
+    </bpmn:endEvent>
 
     <!-- ── 3. Check changes ──────────────────────────── -->
     <bpmn:exclusiveGateway id="GW_has_changes" name="Є зміни?" default="f_has_changes">
@@ -99,6 +111,7 @@
     </bpmn:endEvent>
 
     <!-- ── Sequence Flows ────────────────────────────── -->
+    <bpmn:sequenceFlow id="f_error_to_end" sourceRef="BE_deploy_error" targetRef="evt_end_deploy_failed" />
     <bpmn:sequenceFlow id="f_start_to_deploy" sourceRef="start_timer" targetRef="call_deploy_prod" />
     <bpmn:sequenceFlow id="f_deploy_to_gw" sourceRef="call_deploy_prod" targetRef="GW_has_changes" />
     <bpmn:sequenceFlow id="f_has_changes" sourceRef="GW_has_changes" targetRef="ST_extract_prs" />

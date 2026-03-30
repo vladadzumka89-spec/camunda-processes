@@ -351,10 +351,44 @@ class WebhookServer:
             logger.error("Failed to publish msg_pr_ready for PR #%d: %s", pr_number, exc)
             return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
 
+    async def _has_active_ftp(self, head_branch: str) -> bool:
+        """Check if there's already an active FTP instance for this branch."""
+        try:
+            import httpx
+            from .http_request_smart import _camunda_rest_request
+            async with httpx.AsyncClient(timeout=10) as http:
+                resp = await _camunda_rest_request(
+                    http, "POST", "/v1/process-instances/search",
+                    json={
+                        "filter": {
+                            "processDefinitionId": "feature-to-production",
+                            "state": "ACTIVE",
+                            "variables": [{"name": "head_branch", "value": head_branch}],
+                        },
+                        "page": {"limit": 1},
+                    },
+                )
+                if resp.status_code == 200:
+                    items = resp.json().get("items", [])
+                    return len(items) > 0
+        except Exception as exc:
+            logger.warning("Failed to check active FTP: %s", exc)
+        return False
+
     async def _publish_pr_opened(self, pr: dict, payload: dict) -> web.Response:
         """Publish msg_pr_opened when a PR is first created. Triggers FTP auto-start."""
         pr_number = pr.get('number', 0)
+        head_branch = pr.get('head', {}).get('ref', '')
         repo_full = payload.get('repository', {}).get('full_name', self._config.github.repository)
+
+        # Skip if FTP already exists for this branch
+        if await self._has_active_ftp(head_branch):
+            logger.info("Skipping msg_pr_opened for PR #%d — active FTP exists for %s", pr_number, head_branch)
+            return web.json_response({
+                "status": "skipped",
+                "reason": "active_ftp_exists",
+                "pr_number": pr_number,
+            })
 
         variables: dict[str, Any] = {
             "pr_number": pr_number,

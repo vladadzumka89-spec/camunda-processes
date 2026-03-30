@@ -70,7 +70,10 @@ async def _exception_handler(exc: Exception, job: Job, job_controller: JobContro
             "Job %s [%s] failed (retries left: %d): %s",
             job.key, job.type, job.retries - 1, exc,
         )
-        await job_controller.set_failure_status(message=f"Failed job. Error: {exc}")
+        await job_controller.set_failure_status(
+            message=f"Failed job. Error: {exc}",
+            retry_back_off_ms=10_000,
+        )
 
 
 def _wrap_handler(original_handler):
