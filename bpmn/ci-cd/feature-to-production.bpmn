@@ -30,11 +30,6 @@
       <zeebe:subscription correlationKey="=string(pr_number)" />
     </bpmn:extensionElements>
   </bpmn:message>
-  <bpmn:message id="Message_pr_opened" name="msg_pr_opened">
-    <bpmn:extensionElements>
-      <zeebe:subscription correlationKey="=head_branch" />
-    </bpmn:extensionElements>
-  </bpmn:message>
   <bpmn:message id="Message_prod_deployed" name="msg_prod_deployed">
     <bpmn:extensionElements>
       <zeebe:subscription correlationKey="=string(pr_number)" />
@@ -51,7 +46,7 @@
     <bpmn:startEvent id="start_pr_event" name="PR створено в main">
       <bpmn:documentation>Автоматичний старт від webhook — PR created в main. Змінні: pr_number, pr_url, head_branch, repository, pr_title.</bpmn:documentation>
       <bpmn:outgoing>f_auto_to_merge_entry</bpmn:outgoing>
-      <bpmn:messageEventDefinition id="MsgDef_start_pr" messageRef="Message_pr_opened" />
+      <bpmn:messageEventDefinition id="MsgDef_start_pr" messageRef="Message_pr_event" />
     </bpmn:startEvent>
     <bpmn:intermediateCatchEvent id="catch_pr_created" name="Чекаємо PR в main">
       <bpmn:documentation>Чекає msg_pr_event з correlation key = head_branch. Тільки для /start flow.</bpmn:documentation>

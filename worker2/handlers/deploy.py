@@ -480,7 +480,7 @@ def register_deploy_handlers(
 
         pr_numbers: list[int] = []
         for line in result.stdout.strip().splitlines():
-            match = re.search(r"\(#(\d+)\)", line)
+            match = re.search(r"#(\d+)", line)
             if match:
                 pr_numbers.append(int(match.group(1)))
 

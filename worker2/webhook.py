@@ -150,9 +150,9 @@ class WebhookServer:
         logger.info("PR #%d action=%s, base=%s", pr_number, action, base_branch)
 
         if action in ('opened', 'reopened', 'synchronize'):
-            result = await self._publish_pr_event(pr, payload)
             if action in ('opened', 'reopened'):
-                await self._publish_pr_opened(pr, payload)
+                await self._cancel_active_ftp(pr.get('head', {}).get('ref', ''))
+            result = await self._publish_pr_event(pr, payload, include_ftp_event=(action in ('opened', 'reopened')))
             if action == 'synchronize':
                 await self._publish_pr_updated(pr)
             return result
@@ -239,7 +239,7 @@ class WebhookServer:
             logger.error("Failed to publish msg_deploy_trigger: %s", exc)
             return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
 
-    async def _publish_pr_event(self, pr: dict, payload: dict) -> web.Response:
+    async def _publish_pr_event(self, pr: dict, payload: dict, include_ftp_event: bool = True) -> web.Response:
         pr_number = pr.get('number', 0)
         repo_full = payload.get('repository', {}).get('full_name', self._config.github.repository)
 
@@ -283,19 +283,22 @@ class WebhookServer:
                 variables=variables,
                 time_to_live_in_milliseconds=3_600_000,
             )
-            await client.publish_message(
-                name="msg_pr_event",
-                correlation_key=variables.get("head_branch", ""),
-                variables=variables,
-                time_to_live_in_milliseconds=3_600_000,
-            )
+            messages = ["msg_pr_review"]
+            if include_ftp_event:
+                await client.publish_message(
+                    name="msg_pr_event",
+                    correlation_key=variables.get("head_branch", ""),
+                    variables=variables,
+                    time_to_live_in_milliseconds=3_600_000,
+                )
+                messages.append("msg_pr_event")
             logger.info(
-                "Published msg_pr_review + msg_pr_event for PR #%d (%s)",
-                pr_number, pr.get('title', ''),
+                "Published %s for PR #%d (%s)",
+                " + ".join(messages), pr_number, pr.get('title', ''),
             )
             return web.json_response({
                 "status": "published",
-                "messages": ["msg_pr_review", "msg_pr_event"],
+                "messages": messages,
                 "pr_number": pr_number,
             })
         except Exception as exc:
@@ -351,13 +354,14 @@ class WebhookServer:
             logger.error("Failed to publish msg_pr_ready for PR #%d: %s", pr_number, exc)
             return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
 
-    async def _has_active_ftp(self, head_branch: str) -> bool:
-        """Check if there's already an active FTP instance for this branch."""
+    async def _cancel_active_ftp(self, head_branch: str) -> None:
+        """Cancel any active FTP instances for this branch before starting a new one."""
+        if not head_branch:
+            return
         try:
             import httpx
             from .http_request_smart import _camunda_rest_request
             async with httpx.AsyncClient(timeout=15) as http:
-                # Get all active FTP instances
                 resp = await _camunda_rest_request(
                     http, "POST", "/v1/process-instances/search",
                     json={
@@ -369,79 +373,27 @@ class WebhookServer:
                     },
                 )
                 if resp.status_code != 200:
-                    return True  # assume exists on API error
+                    return
 
-                items = resp.json().get("items", [])
-                if not items:
-                    return False
-
-                # Check each instance's head_branch variable
-                for item in items:
+                for item in resp.json().get("items", []):
                     pik = item.get("key", 0)
                     var_resp = await _camunda_rest_request(
                         http, "POST", "/v1/variables/search",
-                        json={
-                            "filter": {
-                                "processInstanceKey": pik,
-                                "name": "head_branch",
-                            },
-                        },
+                        json={"filter": {"processInstanceKey": pik, "name": "head_branch"}},
                     )
                     if var_resp.status_code == 200:
                         for v in var_resp.json().get("items", []):
-                            val = v.get("value", "").strip('"')
-                            if val == head_branch:
-                                logger.info("Found active FTP %d for branch %s", pik, head_branch)
-                                return True
-                return False
+                            if v.get("value", "").strip('"') == head_branch:
+                                cancel_resp = await _camunda_rest_request(
+                                    http, "POST", f"/v2/process-instances/{pik}/cancellation",
+                                    json={},
+                                )
+                                logger.info(
+                                    "Cancelled old FTP %d for branch %s (HTTP %d)",
+                                    pik, head_branch, cancel_resp.status_code,
+                                )
         except Exception as exc:
-            logger.warning("Failed to check active FTP: %s — assuming exists to prevent duplicates", exc)
-        return True
-
-    async def _publish_pr_opened(self, pr: dict, payload: dict) -> web.Response:
-        """Publish msg_pr_opened when a PR is first created. Triggers FTP auto-start."""
-        pr_number = pr.get('number', 0)
-        head_branch = pr.get('head', {}).get('ref', '')
-        repo_full = payload.get('repository', {}).get('full_name', self._config.github.repository)
-
-        # Skip if FTP already exists for this branch
-        if await self._has_active_ftp(head_branch):
-            logger.info("Skipping msg_pr_opened for PR #%d — active FTP exists for %s", pr_number, head_branch)
-            return web.json_response({
-                "status": "skipped",
-                "reason": "active_ftp_exists",
-                "pr_number": pr_number,
-            })
-
-        variables: dict[str, Any] = {
-            "pr_number": pr_number,
-            "pr_url": pr.get('html_url', ''),
-            "pr_title": pr.get('title', ''),
-            "pr_author": pr.get('user', {}).get('login', ''),
-            "repository": repo_full,
-            "base_branch": pr.get('base', {}).get('ref', 'main'),
-            "head_branch": pr.get('head', {}).get('ref', ''),
-            "odoo_project_id": self._config.odoo.project_id,
-            "odoo_webhook_url": self._config.odoo.webhook_url,
-        }
-
-        try:
-            client = self._create_zeebe_client()
-            await client.publish_message(
-                name="msg_pr_opened",
-                correlation_key=variables.get("head_branch", ""),
-                variables=variables,
-                time_to_live_in_milliseconds=3_600_000,
-            )
-            logger.info("Published msg_pr_opened for PR #%d", pr_number)
-            return web.json_response({
-                "status": "published",
-                "message": "msg_pr_opened",
-                "pr_number": pr_number,
-            })
-        except Exception as exc:
-            logger.error("Failed to publish msg_pr_opened for PR #%d: %s", pr_number, exc)
-            return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
+            logger.warning("Failed to cancel active FTP for %s: %s", head_branch, exc)
 
     async def _publish_pr_merged(self, pr: dict, payload: dict) -> web.Response:
         """Publish msg_pr_merged when a PR is merged."""
