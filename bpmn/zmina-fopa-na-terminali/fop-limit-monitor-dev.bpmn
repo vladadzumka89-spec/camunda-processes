@@ -68,7 +68,7 @@
         <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="= &quot;POST&quot;" target="method" />
-          <zeebe:input source="= &quot;https://o.tut.ua/web/hook/bb450e05-4673-4cc9-9ba3-8674da99dc61&quot;" target="url" />
+          <zeebe:input source="= &quot;https://odoo.dev.dobrom.com/web/hook/d5412043-e5ac-49a9-91e0-1bc58c0cd387&quot;" target="url" />
           <zeebe:input source="= {&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
           <zeebe:input source="= {action: &quot;fop_limit_report&quot;, report: report_json}" target="body" />
         </zeebe:ioMapping>
