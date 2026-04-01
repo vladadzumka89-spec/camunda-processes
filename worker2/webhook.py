@@ -362,28 +362,34 @@ class WebhookServer:
             import httpx
             from .http_request_smart import _camunda_rest_request
             async with httpx.AsyncClient(timeout=15) as http:
+                # Use v2 API which respects page.limit
                 resp = await _camunda_rest_request(
-                    http, "POST", "/v1/process-instances/search",
+                    http, "POST", "/v2/process-instances/search",
                     json={
                         "filter": {
                             "processDefinitionId": "feature-to-production",
                             "state": "ACTIVE",
                         },
-                        "page": {"limit": 50},
+                        "page": {"limit": 200},
                     },
                 )
                 if resp.status_code != 200:
+                    logger.warning("_cancel_active_ftp: search returned %d", resp.status_code)
                     return
 
-                for item in resp.json().get("items", []):
-                    pik = item.get("key", 0)
+                items = resp.json().get("items", [])
+                logger.info("_cancel_active_ftp: checking %d active FTP for branch %s", len(items), head_branch)
+
+                for item in items:
+                    pik = item.get("processInstanceKey", 0)
                     var_resp = await _camunda_rest_request(
-                        http, "POST", "/v1/variables/search",
-                        json={"filter": {"processInstanceKey": pik, "name": "head_branch"}},
+                        http, "POST", "/v2/variables/search",
+                        json={"filter": {"processInstanceKey": str(pik), "name": "head_branch"}},
                     )
                     if var_resp.status_code == 200:
                         for v in var_resp.json().get("items", []):
-                            if v.get("value", "").strip('"') == head_branch:
+                            val = v.get("value", "").strip('"')
+                            if val == head_branch:
                                 cancel_resp = await _camunda_rest_request(
                                     http, "POST", f"/v2/process-instances/{pik}/cancellation",
                                     json={},
