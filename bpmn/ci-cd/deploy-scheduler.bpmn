@@ -53,7 +53,7 @@
     <!-- Catch deploy errors — don't block scheduler -->
     <bpmn:boundaryEvent id="BE_deploy_error" name="Деплой впав" attachedToRef="CA_deploy">
       <bpmn:outgoing>f_error_to_gw</bpmn:outgoing>
-      <bpmn:errorEventDefinition id="ErrorDef_deploy_failed" errorRef="Error_deploy_failed" />
+      <bpmn:errorEventDefinition id="ErrorDef_deploy_failed" />
     </bpmn:boundaryEvent>
 
     <!-- After deploy: check if new push arrived -->
