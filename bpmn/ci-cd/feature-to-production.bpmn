@@ -82,6 +82,7 @@
           <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
           <zeebe:input source="={_model: &#34;project.project&#34;, name: if is defined(task_name) and task_name != null and task_name != &#34;&#34; then task_name else if is defined(pr_title) and pr_title != null and pr_title != &#34;&#34; then pr_title else &#34;[feature] Нова задача&#34;, description: if is defined(task_description) and task_description != null then task_description else &#34;&#34;, _id: odoo_project_id, create_process: true}" target="body" />
           <zeebe:input source="=&#34;odoo_response&#34;" target="result_variable_name" />
+          <zeebe:input source="=true" target="ignore_errors" />
           <zeebe:output source="=if is defined(odoo_response) and odoo_response != null and is defined(odoo_response.id) then string(odoo_response.id) else string(process_instance_key)" target="odoo_task_id" />
           <zeebe:output source="=process_instance_key" target="process_instance_key" />
           <zeebe:output source="=if is defined(pr_number) and pr_number != null then pr_number else null" target="pr_number" />
