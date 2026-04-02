@@ -273,12 +273,19 @@ def register_github_handlers(
         pr_number: int,
         comment_text: str,
         repository: str = "",
+        ignore_errors: bool = False,
         **kwargs: Any,
     ) -> dict:
         """Post a comment on a PR."""
         repo = repository or config.github.repository
-        await github.comment_pr(repo, pr_number, comment_text)
-        logger.info("Commented on PR #%d in %s", pr_number, repo)
+        try:
+            await github.comment_pr(repo, pr_number, comment_text)
+            logger.info("Commented on PR #%d in %s", pr_number, repo)
+        except Exception as exc:
+            if ignore_errors:
+                logger.warning("Failed to comment on PR #%d (ignored): %s", pr_number, exc)
+            else:
+                raise
         return {}
 
     # ── github-create-pr ───────────────────────────────────────

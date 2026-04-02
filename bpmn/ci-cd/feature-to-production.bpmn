@@ -76,6 +76,10 @@
           <zeebe:input source="=true" target="ignore_errors" />
           <zeebe:output source="=if is defined(odoo_response) and odoo_response != null and is defined(odoo_response.id) then string(odoo_response.id) else string(process_instance_key)" target="odoo_task_id" />
           <zeebe:output source="=process_instance_key" target="process_instance_key" />
+          <zeebe:output source="=if is defined(pr_number) and pr_number != null then pr_number else null" target="pr_number" />
+          <zeebe:output source="=if is defined(pr_url) and pr_url != null then pr_url else &#34;&#34;" target="pr_url" />
+          <zeebe:output source="=if is defined(pr_title) and pr_title != null then pr_title else &#34;&#34;" target="pr_title" />
+          <zeebe:output source="=if is defined(head_branch) and head_branch != null then head_branch else &#34;&#34;" target="head_branch" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_odoo_create</bpmn:incoming>
