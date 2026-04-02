@@ -45,6 +45,15 @@
     </bpmn:startEvent>
     <bpmn:startEvent id="start_pr_event" name="PR створено в main">
       <bpmn:documentation>Автоматичний старт від webhook — PR created в main. Змінні: pr_number, pr_url, head_branch, repository, pr_title.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="=pr_number" target="pr_number" />
+          <zeebe:output source="=pr_url" target="pr_url" />
+          <zeebe:output source="=pr_title" target="pr_title" />
+          <zeebe:output source="=head_branch" target="head_branch" />
+          <zeebe:output source="=if is defined(repository) then repository else &#34;&#34;" target="repository" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:outgoing>f_auto_to_merge_entry</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_start_pr" messageRef="Message_pr_event" />
     </bpmn:startEvent>
