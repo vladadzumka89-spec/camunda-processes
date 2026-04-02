@@ -314,6 +314,10 @@ class WebhookServer:
                 name="msg_pr_updated",
                 correlation_key=str(pr_number),
                 variables={
+                    "pr_number": pr_number,
+                    "pr_url": pr.get('html_url', ''),
+                    "pr_title": pr.get('title', ''),
+                    "head_branch": pr.get('head', {}).get('ref', ''),
                     "pr_updated": True,
                     "head_sha": pr.get('head', {}).get('sha', ''),
                 },
@@ -340,6 +344,9 @@ class WebhookServer:
                 correlation_key=str(pr_number),
                 variables={
                     "pr_number": pr_number,
+                    "pr_url": pr.get('html_url', ''),
+                    "pr_title": pr.get('title', ''),
+                    "head_branch": pr.get('head', {}).get('ref', ''),
                     "pr_ready": True,
                 },
                 time_to_live_in_milliseconds=3_600_000,

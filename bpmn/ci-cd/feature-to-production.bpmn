@@ -105,6 +105,7 @@
         <zeebe:taskDefinition type="github-comment" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;🔄 Оцінка ревʼю: &#34; + string(review_score) + &#34;/10. Потрібне виправлення. Пушніть зміни в гілку `&#34; + head_branch + &#34;` для повторного ревʼю.&#34;" target="comment_text" />
+          <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_score_low</bpmn:incoming>
@@ -171,6 +172,7 @@
         <zeebe:taskDefinition type="github-comment" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;❌ Staging deploy failed. Потрібне виправлення. Пушніть зміни в `&#34; + head_branch + &#34;`.&#34;" target="comment_text" />
+          <zeebe:input source="=true" target="ignore_errors" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_deploy_failed</bpmn:incoming>
