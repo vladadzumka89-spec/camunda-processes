@@ -172,8 +172,11 @@
           <zeebe:input source="=&#34;msg_deploy_trigger&#34;" target="message_name" />
           <zeebe:input source="=&#34;staging&#34;" target="correlation_key" />
           <zeebe:input source="=merge_sha" target="trigger_sha" />
+          <zeebe:input source="=&#34;staging&#34;" target="server_host" />
           <zeebe:input source="=&#34;staging&#34;" target="branch" />
           <zeebe:input source="=true" target="run_smoke_test" />
+          <zeebe:input source="=if is defined(odoo_webhook_url) and odoo_webhook_url != null then odoo_webhook_url else &#34;&#34;" target="odoo_webhook_url" />
+          <zeebe:input source="=if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560" target="odoo_project_id" />
           <zeebe:input source="=&#34;light&#34;" target="test_mode" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
