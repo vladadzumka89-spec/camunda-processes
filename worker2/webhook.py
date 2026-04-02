@@ -170,6 +170,11 @@ class WebhookServer:
         ref = payload.get('ref', '')
         after_sha = payload.get('after', '')
 
+        # Staging deploy is now triggered by FTP directly (call activity),
+        # not by webhook push events. Ignore all push events.
+        logger.info("Ignoring push to %s (deploy triggered by FTP)", ref)
+        return web.json_response({"status": "ignored", "ref": ref})
+
         if ref != 'refs/heads/staging':
             logger.info("Ignoring push to %s (not staging)", ref)
             return web.json_response({"status": "ignored", "ref": ref})

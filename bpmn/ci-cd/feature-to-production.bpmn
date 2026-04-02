@@ -15,12 +15,7 @@
       <zeebe:subscription correlationKey="=string(pr_number)" />
     </bpmn:extensionElements>
   </bpmn:message>
-  <bpmn:message id="Message_deploy_done" name="msg_deploy_done">
-    <bpmn:extensionElements>
-      <zeebe:subscription correlationKey="=merge_sha" />
-    </bpmn:extensionElements>
-  </bpmn:message>
-  <bpmn:message id="Message_pr_merged" name="msg_pr_merged">
+<bpmn:message id="Message_pr_merged" name="msg_pr_merged">
     <bpmn:extensionElements>
       <zeebe:subscription correlationKey="=string(pr_number)" />
     </bpmn:extensionElements>
@@ -164,16 +159,35 @@
       <bpmn:incoming>f_score_ok</bpmn:incoming>
       <bpmn:outgoing>f_merge_to_deploy</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:intermediateCatchEvent id="catch_staging_deployed" name="Чекаємо деплой staging">
-      <bpmn:documentation>Чекає msg_deploy_done від deploy-process (correlation: merge_sha = trigger_sha).</bpmn:documentation>
+    <bpmn:callActivity id="call_deploy_staging" name="Деплой на staging">
+      <bpmn:documentation>Call Activity: deploy-process для staging. FTP сам запускає deploy замість чекати на webhook.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="deploy-process" propagateAllChildVariables="false" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;staging&#34;" target="server_host" />
+          <zeebe:input source="=&#34;staging&#34;" target="branch" />
+          <zeebe:input source="=true" target="run_smoke_test" />
+          <zeebe:input source="=&#34;light&#34;" target="test_mode" />
+          <zeebe:input source="=merge_sha" target="trigger_sha" />
+          <zeebe:input source="=if is defined(odoo_webhook_url) and odoo_webhook_url != null then odoo_webhook_url else &#34;&#34;" target="odoo_webhook_url" />
+          <zeebe:input source="=if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560" target="odoo_project_id" />
+          <zeebe:input source="=string(process_instance_key)" target="parent_process_instance_key" />
+          <zeebe:output source="=if is defined(deploy_failed) and deploy_failed = true then true else false" target="deploy_failed" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
       <bpmn:incoming>f_merge_to_deploy</bpmn:incoming>
       <bpmn:outgoing>f_deploy_to_check</bpmn:outgoing>
-      <bpmn:messageEventDefinition id="MsgDef_deploy_done" messageRef="Message_deploy_done" />
-    </bpmn:intermediateCatchEvent>
+    </bpmn:callActivity>
+
+    <bpmn:boundaryEvent id="BE_deploy_staging_error" name="Deploy впав" attachedToRef="call_deploy_staging">
+      <bpmn:outgoing>f_deploy_error_to_check</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_staging_deploy" />
+    </bpmn:boundaryEvent>
 
     <!-- ── Deploy OK check ───────────────────────────── -->
     <bpmn:exclusiveGateway id="GW_deploy_ok" name="Deploy OK?" default="f_deploy_ok">
       <bpmn:incoming>f_deploy_to_check</bpmn:incoming>
+      <bpmn:incoming>f_deploy_error_to_check</bpmn:incoming>
       <bpmn:outgoing>f_deploy_ok</bpmn:outgoing>
       <bpmn:outgoing>f_deploy_failed</bpmn:outgoing>
     </bpmn:exclusiveGateway>
@@ -255,8 +269,9 @@
     <bpmn:sequenceFlow id="f_rework_to_review" sourceRef="catch_pr_updated" targetRef="catch_review_done" />
     <bpmn:sequenceFlow id="f_rem_to_notify" sourceRef="BE_rem_rework" targetRef="ST_rem_rework" />
     <bpmn:sequenceFlow id="f_rem_to_end" sourceRef="ST_rem_rework" targetRef="End_rem_rework" />
-    <bpmn:sequenceFlow id="f_merge_to_deploy" sourceRef="ST_merge_to_staging" targetRef="catch_staging_deployed" />
-    <bpmn:sequenceFlow id="f_deploy_to_check" sourceRef="catch_staging_deployed" targetRef="GW_deploy_ok" />
+    <bpmn:sequenceFlow id="f_merge_to_deploy" sourceRef="ST_merge_to_staging" targetRef="call_deploy_staging" />
+    <bpmn:sequenceFlow id="f_deploy_to_check" sourceRef="call_deploy_staging" targetRef="GW_deploy_ok" />
+    <bpmn:sequenceFlow id="f_deploy_error_to_check" sourceRef="BE_deploy_staging_error" targetRef="GW_deploy_ok" />
     <bpmn:sequenceFlow id="f_deploy_ok" sourceRef="GW_deploy_ok" targetRef="GW_event_staging" />
     <bpmn:sequenceFlow id="f_deploy_failed" sourceRef="GW_deploy_ok" targetRef="ST_comment_deploy_failed">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(deploy_failed) and deploy_failed = true</bpmn:conditionExpression>
@@ -276,7 +291,7 @@
     <bpmn:textAnnotation id="note_deploy_process">
       <bpmn:text>← deploy-process (staging)</bpmn:text>
     </bpmn:textAnnotation>
-    <bpmn:association id="assoc_deploy_process" sourceRef="catch_staging_deployed" targetRef="note_deploy_process" />
+    <bpmn:association id="assoc_deploy_process" sourceRef="call_deploy_staging" targetRef="note_deploy_process" />
     <bpmn:textAnnotation id="note_nightly_deploy">
       <bpmn:text>← production-nightly-deploy, deploy-process</bpmn:text>
     </bpmn:textAnnotation>
@@ -320,7 +335,7 @@
       <bpmndi:BPMNShape id="di_ST_merge_to_staging" bpmnElement="ST_merge_to_staging">
         <dc:Bounds x="1050" y="160" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="di_catch_staging_deployed" bpmnElement="catch_staging_deployed">
+      <bpmndi:BPMNShape id="di_call_deploy_staging" bpmnElement="call_deploy_staging">
         <dc:Bounds x="1212" y="182" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_GW_event_staging" bpmnElement="GW_event_staging">
