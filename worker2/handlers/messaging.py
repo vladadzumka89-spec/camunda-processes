@@ -28,6 +28,7 @@ def register_messaging_handlers(worker: ZeebeWorker, config: AppConfig) -> None:
         job: Job,
         message_name: str = "",
         correlation_key: str = "",
+        ttl_ms: int = 30_000,
         **kwargs,
     ) -> dict:
         """Publish a Zeebe message with process variables as payload."""
@@ -41,7 +42,7 @@ def register_messaging_handlers(worker: ZeebeWorker, config: AppConfig) -> None:
             name=message_name,
             correlation_key=str(correlation_key),
             variables=dict(job.variables),
-            time_to_live_in_milliseconds=3_600_000,
+            time_to_live_in_milliseconds=ttl_ms,
         )
         logger.info(
             "Published message %s (correlation=%s)",
