@@ -505,6 +505,32 @@ def _fetch_subdivision_lookup(conn) -> dict[str, str]:
         cursor.close()
 
 
+def _fetch_disbanded_subdivision_codes(conn) -> set[str]:
+    """Fetch 3-digit codes of disbanded subdivisions from _Reference100.
+
+    Uses _Fld27513 (checkbox "Підрозділ розформовано") = 0x01.
+    """
+    codes = set()
+    cursor = conn.cursor(as_dict=True)
+    try:
+        cursor.execute("""
+            SELECT _Description FROM _Reference100
+            WHERE _Fld27513 = 0x01
+              AND _Description LIKE N'[0-9][0-9][0-9] %'
+        """)
+        for row in cursor:
+            m = re.match(r'^(\d{3})\s', row['_Description'].strip())
+            if m:
+                codes.add(m.group(1))
+        logger.info(
+            "Розформовані підрозділи: %d (%s)",
+            len(codes), ", ".join(sorted(codes)) or "немає",
+        )
+        return codes
+    finally:
+        cursor.close()
+
+
 # Manual fallback for terminal names that can't be auto-transliterated
 _TERMINAL_ALIASES = {
     "ocean": "okean",
@@ -1433,6 +1459,102 @@ def _fetch_terminal_bindings(conn, year: int) -> dict[str, list[dict]]:
         cursor.close()
 
 
+def _fetch_store_employees(conn) -> dict[str, list[dict]]:
+    """Fetch current employees per store from BAS.
+
+    Source: Довідник Співробітники (_Reference102), joined with
+    _Reference90 (Організація) and _Reference100 (Підрозділ).
+    Filter: _Marked = 0x00 (active, not dismissed).
+
+    Returns:
+        dict: department_name → list of {name, employer_fop, employer_edrpou}
+    """
+    sql = """
+        SELECT
+            emp._Description     AS employee_name,
+            org._Description     AS employer_fop_name,
+            org._Fld1494         AS employer_edrpou,
+            dept._Description    AS department_name
+        FROM _Reference102 emp
+        JOIN _Reference90  org  ON emp._OwnerIDRRef = org._IDRRef
+        JOIN _Reference100 dept ON emp._Fld27517RRef = dept._IDRRef
+        WHERE emp._Marked = 0x00
+          AND org._Marked = 0x00
+          AND (org._Fld1495 LIKE N'%ізична особа%'
+               OR org._Fld1495 LIKE N'%ФОП%')
+    """
+    cursor = conn.cursor(as_dict=True)
+    try:
+        cursor.execute(sql)
+        result: dict[str, list[dict]] = defaultdict(list)
+        for row in cursor:
+            dept = (row["department_name"] or "").strip()
+            if not dept:
+                continue
+            result[dept].append({
+                "name": (row["employee_name"] or "").strip(),
+                "employer_fop": (row["employer_fop_name"] or "").strip(),
+                "employer_edrpou": (row["employer_edrpou"] or "").strip(),
+            })
+        return dict(result)
+    except Exception as e:
+        logger.warning(
+            "Не вдалося завантажити працівників магазинів: %s", e
+        )
+        return {}
+    finally:
+        cursor.close()
+
+
+def _enrich_store_with_employees(
+    store_data: dict,
+    store_employees: dict[str, list[dict]],
+) -> None:
+    """Enrich a single store_data dict with employee info and fop_match flags.
+
+    Matching: exact department name first, fallback by 3-digit code prefix.
+    Mutates store_data in place: adds employees, employee_count,
+    mismatch_count, employees_text.
+    """
+    name = store_data["subdivision"]
+    current_edrpou = store_data.get("current_fop_edrpou", "")
+
+    # Exact match
+    emps = store_employees.get(name, [])
+
+    # Fallback: match by first 3-digit code
+    if not emps:
+        m = re.match(r'^(\d{3})\s', name)
+        if m:
+            code = m.group(1)
+            for dept_name, dept_emps in store_employees.items():
+                if dept_name.startswith(code + " "):
+                    emps = dept_emps
+                    break
+
+    enriched = []
+    mismatch = 0
+    for emp in emps:
+        match = (
+            emp["employer_edrpou"] == current_edrpou
+            if current_edrpou
+            else False
+        )
+        if current_edrpou and not match:
+            mismatch += 1
+        enriched.append({
+            "name": emp["name"],
+            "employer_fop": emp["employer_fop"],
+            "employer_edrpou": emp["employer_edrpou"],
+            "fop_match": match,
+        })
+
+    store_data["employees"] = enriched
+    store_data["employee_count"] = len(enriched)
+    store_data["mismatch_count"] = mismatch
+    store_data["employees_text"] = ", ".join(e["name"] for e in enriched)
+
+
 def _parse_binding_date(d: str) -> date | None:
     """Parse dd.mm.yyyy binding date string."""
     try:
@@ -1839,6 +1961,12 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         # Terminal binding history (store ↔ FOP switches)
         terminal_bindings = _fetch_terminal_bindings(conn, year)
         logger.info("Прив'язка терміналів: %d магазинів", len(terminal_bindings))
+
+        # Current employees per store (from employee directory)
+        store_employees = _fetch_store_employees(conn)
+        logger.info("Працівники магазинів: %d підрозділів", len(store_employees))
+
+        disbanded_subdivision_codes = _fetch_disbanded_subdivision_codes(conn)
     finally:
         conn.close()
 
@@ -2018,6 +2146,14 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         m = re.match(r'^(\d{3})\s', name)
         data["total_income"] = round(data["total_income"], 2)
 
+        # ── Store status (відкритий/закритий) ──
+        # Закритий = підрозділ розформовано (_Fld27513 = 0x01 в _Reference100)
+        store_code = m.group(1) if m else None
+        data["store_status"] = (
+            "закритий" if store_code and store_code in disbanded_subdivision_codes
+            else "відкритий"
+        )
+
         # ── Current FOP ──
         bindings = terminal_bindings.get(name, [])
         # Check if bindings have any useful records (dates >= 2020)
@@ -2040,9 +2176,13 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
                 if tb_name.startswith(code + " ") and _has_useful_bindings(tb_bindings):
                     bindings = tb_bindings
                     break
+        is_disbanded = data["store_status"] == "закритий"
         current_fop_name, current_fop_edrpou = _determine_current_fop(
             bindings, data["fops"]
         )
+        if is_disbanded:
+            current_fop_name = ""
+            current_fop_edrpou = ""
         data["current_fop_name"] = current_fop_name
         data["current_fop_edrpou"] = current_fop_edrpou
         data["company"] = _determine_store_company(name) or _determine_organization(current_fop_name)
@@ -2076,8 +2216,13 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
 
         # ── Binding history (grouped into periods) ──
         data["binding_history"] = _group_binding_periods(
-            bindings, year, current_fop_name
+            bindings, year, current_fop_name if not is_disbanded else ""
         )
+        # Disbanded: close all open binding periods
+        if is_disbanded:
+            for period_entry in data["binding_history"]:
+                if period_entry.get("date_to") is None:
+                    period_entry["date_to"] = "розформовано"
 
         # ── FOP switch count: unique dates with binding events in current year ──
         year_start = date(year, 1, 1)
@@ -2087,6 +2232,9 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
             if d and d >= year_start:
                 switch_dates.add(d)
         data["fop_count"] = len(switch_dates)
+
+        # ── Employees ──
+        _enrich_store_with_employees(data, store_employees)
 
         stores_report.append(data)
 
