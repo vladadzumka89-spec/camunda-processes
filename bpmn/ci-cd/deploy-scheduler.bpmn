@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_scheduler" targetNamespace="http://tut.ua/bpmn/deploy-scheduler" exporter="Claude Code" exporterVersion="1.0">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_scheduler" targetNamespace="http://tut.ua/bpmn/deploy-scheduler" exporter="Claude Code" exporterVersion="2.0">
 
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
 
@@ -11,16 +11,16 @@
 
   <bpmn:process id="deploy-scheduler" name="Deploy Scheduler" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="5.0" />
+      <zeebe:versionTag value="6.0" />
     </bpmn:extensionElements>
 
-    <!-- Start: triggered by webhook push -->
-    <bpmn:startEvent id="evt_start" name="Пуш до staging">
+    <!-- ═══ START ═══ -->
+    <bpmn:startEvent id="evt_start" name="Тригер деплою">
       <bpmn:outgoing>f_start_to_deploy</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_start" messageRef="Message_deploy_trigger" />
     </bpmn:startEvent>
 
-    <!-- Call Activity: actual deploy -->
+    <!-- ═══ DEPLOY (call activity) ═══ -->
     <bpmn:callActivity id="CA_deploy" name="Деплой на сервер">
       <bpmn:extensionElements>
         <zeebe:calledElement processId="deploy-process" propagateAllChildVariables="false" />
@@ -43,35 +43,93 @@
           <zeebe:input source="=if is defined(pr_title) and pr_title != null then pr_title else &quot;&quot;" target="pr_title" />
           <zeebe:input source="=if is defined(pusher) and pusher != null then pusher else &quot;&quot;" target="pusher" />
           <zeebe:input source="=if is defined(compare_url) and compare_url != null then compare_url else &quot;&quot;" target="compare_url" />
+          <zeebe:output source="=if is defined(has_changes) and has_changes != null then has_changes else false" target="has_changes" />
+          <zeebe:output source="=if is defined(old_commit) and old_commit != null then old_commit else &quot;none&quot;" target="old_commit" />
+          <zeebe:output source="=if is defined(new_commit) and new_commit != null then new_commit else &quot;none&quot;" target="new_commit" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_start_to_deploy</bpmn:incoming>
       <bpmn:incoming>f_loop_to_deploy</bpmn:incoming>
-      <bpmn:outgoing>f_deploy_to_gw</bpmn:outgoing>
+      <bpmn:outgoing>f_deploy_to_gw_changes</bpmn:outgoing>
     </bpmn:callActivity>
 
-    <!-- Catch deploy errors — don't block scheduler -->
+    <!-- Catch deploy errors -->
     <bpmn:boundaryEvent id="BE_deploy_error" name="Деплой впав" attachedToRef="CA_deploy">
-      <bpmn:outgoing>f_error_to_gw</bpmn:outgoing>
+      <bpmn:outgoing>f_error_to_publish</bpmn:outgoing>
       <bpmn:errorEventDefinition id="ErrorDef_deploy_failed" />
     </bpmn:boundaryEvent>
 
-    <!-- After deploy: check if new push arrived -->
+    <!-- ═══ AFTER DEPLOY: check changes ═══ -->
+    <bpmn:exclusiveGateway id="GW_has_changes" name="Є зміни?" default="f_changes_to_extract">
+      <bpmn:incoming>f_deploy_to_gw_changes</bpmn:incoming>
+      <bpmn:outgoing>f_changes_to_extract</bpmn:outgoing>
+      <bpmn:outgoing>f_no_changes_to_gw</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ═══ EXTRACT + NOTIFY ALL PRs ═══ -->
+    <bpmn:serviceTask id="ST_extract_prs" name="Витягти номери PR">
+      <bpmn:documentation>SSH на staging, git log old..new, парсить PR номери з комітів.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="extract-deployed-prs" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=old_commit" target="old_commit" />
+          <zeebe:input source="=new_commit" target="new_commit" />
+          <zeebe:input source="=server_host" target="server_host" />
+          <zeebe:output source="=deployed_prs" target="deployed_prs" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_changes_to_extract</bpmn:incoming>
+      <bpmn:outgoing>f_extract_to_publish</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="ST_publish_per_pr" name="Повідомити FTP про деплой">
+      <bpmn:documentation>Multi-instance: для кожного PR публікує msg_deploy_done.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="publish-message" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;msg_deploy_done&quot;" target="message_name" />
+          <zeebe:input source="=string(pr_num)" target="correlation_key" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_extract_to_publish</bpmn:incoming>
+      <bpmn:outgoing>f_publish_to_gw</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics>
+        <bpmn:extensionElements>
+          <zeebe:loopCharacteristics inputCollection="=deployed_prs" inputElement="pr_num" />
+        </bpmn:extensionElements>
+      </bpmn:multiInstanceLoopCharacteristics>
+    </bpmn:serviceTask>
+
+    <!-- ═══ ERROR: notify triggering FTP ═══ -->
+    <bpmn:serviceTask id="ST_publish_error" name="Повідомити про помилку">
+      <bpmn:documentation>На помилку деплою: повідомляє FTP що ініціював цей цикл.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="publish-message" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;msg_deploy_done&quot;" target="message_name" />
+          <zeebe:input source="=if is defined(pr_number) and pr_number != null then string(pr_number) else &quot;unknown&quot;" target="correlation_key" />
+          <zeebe:input source="=true" target="deploy_failed" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_error_to_publish</bpmn:incoming>
+      <bpmn:outgoing>f_error_publish_to_gw</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══ WAIT LOOP: new push or timeout ═══ -->
     <bpmn:eventBasedGateway id="gw_wait" name="Новий пуш?">
-      <bpmn:incoming>f_deploy_to_gw</bpmn:incoming>
-      <bpmn:incoming>f_error_to_gw</bpmn:incoming>
+      <bpmn:incoming>f_no_changes_to_gw</bpmn:incoming>
+      <bpmn:incoming>f_publish_to_gw</bpmn:incoming>
+      <bpmn:incoming>f_error_publish_to_gw</bpmn:incoming>
       <bpmn:outgoing>f_wait_msg</bpmn:outgoing>
       <bpmn:outgoing>f_wait_timer</bpmn:outgoing>
     </bpmn:eventBasedGateway>
 
-    <!-- Option 1: new push arrived — deploy again -->
     <bpmn:intermediateCatchEvent id="evt_new_push" name="Новий пуш">
       <bpmn:incoming>f_wait_msg</bpmn:incoming>
       <bpmn:outgoing>f_loop_to_deploy</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_new_push" messageRef="Message_deploy_trigger" />
     </bpmn:intermediateCatchEvent>
 
-    <!-- Option 2: no new push within 30s — done -->
     <bpmn:intermediateCatchEvent id="evt_timeout" name="30с без пушу">
       <bpmn:incoming>f_wait_timer</bpmn:incoming>
       <bpmn:outgoing>f_timeout_to_end</bpmn:outgoing>
@@ -84,73 +142,154 @@
       <bpmn:incoming>f_timeout_to_end</bpmn:incoming>
     </bpmn:endEvent>
 
-    <bpmn:sequenceFlow id="f_error_to_gw" sourceRef="BE_deploy_error" targetRef="gw_wait" />
+    <!-- ═══ SEQUENCE FLOWS ═══ -->
     <bpmn:sequenceFlow id="f_start_to_deploy" sourceRef="evt_start" targetRef="CA_deploy" />
-    <bpmn:sequenceFlow id="f_deploy_to_gw" sourceRef="CA_deploy" targetRef="gw_wait" />
+    <bpmn:sequenceFlow id="f_deploy_to_gw_changes" sourceRef="CA_deploy" targetRef="GW_has_changes" />
+    <bpmn:sequenceFlow id="f_changes_to_extract" sourceRef="GW_has_changes" targetRef="ST_extract_prs" />
+    <bpmn:sequenceFlow id="f_no_changes_to_gw" sourceRef="GW_has_changes" targetRef="gw_wait">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=has_changes = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_extract_to_publish" sourceRef="ST_extract_prs" targetRef="ST_publish_per_pr" />
+    <bpmn:sequenceFlow id="f_publish_to_gw" sourceRef="ST_publish_per_pr" targetRef="gw_wait" />
+    <bpmn:sequenceFlow id="f_error_to_publish" sourceRef="BE_deploy_error" targetRef="ST_publish_error" />
+    <bpmn:sequenceFlow id="f_error_publish_to_gw" sourceRef="ST_publish_error" targetRef="gw_wait" />
     <bpmn:sequenceFlow id="f_wait_msg" sourceRef="gw_wait" targetRef="evt_new_push" />
     <bpmn:sequenceFlow id="f_wait_timer" sourceRef="gw_wait" targetRef="evt_timeout" />
     <bpmn:sequenceFlow id="f_loop_to_deploy" sourceRef="evt_new_push" targetRef="CA_deploy" />
     <bpmn:sequenceFlow id="f_timeout_to_end" sourceRef="evt_timeout" targetRef="evt_end" />
   </bpmn:process>
 
+  <!-- ═══ DI LAYOUT ═══ -->
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="deploy-scheduler">
+
+      <!-- Start -->
       <bpmndi:BPMNShape id="evt_start_di" bpmnElement="evt_start">
         <dc:Bounds x="160" y="282" width="36" height="36" />
       </bpmndi:BPMNShape>
+
+      <!-- Deploy call activity -->
       <bpmndi:BPMNShape id="CA_deploy_di" bpmnElement="CA_deploy">
         <dc:Bounds x="300" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BE_deploy_error_di" bpmnElement="BE_deploy_error">
         <dc:Bounds x="354" y="322" width="36" height="36" />
       </bpmndi:BPMNShape>
+
+      <!-- Has changes gateway -->
+      <bpmndi:BPMNShape id="GW_has_changes_di" bpmnElement="GW_has_changes" isMarkerVisible="true">
+        <dc:Bounds x="480" y="275" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- Extract PRs + publish per PR -->
+      <bpmndi:BPMNShape id="ST_extract_prs_di" bpmnElement="ST_extract_prs">
+        <dc:Bounds x="610" y="260" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_publish_per_pr_di" bpmnElement="ST_publish_per_pr">
+        <dc:Bounds x="790" y="260" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Error notification -->
+      <bpmndi:BPMNShape id="ST_publish_error_di" bpmnElement="ST_publish_error">
+        <dc:Bounds x="480" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Wait loop -->
       <bpmndi:BPMNShape id="gw_wait_di" bpmnElement="gw_wait">
-        <dc:Bounds x="505" y="275" width="50" height="50" />
+        <dc:Bounds x="970" y="275" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="evt_new_push_di" bpmnElement="evt_new_push">
-        <dc:Bounds x="632" y="222" width="36" height="36" />
+        <dc:Bounds x="1097" y="222" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="evt_timeout_di" bpmnElement="evt_timeout">
-        <dc:Bounds x="632" y="332" width="36" height="36" />
+        <dc:Bounds x="1097" y="332" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="evt_end_di" bpmnElement="evt_end">
-        <dc:Bounds x="762" y="332" width="36" height="36" />
+        <dc:Bounds x="1227" y="332" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <!-- Edges -->
-      <bpmndi:BPMNEdge id="f_error_to_gw_di" bpmnElement="f_error_to_gw">
-        <di:waypoint x="372" y="358" />
-        <di:waypoint x="372" y="400" />
-        <di:waypoint x="530" y="400" />
-        <di:waypoint x="530" y="325" />
-      </bpmndi:BPMNEdge>
+
+      <!-- ═══ EDGES ═══ -->
+
+      <!-- start → deploy (horizontal) -->
       <bpmndi:BPMNEdge id="f_start_to_deploy_di" bpmnElement="f_start_to_deploy">
         <di:waypoint x="196" y="300" />
         <di:waypoint x="300" y="300" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_deploy_to_gw_di" bpmnElement="f_deploy_to_gw">
+
+      <!-- deploy → GW_has_changes (horizontal) -->
+      <bpmndi:BPMNEdge id="f_deploy_to_gw_changes_di" bpmnElement="f_deploy_to_gw_changes">
         <di:waypoint x="400" y="300" />
-        <di:waypoint x="505" y="300" />
+        <di:waypoint x="480" y="300" />
       </bpmndi:BPMNEdge>
+
+      <!-- GW_has_changes → extract (horizontal, default) -->
+      <bpmndi:BPMNEdge id="f_changes_to_extract_di" bpmnElement="f_changes_to_extract">
+        <di:waypoint x="530" y="300" />
+        <di:waypoint x="610" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <!-- GW_has_changes → gw_wait (no changes, skip via top) -->
+      <bpmndi:BPMNEdge id="f_no_changes_to_gw_di" bpmnElement="f_no_changes_to_gw">
+        <di:waypoint x="505" y="275" />
+        <di:waypoint x="505" y="210" />
+        <di:waypoint x="995" y="210" />
+        <di:waypoint x="995" y="275" />
+      </bpmndi:BPMNEdge>
+
+      <!-- extract → publish per PR (horizontal) -->
+      <bpmndi:BPMNEdge id="f_extract_to_publish_di" bpmnElement="f_extract_to_publish">
+        <di:waypoint x="710" y="300" />
+        <di:waypoint x="790" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <!-- publish per PR → gw_wait (horizontal) -->
+      <bpmndi:BPMNEdge id="f_publish_to_gw_di" bpmnElement="f_publish_to_gw">
+        <di:waypoint x="890" y="300" />
+        <di:waypoint x="970" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <!-- error boundary → publish error (L-shape down) -->
+      <bpmndi:BPMNEdge id="f_error_to_publish_di" bpmnElement="f_error_to_publish">
+        <di:waypoint x="372" y="358" />
+        <di:waypoint x="372" y="460" />
+        <di:waypoint x="480" y="460" />
+      </bpmndi:BPMNEdge>
+
+      <!-- publish error → gw_wait (L-shape right then up) -->
+      <bpmndi:BPMNEdge id="f_error_publish_to_gw_di" bpmnElement="f_error_publish_to_gw">
+        <di:waypoint x="580" y="460" />
+        <di:waypoint x="995" y="460" />
+        <di:waypoint x="995" y="325" />
+      </bpmndi:BPMNEdge>
+
+      <!-- gw_wait → new push (up) -->
       <bpmndi:BPMNEdge id="f_wait_msg_di" bpmnElement="f_wait_msg">
-        <di:waypoint x="530" y="275" />
-        <di:waypoint x="530" y="240" />
-        <di:waypoint x="632" y="240" />
+        <di:waypoint x="995" y="275" />
+        <di:waypoint x="995" y="240" />
+        <di:waypoint x="1097" y="240" />
       </bpmndi:BPMNEdge>
+
+      <!-- gw_wait → timeout (down) -->
       <bpmndi:BPMNEdge id="f_wait_timer_di" bpmnElement="f_wait_timer">
-        <di:waypoint x="530" y="325" />
-        <di:waypoint x="530" y="350" />
-        <di:waypoint x="632" y="350" />
+        <di:waypoint x="995" y="325" />
+        <di:waypoint x="995" y="350" />
+        <di:waypoint x="1097" y="350" />
       </bpmndi:BPMNEdge>
+
+      <!-- new push → deploy (loop back via top) -->
       <bpmndi:BPMNEdge id="f_loop_to_deploy_di" bpmnElement="f_loop_to_deploy">
-        <di:waypoint x="650" y="222" />
-        <di:waypoint x="650" y="160" />
+        <di:waypoint x="1115" y="222" />
+        <di:waypoint x="1115" y="160" />
         <di:waypoint x="350" y="160" />
         <di:waypoint x="350" y="260" />
       </bpmndi:BPMNEdge>
+
+      <!-- timeout → end (horizontal) -->
       <bpmndi:BPMNEdge id="f_timeout_to_end_di" bpmnElement="f_timeout_to_end">
-        <di:waypoint x="668" y="350" />
-        <di:waypoint x="762" y="350" />
+        <di:waypoint x="1133" y="350" />
+        <di:waypoint x="1227" y="350" />
       </bpmndi:BPMNEdge>
+
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>

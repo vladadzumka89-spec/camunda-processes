@@ -384,9 +384,11 @@ def register_deploy_handlers(
     @worker.task(task_type="rollback", timeout_ms=600_000)
     async def rollback(
         server_host: str,
+        branch: str = "staging",
         **kwargs: Any,
     ) -> dict:
-        """Restore from checkpoint via HTTP API."""
+        """Restore from checkpoint via HTTP API, then force-push branch to GitHub
+        so the remote branch matches the restored state."""
         if not config.db_checkpoint_base_url:
             logger.warning("rollback: no DB_CHECKPOINT_BASE_URL configured, skipping")
             return {"restored": False}
@@ -402,8 +404,22 @@ def register_deploy_handlers(
             resp = await client.post(restore_url, headers=headers, content=b"")
             resp.raise_for_status()
 
-        logger.info("rollback on %s: restored from checkpoint (HTTP %d), waiting 60s...", server_host, resp.status_code)
-        await _sleep(60)
+        logger.info("rollback on %s: restored from checkpoint (HTTP %d), waiting for VM boot...", server_host, resp.status_code)
+
+        # Force-push restored branch to GitHub so next deploy doesn't re-pull broken code
+        # VM needs time to boot after checkpoint restore — retry up to 10 min
+        server = config.get_server(server_host)
+        for attempt in range(1, 11):
+            await _sleep(60)
+            try:
+                await ssh.run_in_repo(server, f"git push --force origin {branch}", check=True, timeout=30)
+                logger.info("rollback on %s: force-pushed %s to match restored state", server_host, branch)
+                break
+            except Exception as exc:
+                logger.warning("rollback on %s: force-push attempt %d/10 failed: %s", server_host, attempt, exc)
+        else:
+            logger.error("rollback on %s: could not force-push %s after 10 attempts", server_host, branch)
+
         return {"restored": True}
 
     # ── db-remove ──────────────────────────────────────────────

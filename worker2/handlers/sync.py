@@ -730,7 +730,7 @@ def register_sync_handlers(
                 await ssh.run(
                     server,
                     f"git clone --depth=50 -b staging {push_url} {workspace}",
-                    check=True, timeout=120,
+                    check=True, timeout=300,
                 )
             except Exception as e:
                 raise SyncError(_redact_pat(str(e), deploy_pat)) from None

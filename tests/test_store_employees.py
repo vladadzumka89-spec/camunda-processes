@@ -197,3 +197,4 @@ class TestEnrichStoreEmployees:
 
         assert "Іванов Іван Іванович" in store_data["employees_text"]
         assert "Петров Петро Петрович" in store_data["employees_text"]
+        assert "\n" in store_data["employees_text"]

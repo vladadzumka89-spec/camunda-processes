@@ -324,20 +324,16 @@ def _fetch_daily_income(conn, year: int) -> dict:
     (negative amounts) — matching the official tax income report exactly.
     """
     sql = """
-        ;WITH fop_filter AS (
-            SELECT _IDRRef FROM _Reference90
-            WHERE _Marked = 0x00
-                AND (_Fld1495 LIKE N'%%ізична особа%%' OR _Fld1495 LIKE N'%%ФОП%%')
-                AND _Description NOT LIKE N'яяя%%'
-        )
         SELECT r._Fld10619RRef AS org_id,
                CAST(DATEADD(year, -2000, r._Period) AS date) AS doc_date,
                SUM(r._Fld10621) AS daily_total,
                COUNT(*) AS doc_count
         FROM _AccumRg10618 r
+        JOIN _Reference90 o ON o._IDRRef = r._Fld10619RRef
         WHERE r._Period >= %s AND r._Period < %s
           AND r._Active = 0x01
-          AND r._Fld10619RRef IN (SELECT _IDRRef FROM fop_filter)
+          AND o._Marked = 0x00
+          AND o._Description NOT LIKE N'яяя%%'
         GROUP BY r._Fld10619RRef, CAST(DATEADD(year, -2000, r._Period) AS date)
         ORDER BY r._Fld10619RRef, doc_date
     """
@@ -722,7 +718,6 @@ def _fetch_fop_stores(conn, year: int) -> dict:
         WHERE d._Posted = 0x01 AND d._Marked = 0x00
             AND d._Date_Time >= %s AND d._Date_Time < %s
             AND o._Marked = 0x00
-            AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
             AND o._Description NOT LIKE N'яяя%%'
             AND r129._Description = N'Стоимость проданных товаров (работ, услуг)'
     """
@@ -798,7 +793,6 @@ def _fetch_fop_stores(conn, year: int) -> dict:
             WHERE d._Posted = 0x01 AND d._Marked = 0x00
                 AND d._Date_Time >= %s AND d._Date_Time < %s
                 AND o._Marked = 0x00
-                AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
                 AND o._Description NOT LIKE N'яяя%%'
             GROUP BY d._Fld6492RRef
         """
@@ -840,7 +834,6 @@ def _fetch_fop_stores(conn, year: int) -> dict:
             fop_filter AS (
                 SELECT _IDRRef FROM _Reference90
                 WHERE _Marked = 0x00
-                    AND (_Fld1495 LIKE N'%%ізична особа%%' OR _Fld1495 LIKE N'%%ФОП%%')
                     AND _Description NOT LIKE N'яяя%%'
             ),
             all_stores AS (
@@ -1180,7 +1173,6 @@ def _fetch_monthly_history(conn, year: int) -> dict:
         ;WITH fop_filter AS (
             SELECT _IDRRef FROM _Reference90
             WHERE _Marked = 0x00
-                AND (_Fld1495 LIKE N'%%ізична особа%%' OR _Fld1495 LIKE N'%%ФОП%%')
                 AND _Description NOT LIKE N'яяя%%'
         )
         SELECT r._Fld10619RRef AS org_id,
@@ -1268,7 +1260,6 @@ def _fetch_seasonal_coefficients(conn, year: int) -> tuple[dict, dict]:
         WHERE d._Posted = 0x01 AND d._Marked = 0x00
             AND d._Date_Time >= %s AND d._Date_Time < %s
             AND o._Marked = 0x00
-            AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
             AND o._Description NOT LIKE N'яяя%%'
             AND r129._Description = N'Стоимость проданных товаров (работ, услуг)'
     """
@@ -1370,7 +1361,6 @@ def _fetch_terminal_changes(conn, year: int) -> dict:
         WHERE d._Posted = 0x01 AND d._Marked = 0x00
             AND d._Date_Time >= %s AND d._Date_Time < %s
             AND o._Marked = 0x00
-            AND (o._Fld1495 LIKE N'%%ізична особа%%' OR o._Fld1495 LIKE N'%%ФОП%%')
             AND o._Description NOT LIKE N'яяя%%'
             AND r129._Description = N'Стоимость проданных товаров (работ, услуг)'
             AND d._Fld6019 LIKE N'%%cmps%%'
@@ -1475,13 +1465,17 @@ def _fetch_store_employees(conn) -> dict[str, list[dict]]:
             org._Description     AS employer_fop_name,
             org._Fld1494         AS employer_edrpou,
             dept._Description    AS department_name
-        FROM _Reference102 emp
-        JOIN _Reference90  org  ON emp._OwnerIDRRef = org._IDRRef
-        JOIN _Reference100 dept ON emp._Fld27517RRef = dept._IDRRef
-        WHERE emp._Marked = 0x00
+        FROM _Document12438 d
+        JOIN _Reference102  emp  ON d._Fld13212RRef = emp._IDRRef
+        JOIN _Reference90   org  ON d._Fld13192RRef = org._IDRRef
+        JOIN _Reference100  dept ON d._Fld13193RRef = dept._IDRRef
+        WHERE d._Posted = 0x01
+          AND d._Marked = 0x00
+          AND emp._Marked = 0x00
           AND org._Marked = 0x00
-          AND (org._Fld1495 LIKE N'%ізична особа%'
-               OR org._Fld1495 LIKE N'%ФОП%')
+          AND (org._Fld1495 LIKE N'%%ізична особа%%'
+               OR org._Fld1495 LIKE N'%%ФОП%%')
+        GROUP BY emp._Description, org._Description, org._Fld1494, dept._Description
     """
     cursor = conn.cursor(as_dict=True)
     try:
@@ -1552,7 +1546,7 @@ def _enrich_store_with_employees(
     store_data["employees"] = enriched
     store_data["employee_count"] = len(enriched)
     store_data["mismatch_count"] = mismatch
-    store_data["employees_text"] = ", ".join(e["name"] for e in enriched)
+    store_data["employees_text"] = "\n".join(e["name"] for e in enriched)
 
 
 def _parse_binding_date(d: str) -> date | None:
@@ -2239,6 +2233,19 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         stores_report.append(data)
 
     logger.info("Звіт по магазинах: %d магазинів", len(stores_report))
+
+    # ── Reverse lookup: FOP EDRPOU → currently connected stores ──
+    fop_terminal_stores: dict[str, list[str]] = defaultdict(list)
+    for store in stores_report:
+        edrpou = store.get("current_fop_edrpou", "")
+        if edrpou:
+            fop_terminal_stores[edrpou].append(store["subdivision"])
+
+    for fop_entry in all_fops_report:
+        edrpou = fop_entry.get("fop_edrpou", "")
+        terminal_stores = fop_terminal_stores.get(edrpou, [])
+        fop_entry["current_terminal_stores"] = "\n".join(terminal_stores)
+        fop_entry["current_terminal_stores_count"] = len(terminal_stores)
 
     period = f"{date(year, 1, 1).strftime('%d.%m.%Y')} - {today.strftime('%d.%m.%Y')}"
 

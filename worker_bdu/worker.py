@@ -36,7 +36,7 @@ _shutdown = False
 
 
 def _create_channel():
-    """Create gRPC channel for Zeebe (same auth as main worker)."""
+    """Create gRPC channel for Zeebe (insecure + OAuth2 Bearer interceptor)."""
     import grpc
 
     gateway = os.environ.get("ZEEBE_ADDRESS", "zeebe:26500")
@@ -45,29 +45,36 @@ def _create_channel():
     token_url = os.environ.get("ZEEBE_TOKEN_URL", "")
     use_oauth = bool(client_id and client_secret and token_url)
 
+    keepalive_options = [
+        ('grpc.keepalive_time_ms', 60_000),
+        ('grpc.keepalive_timeout_ms', 20_000),
+        ('grpc.keepalive_permit_without_calls', 1),
+        ('grpc.http2.max_pings_without_data', 0),
+        ('grpc.http2.min_time_between_pings_ms', 60_000),
+        ('grpc.http2.min_ping_interval_without_data_ms', 60_000),
+    ]
+
     if use_oauth:
-        import httpx
+        from worker.auth import TokenManager, _UnaryUnaryTokenInterceptor, _UnaryStreamTokenInterceptor
 
-        resp = httpx.post(
-            token_url,
-            data={
-                "grant_type": "client_credentials",
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "audience": os.environ.get("ZEEBE_TOKEN_AUDIENCE", ""),
-            },
-            timeout=30,
+        token_manager = TokenManager(
+            client_id=client_id,
+            client_secret=client_secret,
+            token_url=token_url,
+            audience=os.environ.get("ZEEBE_TOKEN_AUDIENCE", ""),
         )
-        resp.raise_for_status()
-        token = resp.json()["access_token"]
+        token_manager.refresh_token()
 
-        credentials = grpc.access_token_call_credentials(token)
-        channel_creds = grpc.ssl_channel_credentials()
-        composite = grpc.composite_channel_credentials(channel_creds, credentials)
-        channel = grpc.aio.secure_channel(gateway, composite)
-        logger.info("Zeebe channel: OAuth2 → %s", gateway)
+        interceptors = [
+            _UnaryUnaryTokenInterceptor(token_manager),
+            _UnaryStreamTokenInterceptor(token_manager),
+        ]
+        channel = grpc.aio.insecure_channel(
+            gateway, interceptors=interceptors, options=keepalive_options,
+        )
+        logger.info("Zeebe channel: insecure + OAuth2 Bearer → %s", gateway)
     else:
-        channel = grpc.aio.insecure_channel(gateway)
+        channel = grpc.aio.insecure_channel(gateway, options=keepalive_options)
         logger.info("Zeebe channel: insecure → %s", gateway)
 
     return channel
