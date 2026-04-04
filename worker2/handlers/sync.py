@@ -11,6 +11,7 @@ import ast
 import json
 import logging
 import re
+import shlex
 import uuid
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -745,9 +746,15 @@ def register_sync_handlers(
             # Merge feature into staging with -X theirs (feature branch wins).
             # Staging is a temporary test environment synced nightly from main,
             # so we always want the feature code to land for testing.
+            pr_num = kwargs.get("pr_number", "")
+            merge_msg = f"Merge PR #{pr_num} ({feature_branch}) into staging" if pr_num else ""
+            merge_cmd = (
+                f"cd {workspace} && git merge {feature_branch} -X theirs"
+                + (f" -m {shlex.quote(merge_msg)}" if merge_msg else " --no-edit")
+            )
             merge_result = await ssh.run(
                 server,
-                f"cd {workspace} && git merge {feature_branch} -X theirs --no-edit",
+                merge_cmd,
                 check=False, timeout=60,
             )
 
