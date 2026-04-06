@@ -1027,6 +1027,17 @@ def parse_single_invoice(text: str) -> dict:
 
     return item
 
+def _build_ocr_summary(items: list[dict]) -> str:
+    """Build human-readable summary of recognized invoices."""
+    lines = []
+    for it in items:
+        num = it.get("invoice_number") or "?"
+        name = it.get("partner_name") or "?"
+        amount = it.get("invoice_amount") or 0
+        lines.append(f"• №{num} — {name} — {amount} грн")
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Handler registration
 # ---------------------------------------------------------------------------
@@ -1106,7 +1117,7 @@ def register_ocr_handlers(
                 items = _parse_xlsx(file_data) if ext == "xlsx" else _parse_xls(file_data)
 
             elif ext in ("pdf", "jpg", "jpeg", "png"):
-                # Зображення — спершу Gemini, fallback на tesseract
+                # Зображення — спершу Gemini (посторінково), fallback на tesseract
                 if ext == "pdf":
                     images = convert_from_bytes(file_data, dpi=OCR_DPI)
                 else:
@@ -1115,12 +1126,24 @@ def register_ocr_handlers(
                         img = img.convert("RGB")
                     images = [img]
 
-                # --- Gemini (primary) ---
-                gemini_items = await _gemini_extract_from_images(images)
-                if gemini_items:
-                    items = gemini_items
-                    logger.info("Using Gemini result (%d items)", len(items))
-                else:
+                # --- Gemini (primary, per-page) ---
+                all_gemini_items = []
+                gemini_failed = False
+                for page_idx, page_img in enumerate(images):
+                    page_items = await _gemini_extract_from_images([page_img])
+                    if page_items:
+                        all_gemini_items.extend(page_items)
+                        logger.info("Gemini page %d: %d invoice(s)", page_idx + 1, len(page_items))
+                    elif page_items is None and not all_gemini_items:
+                        gemini_failed = True
+                        break
+                    else:
+                        logger.info("Gemini page %d: no invoices", page_idx + 1)
+
+                if all_gemini_items:
+                    items = all_gemini_items
+                    logger.info("Using Gemini result (%d items from %d pages)", len(items), len(images))
+                elif gemini_failed:
                     # --- Tesseract (fallback) ---
                     logger.info("Gemini unavailable, falling back to tesseract")
                     if ext == "pdf":
@@ -1146,6 +1169,7 @@ def register_ocr_handlers(
                 "recognized": len(items) > 0,
                 "total_invoices": len(items),
                 "total_amount": round(total, 2),
+                "ocr_summary": _build_ocr_summary(items),
             }
 
             # Розпакувати поля першого рахунку як окремі змінні
