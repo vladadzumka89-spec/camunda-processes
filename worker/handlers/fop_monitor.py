@@ -1452,9 +1452,15 @@ def _fetch_terminal_bindings(conn, year: int) -> dict[str, list[dict]]:
 def _fetch_store_employees(conn) -> dict[str, list[dict]]:
     """Fetch current employees per store from BAS.
 
-    Source: Довідник Співробітники (_Reference102), joined with
-    _Reference90 (Організація) and _Reference100 (Підрозділ).
-    Filter: _Marked = 0x00 (active, not dismissed).
+    Source: РегістрВідомостей.ТекущіКадровіДаніСпівробітників (_InfoRg23178).
+    Filter: ДатаЗвільнення < '2002-01-01' (empty = currently employed).
+
+    Fields:
+        _Fld23180RRef → _Reference120 (Співробітник)
+        _Fld23182RRef → _Reference90  (Поточна Організація / ФОП)
+        _Fld23183     → ДатаПрийому
+        _Fld23184     → ДатаЗвільнення (0001-01-01 = працює)
+        _Fld23188RRef → _Reference100 (Поточний Підрозділ / магазин)
 
     Returns:
         dict: department_name → list of {name, employer_fop, employer_edrpou}
@@ -1465,17 +1471,11 @@ def _fetch_store_employees(conn) -> dict[str, list[dict]]:
             org._Description     AS employer_fop_name,
             org._Fld1494         AS employer_edrpou,
             dept._Description    AS department_name
-        FROM _Document12438 d
-        JOIN _Reference102  emp  ON d._Fld13212RRef = emp._IDRRef
-        JOIN _Reference90   org  ON d._Fld13192RRef = org._IDRRef
-        JOIN _Reference100  dept ON d._Fld13193RRef = dept._IDRRef
-        WHERE d._Posted = 0x01
-          AND d._Marked = 0x00
-          AND emp._Marked = 0x00
-          AND org._Marked = 0x00
-          AND (org._Fld1495 LIKE N'%%ізична особа%%'
-               OR org._Fld1495 LIKE N'%%ФОП%%')
-        GROUP BY emp._Description, org._Description, org._Fld1494, dept._Description
+        FROM _InfoRg23178 r
+        JOIN _Reference120 emp  ON r._Fld23180RRef = emp._IDRRef
+        JOIN _Reference90  org  ON r._Fld23182RRef = org._IDRRef
+        JOIN _Reference100 dept ON r._Fld23188RRef = dept._IDRRef
+        WHERE DATEADD(year, -2000, r._Fld23184) < '2002-01-01'
     """
     cursor = conn.cursor(as_dict=True)
     try:
@@ -1526,27 +1526,17 @@ def _enrich_store_with_employees(
                     emps = dept_emps
                     break
 
-    enriched = []
-    mismatch = 0
-    for emp in emps:
-        match = (
-            emp["employer_edrpou"] == current_edrpou
-            if current_edrpou
-            else False
-        )
-        if current_edrpou and not match:
-            mismatch += 1
-        enriched.append({
-            "name": emp["name"],
-            "employer_fop": emp["employer_fop"],
-            "employer_edrpou": emp["employer_edrpou"],
-            "fop_match": match,
-        })
+    # Group employees by FOP
+    fop_groups: dict[str, list[str]] = defaultdict(list)
+    for e in emps:
+        fop_groups[e["employer_fop"]].append(e["name"])
 
-    store_data["employees"] = enriched
-    store_data["employee_count"] = len(enriched)
-    store_data["mismatch_count"] = mismatch
-    store_data["employees_text"] = "\n".join(e["name"] for e in enriched)
+    lines = []
+    for fop_name, emp_names in fop_groups.items():
+        lines.append(f"ФОП {fop_name}:")
+        for n in emp_names:
+            lines.append(f"  {n}")
+    store_data["employees"] = "\n".join(lines)
 
 
 def _parse_binding_date(d: str) -> date | None:
@@ -2245,7 +2235,6 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         edrpou = fop_entry.get("fop_edrpou", "")
         terminal_stores = fop_terminal_stores.get(edrpou, [])
         fop_entry["current_terminal_stores"] = "\n".join(terminal_stores)
-        fop_entry["current_terminal_stores_count"] = len(terminal_stores)
 
     period = f"{date(year, 1, 1).strftime('%d.%m.%Y')} - {today.strftime('%d.%m.%Y')}"
 

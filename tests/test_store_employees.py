@@ -134,8 +134,10 @@ class TestEnrichStoreEmployees:
 
         assert store_data["employee_count"] == 2
         assert store_data["mismatch_count"] == 1
-        assert store_data["employees"][0]["fop_match"] is True
-        assert store_data["employees"][1]["fop_match"] is False
+        assert "Іванов І.І." in store_data["employees"]
+        assert "Петров П.П." in store_data["employees"]
+        assert "ФОП А" in store_data["employees_fop"]
+        assert "ФОП Б" in store_data["employees_fop"]
 
     def test_no_employees_found(self):
         """Store with no matching employees."""
@@ -147,7 +149,7 @@ class TestEnrichStoreEmployees:
 
         assert store_data["employee_count"] == 0
         assert store_data["mismatch_count"] == 0
-        assert store_data["employees"] == []
+        assert store_data["employees"] == ""
 
     def test_fallback_by_3digit_code(self):
         """Fallback: match by first 3-digit code when exact name not found."""
@@ -163,10 +165,10 @@ class TestEnrichStoreEmployees:
         _enrich_store_with_employees(store_data, store_employees)
 
         assert store_data["employee_count"] == 1
-        assert store_data["employees"][0]["fop_match"] is True
+        assert "Іванов І.І." in store_data["employees"]
 
-    def test_empty_current_fop_all_mismatch_false(self):
-        """If current_fop_edrpou is empty, fop_match is False for everyone."""
+    def test_empty_current_fop_no_mismatch(self):
+        """If current_fop_edrpou is empty, mismatch_count is 0."""
         store_data = {
             "subdivision": "650 Софія Київ",
             "current_fop_edrpou": "",
@@ -179,10 +181,10 @@ class TestEnrichStoreEmployees:
         _enrich_store_with_employees(store_data, store_employees)
 
         assert store_data["mismatch_count"] == 0
-        assert store_data["employees"][0]["fop_match"] is False
+        assert store_data["employees_fop"] == "ФОП А"
 
-    def test_employees_text_formatting(self):
-        """employees_text is a comma-separated list of names."""
+    def test_employees_newline_separated(self):
+        """employees is newline-separated list of names."""
         store_data = {
             "subdivision": "650 Софія Київ",
             "current_fop_edrpou": "111",
@@ -195,6 +197,5 @@ class TestEnrichStoreEmployees:
         }
         _enrich_store_with_employees(store_data, store_employees)
 
-        assert "Іванов Іван Іванович" in store_data["employees_text"]
-        assert "Петров Петро Петрович" in store_data["employees_text"]
-        assert "\n" in store_data["employees_text"]
+        assert store_data["employees"] == "Іванов Іван Іванович\nПетров Петро Петрович"
+        assert store_data["employees_fop"] == "ФОП А"
