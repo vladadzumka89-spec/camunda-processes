@@ -94,9 +94,9 @@
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= &#34;https://odoo.dev.dobrom.com/web/hook/b1c3b316-0624-438d-a82e-461500b26d12&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {_model: &#34;project.task&#34;, _id: odoo_task_id, description: &#34;Розпізнано &#34; + string(total_invoices) + &#34; рахунків:\n&#34; + ocr_summary}" target="body" />
+          <zeebe:input source="= {_id: odoo_task_id, process_instance_key: process_instance_key, description: &#34;Розпізнано &#34; + string(total_invoices) + &#34; рахунків:\n&#34; + ocr_summary}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_recognized_yes</bpmn:incoming>
@@ -117,7 +117,7 @@
     </bpmn:serviceTask>
     <bpmn:callActivity id="CA_per_invoice" name="Обробка окремого рахунку">
       <bpmn:extensionElements>
-        <zeebe:calledElement processId="Process_single_invoice" propagateAllChildVariables="false" />
+        <zeebe:calledElement processId="Process_u0wy9yd" propagateAllChildVariables="false" />
         <zeebe:ioMapping>
           <zeebe:input source="= item.partner_name" target="x_studio_camunda_partner_name" />
           <zeebe:input source="= item.invoice_number" target="x_studio_camunda_invoice_number" />
