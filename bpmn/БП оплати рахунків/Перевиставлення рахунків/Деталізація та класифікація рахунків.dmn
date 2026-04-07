@@ -52,10 +52,25 @@
       - x_studio_camunda_invoice_type      — "оренда" або "комунальні"
       - x_studio_camunda_invoice_notes     — підказка для бухгалтера
       - x_studio_camunda_expense_category  — стаття витрат в 1С
+
+    Стратегія класифікації (FIRST hit policy — перший збіг виграє):
+      TIER 1: Правила для конкретних постачальників-виключень
+              (НЕТ-ІНВЕСТ = все оренда, Дайнеко = все комунальні, і т.д.)
+      TIER 2: Правила для оренди з "комунальними" словами
+              (відшкодування/компенсація експлуатаційних = оренда)
+      TIER 3: Ключові слова комунальних послуг
+              (електроенергія, водопостачання, опалення, генератор тощо)
+      TIER 4: Ключові слова оренди
+              (оренд, суборенд, маркетинг, експлуатаційний тощо)
+      TIER 5: Default = оренда (невідома позиція)
+
+    Джерело даних: Excel "Деталізація рахунків (5).xlsx"
+      451 запис, 172 оренда, 279 комунальні, 8 назв у обох категоріях
   -->
 
   <!-- ═══════════════════════════════════════════════════════════════════════
        РІШЕННЯ 1: Деталізація рахунків (оренда / комунальні)
+       451 запис з Excel → 127 правил DMN
        ═══════════════════════════════════════════════════════════════════════ -->
 
   <decision id="invoice-detail-type" name="Деталізація рахунків">
@@ -75,6 +90,12 @@
         </inputExpression>
       </input>
 
+      <input id="input_buyer" label="Контрагент (покупець)">
+        <inputExpression id="inputExpr_buyer" typeRef="string">
+          <text>x_studio_camunda_buyer_name</text>
+        </inputExpression>
+      </input>
+
       <!-- ── OUTPUTS ─────────────────────────────────────────────────────── -->
 
       <output id="output_invoice_type"
@@ -91,271 +112,1241 @@
               name="x_studio_camunda_invoice_notes"
               typeRef="string" />
 
-      <!-- ═════════════════════════════════════════════════════════════════
-           ПОСТАЧАЛЬНИК: Герман Олена Василівна
-           Контрагент 1: Стецюк Ірина Олександрівна
-           Підрозділ:    906
-           4 рахунки в одному PDF, один йде на погодження до Юлі,
-           решта тільки до регіональних
-           ═════════════════════════════════════════════════════════════════ -->
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: НЕТ-ІНВЕСТ, ТОВ (підрозділ 400)
+           ВСІ позиції = оренда, навіть з комунальними назвами
+           (водопостачання, електроенергія, вивіз сміття)
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_netinvest_all">
+        <description>НЕТ-ІНВЕСТ: всі позиції = оренда (включно з комунальними назвами)</description>
+        <inputEntry id="ie_001_line"><text></text></inputEntry>
+        <inputEntry id="ie_001_partner"><text>contains(?, "НЕТ-ІНВЕСТ")</text></inputEntry>
+        <inputEntry id="ie_001_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_001_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_001_notes"><text>"НЕТ-ІНВЕСТ: оренда за поточний місяць, комунальні за попередній"</text></outputEntry>
+      </rule>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: Деркач Людмила Іванівна ФОП
+           Тип визначається за пунктом договору:
+             п.5.1.1 = оренда, п.5.1.2/п.5.1.3 = комунальні
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_derkach_p513">
+        <description>Деркач: п.5.1.3 договору — комунальні</description>
+        <inputEntry id="ie_002_line"><text>contains(?, "п.5.1.3")</text></inputEntry>
+        <inputEntry id="ie_002_partner"><text>contains(?, "Деркач")</text></inputEntry>
+        <inputEntry id="ie_002_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_002_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_002_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_derkach_p512">
+        <description>Деркач: п.5.1.2 договору — комунальні</description>
+        <inputEntry id="ie_003_line"><text>contains(?, "п.5.1.2")</text></inputEntry>
+        <inputEntry id="ie_003_partner"><text>contains(?, "Деркач")</text></inputEntry>
+        <inputEntry id="ie_003_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_003_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_003_notes"><text>""</text></outputEntry>
+      </rule>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: ФОП Дайнеко Людмила Анатоліївна
+           ВСІ позиції = комунальні (деталізація в додатку)
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_daineko_all">
+        <description>Дайнеко: всі позиції = комунальні (деталізація в додатку)</description>
+        <inputEntry id="ie_004_line"><text></text></inputEntry>
+        <inputEntry id="ie_004_partner"><text>contains(?, "Дайнеко")</text></inputEntry>
+        <inputEntry id="ie_004_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_004_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_004_notes"><text>"деталізація комунальних в додатку до рахунку"</text></outputEntry>
+      </rule>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: ФОП ШПЕКО ОЛЕКСАНДРА СЕРГІЇВНА
+           Орендна плата = комунальні (деталізація в додатку)
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_shpeko_orplata">
+        <description>ШПЕКО: Орендна плата — комунальні (деталізація в додатку)</description>
+        <inputEntry id="ie_005_line"><text>contains(?, "орендна плата")</text></inputEntry>
+        <inputEntry id="ie_005_partner"><text>contains(?, "ШПЕКО")</text></inputEntry>
+        <inputEntry id="ie_005_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_005_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_005_notes"><text>"деталізація комунальних в додатку до рахунку"</text></outputEntry>
+      </rule>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: ФОП Юхимчук Наталія Миколаївна
+           Експлуатаційний платіж = комунальні (на відміну від більшості)
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_yukhymchuk_ekspl">
+        <description>Юхимчук: Експлуатаційний платіж — комунальні</description>
+        <inputEntry id="ie_006_line"><text>contains(?, "експлуатаційний платіж")</text></inputEntry>
+        <inputEntry id="ie_006_partner"><text>contains(?, "Юхимчук")</text></inputEntry>
+        <inputEntry id="ie_006_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_006_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_006_notes"><text>""</text></outputEntry>
+      </rule>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: Бручковська Наталія Михайлівна ФОП
+           Маркетинговий платіж = комунальні (на відміну від більшості)
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_bruchkovska_market">
+        <description>Бручковська: Маркетинговий платіж — комунальні</description>
+        <inputEntry id="ie_007_line"><text>contains(?, "маркетинговий платіж")</text></inputEntry>
+        <inputEntry id="ie_007_partner"><text>contains(?, "Бручковська")</text></inputEntry>
+        <inputEntry id="ie_007_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_007_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_007_notes"><text>""</text></outputEntry>
+      </rule>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: Буковина Ритейл
+           Експлуатаційні та маркетингові послуги = комунальні
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_bukovyna_ekspl">
+        <description>Буковина Ритейл: Експлуатаційні послуги — комунальні</description>
+        <inputEntry id="ie_008_line"><text>contains(?, "експлуатаційні послуги")</text></inputEntry>
+        <inputEntry id="ie_008_partner"><text>contains(?, "Буковина")</text></inputEntry>
+        <inputEntry id="ie_008_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_008_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_008_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_bukovyna_market">
+        <description>Буковина Ритейл: Маркетингові послуги — комунальні</description>
+        <inputEntry id="ie_009_line"><text>contains(?, "маркетингові послуги")</text></inputEntry>
+        <inputEntry id="ie_009_partner"><text>contains(?, "Буковина")</text></inputEntry>
+        <inputEntry id="ie_009_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_009_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_009_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_bukovyna_tovarooborot">
+        <description>Буковина Ритейл: Доплата за товарообіг — комунальні (оренда ТО)</description>
+        <inputEntry id="ie_010_line"><text>contains(?, "доплата за товарообіг")</text></inputEntry>
+        <inputEntry id="ie_010_partner"><text>contains(?, "Буковина")</text></inputEntry>
+        <inputEntry id="ie_010_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_010_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_010_notes"><text>"оренда ТО"</text></outputEntry>
+      </rule>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: АЛЬЯНС-ЕКОПРОЕКТ ТОВ
+           Оренда нежилого приміщення = комунальні (оренда ТО)
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_alyans_orenda">
+        <description>АЛЬЯНС-ЕКОПРОЕКТ: Оренда нежилого приміщення — комунальні</description>
+        <inputEntry id="ie_011_line"><text>contains(?, "оренда нежилого приміщення")</text></inputEntry>
+        <inputEntry id="ie_011_partner"><text>contains(?, "АЛЬЯНС-ЕКОПРОЕКТ")</text></inputEntry>
+        <inputEntry id="ie_011_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_011_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_011_notes"><text>"оренда ТО"</text></outputEntry>
+      </rule>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: Герман Олена Василівна (підрозділ 906)
+           Суборенда = оренда, решта = комунальні
+           4 рахунки в одному PDF
+           ═══════════════════════════════════════════════════════════════ -->
 
       <rule id="rule_german_suborenda">
         <description>Герман: Суборенда приміщення — оренда</description>
-        <inputEntry id="ie_german_sub"><text>contains(?, "суборенда приміщення")</text></inputEntry>
-        <inputEntry id="ie_german_sub_p"><text>"Герман Олена Василівна"</text></inputEntry>
-        <outputEntry id="oe_german_sub_type"><text>"оренда"</text></outputEntry>
-        <outputEntry id="oe_german_sub_notes"><text>"договір не вказаний, прописано pinky"</text></outputEntry>
+        <inputEntry id="ie_012_line"><text>contains(?, "суборенда приміщення")</text></inputEntry>
+        <inputEntry id="ie_012_partner"><text>"Герман Олена Василівна"</text></inputEntry>
+        <inputEntry id="ie_012_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_012_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_012_notes"><text>"договір не вказаний, прописано pinky"</text></outputEntry>
       </rule>
-
       <rule id="rule_german_ekspl">
         <description>Герман: Експлуатаційна суборендна плата — комунальні</description>
-        <inputEntry id="ie_german_ekspl"><text>contains(?, "експлуатаційна суборендна плата")</text></inputEntry>
-        <inputEntry id="ie_german_ekspl_p"><text>"Герман Олена Василівна"</text></inputEntry>
-        <outputEntry id="oe_german_ekspl_type"><text>"комунальні"</text></outputEntry>
-        <outputEntry id="oe_german_ekspl_notes"><text>"місяць оплати беру з рахунку на оренду"</text></outputEntry>
+        <inputEntry id="ie_013_line"><text>contains(?, "експлуатаційна суборендна плата")</text></inputEntry>
+        <inputEntry id="ie_013_partner"><text>"Герман Олена Василівна"</text></inputEntry>
+        <inputEntry id="ie_013_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_013_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_013_notes"><text>"місяць оплати беру з рахунку на оренду"</text></outputEntry>
       </rule>
-
       <rule id="rule_german_market">
         <description>Герман: Маркетингова суборендна плата — комунальні</description>
-        <inputEntry id="ie_german_market"><text>contains(?, "маркетингова суборендна плата")</text></inputEntry>
-        <inputEntry id="ie_german_market_p"><text>"Герман Олена Василівна"</text></inputEntry>
-        <outputEntry id="oe_german_market_type"><text>"комунальні"</text></outputEntry>
-        <outputEntry id="oe_german_market_notes"><text>"місяць оплати беру з рахунку на оренду"</text></outputEntry>
+        <inputEntry id="ie_014_line"><text>contains(?, "маркетингова суборендна плата")</text></inputEntry>
+        <inputEntry id="ie_014_partner"><text>"Герман Олена Василівна"</text></inputEntry>
+        <inputEntry id="ie_014_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_014_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_014_notes"><text>"місяць оплати беру з рахунку на оренду"</text></outputEntry>
       </rule>
-
       <rule id="rule_german_reklam">
         <description>Герман: Розміщення рекламного матеріалу — комунальні</description>
-        <inputEntry id="ie_german_reklam"><text>contains(?, "розміщення рекламного матеріалу")</text></inputEntry>
-        <inputEntry id="ie_german_reklam_p"><text>"Герман Олена Василівна"</text></inputEntry>
-        <outputEntry id="oe_german_reklam_type"><text>"комунальні"</text></outputEntry>
-        <outputEntry id="oe_german_reklam_notes"><text>""</text></outputEntry>
+        <inputEntry id="ie_015_line"><text>contains(?, "розміщення рекламного матеріалу")</text></inputEntry>
+        <inputEntry id="ie_015_partner"><text>"Герман Олена Василівна"</text></inputEntry>
+        <inputEntry id="ie_015_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_015_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_015_notes"><text>""</text></outputEntry>
       </rule>
 
-      <!-- ═════════════════════════════════════════════════════════════════
-           ПОСТАЧАЛЬНИК: ЛЬВІВБУДМАКС-ІНВЕСТ, ТЗОВ
-           Контрагент 1: Технопростір Плюс
-           Підрозділ:    605
-           3 послуги в одному рахунку (оренда/експлуатація/маркетинг)
-           Не вказано за який місяць — визначаю по даті виставлення
-           ═════════════════════════════════════════════════════════════════ -->
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: Данчук Анатолій Петрович ФОП (підрозділ 650)
+           Орендна плата що тотожна... = комунальні
+           Плата за обслуговування = комунальні
+           Плата з обороту = комунальні
+           ═══════════════════════════════════════════════════════════════ -->
 
-      <rule id="rule_lviv_orenda">
-        <description>ЛЬВІВБУДМАКС: Оренда нерухомого майна — оренда</description>
-        <inputEntry id="ie_lviv_orenda"><text>contains(?, "оренда нерухомого майна")</text></inputEntry>
-        <inputEntry id="ie_lviv_orenda_p"><text>"ЛЬВІВБУДМАКС-ІНВЕСТ, ТЗОВ"</text></inputEntry>
-        <outputEntry id="oe_lviv_orenda_type"><text>"оренда"</text></outputEntry>
-        <outputEntry id="oe_lviv_orenda_notes"><text>"місяць оренди визначаю по даті виставлення рахунку"</text></outputEntry>
+      <rule id="rule_danchuk_totozhna">
+        <description>Данчук: Орендна плата що тотожна... — комунальні</description>
+        <inputEntry id="ie_016_line"><text>contains(?, "тотожна")</text></inputEntry>
+        <inputEntry id="ie_016_partner"><text>contains(?, "Данчук")</text></inputEntry>
+        <inputEntry id="ie_016_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_016_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_016_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_danchuk_obsluv">
+        <description>Данчук: Плата за обслуговування (генератор) — комунальні</description>
+        <inputEntry id="ie_017_line"><text>contains(?, "плата за обслуговування")</text></inputEntry>
+        <inputEntry id="ie_017_partner"><text>contains(?, "Данчук")</text></inputEntry>
+        <inputEntry id="ie_017_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_017_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_017_notes"><text>"генератор"</text></outputEntry>
+      </rule>
+      <rule id="rule_danchuk_oborot">
+        <description>ФОП Данчук: Плата з обороту — комунальні (оренда ТО)</description>
+        <inputEntry id="ie_018_line"><text>contains(?, "плата з обороту")</text></inputEntry>
+        <inputEntry id="ie_018_partner"><text>contains(?, "Данчук")</text></inputEntry>
+        <inputEntry id="ie_018_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_018_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_018_notes"><text>"оренда ТО"</text></outputEntry>
       </rule>
 
-      <!-- ═════════════════════════════════════════════════════════════════
-           ПОСТАЧАЛЬНИК: Сільпо фуд
-           Контрагент 1: Технопростір Плюс
-           Підрозділ:    909
-           ═════════════════════════════════════════════════════════════════ -->
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: Кропперс груп (підрозділ 646)
+           Суборенда/сервісне/маркетинг = оренда
+           Відшкодування ком.послуг = комунальні
+           Виставляють рахунок на ДИКА О замість Дзісь О
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_kroppers_suborenda">
+        <description>Кропперс: Суборенда — оренда</description>
+        <inputEntry id="ie_019_line"><text>contains(?, "суборенда")</text></inputEntry>
+        <inputEntry id="ie_019_partner"><text>"Кропперс груп"</text></inputEntry>
+        <inputEntry id="ie_019_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_019_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_019_notes"><text>"виставляють рахунок на ДИКА О замість Дзісь О"</text></outputEntry>
+      </rule>
+      <rule id="rule_kroppers_servis">
+        <description>Кропперс: Сервісне обслуговування — оренда</description>
+        <inputEntry id="ie_020_line"><text>contains(?, "сервісне обслуговування")</text></inputEntry>
+        <inputEntry id="ie_020_partner"><text>"Кропперс груп"</text></inputEntry>
+        <inputEntry id="ie_020_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_020_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_020_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kroppers_market">
+        <description>Кропперс: Маркетингові послуги — оренда (входить до орендного пакету)</description>
+        <inputEntry id="ie_021_line"><text>contains(?, "маркетингові послуги")</text></inputEntry>
+        <inputEntry id="ie_021_partner"><text>"Кропперс груп"</text></inputEntry>
+        <inputEntry id="ie_021_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_021_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_021_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kroppers_komunal">
+        <description>Кропперс: Відшкодування ком.послуг — комунальні</description>
+        <inputEntry id="ie_022_line"><text>contains(?, "відшкодування ком.послуг")</text></inputEntry>
+        <inputEntry id="ie_022_partner"><text>"Кропперс груп"</text></inputEntry>
+        <inputEntry id="ie_022_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_022_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_022_notes"><text>""</text></outputEntry>
+      </rule>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: ТРЦ НІКОЛЬСЬКИЙ (підрозділи 905, 904, 618)
+           Експлуатаційні витрати можуть бути і оренда, і комунальні
+           залежить від договору — перевіряти вручну
+           ═══════════════════════════════════════════════════════════════ -->
+
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: Сільпо фуд (підрозділ 909)
+           Оплата комунальних = комунальні (різне написання від СІЛЬПО-ФУД ТОВ)
+           ═══════════════════════════════════════════════════════════════ -->
 
       <rule id="rule_silpo_komunal">
         <description>Сільпо фуд: Оплата комунальних — комунальні</description>
-        <inputEntry id="ie_silpo_komunal"><text>contains(?, "оплата комунальних")</text></inputEntry>
-        <inputEntry id="ie_silpo_komunal_p"><text>"Сільпо фуд"</text></inputEntry>
-        <outputEntry id="oe_silpo_komunal_type"><text>"комунальні"</text></outputEntry>
-        <outputEntry id="oe_silpo_komunal_notes"><text>"деталізація комунальних в окремому документі"</text></outputEntry>
+        <inputEntry id="ie_023_line"><text>contains(?, "оплата комунальних")</text></inputEntry>
+        <inputEntry id="ie_023_partner"><text>contains(?, "Сільпо")</text></inputEntry>
+        <inputEntry id="ie_023_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_023_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_023_notes"><text>"деталізація комунальних в окремому документі"</text></outputEntry>
       </rule>
 
-      <!-- ═════════════════════════════════════════════════════════════════
-           ПОСТАЧАЛЬНИК: Житомирський меблевий комбінат
-           Контрагент 1: техно простір / Технопростір Плюс
-           Підрозділи:   507 (оренда+рекл.), 508 (рекл.), 509 (комунальні)
-                         908/602 — 4 рахунки та акти в одному PDF + акти
-           ═════════════════════════════════════════════════════════════════ -->
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: ТОВ "Акта-Сервіс" (підрозділ 668)
+           Експлуатаційні витрати = комунальні
+           ═══════════════════════════════════════════════════════════════ -->
 
-      <rule id="rule_zhk_orenda">
-        <description>ЖМК: Орендна плата — оренда</description>
-        <inputEntry id="ie_zhk_orenda"><text>contains(?, "орендна плата")</text></inputEntry>
-        <inputEntry id="ie_zhk_orenda_p"><text>"Житомирський меблевий комбінат"</text></inputEntry>
-        <outputEntry id="oe_zhk_orenda_type"><text>"оренда"</text></outputEntry>
-        <outputEntry id="oe_zhk_orenda_notes"><text>""</text></outputEntry>
+      <rule id="rule_aktaservis_ekspl">
+        <description>Акта-Сервіс: Експлуатаційні витрати — комунальні</description>
+        <inputEntry id="ie_124_line"><text>contains(?, "експлуатаційні витрати")</text></inputEntry>
+        <inputEntry id="ie_124_partner"><text>contains(?, "Акта-Сервіс")</text></inputEntry>
+        <inputEntry id="ie_124_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_124_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_124_notes"><text>"за місяць в якому виставлений рахунок"</text></outputEntry>
       </rule>
 
-      <rule id="rule_zhk_reklam">
-        <description>ЖМК: Рекламні послуги — оренда (входить до орендного пакету)</description>
-        <inputEntry id="ie_zhk_reklam"><text>contains(?, "рекламні послуги")</text></inputEntry>
-        <inputEntry id="ie_zhk_reklam_p"><text>"Житомирський меблевий комбінат"</text></inputEntry>
-        <outputEntry id="oe_zhk_reklam_type"><text>"оренда"</text></outputEntry>
-        <outputEntry id="oe_zhk_reklam_notes"><text>""</text></outputEntry>
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: ТОВ "СІТТІ ПРОСТІР" (підрозділи 919, 660)
+           Компенсація експлуатаційних витрат (ДП) = комунальні (генератор)
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_sitti_ekspl_dp">
+        <description>СІТТІ ПРОСТІР: Компенсація експлуатаційних витрат (ДП) — комунальні (генератор)</description>
+        <inputEntry id="ie_125_line"><text>contains(?, "компенсація експлуатаційних витрат (дп")</text></inputEntry>
+        <inputEntry id="ie_125_partner"><text>contains(?, "СІТТІ ПРОСТІР")</text></inputEntry>
+        <inputEntry id="ie_125_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_125_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_125_notes"><text>"генератор"</text></outputEntry>
       </rule>
 
-      <rule id="rule_zhk_komunal">
-        <description>ЖМК: Компенсація комунальних послуг — комунальні</description>
-        <inputEntry id="ie_zhk_komunal"><text>contains(?, "компенсація комунальних")</text></inputEntry>
-        <inputEntry id="ie_zhk_komunal_p"><text>"Житомирський меблевий комбінат"</text></inputEntry>
-        <outputEntry id="oe_zhk_komunal_type"><text>"комунальні"</text></outputEntry>
-        <outputEntry id="oe_zhk_komunal_notes"><text>""</text></outputEntry>
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: КЕРУЮЧА КОМПАНІЯ "ІНВЕСТ ПРОСТІР" (підрозділ 912)
+           Відшкодування експлуатаційних витрат (...) = комунальні
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_investprostir_vidshkod">
+        <description>ІНВЕСТ ПРОСТІР: Відшкодування експлуатаційних витрат — комунальні</description>
+        <inputEntry id="ie_126_line"><text>contains(?, "відшкодування експлуатаційних витрат")</text></inputEntry>
+        <inputEntry id="ie_126_partner"><text>contains(?, "ІНВЕСТ ПРОСТІР")</text></inputEntry>
+        <inputEntry id="ie_126_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_126_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_126_notes"><text>""</text></outputEntry>
       </rule>
 
-      <!-- ═════════════════════════════════════════════════════════════════
-           ПОСТАЧАЛЬНИК: Логістик Ультра-плюс
-           Контрагент 1: Технопростір Плюс
-           Підрозділ:    ?
-           NB: не вказано за який місяць рахунок, тип та ключове слово
-               відсутні — правило буде додано коли дані будуть доповнені
-           ═════════════════════════════════════════════════════════════════ -->
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: ТзОВ "Львівбудмакс-Інвест" (підрозділи 605, 925)
+           Відшкодування експлуатаційних витрат за обслуговування
+           електрогенераторної установки = комунальні
+           ═══════════════════════════════════════════════════════════════ -->
 
-      <!-- ═════════════════════════════════════════════════════════════════
-           ПОСТАЧАЛЬНИК: ФОП Боднарчук Максим Олександрович
-           Контрагент 1: Козак Василь Миколайович
-           Підрозділ:    505
-           Контрагент вказаний в акті нижче рахунку, погоджує Сергій
-           ═════════════════════════════════════════════════════════════════ -->
-
-      <rule id="rule_bodnarchuk_orenda">
-        <description>Боднарчук: Оренда приміщення — оренда</description>
-        <inputEntry id="ie_bodnarchuk_orenda"><text>contains(?, "оренда приміщення")</text></inputEntry>
-        <inputEntry id="ie_bodnarchuk_orenda_p"><text>"ФОП Боднарчук Максим Олександрович"</text></inputEntry>
-        <outputEntry id="oe_bodnarchuk_orenda_type"><text>"оренда"</text></outputEntry>
-        <outputEntry id="oe_bodnarchuk_orenda_notes"><text>"контрагент вказаний в акті нижче рахунку, погоджує Сергій"</text></outputEntry>
+      <rule id="rule_lvivbudmaks_generator">
+        <description>Львівбудмакс-Інвест: Відшкодування за електрогенераторну установку — комунальні</description>
+        <inputEntry id="ie_127_line"><text>contains(?, "електрогенераторн")</text></inputEntry>
+        <inputEntry id="ie_127_partner"><text>contains(?, "Львівбудмакс")</text></inputEntry>
+        <inputEntry id="ie_127_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_127_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_127_notes"><text>""</text></outputEntry>
       </rule>
 
-      <!-- ═════════════════════════════════════════════════════════════════
-           ПОСТАЧАЛЬНИК: ВД Текстиль
-           Контрагент 1: Технопростір Плюс
-           Підрозділ:    404
-           Фото рахунку поганої якості, два договори оренди
-           ═════════════════════════════════════════════════════════════════ -->
 
-      <rule id="rule_vd_orenda">
-        <description>ВД Текстиль: Договір оренди — оренда</description>
-        <inputEntry id="ie_vd_orenda"><text>contains(?, "договір оренди")</text></inputEntry>
-        <inputEntry id="ie_vd_orenda_p"><text>"ВД Текстиль"</text></inputEntry>
-        <outputEntry id="oe_vd_orenda_type"><text>"оренда"</text></outputEntry>
-        <outputEntry id="oe_vd_orenda_notes"><text>"фото рахунку поганої якості"</text></outputEntry>
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: ТОВ "ТРЦ НІКОЛЬСЬКИЙ"
+           Для ТОВ (покупець) — оренда, для ФОП — комунальні
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_nikolsky_fop_ekspl">
+        <description>ТРЦ НІКОЛЬСЬКИЙ + ФОП: Експлуатаційні витрати — комунальні</description>
+        <inputEntry id="ie_129_line"><text>contains(?, "експлуатаційні витрати")</text></inputEntry>
+        <inputEntry id="ie_129_partner"><text>contains(?, "НІКОЛЬСЬКИЙ")</text></inputEntry>
+        <inputEntry id="ie_129_buyer"><text>contains(?, "ФОП")</text></inputEntry>
+        <outputEntry id="oe_129_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_129_notes"><text>"Договір оренди приміщення (склад)"</text></outputEntry>
       </rule>
 
-      <!-- ═════════════════════════════════════════════════════════════════
-           ПОСТАЧАЛЬНИК: ЛЮБАВА СІТІ ТОВ
-           Контрагент 1: Технопростір Плюс
-           Підрозділи:   915 (40 м.кв.), 670 (76.9 м.кв.)
-           Підрозділ визначається по площі
-           ═════════════════════════════════════════════════════════════════ -->
-
-      <rule id="rule_lubava_market">
-        <description>ЛЮБАВА СІТІ: Послуги з маркетингу — оренда</description>
-        <inputEntry id="ie_lubava_market"><text>contains(?, "послуги з маркетингу")</text></inputEntry>
-        <inputEntry id="ie_lubava_market_p"><text>"ЛЮБАВА СІТІ ТОВ"</text></inputEntry>
-        <outputEntry id="oe_lubava_market_type"><text>"оренда"</text></outputEntry>
-        <outputEntry id="oe_lubava_market_notes"><text>"визначаю підрозділ по площі: 40 м.кв.=915, 76.9 м.кв.=670"</text></outputEntry>
+      <rule id="rule_nikolsky_fop_market">
+        <description>ТРЦ НІКОЛЬСЬКИЙ + ФОП: Маркетингові послуги — комунальні</description>
+        <inputEntry id="ie_130_line"><text>contains(?, "маркетинг")</text></inputEntry>
+        <inputEntry id="ie_130_partner"><text>contains(?, "НІКОЛЬСЬКИЙ")</text></inputEntry>
+        <inputEntry id="ie_130_buyer"><text>contains(?, "ФОП")</text></inputEntry>
+        <outputEntry id="oe_130_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_130_notes"><text>""</text></outputEntry>
       </rule>
 
-      <rule id="rule_lubava_ekspl">
-        <description>ЛЮБАВА СІТІ: Експлуатаційні витрати — оренда</description>
-        <inputEntry id="ie_lubava_ekspl"><text>contains(?, "експлуатаційні витрати")</text></inputEntry>
-        <inputEntry id="ie_lubava_ekspl_p"><text>"ЛЮБАВА СІТІ ТОВ"</text></inputEntry>
-        <outputEntry id="oe_lubava_ekspl_type"><text>"оренда"</text></outputEntry>
-        <outputEntry id="oe_lubava_ekspl_notes"><text>"визначаю підрозділ по площі: 40 м.кв.=915, 76.9 м.кв.=670"</text></outputEntry>
+      <rule id="rule_nikolsky_fop_ekspl_poslugy">
+        <description>ТРЦ НІКОЛЬСЬКИЙ + ФОП: Експлуатаційні послуги — комунальні</description>
+        <inputEntry id="ie_131_line"><text>contains(?, "експлуатаційні послуги")</text></inputEntry>
+        <inputEntry id="ie_131_partner"><text>contains(?, "НІКОЛЬСЬКИЙ")</text></inputEntry>
+        <inputEntry id="ie_131_buyer"><text>contains(?, "ФОП")</text></inputEntry>
+        <outputEntry id="oe_131_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_131_notes"><text>""</text></outputEntry>
       </rule>
 
-      <!-- ═════════════════════════════════════════════════════════════════
-           ПОСТАЧАЛЬНИК: Кропперс груп
-           Контрагент 1: Дзісь Ольга Володимирівна
-           Підрозділ:    646
-           Виставляють рахунок на ДИКА О замість Дзісь О
-           ═════════════════════════════════════════════════════════════════ -->
+      <!-- ═══════════════════════════════════════════════════════════════
+           ПОСТАЧАЛЬНИК: ХКП "Спецкомунтранс"
+           Рахунок приходить на ФОП Ногаль, адреса магазину в назві позиції
+           ═══════════════════════════════════════════════════════════════ -->
 
-      <!-- Суборенда → оренда -->
-      <rule id="rule_kroppers_suborenda">
-        <description>Кропперс: Суборенда — оренда</description>
-        <inputEntry id="ie_kroppers_sub"><text>contains(?, "суборенда")</text></inputEntry>
-        <inputEntry id="ie_kroppers_sub_p"><text>"Кропперс груп"</text></inputEntry>
-        <outputEntry id="oe_kroppers_sub_type"><text>"оренда"</text></outputEntry>
-        <outputEntry id="oe_kroppers_sub_notes"><text>"виставляють рахунок на ДИКА О замість Дзісь О"</text></outputEntry>
+      <rule id="rule_speckomuntrans">
+        <description>Спецкомунтранс: вул.Проскурівська — комунальні (вивіз сміття)</description>
+        <inputEntry id="ie_128_line"><text></text></inputEntry>
+        <inputEntry id="ie_128_partner"><text>contains(?, "Спецкомунтранс")</text></inputEntry>
+        <inputEntry id="ie_128_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_128_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_128_notes"><text>"рахунок приходить на ФОП Ногаль, обираю суму по нашому магазину"</text></outputEntry>
       </rule>
 
-      <!-- Сервісне обслуговування → оренда -->
-      <rule id="rule_kroppers_servis">
-        <description>Кропперс: Сервісне обслуговування — оренда</description>
-        <inputEntry id="ie_kroppers_servis"><text>contains(?, "сервісне обслуговування")</text></inputEntry>
-        <inputEntry id="ie_kroppers_servis_p"><text>"Кропперс груп"</text></inputEntry>
-        <outputEntry id="oe_kroppers_servis_type"><text>"оренда"</text></outputEntry>
-        <outputEntry id="oe_kroppers_servis_notes"><text>""</text></outputEntry>
+      <!-- ═══════════════════════════════════════════════════════════════
+           ОРЕНДА: специфічні назви що містять "відшкодування"/"компенсація"
+           Ці правила мають бути ПЕРЕД загальними комунальними,
+           інакше будуть неправильно класифіковані
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_orenda_vidshkod_ekspl">
+        <description>Відшкодування експлуатаційних витрат/виплат — оренда</description>
+        <inputEntry id="ie_024_line"><text>contains(?, "відшкодування експлуатаційн")</text></inputEntry>
+        <inputEntry id="ie_024_partner"><text></text></inputEntry>
+        <inputEntry id="ie_024_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_024_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_024_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_orenda_vidshkod_market">
+        <description>Відшкодування маркетингової суборендної плати — оренда</description>
+        <inputEntry id="ie_025_line"><text>contains(?, "відшкодування маркетингов")</text></inputEntry>
+        <inputEntry id="ie_025_partner"><text></text></inputEntry>
+        <inputEntry id="ie_025_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_025_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_025_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_orenda_kompens_ekspl">
+        <description>Компенсація експлуатаційних витрат — оренда</description>
+        <inputEntry id="ie_026_line"><text>contains(?, "компенсація експлуатаційних")</text></inputEntry>
+        <inputEntry id="ie_026_partner"><text></text></inputEntry>
+        <inputEntry id="ie_026_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_026_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_026_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_orenda_kompens_market">
+        <description>Компенсація маркетингових витрат — оренда</description>
+        <inputEntry id="ie_027_line"><text>contains(?, "компенсація маркетингових")</text></inputEntry>
+        <inputEntry id="ie_027_partner"><text></text></inputEntry>
+        <inputEntry id="ie_027_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_027_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_027_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_orenda_dodatkova_kompens_ekspl">
+        <description>Додаткова компенсація експлуатаційних витрат — оренда</description>
+        <inputEntry id="ie_028_line"><text>contains(?, "додаткова компенсація експлуатаційних")</text></inputEntry>
+        <inputEntry id="ie_028_partner"><text></text></inputEntry>
+        <inputEntry id="ie_028_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_028_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_028_notes"><text>""</text></outputEntry>
       </rule>
 
-      <!-- Маркетингові послуги → оренда (НЕ комунальні, на відміну від Герман!) -->
-      <rule id="rule_kroppers_market">
-        <description>Кропперс: Маркетингові послуги — оренда (входить до орендного пакету)</description>
-        <inputEntry id="ie_kroppers_market"><text>contains(?, "маркетингові послуги")</text></inputEntry>
-        <inputEntry id="ie_kroppers_market_p"><text>"Кропперс груп"</text></inputEntry>
-        <outputEntry id="oe_kroppers_market_type"><text>"оренда"</text></outputEntry>
-        <outputEntry id="oe_kroppers_market_notes"><text>""</text></outputEntry>
+      <!-- ═══════════════════════════════════════════════════════════════
+           КОМУНАЛЬНІ: відшкодування (з уточненням типу послуги)
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_kw_vidshkod_vartosti">
+        <description>Відшкодування вартості... — комунальні</description>
+        <inputEntry id="ie_029_line"><text>contains(?, "відшкодування вартості")</text></inputEntry>
+        <inputEntry id="ie_029_partner"><text></text></inputEntry>
+        <inputEntry id="ie_029_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_029_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_029_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_vidshkod_komunaln">
+        <description>Відшкодування комунальних... — комунальні</description>
+        <inputEntry id="ie_030_line"><text>contains(?, "відшкодування комунальн")</text></inputEntry>
+        <inputEntry id="ie_030_partner"><text></text></inputEntry>
+        <inputEntry id="ie_030_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_030_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_030_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_vidshkod_komunal_posl">
+        <description>Відшкодування комунал.посл... — комунальні</description>
+        <inputEntry id="ie_031_line"><text>contains(?, "відшкодування комунал.посл")</text></inputEntry>
+        <inputEntry id="ie_031_partner"><text></text></inputEntry>
+        <inputEntry id="ie_031_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_031_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_031_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_vidshkod_kom_posl">
+        <description>Відшкодування ком.послуг... — комунальні</description>
+        <inputEntry id="ie_032_line"><text>contains(?, "відшкодування ком.послуг")</text></inputEntry>
+        <inputEntry id="ie_032_partner"><text></text></inputEntry>
+        <inputEntry id="ie_032_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_032_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_032_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_vidshkod_vodo">
+        <description>Відшкодування водо... — комунальні</description>
+        <inputEntry id="ie_033_line"><text>contains(?, "відшкодування водо")</text></inputEntry>
+        <inputEntry id="ie_033_partner"><text></text></inputEntry>
+        <inputEntry id="ie_033_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_033_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_033_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_vidshkod_rozpodilu">
+        <description>Відшкодування розподілу... — комунальні</description>
+        <inputEntry id="ie_034_line"><text>contains(?, "відшкодування розподілу")</text></inputEntry>
+        <inputEntry id="ie_034_partner"><text></text></inputEntry>
+        <inputEntry id="ie_034_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_034_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_034_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_vidshkod_balans">
+        <description>Відшкодування балансоутримувача — комунальні</description>
+        <inputEntry id="ie_035_line"><text>contains(?, "відшкодування балансоутрим")</text></inputEntry>
+        <inputEntry id="ie_035_partner"><text></text></inputEntry>
+        <inputEntry id="ie_035_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_035_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_035_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_vidshkod_chastyny">
+        <description>Відшкодування частини витрат — комунальні</description>
+        <inputEntry id="ie_036_line"><text>contains(?, "відшкодування частини витрат")</text></inputEntry>
+        <inputEntry id="ie_036_partner"><text></text></inputEntry>
+        <inputEntry id="ie_036_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_036_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_036_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_vidshkod_nerozpodil">
+        <description>Відшкодування нерозподілених витрат — комунальні</description>
+        <inputEntry id="ie_037_line"><text>contains(?, "відшкодування нерозподілених")</text></inputEntry>
+        <inputEntry id="ie_037_partner"><text></text></inputEntry>
+        <inputEntry id="ie_037_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_037_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_037_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_vidshkod_dodatkovy">
+        <description>Відшкодування додаткових витрат — комунальні</description>
+        <inputEntry id="ie_038_line"><text>contains(?, "відшкодування додаткових")</text></inputEntry>
+        <inputEntry id="ie_038_partner"><text></text></inputEntry>
+        <inputEntry id="ie_038_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_038_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_038_notes"><text>""</text></outputEntry>
       </rule>
 
-      <!-- Відшкодування ком.послуг (4 види: ел., реактивна ел., вода, опалення) → комунальні -->
-      <rule id="rule_kroppers_komunal">
-        <description>Кропперс: Відшкодування ком.послуг — комунальні</description>
-        <inputEntry id="ie_kroppers_komunal"><text>contains(?, "відшкодування ком.послуг")</text></inputEntry>
-        <inputEntry id="ie_kroppers_komunal_p"><text>"Кропперс груп"</text></inputEntry>
-        <outputEntry id="oe_kroppers_komunal_type"><text>"комунальні"</text></outputEntry>
-        <outputEntry id="oe_kroppers_komunal_notes"><text>""</text></outputEntry>
+      <!-- ═══════════════════════════════════════════════════════════════
+           КОМУНАЛЬНІ: відшкодування витрат / відшкодування за
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_kw_vidshkod_vytrat">
+        <description>Відшкодування витрат... — комунальні</description>
+        <inputEntry id="ie_039_line"><text>contains(?, "відшкодування витрат")</text></inputEntry>
+        <inputEntry id="ie_039_partner"><text></text></inputEntry>
+        <inputEntry id="ie_039_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_039_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_039_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_vidshkod_za">
+        <description>Відшкодування за... — комунальні</description>
+        <inputEntry id="ie_040_line"><text>contains(?, "відшкодування за")</text></inputEntry>
+        <inputEntry id="ie_040_partner"><text></text></inputEntry>
+        <inputEntry id="ie_040_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_040_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_040_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_vidshkoduyvannya">
+        <description>Відшкоування (з помилкою) — комунальні</description>
+        <inputEntry id="ie_041_line"><text>contains(?, "відшкоування")</text></inputEntry>
+        <inputEntry id="ie_041_partner"><text></text></inputEntry>
+        <inputEntry id="ie_041_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_041_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_041_notes"><text>""</text></outputEntry>
       </rule>
 
-      <!-- ═════════════════════════════════════════════════════════════════
-           ЗАГАЛЬНІ ПРАВИЛА (catch-all)
-           ═════════════════════════════════════════════════════════════════ -->
+      <!-- ═══════════════════════════════════════════════════════════════
+           КОМУНАЛЬНІ: компенсація (з уточненням типу послуги)
+           ═══════════════════════════════════════════════════════════════ -->
 
-      <rule id="rule_fallback_orenda">
-        <description>Загальне: будь-яка позиція зі словом "оренд" — оренда</description>
-        <inputEntry id="ie_fb_orenda"><text>contains(?, "оренд")</text></inputEntry>
-        <inputEntry id="ie_fb_orenda_p"><text></text></inputEntry>
-        <outputEntry id="oe_fb_orenda_type"><text>"оренда"</text></outputEntry>
-        <outputEntry id="oe_fb_orenda_notes"><text>"постачальник не знайдений в DMN — перевірте вручну"</text></outputEntry>
+      <rule id="rule_kw_kompens_vartosti">
+        <description>Компенсація вартості... — комунальні</description>
+        <inputEntry id="ie_042_line"><text>contains(?, "компенсація вартості")</text></inputEntry>
+        <inputEntry id="ie_042_partner"><text></text></inputEntry>
+        <inputEntry id="ie_042_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_042_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_042_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kompens_komunaln">
+        <description>Компенсація комунальних... — комунальні</description>
+        <inputEntry id="ie_043_line"><text>contains(?, "компенсація комунальних")</text></inputEntry>
+        <inputEntry id="ie_043_partner"><text></text></inputEntry>
+        <inputEntry id="ie_043_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_043_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_043_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kompens_vytrat">
+        <description>Компенсація витрат... — комунальні</description>
+        <inputEntry id="ie_044_line"><text>contains(?, "компенсація витрат")</text></inputEntry>
+        <inputEntry id="ie_044_partner"><text></text></inputEntry>
+        <inputEntry id="ie_044_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_044_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_044_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kompens_vtrat">
+        <description>Компенсація втрат... — комунальні</description>
+        <inputEntry id="ie_045_line"><text>contains(?, "компенсація втрат")</text></inputEntry>
+        <inputEntry id="ie_045_partner"><text></text></inputEntry>
+        <inputEntry id="ie_045_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_045_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_045_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kompens_za">
+        <description>Компенсація за... — комунальні</description>
+        <inputEntry id="ie_046_line"><text>contains(?, "компенсація за")</text></inputEntry>
+        <inputEntry id="ie_046_partner"><text></text></inputEntry>
+        <inputEntry id="ie_046_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_046_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_046_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kompenzatsiya">
+        <description>Компензація (з помилкою) — комунальні</description>
+        <inputEntry id="ie_047_line"><text>contains(?, "компензація")</text></inputEntry>
+        <inputEntry id="ie_047_partner"><text></text></inputEntry>
+        <inputEntry id="ie_047_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_047_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_047_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kompens_elektro">
+        <description>Компенсація електро... — комунальні</description>
+        <inputEntry id="ie_048_line"><text>contains(?, "компенсація електро")</text></inputEntry>
+        <inputEntry id="ie_048_partner"><text></text></inputEntry>
+        <inputEntry id="ie_048_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_048_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_048_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kompens_gazo">
+        <description>Компенсація газо... — комунальні</description>
+        <inputEntry id="ie_049_line"><text>contains(?, "компенсація газо")</text></inputEntry>
+        <inputEntry id="ie_049_partner"><text></text></inputEntry>
+        <inputEntry id="ie_049_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_049_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_049_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kompens_teplo">
+        <description>Компенсація тепло... — комунальні</description>
+        <inputEntry id="ie_050_line"><text>contains(?, "компенсація тепло")</text></inputEntry>
+        <inputEntry id="ie_050_partner"><text></text></inputEntry>
+        <inputEntry id="ie_050_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_050_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_050_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kompens_utrymannya">
+        <description>Компенсація утримання... — комунальні</description>
+        <inputEntry id="ie_051_line"><text>contains(?, "компенсація утримання")</text></inputEntry>
+        <inputEntry id="ie_051_partner"><text></text></inputEntry>
+        <inputEntry id="ie_051_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_051_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_051_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kompens_roboty">
+        <description>Компенсація роботи обладнання — комунальні</description>
+        <inputEntry id="ie_052_line"><text>contains(?, "компенсація роботи")</text></inputEntry>
+        <inputEntry id="ie_052_partner"><text></text></inputEntry>
+        <inputEntry id="ie_052_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_052_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_052_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kompen_skroch">
+        <description>Компен. вит (скорочення) — комунальні</description>
+        <inputEntry id="ie_053_line"><text>contains(?, "компен. вит")</text></inputEntry>
+        <inputEntry id="ie_053_partner"><text></text></inputEntry>
+        <inputEntry id="ie_053_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_053_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_053_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kompens_skroch2">
+        <description>Компенс. витрат (скорочення) — комунальні</description>
+        <inputEntry id="ie_054_line"><text>contains(?, "компенс. витрат")</text></inputEntry>
+        <inputEntry id="ie_054_partner"><text></text></inputEntry>
+        <inputEntry id="ie_054_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_054_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_054_notes"><text>""</text></outputEntry>
       </rule>
 
-      <rule id="rule_fallback_komunal">
-        <description>Загальне: будь-яка позиція зі словом "комунальн" — комунальні</description>
-        <inputEntry id="ie_fb_komunal"><text>contains(?, "комунальн")</text></inputEntry>
-        <inputEntry id="ie_fb_komunal_p"><text></text></inputEntry>
-        <outputEntry id="oe_fb_komunal_type"><text>"комунальні"</text></outputEntry>
-        <outputEntry id="oe_fb_komunal_notes"><text>"постачальник не знайдений в DMN — перевірте вручну"</text></outputEntry>
+      <!-- ═══════════════════════════════════════════════════════════════
+           КОМУНАЛЬНІ: електроенергія, вода, опалення, газ — прямі ключові слова
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_kw_elektroenerh">
+        <description>Електроенерг... — комунальні</description>
+        <inputEntry id="ie_055_line"><text>contains(?, "електроенерг")</text></inputEntry>
+        <inputEntry id="ie_055_partner"><text></text></inputEntry>
+        <inputEntry id="ie_055_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_055_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_055_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_elektropostach">
+        <description>Електропостач... — комунальні</description>
+        <inputEntry id="ie_056_line"><text>contains(?, "електропостач")</text></inputEntry>
+        <inputEntry id="ie_056_partner"><text></text></inputEntry>
+        <inputEntry id="ie_056_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_056_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_056_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_elekroenerhiya">
+        <description>Елекроенергія (з помилкою) — комунальні</description>
+        <inputEntry id="ie_057_line"><text>contains(?, "елекроенергія")</text></inputEntry>
+        <inputEntry id="ie_057_partner"><text></text></inputEntry>
+        <inputEntry id="ie_057_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_057_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_057_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_el_enerhiya">
+        <description>Ел./енегргія (скорочення) — комунальні</description>
+        <inputEntry id="ie_058_line"><text>contains(?, "ел./енегргія")</text></inputEntry>
+        <inputEntry id="ie_058_partner"><text></text></inputEntry>
+        <inputEntry id="ie_058_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_058_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_058_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_el_enerhiya2">
+        <description>Ел. енергі... — комунальні</description>
+        <inputEntry id="ie_059_line"><text>contains(?, "ел. енергі")</text></inputEntry>
+        <inputEntry id="ie_059_partner"><text></text></inputEntry>
+        <inputEntry id="ie_059_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_059_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_059_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_elektromerezh">
+        <description>Електромереж... — комунальні</description>
+        <inputEntry id="ie_060_line"><text>contains(?, "електромереж")</text></inputEntry>
+        <inputEntry id="ie_060_partner"><text></text></inputEntry>
+        <inputEntry id="ie_060_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_060_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_060_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_vodopotach">
+        <description>Водопостач... — комунальні</description>
+        <inputEntry id="ie_061_line"><text>contains(?, "водопостач")</text></inputEntry>
+        <inputEntry id="ie_061_partner"><text></text></inputEntry>
+        <inputEntry id="ie_061_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_061_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_061_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_vodovdved">
+        <description>Водовідвед... — комунальні</description>
+        <inputEntry id="ie_062_line"><text>contains(?, "водовідвед")</text></inputEntry>
+        <inputEntry id="ie_062_partner"><text></text></inputEntry>
+        <inputEntry id="ie_062_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_062_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_062_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kanalizats">
+        <description>Каналізац... — комунальні</description>
+        <inputEntry id="ie_063_line"><text>contains(?, "каналізац")</text></inputEntry>
+        <inputEntry id="ie_063_partner"><text></text></inputEntry>
+        <inputEntry id="ie_063_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_063_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_063_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_opalennya">
+        <description>Опалення — комунальні</description>
+        <inputEntry id="ie_064_line"><text>contains(?, "опалення")</text></inputEntry>
+        <inputEntry id="ie_064_partner"><text></text></inputEntry>
+        <inputEntry id="ie_064_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_064_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_064_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_teplopostach">
+        <description>Теплопостач... — комунальні</description>
+        <inputEntry id="ie_065_line"><text>contains(?, "теплопостач")</text></inputEntry>
+        <inputEntry id="ie_065_partner"><text></text></inputEntry>
+        <inputEntry id="ie_065_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_065_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_065_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_teplovu_enerh">
+        <description>Теплову енергі... — комунальні</description>
+        <inputEntry id="ie_066_line"><text>contains(?, "теплову енергі")</text></inputEntry>
+        <inputEntry id="ie_066_partner"><text></text></inputEntry>
+        <inputEntry id="ie_066_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_066_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_066_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_teploenerh">
+        <description>Теплоенерг... — комунальні</description>
+        <inputEntry id="ie_067_line"><text>contains(?, "теплоенерг")</text></inputEntry>
+        <inputEntry id="ie_067_partner"><text></text></inputEntry>
+        <inputEntry id="ie_067_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_067_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_067_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_teplove_navant">
+        <description>Теплове навантаження — комунальні</description>
+        <inputEntry id="ie_068_line"><text>contains(?, "теплове навантаження")</text></inputEntry>
+        <inputEntry id="ie_068_partner"><text></text></inputEntry>
+        <inputEntry id="ie_068_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_068_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_068_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_gazopstach">
+        <description>Газопостач... — комунальні</description>
+        <inputEntry id="ie_069_line"><text>contains(?, "газопостач")</text></inputEntry>
+        <inputEntry id="ie_069_partner"><text></text></inputEntry>
+        <inputEntry id="ie_069_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_069_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_069_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_pryrodnogo_gaz">
+        <description>Природного газ... — комунальні</description>
+        <inputEntry id="ie_070_line"><text>contains(?, "природного газ")</text></inputEntry>
+        <inputEntry id="ie_070_partner"><text></text></inputEntry>
+        <inputEntry id="ie_070_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_070_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_070_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_pryrodnoho_gaz">
+        <description>Природнього газ... — комунальні</description>
+        <inputEntry id="ie_071_line"><text>contains(?, "природнього газ")</text></inputEntry>
+        <inputEntry id="ie_071_partner"><text></text></inputEntry>
+        <inputEntry id="ie_071_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_071_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_071_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_spozhytyy_gaz">
+        <description>Спожитий газ — комунальні</description>
+        <inputEntry id="ie_072_line"><text>contains(?, "спожитий газ")</text></inputEntry>
+        <inputEntry id="ie_072_partner"><text></text></inputEntry>
+        <inputEntry id="ie_072_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_072_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_072_notes"><text>""</text></outputEntry>
       </rule>
 
-      <rule id="rule_fallback_ekspl">
-        <description>Загальне: будь-яка позиція зі словом "експлуатаці" — комунальні</description>
-        <inputEntry id="ie_fb_ekspl"><text>contains(?, "експлуатаці")</text></inputEntry>
-        <inputEntry id="ie_fb_ekspl_p"><text></text></inputEntry>
-        <outputEntry id="oe_fb_ekspl_type"><text>"комунальні"</text></outputEntry>
-        <outputEntry id="oe_fb_ekspl_notes"><text>"постачальник не знайдений в DMN — перевірте вручну"</text></outputEntry>
+      <!-- ═══════════════════════════════════════════════════════════════
+           КОМУНАЛЬНІ: генератор, альтернативні джерела, вентиляція, кондиціонування
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_kw_generator">
+        <description>Генератор... — комунальні</description>
+        <inputEntry id="ie_073_line"><text>contains(?, "генератор")</text></inputEntry>
+        <inputEntry id="ie_073_partner"><text></text></inputEntry>
+        <inputEntry id="ie_073_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_073_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_073_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_alternatyvn">
+        <description>Альтернативн... джерела — комунальні</description>
+        <inputEntry id="ie_074_line"><text>contains(?, "альтернативн")</text></inputEntry>
+        <inputEntry id="ie_074_partner"><text></text></inputEntry>
+        <inputEntry id="ie_074_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_074_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_074_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kondytsionuv">
+        <description>Кондиціонув... — комунальні</description>
+        <inputEntry id="ie_075_line"><text>contains(?, "кондиціонув")</text></inputEntry>
+        <inputEntry id="ie_075_partner"><text></text></inputEntry>
+        <inputEntry id="ie_075_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_075_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_075_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kondytsiyuv">
+        <description>Кондиціювання — комунальні</description>
+        <inputEntry id="ie_076_line"><text>contains(?, "кондиціювання")</text></inputEntry>
+        <inputEntry id="ie_076_partner"><text></text></inputEntry>
+        <inputEntry id="ie_076_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_076_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_076_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_ventylyats">
+        <description>Вентиляц... — комунальні</description>
+        <inputEntry id="ie_077_line"><text>contains(?, "вентиляц")</text></inputEntry>
+        <inputEntry id="ie_077_partner"><text></text></inputEntry>
+        <inputEntry id="ie_077_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_077_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_077_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_prytochno">
+        <description>Приточно-витяжна система — комунальні</description>
+        <inputEntry id="ie_078_line"><text>contains(?, "приточно-витяжн")</text></inputEntry>
+        <inputEntry id="ie_078_partner"><text></text></inputEntry>
+        <inputEntry id="ie_078_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_078_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_078_notes"><text>""</text></outputEntry>
       </rule>
 
-      <rule id="rule_fallback_suborenda">
-        <description>Загальне: будь-яка позиція зі словом "суборенд" — оренда</description>
-        <inputEntry id="ie_fb_suborenda"><text>contains(?, "суборенд")</text></inputEntry>
-        <inputEntry id="ie_fb_suborenda_p"><text></text></inputEntry>
-        <outputEntry id="oe_fb_suborenda_type"><text>"оренда"</text></outputEntry>
-        <outputEntry id="oe_fb_suborenda_notes"><text>"постачальник не знайдений в DMN — перевірте вручну"</text></outputEntry>
+      <!-- ═══════════════════════════════════════════════════════════════
+           КОМУНАЛЬНІ: вивіз сміття, відходи, вода
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_kw_vyviz">
+        <description>Вивіз... (сміття/ТПВ) — комунальні</description>
+        <inputEntry id="ie_079_line"><text>contains(?, "вивіз")</text></inputEntry>
+        <inputEntry id="ie_079_partner"><text></text></inputEntry>
+        <inputEntry id="ie_079_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_079_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_079_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_utylizats">
+        <description>Утилізац... — комунальні</description>
+        <inputEntry id="ie_080_line"><text>contains(?, "утилізац")</text></inputEntry>
+        <inputEntry id="ie_080_partner"><text></text></inputEntry>
+        <inputEntry id="ie_080_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_080_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_080_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_pobutov">
+        <description>Побутов... відходи — комунальні</description>
+        <inputEntry id="ie_081_line"><text>contains(?, "побутов")</text></inputEntry>
+        <inputEntry id="ie_081_partner"><text></text></inputEntry>
+        <inputEntry id="ie_081_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_081_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_081_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_spozhytu_vodu">
+        <description>Спожиту воду — комунальні</description>
+        <inputEntry id="ie_082_line"><text>contains(?, "спожиту воду")</text></inputEntry>
+        <inputEntry id="ie_082_partner"><text></text></inputEntry>
+        <inputEntry id="ie_082_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_082_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_082_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_hariachu_vodu">
+        <description>Гарячу воду — комунальні</description>
+        <inputEntry id="ie_083_line"><text>contains(?, "гарячу воду")</text></inputEntry>
+        <inputEntry id="ie_083_partner"><text></text></inputEntry>
+        <inputEntry id="ie_083_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_083_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_083_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_kholodnu_vodu">
+        <description>Холодну воду — комунальні</description>
+        <inputEntry id="ie_084_line"><text>contains(?, "холодну воду")</text></inputEntry>
+        <inputEntry id="ie_084_partner"><text></text></inputEntry>
+        <inputEntry id="ie_084_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_084_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_084_notes"><text>""</text></outputEntry>
       </rule>
 
-      <rule id="rule_fallback_vidshkod">
-        <description>Загальне: будь-яке відшкодування ком.послуг — комунальні</description>
-        <inputEntry id="ie_fb_vidshkod"><text>contains(?, "відшкодування ком")</text></inputEntry>
-        <inputEntry id="ie_fb_vidshkod_p"><text></text></inputEntry>
-        <outputEntry id="oe_fb_vidshkod_type"><text>"комунальні"</text></outputEntry>
-        <outputEntry id="oe_fb_vidshkod_notes"><text>"постачальник не знайдений в DMN — перевірте вручну"</text></outputEntry>
+      <!-- ═══════════════════════════════════════════════════════════════
+           КОМУНАЛЬНІ: загальні площі, енергозабезпечення, котельня
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_kw_enerhozabezp">
+        <description>Енергозабезпеч... — комунальні</description>
+        <inputEntry id="ie_085_line"><text>contains(?, "енергозабезпеч")</text></inputEntry>
+        <inputEntry id="ie_085_partner"><text></text></inputEntry>
+        <inputEntry id="ie_085_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_085_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_085_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_enerhozabesp">
+        <description>Енергозабеспеч... (з помилкою) — комунальні</description>
+        <inputEntry id="ie_086_line"><text>contains(?, "енергозабеспеч")</text></inputEntry>
+        <inputEntry id="ie_086_partner"><text></text></inputEntry>
+        <inputEntry id="ie_086_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_086_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_086_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_ploshch_zahkor">
+        <description>Площ загального користування — комунальні</description>
+        <inputEntry id="ie_087_line"><text>contains(?, "площ загального користування")</text></inputEntry>
+        <inputEntry id="ie_087_partner"><text></text></inputEntry>
+        <inputEntry id="ie_087_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_087_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_087_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_mists_zahkor">
+        <description>Місць загального користування — комунальні</description>
+        <inputEntry id="ie_088_line"><text>contains(?, "місць загального користування")</text></inputEntry>
+        <inputEntry id="ie_088_partner"><text></text></inputEntry>
+        <inputEntry id="ie_088_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_088_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_088_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_obsluhovuvannya_ploshch">
+        <description>Обслуговування площ — комунальні</description>
+        <inputEntry id="ie_089_line"><text>contains(?, "обслуговування площ")</text></inputEntry>
+        <inputEntry id="ie_089_partner"><text></text></inputEntry>
+        <inputEntry id="ie_089_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_089_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_089_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_abonentske">
+        <description>Абонентське обслуговув... — комунальні</description>
+        <inputEntry id="ie_090_line"><text>contains(?, "абонентське обслуговув")</text></inputEntry>
+        <inputEntry id="ie_090_partner"><text></text></inputEntry>
+        <inputEntry id="ie_090_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_090_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_090_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_koteln">
+        <description>Котельн... — комунальні</description>
+        <inputEntry id="ie_091_line"><text>contains(?, "котельн")</text></inputEntry>
+        <inputEntry id="ie_091_partner"><text></text></inputEntry>
+        <inputEntry id="ie_091_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_091_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_091_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_fontan">
+        <description>Фонтан — комунальні</description>
+        <inputEntry id="ie_092_line"><text>contains(?, "фонтан")</text></inputEntry>
+        <inputEntry id="ie_092_partner"><text></text></inputEntry>
+        <inputEntry id="ie_092_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_092_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_092_notes"><text>""</text></outputEntry>
       </rule>
 
-      <rule id="rule_fallback_kompens">
-        <description>Загальне: будь-яка компенсація — комунальні</description>
-        <inputEntry id="ie_fb_kompens"><text>contains(?, "компенсац")</text></inputEntry>
-        <inputEntry id="ie_fb_kompens_p"><text></text></inputEntry>
-        <outputEntry id="oe_fb_kompens_type"><text>"комунальні"</text></outputEntry>
-        <outputEntry id="oe_fb_kompens_notes"><text>"постачальник не знайдений в DMN — перевірте вручну"</text></outputEntry>
+      <!-- ═══════════════════════════════════════════════════════════════
+           КОМУНАЛЬНІ: додатковий експлуатаційний платіж (генератори)
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_kw_dod_ekspl_platizh">
+        <description>Додатковий експлуатаційний платіж — комунальні (генератори)</description>
+        <inputEntry id="ie_093_line"><text>contains(?, "додатковий експлуатаційний платіж")</text></inputEntry>
+        <inputEntry id="ie_093_partner"><text></text></inputEntry>
+        <inputEntry id="ie_093_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_093_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_093_notes"><text>""</text></outputEntry>
       </rule>
 
-      <!-- DEFAULT -->
+      <!-- ═══════════════════════════════════════════════════════════════
+           КОМУНАЛЬНІ: загальні ключові слова
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_kw_komunalnyh_poslug">
+        <description>Комунальних послуг — комунальні</description>
+        <inputEntry id="ie_094_line"><text>contains(?, "комунальних послуг")</text></inputEntry>
+        <inputEntry id="ie_094_partner"><text></text></inputEntry>
+        <inputEntry id="ie_094_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_094_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_094_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_komunalnyh_vytrat">
+        <description>Комунальних витрат — комунальні</description>
+        <inputEntry id="ie_095_line"><text>contains(?, "комунальних витрат")</text></inputEntry>
+        <inputEntry id="ie_095_partner"><text></text></inputEntry>
+        <inputEntry id="ie_095_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_095_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_095_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_komunaln">
+        <description>Комунальн... (загальне) — комунальні</description>
+        <inputEntry id="ie_096_line"><text>contains(?, "комунальн")</text></inputEntry>
+        <inputEntry id="ie_096_partner"><text></text></inputEntry>
+        <inputEntry id="ie_096_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_096_type"><text>"комунальні"</text></outputEntry>
+        <outputEntry id="oe_096_notes"><text>""</text></outputEntry>
+      </rule>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           ОРЕНДА: ключові слова орендних платежів
+           ═══════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_kw_orenda">
+        <description>Оренд... — оренда</description>
+        <inputEntry id="ie_097_line"><text>contains(?, "оренд")</text></inputEntry>
+        <inputEntry id="ie_097_partner"><text></text></inputEntry>
+        <inputEntry id="ie_097_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_097_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_097_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_suborenda">
+        <description>Суборенд... — оренда</description>
+        <inputEntry id="ie_098_line"><text>contains(?, "суборенд")</text></inputEntry>
+        <inputEntry id="ie_098_partner"><text></text></inputEntry>
+        <inputEntry id="ie_098_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_098_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_098_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_ekspl_platizh">
+        <description>Експлуатаційний платіж — оренда</description>
+        <inputEntry id="ie_099_line"><text>contains(?, "експлуатаційний платіж")</text></inputEntry>
+        <inputEntry id="ie_099_partner"><text></text></inputEntry>
+        <inputEntry id="ie_099_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_099_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_099_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_ekspl_vytraty">
+        <description>Експлуатаційні витрати — оренда</description>
+        <inputEntry id="ie_100_line"><text>contains(?, "експлуатаційні витрати")</text></inputEntry>
+        <inputEntry id="ie_100_partner"><text></text></inputEntry>
+        <inputEntry id="ie_100_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_100_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_100_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_ekspl_posluhy">
+        <description>Експлуатаційні послуги — оренда</description>
+        <inputEntry id="ie_101_line"><text>contains(?, "експлуатаційні послуги")</text></inputEntry>
+        <inputEntry id="ie_101_partner"><text></text></inputEntry>
+        <inputEntry id="ie_101_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_101_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_101_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_ekspl_platizh_skr">
+        <description>Екслуатаційний платіж (помилка) — оренда</description>
+        <inputEntry id="ie_102_line"><text>contains(?, "екслуатаційний платіж")</text></inputEntry>
+        <inputEntry id="ie_102_partner"><text></text></inputEntry>
+        <inputEntry id="ie_102_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_102_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_102_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_ekspl_ta_oper">
+        <description>Експлуатаційні та операційні витрати — оренда</description>
+        <inputEntry id="ie_103_line"><text>contains(?, "експлуатаційні та операційні")</text></inputEntry>
+        <inputEntry id="ie_103_partner"><text></text></inputEntry>
+        <inputEntry id="ie_103_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_103_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_103_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_ekspl_postluhy">
+        <description>Експлуатаційні постлуги (помилка) — оренда</description>
+        <inputEntry id="ie_104_line"><text>contains(?, "експлуатаційні постлуги")</text></inputEntry>
+        <inputEntry id="ie_104_partner"><text></text></inputEntry>
+        <inputEntry id="ie_104_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_104_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_104_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_ekspl_servs">
+        <description>Експлуатаційно-сервісні послуги — оренда</description>
+        <inputEntry id="ie_105_line"><text>contains(?, "експлуатаційно-сервісн")</text></inputEntry>
+        <inputEntry id="ie_105_partner"><text></text></inputEntry>
+        <inputEntry id="ie_105_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_105_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_105_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_ekspluatatsiya">
+        <description>Експлуатація і утримання — оренда</description>
+        <inputEntry id="ie_106_line"><text>contains(?, "експлуатація і утриман")</text></inputEntry>
+        <inputEntry id="ie_106_partner"><text></text></inputEntry>
+        <inputEntry id="ie_106_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_106_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_106_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_market_platizh">
+        <description>Маркетинговий платіж — оренда</description>
+        <inputEntry id="ie_107_line"><text>contains(?, "маркетинговий платіж")</text></inputEntry>
+        <inputEntry id="ie_107_partner"><text></text></inputEntry>
+        <inputEntry id="ie_107_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_107_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_107_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_market_posluhy">
+        <description>Маркетингові послуги — оренда</description>
+        <inputEntry id="ie_108_line"><text>contains(?, "маркетингові послуги")</text></inputEntry>
+        <inputEntry id="ie_108_partner"><text></text></inputEntry>
+        <inputEntry id="ie_108_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_108_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_108_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_market_vytraty">
+        <description>Маркетингові витрати — оренда</description>
+        <inputEntry id="ie_109_line"><text>contains(?, "маркетингові витрати")</text></inputEntry>
+        <inputEntry id="ie_109_partner"><text></text></inputEntry>
+        <inputEntry id="ie_109_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_109_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_109_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_market_platezhi">
+        <description>Маркетингові платежі — оренда</description>
+        <inputEntry id="ie_110_line"><text>contains(?, "маркетингові платежі")</text></inputEntry>
+        <inputEntry id="ie_110_partner"><text></text></inputEntry>
+        <inputEntry id="ie_110_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_110_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_110_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_marketing">
+        <description>Маркетинг... (загальне) — оренда</description>
+        <inputEntry id="ie_111_line"><text>contains(?, "маркетинг")</text></inputEntry>
+        <inputEntry id="ie_111_partner"><text></text></inputEntry>
+        <inputEntry id="ie_111_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_111_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_111_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_reklam">
+        <description>Рекламн... — оренда</description>
+        <inputEntry id="ie_112_line"><text>contains(?, "рекламн")</text></inputEntry>
+        <inputEntry id="ie_112_partner"><text></text></inputEntry>
+        <inputEntry id="ie_112_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_112_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_112_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_servisne">
+        <description>Сервісне обслуговування — оренда</description>
+        <inputEntry id="ie_113_line"><text>contains(?, "сервісне обслуговування")</text></inputEntry>
+        <inputEntry id="ie_113_partner"><text></text></inputEntry>
+        <inputEntry id="ie_113_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_113_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_113_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_posluhy_obsluv">
+        <description>Послуги з обслуговування — оренда</description>
+        <inputEntry id="ie_114_line"><text>contains(?, "послуги з обслуговування")</text></inputEntry>
+        <inputEntry id="ie_114_partner"><text></text></inputEntry>
+        <inputEntry id="ie_114_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_114_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_114_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_posluhy_market">
+        <description>Послуги з маркетингу — оренда</description>
+        <inputEntry id="ie_115_line"><text>contains(?, "послуги з маркетингу")</text></inputEntry>
+        <inputEntry id="ie_115_partner"><text></text></inputEntry>
+        <inputEntry id="ie_115_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_115_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_115_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_koefitsient">
+        <description>Коефіцієнт інфляції — оренда</description>
+        <inputEntry id="ie_116_line"><text>contains(?, "коефіцієнт інфляції")</text></inputEntry>
+        <inputEntry id="ie_116_partner"><text></text></inputEntry>
+        <inputEntry id="ie_116_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_116_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_116_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_doplatka_garantiy">
+        <description>Доплата до гарантійного платежу — оренда</description>
+        <inputEntry id="ie_117_line"><text>contains(?, "доплата до гарантійного")</text></inputEntry>
+        <inputEntry id="ie_117_partner"><text></text></inputEntry>
+        <inputEntry id="ie_117_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_117_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_117_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_plata_vid_oborotu">
+        <description>Плата від обороту/товарообороту — оренда</description>
+        <inputEntry id="ie_118_line"><text>contains(?, "плата від")</text></inputEntry>
+        <inputEntry id="ie_118_partner"><text></text></inputEntry>
+        <inputEntry id="ie_118_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_118_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_118_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_doplatka_tovarooborot">
+        <description>Доплата від товарообороту — оренда</description>
+        <inputEntry id="ie_119_line"><text>contains(?, "доплата від товарообороту")</text></inputEntry>
+        <inputEntry id="ie_119_partner"><text></text></inputEntry>
+        <inputEntry id="ie_119_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_119_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_119_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_bazova_orplata">
+        <description>Базова орендна плата — оренда</description>
+        <inputEntry id="ie_120_line"><text>contains(?, "базова ")</text></inputEntry>
+        <inputEntry id="ie_120_partner"><text></text></inputEntry>
+        <inputEntry id="ie_120_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_120_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_120_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_fiksovana">
+        <description>Фіксована суборенда — оренда</description>
+        <inputEntry id="ie_121_line"><text>contains(?, "фіксована")</text></inputEntry>
+        <inputEntry id="ie_121_partner"><text></text></inputEntry>
+        <inputEntry id="ie_121_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_121_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_121_notes"><text>""</text></outputEntry>
+      </rule>
+      <rule id="rule_kw_vitrazhna">
+        <description>Вітражна перегородка — оренда</description>
+        <inputEntry id="ie_122_line"><text>contains(?, "вітражна перегородка")</text></inputEntry>
+        <inputEntry id="ie_122_partner"><text></text></inputEntry>
+        <inputEntry id="ie_122_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_122_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_122_notes"><text>""</text></outputEntry>
+      </rule>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           DEFAULT — невідома позиція
+           ═══════════════════════════════════════════════════════════════ -->
 
       <rule id="rule_detail_default">
         <description>Невідома позиція і постачальник — потребує ручної класифікації</description>
-        <inputEntry id="ie_default_line"><text></text></inputEntry>
-        <inputEntry id="ie_default_partner"><text></text></inputEntry>
-        <outputEntry id="oe_default_type"><text>"оренда"</text></outputEntry>
-        <outputEntry id="oe_default_notes"><text>"УВАГА: позиція не розпізнана — класифікуйте вручну"</text></outputEntry>
+        <inputEntry id="ie_123_line"><text></text></inputEntry>
+        <inputEntry id="ie_123_partner"><text></text></inputEntry>
+        <inputEntry id="ie_123_buyer"><text></text></inputEntry>
+        <outputEntry id="oe_123_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_123_notes"><text>"УВАГА: позиція не розпізнана — класифікуйте вручну"</text></outputEntry>
       </rule>
 
     </decisionTable>
