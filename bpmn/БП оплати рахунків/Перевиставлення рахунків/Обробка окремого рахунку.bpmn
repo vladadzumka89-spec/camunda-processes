@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e787c33" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
   <bpmn:collaboration id="Collab_1">
-    <bpmn:participant id="Pool_1" name="Оплата рахунків оренда та комунальні (OCR)" processRef="Process_u0wy9yd" />
+    <bpmn:participant id="Pool_1" name="Обробка окремого рахунку" processRef="Process_u0wy9yd" />
   </bpmn:collaboration>
-  <bpmn:process id="Process_u0wy9yd" name="Оплата рахунків оренда та комунальні (OCR)" isExecutable="true">
+  <bpmn:process id="Process_u0wy9yd" name="Обробка окремого рахунку" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="1.0" />
+      <zeebe:versionTag value="2.0" />
     </bpmn:extensionElements>
     <bpmn:laneSet id="LaneSet_1">
       <bpmn:lane id="Lane_Odoo" name="Система">
@@ -13,7 +13,6 @@
         <bpmn:flowNodeRef>Gateway_0szlp8w</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Gateway_0ytub5u</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_main</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Activity_1mttmyv</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Gateway_1h51f9c</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_1h40odt" name="ДО3">
@@ -23,39 +22,39 @@
         <bpmn:flowNodeRef>Activity_122t5kt</bpmn:flowNodeRef>
       </bpmn:lane>
     </bpmn:laneSet>
-    <bpmn:sequenceFlow id="Flow_1wwa9rs" name="так" sourceRef="Gateway_0szlp8w" targetRef="Activity_122t5kt">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= lower case(x_studio_camunda_buyer_name) = "технопростір" or lower case(x_studio_camunda_buyer_name) = "технопростір плюс"</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="Flow_136grnh" name="ні" sourceRef="Gateway_0szlp8w" targetRef="Gateway_0ytub5u" />
-    <bpmn:sequenceFlow id="Flow_02h4e5s" sourceRef="Activity_122t5kt" targetRef="Gateway_0ytub5u" />
-    <bpmn:sequenceFlow id="Flow_01kli45" sourceRef="Gateway_0ytub5u" targetRef="End_main" />
-    <bpmn:sequenceFlow id="Flow_0k3j07w" sourceRef="Activity_0pb3hxn" targetRef="Gateway_0ytub5u" />
-    <bpmn:sequenceFlow id="Flow_0qckwrr" sourceRef="StartEvent_1" targetRef="Activity_1mttmyv" />
     <bpmn:startEvent id="StartEvent_1" name="Старт">
-      <bpmn:outgoing>Flow_0qckwrr</bpmn:outgoing>
+      <bpmn:outgoing>Flow_start_to_parallel</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:sequenceFlow id="Flow_0399ull" sourceRef="Gateway_1h51f9c" targetRef="Activity_0pb3hxn" />
-    <bpmn:exclusiveGateway id="Gateway_0szlp8w" name="Сторона рахунку ТОВ?" default="Flow_136grnh">
+    <bpmn:parallelGateway id="Gateway_1h51f9c">
+      <bpmn:incoming>Flow_start_to_parallel</bpmn:incoming>
+      <bpmn:outgoing>Flow_0399ull</bpmn:outgoing>
+      <bpmn:outgoing>Flow_182dhza</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:exclusiveGateway id="Gateway_0szlp8w" name="Рахунок на ТОВ Технопростір?" default="Flow_136grnh">
       <bpmn:incoming>Flow_182dhza</bpmn:incoming>
       <bpmn:outgoing>Flow_1wwa9rs</bpmn:outgoing>
       <bpmn:outgoing>Flow_136grnh</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:inclusiveGateway id="Gateway_0ytub5u">
-      <bpmn:incoming>Flow_0k3j07w</bpmn:incoming>
-      <bpmn:incoming>Flow_02h4e5s</bpmn:incoming>
-      <bpmn:incoming>Flow_136grnh</bpmn:incoming>
-      <bpmn:outgoing>Flow_01kli45</bpmn:outgoing>
-    </bpmn:inclusiveGateway>
     <bpmn:callActivity id="Activity_122t5kt" name="Перевиставлення рахунку суборенди">
       <bpmn:extensionElements>
-        <zeebe:calledElement processId="Process_1z0blo9" />
+        <zeebe:calledElement processId="Process_1z0blo9" propagateAllChildVariables="false" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= parent_process_instance_key" target="parent_process_instance_key" />
+          <zeebe:input source="= x_studio_camunda_invoice_number" target="x_studio_camunda_invoice_number" />
+          <zeebe:input source="= x_studio_camunda_invoice_date" target="x_studio_camunda_invoice_date" />
+          <zeebe:input source="= x_studio_camunda_invoice_line_name" target="x_studio_camunda_invoice_line_name" />
+          <zeebe:input source="= x_studio_camunda_invoice_amount" target="x_studio_camunda_invoice_amount" />
+          <zeebe:input source="= x_studio_camunda_invoice_amount_no_vat" target="x_studio_camunda_invoice_amount_no_vat" />
+          <zeebe:input source="= x_studio_camunda_vat_amount" target="x_studio_camunda_vat_amount" />
+          <zeebe:input source="= x_studio_camunda_supplier_code" target="x_studio_camunda_supplier_code" />
+          <zeebe:input source="= x_studio_camunda_contract" target="x_studio_camunda_contract" />
+          <zeebe:input source="= x_studio_camunda_buyer_name" target="x_studio_camunda_buyer_name" />
+          <zeebe:input source="= x_studio_camunda_partner_name" target="x_studio_camunda_partner_name" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1wwa9rs</bpmn:incoming>
       <bpmn:outgoing>Flow_02h4e5s</bpmn:outgoing>
     </bpmn:callActivity>
-    <bpmn:endEvent id="End_main" name="Усі рахунки оброблено">
-      <bpmn:incoming>Flow_01kli45</bpmn:incoming>
-    </bpmn:endEvent>
     <bpmn:callActivity id="Activity_0pb3hxn" name="Погодження рахунку на стороні ДО3">
       <bpmn:extensionElements>
         <zeebe:calledElement processId="Process_0t31x9n" />
@@ -63,37 +62,42 @@
       <bpmn:incoming>Flow_0399ull</bpmn:incoming>
       <bpmn:outgoing>Flow_0k3j07w</bpmn:outgoing>
     </bpmn:callActivity>
+    <bpmn:inclusiveGateway id="Gateway_0ytub5u">
+      <bpmn:incoming>Flow_0k3j07w</bpmn:incoming>
+      <bpmn:incoming>Flow_02h4e5s</bpmn:incoming>
+      <bpmn:incoming>Flow_136grnh</bpmn:incoming>
+      <bpmn:outgoing>Flow_01kli45</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:endEvent id="End_main" name="Рахунок оброблено">
+      <bpmn:incoming>Flow_01kli45</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_start_to_parallel" sourceRef="StartEvent_1" targetRef="Gateway_1h51f9c" />
+    <bpmn:sequenceFlow id="Flow_0399ull" sourceRef="Gateway_1h51f9c" targetRef="Activity_0pb3hxn" />
     <bpmn:sequenceFlow id="Flow_182dhza" sourceRef="Gateway_1h51f9c" targetRef="Gateway_0szlp8w" />
-    <bpmn:businessRuleTask id="Activity_1mttmyv" name="Деталізувати рахунок (ТП/ТП+) (оренда, комунальні??)">
-      <bpmn:extensionElements>
-        <zeebe:calledDecision decisionId="invoice-detail-type" resultVariable="invoice_detail_type" />
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_0qckwrr</bpmn:incoming>
-      <bpmn:outgoing>Flow_0da2ecx</bpmn:outgoing>
-    </bpmn:businessRuleTask>
-    <bpmn:parallelGateway id="Gateway_1h51f9c">
-      <bpmn:incoming>Flow_0da2ecx</bpmn:incoming>
-      <bpmn:outgoing>Flow_0399ull</bpmn:outgoing>
-      <bpmn:outgoing>Flow_182dhza</bpmn:outgoing>
-    </bpmn:parallelGateway>
-    <bpmn:sequenceFlow id="Flow_0da2ecx" sourceRef="Activity_1mttmyv" targetRef="Gateway_1h51f9c" />
+    <bpmn:sequenceFlow id="Flow_1wwa9rs" name="так" sourceRef="Gateway_0szlp8w" targetRef="Activity_122t5kt">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(x_studio_camunda_buyer_name) and x_studio_camunda_buyer_name != null and (contains(lower case(x_studio_camunda_buyer_name), "технопростір") or contains(lower case(x_studio_camunda_buyer_name), "технопростiр") or contains(lower case(x_studio_camunda_buyer_name), "техно простір") or contains(lower case(x_studio_camunda_buyer_name), "техно простiр"))</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_136grnh" name="ні" sourceRef="Gateway_0szlp8w" targetRef="Gateway_0ytub5u" />
+    <bpmn:sequenceFlow id="Flow_02h4e5s" sourceRef="Activity_122t5kt" targetRef="Gateway_0ytub5u" />
+    <bpmn:sequenceFlow id="Flow_0k3j07w" sourceRef="Activity_0pb3hxn" targetRef="Gateway_0ytub5u" />
+    <bpmn:sequenceFlow id="Flow_01kli45" sourceRef="Gateway_0ytub5u" targetRef="End_main" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collab_1">
       <bpmndi:BPMNShape id="Pool_1_di" bpmnElement="Pool_1" isHorizontal="true">
-        <dc:Bounds x="105" y="130" width="955" height="510" />
+        <dc:Bounds x="105" y="130" width="855" height="510" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Buhgalter_di" bpmnElement="Lane_Buhgalter" isHorizontal="true">
-        <dc:Bounds x="135" y="130" width="925" height="170" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_1h40odt_di" bpmnElement="Lane_1h40odt" isHorizontal="true">
-        <dc:Bounds x="135" y="480" width="925" height="160" />
+        <dc:Bounds x="135" y="130" width="825" height="170" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Odoo_di" bpmnElement="Lane_Odoo" isHorizontal="true">
-        <dc:Bounds x="135" y="300" width="925" height="180" />
+        <dc:Bounds x="135" y="300" width="825" height="180" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_1h40odt_di" bpmnElement="Lane_1h40odt" isHorizontal="true">
+        <dc:Bounds x="135" y="480" width="825" height="160" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
@@ -102,77 +106,70 @@
           <dc:Bounds x="191" y="415" width="32" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_0szlp8w_di" bpmnElement="Gateway_0szlp8w" isMarkerVisible="true">
-        <dc:Bounds x="595" y="365" width="50" height="50" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="576" y="424.5" width="87" height="27" />
-        </bpmndi:BPMNLabel>
+      <bpmndi:BPMNShape id="Gateway_0vzdpcz_di" bpmnElement="Gateway_1h51f9c">
+        <dc:Bounds x="295" y="365" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_0tp4kxh_di" bpmnElement="Gateway_0ytub5u">
-        <dc:Bounds x="815" y="365" width="50" height="50" />
+      <bpmndi:BPMNShape id="Gateway_0szlp8w_di" bpmnElement="Gateway_0szlp8w" isMarkerVisible="true">
+        <dc:Bounds x="445" y="365" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="425" y="425" width="90" height="27" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_1qnahln_di" bpmnElement="Activity_122t5kt">
-        <dc:Bounds x="570" y="180" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="End_main_di" bpmnElement="End_main">
-        <dc:Bounds x="982" y="372" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="971" y="335" width="58" height="27" />
-        </bpmndi:BPMNLabel>
+        <dc:Bounds x="420" y="180" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_1r3xx2n_di" bpmnElement="Activity_0pb3hxn">
         <dc:Bounds x="420" y="520" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_1hskf5m_di" bpmnElement="Activity_1mttmyv">
-        <dc:Bounds x="280" y="350" width="100" height="80" />
-        <bpmndi:BPMNLabel />
+      <bpmndi:BPMNShape id="Gateway_0tp4kxh_di" bpmnElement="Gateway_0ytub5u">
+        <dc:Bounds x="665" y="365" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_0vzdpcz_di" bpmnElement="Gateway_1h51f9c">
-        <dc:Bounds x="445" y="365" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_1wwa9rs_di" bpmnElement="Flow_1wwa9rs">
-        <di:waypoint x="620" y="365" />
-        <di:waypoint x="620" y="260" />
+      <bpmndi:BPMNShape id="End_main_di" bpmnElement="End_main">
+        <dc:Bounds x="832" y="372" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="604" y="321" width="17" height="14" />
+          <dc:Bounds x="821" y="335" width="58" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_start_to_parallel_di" bpmnElement="Flow_start_to_parallel">
+        <di:waypoint x="223" y="390" />
+        <di:waypoint x="295" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0399ull_di" bpmnElement="Flow_0399ull">
+        <di:waypoint x="320" y="415" />
+        <di:waypoint x="320" y="560" />
+        <di:waypoint x="420" y="560" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_182dhza_di" bpmnElement="Flow_182dhza">
+        <di:waypoint x="345" y="390" />
+        <di:waypoint x="445" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1wwa9rs_di" bpmnElement="Flow_1wwa9rs">
+        <di:waypoint x="470" y="365" />
+        <di:waypoint x="470" y="260" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="454" y="321" width="17" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_136grnh_di" bpmnElement="Flow_136grnh">
-        <di:waypoint x="645" y="390" />
-        <di:waypoint x="815" y="390" />
+        <di:waypoint x="495" y="390" />
+        <di:waypoint x="665" y="390" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="726" y="372" width="9" height="14" />
+          <dc:Bounds x="576" y="372" width="9" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_02h4e5s_di" bpmnElement="Flow_02h4e5s">
-        <di:waypoint x="670" y="220" />
-        <di:waypoint x="840" y="220" />
-        <di:waypoint x="840" y="365" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_01kli45_di" bpmnElement="Flow_01kli45">
-        <di:waypoint x="865" y="390" />
-        <di:waypoint x="982" y="390" />
+        <di:waypoint x="520" y="220" />
+        <di:waypoint x="690" y="220" />
+        <di:waypoint x="690" y="365" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_0k3j07w_di" bpmnElement="Flow_0k3j07w">
         <di:waypoint x="520" y="560" />
-        <di:waypoint x="840" y="560" />
-        <di:waypoint x="840" y="415" />
+        <di:waypoint x="690" y="560" />
+        <di:waypoint x="690" y="415" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0qckwrr_di" bpmnElement="Flow_0qckwrr">
-        <di:waypoint x="223" y="390" />
-        <di:waypoint x="280" y="390" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0399ull_di" bpmnElement="Flow_0399ull">
-        <di:waypoint x="470" y="415" />
-        <di:waypoint x="470" y="520" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_182dhza_di" bpmnElement="Flow_182dhza">
-        <di:waypoint x="495" y="390" />
-        <di:waypoint x="595" y="390" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0da2ecx_di" bpmnElement="Flow_0da2ecx">
-        <di:waypoint x="380" y="390" />
-        <di:waypoint x="445" y="390" />
+      <bpmndi:BPMNEdge id="Flow_01kli45_di" bpmnElement="Flow_01kli45">
+        <di:waypoint x="715" y="390" />
+        <di:waypoint x="832" y="390" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

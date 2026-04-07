@@ -27,7 +27,16 @@
     <bpmn:sequenceFlow id="Flow_1wjnu6v" sourceRef="Activity_0if1099" targetRef="Event_0d65pqe" />
     <bpmn:userTask id="Activity_16j51uy" name="Завести рахунок в БДУ, Визначити ФОП та перевиставити рахунок на нього">
       <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://odoo.dev.dobrom.com/web/hook/90fdde6b-47f9-44ba-90b2-19559b206bce&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Перевиставити рахунок №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;Заведіть рахунок в БДУ, визначте ФОП та перевиставте рахунок на нього&#34;, _model: &#34;project.project&#34;, _id: 288, process_instance_key: process_instance_key, x_studio_camunda_invoice_number: x_studio_camunda_invoice_number, x_studio_camunda_invoice_date: x_studio_camunda_invoice_date, x_studio_camunda_invoice_line_name: x_studio_camunda_invoice_line_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_invoice_amount_no_vat: x_studio_camunda_invoice_amount_no_vat, x_studio_camunda_vat_amount: x_studio_camunda_vat_amount, x_studio_camunda_supplier_code: x_studio_camunda_supplier_code, x_studio_camunda_contract: x_studio_camunda_contract, x_studio_camunda_buyer_name: x_studio_camunda_buyer_name}" target="body" />
+        </zeebe:ioMapping>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" retries="3" />
+        </zeebe:taskListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0laocrl</bpmn:incoming>
       <bpmn:outgoing>Flow_0m2zlnh</bpmn:outgoing>
@@ -46,7 +55,16 @@
     </bpmn:intermediateCatchEvent>
     <bpmn:userTask id="Activity_0if1099" name="Провести бух реалізацію&#10;(на основі рахунку)">
       <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://odoo.dev.dobrom.com/web/hook/90fdde6b-47f9-44ba-90b2-19559b206bce&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Бух реалізація рахунку №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;Проведіть бухгалтерську реалізацію на основі рахунку&#34;, _model: &#34;project.project&#34;, _id: 288, process_instance_key: process_instance_key, x_studio_camunda_invoice_number: x_studio_camunda_invoice_number, x_studio_camunda_invoice_date: x_studio_camunda_invoice_date, x_studio_camunda_invoice_line_name: x_studio_camunda_invoice_line_name, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount}" target="body" />
+        </zeebe:ioMapping>
         <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" type="http-request-smart" retries="3" />
+        </zeebe:taskListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_0uct7ft</bpmn:incoming>
       <bpmn:incoming>Flow_1gazj4c</bpmn:incoming>
