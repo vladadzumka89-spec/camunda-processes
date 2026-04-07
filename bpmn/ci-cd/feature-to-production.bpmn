@@ -130,7 +130,7 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="github-comment" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;🔄 Оцінка ревʼю: &#34; + string(review_score) + &#34;/10. Потрібне виправлення. Пушніть зміни в гілку `&#34; + head_branch + &#34;` для повторного ревʼю.&#34;" target="comment_text" />
+          <zeebe:input source="=&#34;🔄 Оцінка ревʼю: &#34; + string(review_score) + &#34;/10. Потрібне виправлення. Пушніть зміни в гілку `&#34; + head_branch + &#34;` для повторного ревʼю.&#10;&#10;[Процес в Operate](http://camunda-demo.a.local:8088/operate/processes/&#34; + string(process_instance_key) + &#34;)&#34;" target="comment_text" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_score_low</bpmn:incoming>
@@ -189,7 +189,7 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="github-comment" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;❌ Merge в staging не вдався. Можливі причини: конфлікт, SSH недоступний. Пушніть зміни або перевідкрийте PR для повторної спроби.&#34;" target="comment_text" />
+          <zeebe:input source="=&#34;❌ Merge в staging не вдався. Можливі причини: конфлікт, SSH недоступний. Пушніть зміни або перевідкрийте PR для повторної спроби.&#10;&#10;[Процес в Operate](http://camunda-demo.a.local:8088/operate/processes/&#34; + string(process_instance_key) + &#34;)&#34;" target="comment_text" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_err_to_comment</bpmn:incoming>
@@ -205,6 +205,7 @@
           <zeebe:input source="=&#34;msg_deploy_trigger&#34;" target="message_name" />
           <zeebe:input source="=&#34;staging&#34;" target="correlation_key" />
           <zeebe:input source="=merge_sha" target="trigger_sha" />
+          <zeebe:input source="=merge_sha" target="merge_sha" />
           <zeebe:input source="=&#34;staging&#34;" target="server_host" />
           <zeebe:input source="=&#34;staging&#34;" target="branch" />
           <zeebe:input source="=true" target="run_smoke_test" />
@@ -234,7 +235,7 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="github-comment" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;❌ Staging deploy failed. Потрібне виправлення. Пушніть зміни в `&#34; + head_branch + &#34;`.&#34;" target="comment_text" />
+          <zeebe:input source="=&#34;❌ **Staging deploy failed**&#34; + (if is defined(error_message) and error_message != null and error_message != &#34;&#34; then &#34;: &#34; + error_message else &#34;&#34;) + &#34;&#10;&#10;&lt;details&gt;&lt;summary&gt;Traceback&lt;/summary&gt;&#10;&#10;```&#10;&#34; + (if is defined(error_traceback) and error_traceback != null and error_traceback != &#34;&#34; then error_traceback else &#34;No traceback available&#34;) + &#34;&#10;```&#10;&#10;&lt;/details&gt;&#10;&#10;[Процес в Operate](http://camunda-demo.a.local:8088/operate/processes/&#34; + string(process_instance_key) + &#34;)&#10;&#10;Пушніть виправлення в `&#34; + head_branch + &#34;`.&#34;" target="comment_text" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_deploy_failed</bpmn:incoming>

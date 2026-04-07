@@ -3,7 +3,7 @@
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
   <bpmn:process id="deploy-process" name="Deploy Process" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="13.0" />
+      <zeebe:versionTag value="14.0" />
     </bpmn:extensionElements>
     <bpmn:startEvent id="evt_start" name="Початок деплою">
       <bpmn:outgoing>f_start_to_parent_check</bpmn:outgoing>
@@ -230,6 +230,9 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <bpmn:documentation>Відкат на зліпок через HTTP API.</bpmn:documentation>
         <bpmn:extensionElements>
           <zeebe:taskDefinition type="rollback" retries="5" />
+          <zeebe:ioMapping>
+            <zeebe:input source="=if is defined(merge_sha) and merge_sha != null then merge_sha else &quot;&quot;" target="merge_sha" />
+          </zeebe:ioMapping>
         </bpmn:extensionElements>
         <bpmn:incoming>f_err_to_rollback</bpmn:incoming>
         <bpmn:outgoing>f_err2</bpmn:outgoing>
@@ -242,6 +245,7 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
             <zeebe:input source="=if is defined(trigger_sha) and trigger_sha != null then trigger_sha else &quot;none&quot;" target="correlation_key" />
             <zeebe:input source="=true" target="deploy_failed" />
             <zeebe:input source="=if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Unknown error&quot;" target="error_message" />
+            <zeebe:input source="=if is defined(error_traceback) and error_traceback != null then error_traceback else &quot;&quot;" target="error_traceback" />
           </zeebe:ioMapping>
         </bpmn:extensionElements>
         <bpmn:incoming>f_err2</bpmn:incoming>

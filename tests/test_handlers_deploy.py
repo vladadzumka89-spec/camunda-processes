@@ -750,136 +750,193 @@ async def test_save_deploy_state_handles_ssh_error(handlers, mock_ssh):
 # ══════════════════════════════════════════════════════════
 
 
-@pytest.mark.asyncio
-async def test_rollback_with_branch(handlers: dict, mock_ssh: AsyncMock) -> None:
-    mock_ssh.run_in_repo.return_value = _make_ssh_result()
-    result = await handlers["rollback"](
-        server_host="staging", old_commit="abc123", branch="staging",
-    )
-    assert result == {}
-    first_call_cmd = mock_ssh.run_in_repo.call_args_list[0][0][1]
-    assert "git checkout -B staging abc123" in first_call_cmd
-
-
-@pytest.mark.asyncio
-async def test_rollback_no_commit(handlers: dict, mock_ssh: AsyncMock) -> None:
-    result = await handlers["rollback"](
-        server_host="staging", old_commit="none",
-    )
-    assert result == {}
-    mock_ssh.run_in_repo.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_rollback_empty_string_commit(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """Empty string old_commit also skips rollback."""
-    result = await handlers["rollback"](server_host="staging", old_commit="")
-    assert result == {}
-    mock_ssh.run_in_repo.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_rollback_without_branch_detached(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """Rollback without branch does detached HEAD checkout."""
-    mock_ssh.run_in_repo.return_value = OK()
-    await handlers["rollback"](server_host="staging", old_commit="deadbeef")
-    checkout_cmd = mock_ssh.run_in_repo.call_args_list[0][0][1]
-    assert "git checkout deadbeef" in checkout_cmd
-    assert "-B" not in checkout_cmd
-
-
-@pytest.mark.asyncio
-async def test_rollback_force_recreates(handlers: dict, mock_ssh: AsyncMock) -> None:
-    """After rollback, docker compose up --force-recreate is called."""
-    mock_ssh.run_in_repo.return_value = OK()
-    await handlers["rollback"](server_host="staging", old_commit="abc", branch="main")
-    up_cmd = mock_ssh.run_in_repo.call_args_list[-1][0][1]
-    assert "--force-recreate" in up_cmd
-
-
-@pytest.mark.asyncio
-async def test_rollback_production_restores_db(mock_ssh: AsyncMock) -> None:
-    """Production rollback calls HTTP POST to restore DB when db_restore_url is set."""
+def _make_rollback_handlers(mock_ssh: AsyncMock, db_checkpoint_base_url: str = "http://danylo:9090") -> dict:
+    """Create handlers with db_checkpoint_base_url configured for rollback tests."""
     cfg = AppConfig(
         servers={
             "staging": ServerConfig(host="staging.example.com", ssh_user="deploy"),
             "production": ServerConfig(host="prod.example.com", ssh_user="deploy"),
         },
-        db_checkpoint_base_url="http://danylo:9090",
+        db_checkpoint_base_url=db_checkpoint_base_url,
     )
-    h = _extract_handlers(cfg, mock_ssh)
-    mock_ssh.run_in_repo.return_value = OK()
+    return _extract_handlers(cfg, mock_ssh)
 
-    with patch("worker.handlers.deploy.httpx") as mock_httpx:
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.raise_for_status = MagicMock()
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(return_value=mock_response)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+def _mock_httpx_context():
+    """Patch httpx.AsyncClient for rollback HTTP restore call."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.raise_for_status = MagicMock()
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    return mock_client
+
+
+@pytest.mark.asyncio
+async def test_rollback_no_checkpoint_url(handlers: dict, mock_ssh: AsyncMock) -> None:
+    """Rollback returns restored=False when db_checkpoint_base_url is not configured."""
+    result = await handlers["rollback"](server_host="staging", branch="staging")
+    assert result == {"restored": False}
+    mock_ssh.run.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_rollback_force_push_no_merge_sha(mock_ssh: AsyncMock) -> None:
+    """Rollback without merge_sha falls back to force-push after DB restore."""
+    h = _make_rollback_handlers(mock_ssh)
+    mock_ssh.run.return_value = OK()  # SSH connectivity check
+    mock_ssh.run_in_repo.return_value = OK()  # force-push
+
+    mock_client = _mock_httpx_context()
+    with patch("worker2.handlers.deploy.httpx") as mock_httpx, \
+         patch("worker2.handlers.deploy._sleep", new_callable=AsyncMock):
         mock_httpx.AsyncClient.return_value = mock_client
+        result = await h["rollback"](server_host="staging", branch="staging")
 
+    assert result["restored"] is True
+    assert result["branch_fixed"] is True
+    assert result["method"] == "force-push"
+    # Verify force-push was called
+    force_push_cmd = mock_ssh.run_in_repo.call_args_list[-1][0][1]
+    assert "git push --force origin staging" in force_push_cmd
+
+
+@pytest.mark.asyncio
+async def test_rollback_revert_merge_sha(mock_ssh: AsyncMock) -> None:
+    """Rollback with merge_sha reverts the merge commit instead of force-pushing."""
+    h = _make_rollback_handlers(mock_ssh)
+    mock_ssh.run.return_value = OK()  # SSH connectivity check
+    mock_ssh.run_in_repo.return_value = OK()  # all git commands succeed
+
+    mock_client = _mock_httpx_context()
+    with patch("worker2.handlers.deploy.httpx") as mock_httpx, \
+         patch("worker2.handlers.deploy._sleep", new_callable=AsyncMock):
+        mock_httpx.AsyncClient.return_value = mock_client
         result = await h["rollback"](
-            server_host="production", old_commit="abc123", branch="main",
+            server_host="staging", branch="staging", merge_sha="abc123def456",
         )
 
-    assert result == {}
+    assert result["restored"] is True
+    assert result["branch_fixed"] is True
+    assert result["method"] == "revert"
+    # Verify git revert was called (not force-push)
+    all_cmds = [call[0][1] for call in mock_ssh.run_in_repo.call_args_list]
+    assert any("git revert abc123def456 -m 1 --no-edit" in cmd for cmd in all_cmds)
+    assert not any("--force" in cmd for cmd in all_cmds)
+
+
+@pytest.mark.asyncio
+async def test_rollback_revert_fails_falls_back_to_force_push(mock_ssh: AsyncMock) -> None:
+    """When git revert fails, rollback falls back to force-push."""
+    h = _make_rollback_handlers(mock_ssh)
+    mock_ssh.run.return_value = OK()  # SSH connectivity check
+
+    # First calls: fetch+reset OK, revert FAILS, revert --abort OK,
+    # then force-push OK
+    mock_ssh.run_in_repo.side_effect = [
+        OK(),   # git fetch + reset
+        FAIL("conflict"),  # git revert fails
+        OK(),   # git revert --abort
+        OK(),   # git push --force
+    ]
+
+    mock_client = _mock_httpx_context()
+    with patch("worker2.handlers.deploy.httpx") as mock_httpx, \
+         patch("worker2.handlers.deploy._sleep", new_callable=AsyncMock):
+        mock_httpx.AsyncClient.return_value = mock_client
+        result = await h["rollback"](
+            server_host="staging", branch="staging", merge_sha="badmerge123",
+        )
+
+    assert result["restored"] is True
+    assert result["branch_fixed"] is True
+    assert result["method"] == "force-push"
+
+
+@pytest.mark.asyncio
+async def test_rollback_db_restore_url_correct(mock_ssh: AsyncMock) -> None:
+    """Rollback calls correct restore URL based on server name."""
+    h = _make_rollback_handlers(mock_ssh)
+    mock_ssh.run.return_value = OK()
+    mock_ssh.run_in_repo.return_value = OK()
+
+    mock_client = _mock_httpx_context()
+    with patch("worker2.handlers.deploy.httpx") as mock_httpx, \
+         patch("worker2.handlers.deploy._sleep", new_callable=AsyncMock):
+        mock_httpx.AsyncClient.return_value = mock_client
+        await h["rollback"](server_host="production", branch="main")
+
     mock_client.post.assert_awaited_once()
     call_args = mock_client.post.call_args
     assert call_args.args[0] == "http://danylo:9090/restore/production"
 
 
 @pytest.mark.asyncio
-async def test_rollback_production_no_restore_url(mock_ssh: AsyncMock) -> None:
-    """Production rollback skips HTTP restore when db_checkpoint_base_url is not configured."""
-    cfg = AppConfig(
-        servers={
-            "staging": ServerConfig(host="staging.example.com", ssh_user="deploy"),
-            "production": ServerConfig(host="prod.example.com", ssh_user="deploy"),
-        },
-        db_checkpoint_base_url="",
-    )
-    h = _extract_handlers(cfg, mock_ssh)
-    mock_ssh.run_in_repo.return_value = OK()
+async def test_rollback_no_db_url_skips_restore(mock_ssh: AsyncMock) -> None:
+    """Rollback skips HTTP restore when db_checkpoint_base_url is empty."""
+    h = _make_rollback_handlers(mock_ssh, db_checkpoint_base_url="")
 
-    with patch("worker.handlers.deploy.httpx") as mock_httpx:
-        await h["rollback"](
-            server_host="production", old_commit="abc123", branch="main",
-        )
+    with patch("worker2.handlers.deploy.httpx") as mock_httpx:
+        result = await h["rollback"](server_host="staging", branch="staging")
         mock_httpx.AsyncClient.assert_not_called()
+
+    assert result == {"restored": False}
 
 
 @pytest.mark.asyncio
-async def test_rollback_staging_skips_db_restore(mock_ssh: AsyncMock) -> None:
+async def test_rollback_staging_restore_url(mock_ssh: AsyncMock) -> None:
     """Staging rollback calls HTTP restore with staging URL."""
-    cfg = AppConfig(
-        servers={
-            "staging": ServerConfig(host="staging.example.com", ssh_user="deploy"),
-            "production": ServerConfig(host="prod.example.com", ssh_user="deploy"),
-        },
-        db_checkpoint_base_url="http://danylo:9090",
-    )
-    h = _extract_handlers(cfg, mock_ssh)
+    h = _make_rollback_handlers(mock_ssh)
+    mock_ssh.run.return_value = OK()
     mock_ssh.run_in_repo.return_value = OK()
 
-    with patch("worker.handlers.deploy.httpx") as mock_httpx:
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.raise_for_status = MagicMock()
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(return_value=mock_response)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client = _mock_httpx_context()
+    with patch("worker2.handlers.deploy.httpx") as mock_httpx, \
+         patch("worker2.handlers.deploy._sleep", new_callable=AsyncMock):
         mock_httpx.AsyncClient.return_value = mock_client
-
-        await h["rollback"](
-            server_host="staging", old_commit="abc123", branch="main",
-        )
+        await h["rollback"](server_host="staging", branch="staging")
 
     mock_client.post.assert_awaited_once()
     call_args = mock_client.post.call_args
     assert call_args.args[0] == "http://danylo:9090/restore/staging"
+
+
+@pytest.mark.asyncio
+async def test_rollback_ssh_not_ready_returns_branch_not_fixed(mock_ssh: AsyncMock) -> None:
+    """When VM never comes back after restore, branch_fixed is False."""
+    h = _make_rollback_handlers(mock_ssh)
+    mock_ssh.run.side_effect = Exception("Connection refused")
+
+    mock_client = _mock_httpx_context()
+    with patch("worker2.handlers.deploy.httpx") as mock_httpx, \
+         patch("worker2.handlers.deploy._sleep", new_callable=AsyncMock):
+        mock_httpx.AsyncClient.return_value = mock_client
+        result = await h["rollback"](server_host="staging", branch="staging")
+
+    assert result["restored"] is True
+    assert result["branch_fixed"] is False
+
+
+@pytest.mark.asyncio
+async def test_rollback_empty_merge_sha_uses_force_push(mock_ssh: AsyncMock) -> None:
+    """Empty string merge_sha skips revert and goes straight to force-push."""
+    h = _make_rollback_handlers(mock_ssh)
+    mock_ssh.run.return_value = OK()
+    mock_ssh.run_in_repo.return_value = OK()
+
+    mock_client = _mock_httpx_context()
+    with patch("worker2.handlers.deploy.httpx") as mock_httpx, \
+         patch("worker2.handlers.deploy._sleep", new_callable=AsyncMock):
+        mock_httpx.AsyncClient.return_value = mock_client
+        result = await h["rollback"](
+            server_host="staging", branch="staging", merge_sha="",
+        )
+
+    assert result["method"] == "force-push"
+    all_cmds = [call[0][1] for call in mock_ssh.run_in_repo.call_args_list]
+    assert not any("git revert" in cmd for cmd in all_cmds)
 
 
 # ══════════════════════════════════════════════════════════
@@ -1101,16 +1158,12 @@ async def test_deploy_with_rollback_on_smoke_failure(handlers: dict, mock_ssh: A
         await handlers["smoke-test"](server_host="staging")
 
     # 7. rollback (in real BPMN this is triggered by the Error Event Subprocess)
-    mock_ssh.run_in_repo.reset_mock()
-    mock_ssh.run_in_repo.side_effect = None
-    mock_ssh.run_in_repo.return_value = OK()
-    await handlers["rollback"](
+    # Note: handlers fixture has no db_checkpoint_base_url, so rollback skips
+    result = await handlers["rollback"](
         server_host="staging",
-        old_commit=pull_result["old_commit"],
         branch="staging",
     )
-    checkout_cmd = mock_ssh.run_in_repo.call_args_list[0][0][1]
-    assert "oldcommit" in checkout_cmd
+    assert result == {"restored": False}
 
 
 @pytest.mark.asyncio
@@ -1137,12 +1190,9 @@ async def test_first_deploy_full_flow(handlers: dict, mock_ssh: AsyncMock) -> No
     with patch("worker.handlers.deploy._asyncio.sleep", new_callable=AsyncMock):
         await handlers["docker-build"](server_host="staging")
 
-    # Rollback on first deploy — no old commit, should skip
-    mock_ssh.run_in_repo.reset_mock()
-    mock_ssh.run_in_repo.side_effect = None
-    result = await handlers["rollback"](server_host="staging", old_commit="none")
-    assert result == {}
-    mock_ssh.run_in_repo.assert_not_awaited()
+    # Rollback on first deploy — no db_checkpoint_base_url configured, skips
+    result = await handlers["rollback"](server_host="staging", branch="main")
+    assert result == {"restored": False}
 
 
 # ══════════════════════════════════════════════════════════

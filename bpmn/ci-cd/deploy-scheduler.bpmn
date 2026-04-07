@@ -11,7 +11,7 @@
 
   <bpmn:process id="deploy-scheduler" name="Deploy Scheduler" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="6.0" />
+      <zeebe:versionTag value="7.0" />
     </bpmn:extensionElements>
 
     <!-- ═══ START ═══ -->
@@ -43,6 +43,7 @@
           <zeebe:input source="=if is defined(pr_title) and pr_title != null then pr_title else &quot;&quot;" target="pr_title" />
           <zeebe:input source="=if is defined(pusher) and pusher != null then pusher else &quot;&quot;" target="pusher" />
           <zeebe:input source="=if is defined(compare_url) and compare_url != null then compare_url else &quot;&quot;" target="compare_url" />
+          <zeebe:input source="=if is defined(merge_sha) and merge_sha != null then merge_sha else &quot;&quot;" target="merge_sha" />
           <zeebe:output source="=if is defined(has_changes) and has_changes != null then has_changes else false" target="has_changes" />
           <zeebe:output source="=if is defined(old_commit) and old_commit != null then old_commit else &quot;none&quot;" target="old_commit" />
           <zeebe:output source="=if is defined(new_commit) and new_commit != null then new_commit else &quot;none&quot;" target="new_commit" />

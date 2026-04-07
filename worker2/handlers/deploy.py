@@ -379,16 +379,64 @@ def register_deploy_handlers(
             logger.warning("Failed to save deploy state on %s: %s", server.host, exc)
             return {"state_saved": False}
 
+    # ── rollback helpers ─────────────────────────────────────────
+
+    async def _try_revert_merge(
+        server: Any, branch: str, merge_sha: str,
+    ) -> bool:
+        """Try to revert a merge commit on the branch. Returns True on success."""
+        try:
+            # Pull latest branch state (may have new merges from other PRs)
+            await ssh.run_in_repo(
+                server,
+                f"git fetch origin {branch} && git reset --hard origin/{branch}",
+                check=True, timeout=60,
+            )
+
+            # Revert the merge commit (-m 1 = revert relative to first parent, i.e. staging)
+            result = await ssh.run_in_repo(
+                server,
+                f"git revert {merge_sha} -m 1 --no-edit",
+                check=False, timeout=60,
+            )
+
+            if not result.success:
+                logger.warning(
+                    "rollback: git revert %s failed (exit %d): %s",
+                    merge_sha, result.exit_code, (result.stderr or "")[:200],
+                )
+                await ssh.run_in_repo(server, "git revert --abort", check=False, timeout=15)
+                return False
+
+            # Push the revert commit
+            push_result = await ssh.run_in_repo(
+                server,
+                f"git push origin {branch}",
+                check=False, timeout=30,
+            )
+            if not push_result.success:
+                logger.warning("rollback: push revert failed: %s", (push_result.stderr or "")[:200])
+                return False
+
+            logger.info("rollback: successfully reverted merge %s on %s", merge_sha[:8], branch)
+            return True
+
+        except Exception as exc:
+            logger.warning("rollback: revert exception: %s", exc)
+            await ssh.run_in_repo(server, "git revert --abort", check=False, timeout=15)
+            return False
+
     # ── rollback ───────────────────────────────────────────────
 
     @worker.task(task_type="rollback", timeout_ms=600_000)
     async def rollback(
         server_host: str,
         branch: str = "staging",
+        merge_sha: str = "",
         **kwargs: Any,
     ) -> dict:
-        """Restore from checkpoint via HTTP API, then force-push branch to GitHub
-        so the remote branch matches the restored state."""
+        """Restore from checkpoint via HTTP API, then revert the merge commit
+        (or fall back to force-push) so the remote branch is clean."""
         if not config.db_checkpoint_base_url:
             logger.warning("rollback: no DB_CHECKPOINT_BASE_URL configured, skipping")
             return {"restored": False}
@@ -404,23 +452,46 @@ def register_deploy_handlers(
             resp = await client.post(restore_url, headers=headers, content=b"")
             resp.raise_for_status()
 
-        logger.info("rollback on %s: restored from checkpoint (HTTP %d), waiting for VM boot...", server_host, resp.status_code)
+        logger.info(
+            "rollback on %s: restored from checkpoint (HTTP %d), waiting for VM boot...",
+            server_host, resp.status_code,
+        )
 
-        # Force-push restored branch to GitHub so next deploy doesn't re-pull broken code
-        # VM needs time to boot after checkpoint restore — retry up to 10 min
+        # VM needs time to boot after checkpoint restore — retry SSH up to 10 min
         server = config.get_server(server_host)
+        ssh_ready = False
         for attempt in range(1, 11):
             await _sleep(60)
             try:
-                await ssh.run_in_repo(server, f"git push --force origin {branch}", check=True, timeout=30)
-                logger.info("rollback on %s: force-pushed %s to match restored state", server_host, branch)
+                await ssh.run(server, "echo ok", check=True, timeout=10)
+                ssh_ready = True
+                logger.info("rollback on %s: SSH connectivity restored (attempt %d)", server_host, attempt)
                 break
             except Exception as exc:
-                logger.warning("rollback on %s: force-push attempt %d/10 failed: %s", server_host, attempt, exc)
-        else:
-            logger.error("rollback on %s: could not force-push %s after 10 attempts", server_host, branch)
+                logger.warning("rollback on %s: SSH not ready, attempt %d/10: %s", server_host, attempt, exc)
 
-        return {"restored": True}
+        if not ssh_ready:
+            logger.error("rollback on %s: VM did not come back after 10 attempts", server_host)
+            return {"restored": True, "branch_fixed": False}
+
+        # Strategy: prefer git revert (preserves other PRs), fall back to force-push
+        if merge_sha:
+            reverted = await _try_revert_merge(server, branch, merge_sha)
+            if reverted:
+                return {"restored": True, "branch_fixed": True, "method": "revert"}
+            logger.warning("rollback on %s: revert failed, falling back to force-push", server_host)
+
+        # Force-push restored branch to GitHub (legacy / fallback)
+        try:
+            await ssh.run_in_repo(
+                server, f"git push --force origin {branch}",
+                check=True, timeout=30,
+            )
+            logger.info("rollback on %s: force-pushed %s to match restored state", server_host, branch)
+            return {"restored": True, "branch_fixed": True, "method": "force-push"}
+        except Exception as exc:
+            logger.error("rollback on %s: force-push failed: %s", server_host, exc)
+            return {"restored": True, "branch_fixed": False}
 
     # ── db-remove ──────────────────────────────────────────────
 
