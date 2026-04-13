@@ -173,6 +173,26 @@ class TestCalculateStrategicSummary:
 
         assert result["ФАМО"]["fops_to_open"] == 0
 
+    def test_growth_percent_increases_demand(self):
+        fop_entries = [
+            {"fop_name": "ФОП А", "network": "ФАМО",
+             "projected_total": 3_000_000, "is_active": True},
+        ]
+
+        # Without growth: 3M / 3.5M = 1 FOP needed, 1 active → 0 to open
+        result_0 = calculate_strategic_summary(
+            fop_entries, [], income_limit=3_500_000, growth_percent=0,
+        )
+        assert result_0["ФАМО"]["fops_to_open"] == 0
+
+        # With 20% growth: 3.6M / 3.5M = 2 FOPs needed, 1 active → 1 to open
+        result_20 = calculate_strategic_summary(
+            fop_entries, [], income_limit=3_500_000, growth_percent=20,
+        )
+        assert result_20["ФАМО"]["projected_annual_income"] == 3_600_000
+        assert result_20["ФАМО"]["fops_needed"] == 2
+        assert result_20["ФАМО"]["fops_to_open"] == 1
+
 
 # === calculate_registration_date ===
 

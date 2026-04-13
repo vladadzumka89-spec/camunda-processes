@@ -102,8 +102,13 @@ def calculate_strategic_summary(
     reserve_fops: list[dict],
     *,
     income_limit: float = 3_500_000,
+    growth_percent: float = 0.0,
 ) -> dict[str, dict]:
     """Level A: how many FOPs each network needs for the year.
+
+    Args:
+        growth_percent: year-over-year business growth (e.g. 15.0 = +15%).
+            Applied to projected income to account for business expansion.
 
     Returns {network: {projected_annual_income, fops_needed, fops_active,
                        fops_reserve, fops_to_open}}.
@@ -136,8 +141,12 @@ def calculate_strategic_summary(
             }
         networks[net]["fops_reserve"] += 1
 
+    growth_multiplier = 1.0 + growth_percent / 100.0
+
     for net, data in networks.items():
-        data["projected_annual_income"] = round(data["projected_annual_income"], 2)
+        data["projected_annual_income"] = round(
+            data["projected_annual_income"] * growth_multiplier, 2,
+        )
         data["fops_needed"] = max(1, math.ceil(data["projected_annual_income"] / income_limit))
         deficit = data["fops_needed"] - data["fops_active"] - data["fops_reserve"]
         data["fops_to_open"] = max(0, deficit)
@@ -318,6 +327,7 @@ def _run_fop_plan(
     income_limit: float = 3_500_000,
     employee_limit: int = 8,
     reserve_threshold: float = 100_000,
+    growth_percent: float = 0.0,
 ) -> dict:
     """Synchronous: full FOP opening plan (DB -> analysis -> JSON plan).
 
@@ -459,6 +469,7 @@ def _run_fop_plan(
     # Level A: Strategic summary
     strategic = calculate_strategic_summary(
         fop_entries, reserve, income_limit=income_limit,
+        growth_percent=growth_percent,
     )
     logger.info(
         "Стратегічний план: %s",
@@ -499,6 +510,7 @@ def _run_fop_plan(
             "employee_limit": employee_limit,
             "reserve_threshold": reserve_threshold,
             "horizon_months": horizon_months,
+            "growth_percent": growth_percent,
         },
         "strategic_summary": strategic,
         "reserve_fops": reserve,
@@ -546,6 +558,7 @@ def register_fop_planner_handlers(
         income_limit: float = 3_500_000,
         employee_limit: int = 8,
         reserve_threshold: float = 100_000,
+        growth_percent: float = 0.0,
         **kwargs: Any,
     ) -> dict:
         """Планування відкриття нових ФОП.
@@ -555,6 +568,7 @@ def register_fop_planner_handlers(
             income_limit (float): річний ліміт доходу ФОП (default: 3500000)
             employee_limit (int): максимум працівників на ФОП (default: 8)
             reserve_threshold (float): поріг доходу для резервного ФОП (default: 100000)
+            growth_percent (float): % росту бізнесу рік-до-року (default: 0)
 
         Output variables:
             plan_date (str): дата плану (ISO)
@@ -575,6 +589,7 @@ def register_fop_planner_handlers(
             income_limit=income_limit,
             employee_limit=employee_limit,
             reserve_threshold=reserve_threshold,
+            growth_percent=growth_percent,
         )
 
         logger.info(
