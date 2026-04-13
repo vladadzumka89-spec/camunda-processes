@@ -410,18 +410,27 @@ def _run_fop_plan(
         network = _determine_organization(fop["name"].strip())
         stores = fop_stores_map.get(fop_id, [])
 
-        # Count employees for this FOP
+        # Count employees for this FOP (once, not per store)
         emp_count = 0
+        for dept_emps in store_employees.values():
+            emp_count += sum(
+                1 for e in dept_emps
+                if e.get("employer_edrpou") == edrpou
+            )
+
         store_details = []
         for s in stores:
             s_name = s["name"]
+            # Count employees for THIS store only (match by 3-digit code)
+            code = s_name[:3] if len(s_name) >= 3 and s_name[:3].isdigit() else ""
             s_emps = 0
-            for dept_emps in store_employees.values():
-                s_emps += sum(
-                    1 for e in dept_emps
-                    if e.get("employer_edrpou") == edrpou
-                )
-            emp_count += s_emps
+            if code:
+                for dept_name, dept_emps in store_employees.items():
+                    if dept_name.startswith(code):
+                        s_emps += sum(
+                            1 for e in dept_emps
+                            if e.get("employer_edrpou") == edrpou
+                        )
             store_details.append({
                 "name": s_name,
                 "monthly_income": round(
