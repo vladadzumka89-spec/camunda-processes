@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+  id="Definitions_fop_plan"
+  targetNamespace="http://bpmn.io/schema/bpmn"
+  exporter="Camunda Modeler" exporterVersion="5.25.0"
+  modeler:executionPlatform="Camunda Cloud"
+  modeler:executionPlatformVersion="8.8.0">
+
+  <bpmn:process id="Process_fop_opening_plan" name="Планування відкриття ФОП" isExecutable="true">
+
+    <!-- Timer Start: Monday 6:00 -->
+    <bpmn:startEvent id="StartEvent_timer" name="Щотижнева перевірка">
+      <bpmn:outgoing>Flow_timer_to_merge</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_plan">
+        <bpmn:timeCycle>0 0 6 * * MON</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:startEvent>
+
+    <!-- Manual Start -->
+    <bpmn:startEvent id="StartEvent_manual" name="Ручний запуск">
+      <bpmn:outgoing>Flow_manual_to_merge</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Merge gateway -->
+    <bpmn:exclusiveGateway id="GW_merge_start" name="Merge start">
+      <bpmn:incoming>Flow_timer_to_merge</bpmn:incoming>
+      <bpmn:incoming>Flow_manual_to_merge</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_plan</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Main Service Task: fop-opening-plan -->
+    <bpmn:serviceTask id="ST_fop_plan" name="Планування відкриття ФОП">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="fop-opening-plan" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= if is defined(horizon_months) and horizon_months != null then horizon_months else 12" target="horizon_months" />
+          <zeebe:input source="= if is defined(income_limit) and income_limit != null then income_limit else 3500000" target="income_limit" />
+          <zeebe:input source="= if is defined(employee_limit) and employee_limit != null then employee_limit else 8" target="employee_limit" />
+          <zeebe:input source="= if is defined(reserve_threshold) and reserve_threshold != null then reserve_threshold else 100000" target="reserve_threshold" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_plan</bpmn:incoming>
+      <bpmn:outgoing>Flow_plan_to_report</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Send report to Odoo -->
+    <bpmn:serviceTask id="ST_send_plan" name="План в Odoo дашборд">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/bb450e05-4673-4cc9-9ba3-8674da99dc61&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {action: &#34;fop_opening_plan&#34;, report: plan_json}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_plan_to_report</bpmn:incoming>
+      <bpmn:outgoing>Flow_report_to_gw</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Check for urgent actions -->
+    <bpmn:exclusiveGateway id="GW_has_warnings" name="Є термінові дії?" default="Flow_no_warnings">
+      <bpmn:incoming>Flow_report_to_gw</bpmn:incoming>
+      <bpmn:outgoing>Flow_has_warnings</bpmn:outgoing>
+      <bpmn:outgoing>Flow_no_warnings</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Notify urgent -->
+    <bpmn:serviceTask id="ST_notify_urgent" name="Сповіщення про термінові дії">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {action: &#34;fop_plan_urgent&#34;, warnings: plan_json.warnings}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_has_warnings</bpmn:incoming>
+      <bpmn:outgoing>Flow_urgent_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="End_done" name="Готово">
+      <bpmn:incoming>Flow_no_warnings</bpmn:incoming>
+      <bpmn:incoming>Flow_urgent_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence flows -->
+    <bpmn:sequenceFlow id="Flow_timer_to_merge" sourceRef="StartEvent_timer" targetRef="GW_merge_start" />
+    <bpmn:sequenceFlow id="Flow_manual_to_merge" sourceRef="StartEvent_manual" targetRef="GW_merge_start" />
+    <bpmn:sequenceFlow id="Flow_to_plan" sourceRef="GW_merge_start" targetRef="ST_fop_plan" />
+    <bpmn:sequenceFlow id="Flow_plan_to_report" sourceRef="ST_fop_plan" targetRef="ST_send_plan" />
+    <bpmn:sequenceFlow id="Flow_report_to_gw" sourceRef="ST_send_plan" targetRef="GW_has_warnings" />
+    <bpmn:sequenceFlow id="Flow_has_warnings" name="warnings_count &gt; 0" sourceRef="GW_has_warnings" targetRef="ST_notify_urgent">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= warnings_count &gt; 0</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_no_warnings" sourceRef="GW_has_warnings" targetRef="End_done" />
+    <bpmn:sequenceFlow id="Flow_urgent_to_end" sourceRef="ST_notify_urgent" targetRef="End_done" />
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_fop_opening_plan">
+      <bpmndi:BPMNShape id="StartEvent_timer_di" bpmnElement="StartEvent_timer">
+        <dc:Bounds x="179" y="159" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="157" y="202" width="80" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_manual_di" bpmnElement="StartEvent_manual">
+        <dc:Bounds x="179" y="259" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="162" y="302" width="71" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_merge_start_di" bpmnElement="GW_merge_start" isMarkerVisible="true">
+        <dc:Bounds x="285" y="152" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_fop_plan_di" bpmnElement="ST_fop_plan">
+        <dc:Bounds x="400" y="137" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_send_plan_di" bpmnElement="ST_send_plan">
+        <dc:Bounds x="560" y="137" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_has_warnings_di" bpmnElement="GW_has_warnings" isMarkerVisible="true">
+        <dc:Bounds x="725" y="152" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_notify_urgent_di" bpmnElement="ST_notify_urgent">
+        <dc:Bounds x="840" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_done_di" bpmnElement="End_done">
+        <dc:Bounds x="1002" y="159" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_timer_to_merge_di" bpmnElement="Flow_timer_to_merge">
+        <di:waypoint x="215" y="177" /><di:waypoint x="285" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_manual_to_merge_di" bpmnElement="Flow_manual_to_merge">
+        <di:waypoint x="215" y="277" /><di:waypoint x="310" y="277" /><di:waypoint x="310" y="202" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_plan_di" bpmnElement="Flow_to_plan">
+        <di:waypoint x="335" y="177" /><di:waypoint x="400" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_plan_to_report_di" bpmnElement="Flow_plan_to_report">
+        <di:waypoint x="500" y="177" /><di:waypoint x="560" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_report_to_gw_di" bpmnElement="Flow_report_to_gw">
+        <di:waypoint x="660" y="177" /><di:waypoint x="725" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_has_warnings_di" bpmnElement="Flow_has_warnings">
+        <di:waypoint x="750" y="152" /><di:waypoint x="750" y="120" /><di:waypoint x="840" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_no_warnings_di" bpmnElement="Flow_no_warnings">
+        <di:waypoint x="775" y="177" /><di:waypoint x="1002" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_urgent_to_end_di" bpmnElement="Flow_urgent_to_end">
+        <di:waypoint x="940" y="120" /><di:waypoint x="1020" y="120" /><di:waypoint x="1020" y="159" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
