@@ -383,30 +383,41 @@ def _fetch_subdivision_lookup(conn) -> dict[str, str]:
 def _fetch_disbanded_subdivision_codes(conn) -> set[str]:
     """Fetch 3-digit codes of disbanded subdivisions from _Reference100.
 
-    Two criteria:
-    1. _Fld27513 = 0x01 (checkbox "Підрозділ розформовано")
-    2. Parent subdivision (_ParentIDRRef) = "Неактуальні"
+    A code is considered disbanded if >= 90% of its entries are either
+    flagged as disbanded (_Fld27513 = 0x01) or under "Неактуальні" parent.
+    This handles cases where a few old employee entries lack the flag.
     """
-    codes = set()
     cursor = conn.cursor(as_dict=True)
     try:
         cursor.execute("""
-            SELECT DISTINCT d._Description
+            SELECT
+                SUBSTRING(d._Description, 1, 3) AS code,
+                CASE WHEN d._Fld27513 = 0x01 THEN 1
+                     WHEN EXISTS (
+                         SELECT 1 FROM _Reference100 p
+                         WHERE p._IDRRef = d._ParentIDRRef
+                           AND p._Description LIKE N'Неактуальні%'
+                     ) THEN 1
+                     ELSE 0
+                END AS is_disbanded
             FROM _Reference100 d
             WHERE d._Description LIKE N'[0-9][0-9][0-9] %'
-              AND (
-                  d._Fld27513 = 0x01
-                  OR EXISTS (
-                      SELECT 1 FROM _Reference100 p
-                      WHERE p._IDRRef = d._ParentIDRRef
-                        AND p._Description LIKE N'Неактуальні%'
-                  )
-              )
+              AND d._Marked = 0x00
         """)
+        from collections import defaultdict as _dd
+        code_stats: dict[str, list[int]] = _dd(lambda: [0, 0])  # [disbanded, active]
         for row in cursor:
-            m = re.match(r'^(\d{3})\s', row['_Description'].strip())
-            if m:
-                codes.add(m.group(1))
+            code = row["code"].strip()
+            if row["is_disbanded"] == 1:
+                code_stats[code][0] += 1
+            else:
+                code_stats[code][1] += 1
+        # Code is disbanded if >= 90% entries have the flag/inactive parent
+        codes = set()
+        for code, (d, a) in code_stats.items():
+            total = d + a
+            if total > 0 and d / total >= 0.9:
+                codes.add(code)
         logger.info(
             "Розформовані підрозділи: %d (%s)",
             len(codes), ", ".join(sorted(codes)) or "немає",
@@ -842,16 +853,17 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                     terminal_data[org_id].items(), key=lambda x: -x[1]["total"]
                 ):
                     subdivision = None
+                    _bound_set = set(active_bindings.get(org_id, []))
                     # 2a) Try direct code lookup from payment text
                     if info["code"] and info["code"] in code_lookup:
-                        subdivision = code_lookup[info["code"]]
-                    # 2a1) Try extracting 3-digit code from terminal name itself
-                    if not subdivision:
-                        _code_in_name = re.search(r'(\d{3})', name)
-                        if _code_in_name and _code_in_name.group(1) in code_lookup:
-                            subdivision = code_lookup[_code_in_name.group(1)]
-                    # 2a2) Try binding register: FOP → stores
-                    if not subdivision and org_id in active_bindings:
+                        candidate = code_lookup[info["code"]]
+                        # If FOP has bindings, validate code against them
+                        if _bound_set and candidate not in _bound_set:
+                            pass  # Code doesn't match binding — skip, let binding handle
+                        else:
+                            subdivision = candidate
+                    # 2a2) Try binding register: FOP → stores (PRIORITY over code in name)
+                    if not subdivision and _bound_set:
                         bound_stores = active_bindings[org_id]
                         if len(bound_stores) == 1:
                             subdivision = bound_stores[0]
@@ -868,11 +880,20 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                                 # Score each bound store: count matching words
                                 name_t = _translit_ukr(name).lower()
                                 name_norm = _translit_ukr(_normalize_terminal_name(name))
+                                # Split on spaces AND digits to handle concatenated names like "FAMO604Oazis"
                                 name_variants = [w for nt in (name_t, name_norm, name.lower()) for w in nt.split() if len(w) >= 3]
+                                for _src in (name, name_t, name_norm):
+                                    for _part in re.split(r'[\d]+', _src):
+                                        _tw = _translit_ukr(_part).lower().strip()
+                                        if len(_tw) >= 3 and _tw not in name_variants:
+                                            name_variants.append(_tw)
                                 is_pinky = any(w in ("pinky", "pinki", "пінкі") for w in name.lower().split())
                                 best_score = 0
                                 best_store = None
                                 for bs in bound_stores:
+                                    # Skip non-standard entries (e.g., "[Фамо]")
+                                    if not re.match(r'^\d{3}\s', bs):
+                                        continue
                                     bs_clean = re.sub(r'[().]', '', bs)
                                     bs_t = _translit_ukr(bs_clean).lower()
                                     bs_words = [w for w in bs_t.split() if len(w) >= 3]
@@ -884,11 +905,17 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                                     # Bonus: if terminal name contains Pinky, prefer Пінкі store (starts with "NNN П ")
                                     if is_pinky and re.match(r'^\d{3} П ', bs):
                                         score += 5
-                                    if score > best_score:
+                                    # Tie-breaker: prefer longer name (more specific store)
+                                    if score > best_score or (score == best_score and score > 0 and len(bs) > len(best_store or "")):
                                         best_score = score
                                         best_store = bs
                                 if best_store:
                                     subdivision = best_store
+                    # 2a1) Try extracting 3-digit code from terminal name itself
+                    if not subdivision:
+                        _code_in_name = re.search(r'(\d{3})', name)
+                        if _code_in_name and _code_in_name.group(1) in code_lookup:
+                            subdivision = code_lookup[_code_in_name.group(1)]
                     # 2a3) If FOP has bindings but no match — try unmatched bound stores
                     if not subdivision and org_id in active_bindings:
                         already_resolved = {s["name"] for s in result.get(org_id, []) if s.get("source") == "terminal"}
@@ -992,9 +1019,14 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 for raw_name in terminal_data[org_id]:
                     info = terminal_data[org_id][raw_name]
                     resolved = None
+                    _bound_set_m = set(active_bindings.get(org_id, []))
                     if info["code"] and info["code"] in code_lookup_m:
-                        resolved = code_lookup_m[info["code"]]
-                    # Binding register lookup (same logic as step 2a2)
+                        candidate = code_lookup_m[info["code"]]
+                        if _bound_set_m and candidate not in _bound_set_m:
+                            pass  # Code doesn't match binding — skip
+                        else:
+                            resolved = candidate
+                    # Binding register lookup (PRIORITY over code in name)
                     if not resolved and org_id in active_bindings:
                         bound_stores = active_bindings[org_id]
                         if len(bound_stores) == 1:
@@ -1011,6 +1043,11 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                                 name_t = _translit_ukr(raw_name).lower()
                                 name_norm = _translit_ukr(_normalize_terminal_name(raw_name))
                                 name_variants = [w for nt in (name_t, name_norm, raw_name.lower()) for w in nt.split() if len(w) >= 3]
+                                for _src in (raw_name, name_t, name_norm):
+                                    for _part in re.split(r'[\d]+', _src):
+                                        _tw = _translit_ukr(_part).lower().strip()
+                                        if len(_tw) >= 3 and _tw not in name_variants:
+                                            name_variants.append(_tw)
                                 is_pinky = any(w in ("pinky", "pinki", "пінкі") for w in raw_name.lower().split())
                                 best_score = 0
                                 best_store = None
@@ -1460,13 +1497,23 @@ def _fetch_active_terminal_bindings_by_org(conn) -> dict[bytes, list[str]]:
     instead of relying on fuzzy name matching.
     """
     sql = """
-        SELECT
-            t._Fld28392RRef AS org_id,
-            r100._Description AS store_name
-        FROM _InfoRg28391 t
-        JOIN _Reference100 r100 ON r100._IDRRef = t._Fld28396RRef
-        WHERE t._Fld28393 = N'Терминал'
-          AND DATEADD(year, -2000, t._Fld28394_T) >= '2090-01-01'
+        ;WITH latest AS (
+            SELECT t._Fld28392RRef AS org_id,
+                   t._Fld28396RRef AS store_id,
+                   t._Fld28394_T AS value_dt,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY t._Fld28392RRef, t._Fld28396RRef
+                       ORDER BY t._Period DESC
+                   ) AS rn
+            FROM _InfoRg28391 t
+            WHERE t._Fld28393 = N'Терминал'
+        )
+        SELECT l.org_id,
+               r100._Description AS store_name
+        FROM latest l
+        JOIN _Reference100 r100 ON r100._IDRRef = l.store_id
+        WHERE l.rn = 1
+          AND DATEADD(year, -2000, l.value_dt) >= '2090-01-01'
     """
     cursor = conn.cursor(as_dict=True)
     try:
@@ -1728,17 +1775,24 @@ def _determine_current_fop(
 
     Returns: (fop_name, fop_edrpou)
     """
+    # Legal entities to exclude when determining current FOP
+    _LEGAL_ENTITIES = {"Плюс Технопростір", "Техно Простір", "Технопростір"}
+
+    def _is_fop(name: str) -> bool:
+        return name not in _LEGAL_ENTITIES and "ТОВ" not in name
+
     if bindings:
         # Use _group_binding_periods to properly pair connections/disconnections
         periods = _group_binding_periods(bindings)
         # Find active period (date_to is None = FOP still connected)
         active = [p for p in periods if p["date_to"] is None]
         if active:
-            # Take the most recently connected active FOP
+            # Take the most recently connected active FOP (skip legal entities)
             active.sort(
                 key=lambda p: _parse_binding_date(p["date_from"]) or date.min
             )
-            current_name = active[-1]["fop_name"]
+            fop_active = [p for p in active if _is_fop(p["fop_name"])]
+            current_name = (fop_active or active)[-1]["fop_name"]
         else:
             # No active period — fall back to last connection record
             conn_records = [
@@ -1750,7 +1804,8 @@ def _determine_current_fop(
                 conn_records.sort(
                     key=lambda b: _parse_binding_date(b["date"]) or date.min
                 )
-                current_name = conn_records[-1]["fop_name"]
+                fop_conn = [b for b in conn_records if _is_fop(b["fop_name"])]
+                current_name = (fop_conn or conn_records)[-1]["fop_name"]
             else:
                 current_name = bindings[-1]["fop_name"]
 

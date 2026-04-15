@@ -86,6 +86,11 @@ CAMUNDA_CLIENT_SECRET = os.environ.get(
 )
 CAMUNDA_PROCESS_ID = "Process_0iy2u1a"
 
+# If FOP income already exceeds 4M, it's too late to change terminal —
+# we won't make it in time, so leave the FOP until 7M limit.
+SKIP_CHANGE_THRESHOLD = 4_000_000
+HIGH_LIMIT = 7_000_000
+
 _token_cache: dict = {"token": None, "expires_at": 0.0}
 
 
@@ -288,7 +293,19 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         is_critical = days_to_limit <= days_ahead
         has_active_process = edrpou in active_edrpous
 
-        if is_critical and has_active_process:
+        # If income already >= 4M, too late to change terminal.
+        # Leave on terminal until 7M limit.
+        exceeded_high = analysis["total_income"] >= HIGH_LIMIT
+        skip_change = (
+            analysis["total_income"] >= SKIP_CHANGE_THRESHOLD
+            and not exceeded_high
+        )
+
+        if exceeded_high:
+            status = "Перевищено 7 млн"
+        elif skip_change:
+            status = "Очікує 7 млн"
+        elif is_critical and has_active_process:
             status = "В роботі"
         elif is_critical:
             status = "Критично"
@@ -390,7 +407,8 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         all_fops_report.append(fop_entry)
 
         # critical_fops for Camunda multi-instance: only NEW (no active process)
-        if is_critical and not has_active_process:
+        # and not in skip zone (4M+) where terminal change is too late
+        if is_critical and not has_active_process and not skip_change and not exceeded_high:
             critical_fops.append({
                 "fop_name": fop_entry["fop_name"],
                 "fop_edrpou": fop_entry["fop_edrpou"],
@@ -410,16 +428,19 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
                 "terminal_change_percent": fop_entry["terminal_change_percent"],
             })
 
-    critical_all = sum(1 for f in all_fops_report if f["status"] != "Норма")
+    _non_critical = {"Норма", "Очікує 7 млн", "Перевищено 7 млн"}
+    critical_all = sum(1 for f in all_fops_report if f["status"] not in _non_critical)
     critical_in_progress = sum(1 for f in all_fops_report if f["status"] == "В роботі")
+    skip_count = sum(1 for f in all_fops_report if f["status"] == "Очікує 7 млн")
+    exceeded_count = sum(1 for f in all_fops_report if f["status"] == "Перевищено 7 млн")
 
     logger.info(
-        "Критичних ФОПів: %d всього (%d нових, %d вже в роботі)",
-        critical_all, len(critical_fops), critical_in_progress,
+        "Критичних ФОПів: %d всього (%d нових, %d вже в роботі, %d очікують 7 млн, %d перевищено 7 млн)",
+        critical_all, len(critical_fops), critical_in_progress, skip_count, exceeded_count,
     )
 
-    # JSON report — all FOPs sorted by days_to_limit (most urgent first)
-    all_fops_report.sort(key=lambda f: f["days_to_limit"])
+    # JSON report — sorted by total income descending
+    all_fops_report.sort(key=lambda f: -f["total_income"])
 
     # ── Store-level report ────────────────────────────────────────────
     # Aggregate by 3-digit code to avoid duplicates from Reference100 vs Reference116
@@ -472,11 +493,14 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
 
     # Determine organization per store from prefix + enrich with new fields
     stores_report = []
-    # Skip non-store subdivisions (offices, warehouses, service: 2xx-4xx)
-    _NON_STORE_PREFIXES = {"2", "3", "4"}
+    # Skip non-store entries: only include real subdivisions with 3-digit code
+    _NON_STORE_PREFIXES = {"2", "4"}
     for name, data in sorted(store_agg.items(), key=lambda x: -x[1]["total_income"]):
         m = re.match(r'^(\d{3})\s', name)
-        if m and m.group(1)[0] in _NON_STORE_PREFIXES:
+        # Skip entries without 3-digit code (unresolved terminals, "Інші надходження", etc.)
+        if not m:
+            continue
+        if m.group(1)[0] in _NON_STORE_PREFIXES:
             continue
         data["total_income"] = round(data["total_income"], 2)
 
@@ -589,10 +613,41 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         if edrpou:
             fop_terminal_stores[edrpou].append(store["subdivision"])
 
+    # Detect wholesale FOPs: no terminal stores + only "Інші надходження"
+    _fop_wholesale: set[str] = set()
     for fop_entry in all_fops_report:
         edrpou = fop_entry.get("fop_edrpou", "")
         terminal_stores = fop_terminal_stores.get(edrpou, [])
-        fop_entry["current_terminal_stores"] = "\n".join(terminal_stores)
+        if terminal_stores:
+            fop_entry["current_terminal_stores"] = "\n".join(terminal_stores)
+        else:
+            has_terminal_income = any(
+                s.get("source") == "terminal" for s in fop_entry.get("stores", [])
+            )
+            other_income = sum(
+                s.get("total", 0) for s in fop_entry.get("stores", [])
+                if s["name"] == "Інші надходження"
+            )
+            total = fop_entry.get("total_income", 0)
+            is_tp = fop_entry.get("organization") == "Технопростір"
+            if is_tp and not has_terminal_income and other_income > total * 0.5 and other_income > 100_000:
+                fop_entry["current_terminal_stores"] = "Гурт (Інші надходження)"
+                _fop_wholesale.add(edrpou)
+            else:
+                fop_entry["current_terminal_stores"] = ""
+
+    # Filter critical_fops: keep FOPs with terminal stores OR wholesale
+    before_filter = len(critical_fops)
+    critical_fops = [
+        f for f in critical_fops
+        if fop_terminal_stores.get(f["fop_edrpou"])
+        or f["fop_edrpou"] in _fop_wholesale
+    ]
+    if before_filter != len(critical_fops):
+        logger.info(
+            "Відфільтровано %d критичних ФОП без прив'язаних магазинів та без гурту",
+            before_filter - len(critical_fops),
+        )
 
     period = f"{date(year, 1, 1).strftime('%d.%m.%Y')} - {today.strftime('%d.%m.%Y')}"
 
