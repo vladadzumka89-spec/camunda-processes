@@ -84,7 +84,7 @@ CAMUNDA_CLIENT_ID = os.environ.get(
 CAMUNDA_CLIENT_SECRET = os.environ.get(
     "ZEEBE_CLIENT_SECRET", os.environ.get("CAMUNDA_CLIENT_SECRET", "")
 )
-CAMUNDA_PROCESS_ID = "Process_0iy2u1a"
+CAMUNDA_PROCESS_ID = "Process_rebvtea"
 
 # If FOP income already exceeds 4M, it's too late to change terminal —
 # we won't make it in time, so leave the FOP until 7M limit.
@@ -122,7 +122,7 @@ def _get_access_token() -> str:
 
 
 def _get_active_fop_edrpous() -> set[str]:
-    """Query Camunda for active Process_0iy2u1a instances and return their fop_edrpou values."""
+    """Query Camunda for active Process_rebvtea instances and return their fop_edrpou values."""
     import httpx
 
     try:
@@ -132,7 +132,7 @@ def _get_active_fop_edrpous() -> set[str]:
             "Content-Type": "application/json",
         }
 
-        # 1. Find all active Process_0iy2u1a instances
+        # 1. Find all active Process_rebvtea instances
         resp = httpx.post(
             f"{CAMUNDA_REST_URL}/v2/process-instances/search",
             headers=headers,
@@ -178,7 +178,7 @@ def _get_active_fop_edrpous() -> set[str]:
                         active_edrpous.add(str(val))
 
         logger.info(
-            "Дедуплікація: %d активних Process_0iy2u1a, ЄДРПОУ: %s",
+            "Дедуплікація: %d активних Process_rebvtea, ЄДРПОУ: %s",
             len(instances),
             active_edrpous or "немає",
         )
@@ -407,8 +407,20 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         all_fops_report.append(fop_entry)
 
         # critical_fops for Camunda multi-instance: only NEW (no active process)
-        # and not in skip zone (4M+) where terminal change is too late
-        if is_critical and not has_active_process and not skip_change and not exceeded_high:
+        # Skip zone 4M-7M (too late for terminal change), but 7M+ gets a task too
+        if (is_critical or exceeded_high) and not has_active_process and not skip_change:
+            # Build stores text with employee count per store
+            _stores_parts = []
+            for s in stores_list[:5]:
+                sname = s["name"]
+                income_str = f"{s['total']:,.0f}".replace(",", " ")
+                # Count employees registered on this FOP at this store
+                emp_at_store = store_employees.get(sname, [])
+                emp_on_fop = [e for e in emp_at_store if e["employer_edrpou"] == edrpou]
+                if emp_on_fop:
+                    _stores_parts.append(f"{sname}: {income_str} (зареєстровано {len(emp_on_fop)} працівників на ФОП)")
+                else:
+                    _stores_parts.append(f"{sname}: {income_str}")
             critical_fops.append({
                 "fop_name": fop_entry["fop_name"],
                 "fop_edrpou": fop_entry["fop_edrpou"],
@@ -418,11 +430,9 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
                 "income_percent": fop_entry["income_percent"],
                 "days_to_limit": days_to_limit,
                 "projected_date": projected_date,
-                "stores": ", ".join(
-                    f"{s['name']}: {s['total']:,.0f}".replace(",", " ")
-                    for s in stores[:5]
-                ),
+                "stores": "<br/>".join(_stores_parts),
                 "stores_count": len(stores),
+                "employee_count": fop_emp_total,
                 "trend_ratio": fop_entry["trend_ratio"],
                 "terminal_change": fop_entry["terminal_change"],
                 "terminal_change_percent": fop_entry["terminal_change_percent"],
@@ -671,8 +681,8 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         "report_date": today.isoformat(),
         "total_fops": len(fops),
         "total_analyzed": len(analyses),
-        "critical_count": 0,  # TODO: повернути len(critical_fops) коли user tasks будуть готові
-        "critical_fops": [],  # TODO: повернути critical_fops коли user tasks будуть готові
+        "critical_count": len(critical_fops),
+        "critical_fops": critical_fops,
         "report_json": report_json,
     }
 

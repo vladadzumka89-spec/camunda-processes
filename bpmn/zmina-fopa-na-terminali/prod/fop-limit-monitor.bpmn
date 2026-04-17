@@ -60,7 +60,7 @@
     </bpmn:exclusiveGateway>
     <bpmn:callActivity id="CA_fop_notification" name="Сповіщення про зміну ФОП">
       <bpmn:extensionElements>
-        <zeebe:calledElement processId="Process_0iy2u1a" propagateAllChildVariables="false" />
+        <zeebe:calledElement processId="Process_rebvtea" propagateAllChildVariables="false" />
         <zeebe:ioMapping>
           <zeebe:input source="= fop.fop_name" target="fop_name" />
           <zeebe:input source="= fop.fop_edrpou" target="fop_edrpou" />

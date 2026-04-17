@@ -87,7 +87,7 @@
     <!-- Call Activity — multi-instance: запуск Process_0iy2u1a для кожного критичного ФОП -->
     <bpmn:callActivity id="CA_fop_notification" name="Сповіщення про зміну ФОП">
       <bpmn:extensionElements>
-        <zeebe:calledElement processId="Process_0iy2u1a" propagateAllChildVariables="false" />
+        <zeebe:calledElement processId="Process_rebvtea" propagateAllChildVariables="false" />
         <zeebe:ioMapping>
           <zeebe:input source="= fop.fop_name" target="fop_name" />
           <zeebe:input source="= fop.fop_edrpou" target="fop_edrpou" />
@@ -99,6 +99,7 @@
           <zeebe:input source="= fop.projected_date" target="projected_date" />
           <zeebe:input source="= fop.stores" target="stores" />
           <zeebe:input source="= fop.stores_count" target="stores_count" />
+          <zeebe:input source="= fop.employee_count" target="employee_count" />
           <zeebe:input source="= fop.trend_ratio" target="trend_ratio" />
           <zeebe:input source="= string(processInstanceKey)" target="process_instance_key" />
         </zeebe:ioMapping>
