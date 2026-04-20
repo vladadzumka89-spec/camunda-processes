@@ -31,6 +31,7 @@ from .fop_common import (
     _fetch_fop_companies,
     _fetch_seasonal_coefficients,
     _fetch_store_employees,
+    _fetch_active_terminal_bindings_by_org,
     _determine_organization,
     _analyze_fop,
     _safe_pct,
@@ -357,6 +358,7 @@ def _run_fop_plan(
         _common._fop_company_cache = _fetch_fop_companies(conn)
         seasonal_coefficients, network_coefficients = _fetch_seasonal_coefficients(conn, year)
         store_employees = _fetch_store_employees(conn)
+        active_terminal_bindings = _fetch_active_terminal_bindings_by_org(conn)
     finally:
         conn.close()
 
@@ -385,6 +387,7 @@ def _run_fop_plan(
 
     # Build FOP entries for planning (active FOPs only, not reserves)
     fop_entries = []
+    skipped_no_terminals = 0
     for fop in fops:
         fop_id = bytes(fop["id"])
         edrpou = (fop.get("edrpou") or "").strip()
@@ -392,6 +395,13 @@ def _run_fop_plan(
             continue
         analysis = analyses.get(fop_id)
         if not analysis:
+            continue
+
+        # Skip FOPs without active terminal bindings — they are not currently
+        # in use on any terminal, no need to replace them.
+        active_terminals = active_terminal_bindings.get(fop_id, [])
+        if not active_terminals:
+            skipped_no_terminals += 1
             continue
 
         group = fop_groups.get(fop_id, 2)
@@ -454,6 +464,7 @@ def _run_fop_plan(
             "fop_edrpou": edrpou,
             "network": network,
             "ep_group": group,
+            "active_terminal_stores": active_terminals,
             "total_income": round(analysis["total_income"], 2),
             "limit_amount": limit,
             "income_percent": _safe_pct(analysis["total_income"], limit),
@@ -465,6 +476,12 @@ def _run_fop_plan(
             "employee_count": emp_count,
             "is_active": True,
         })
+
+    if skipped_no_terminals:
+        logger.info(
+            "Пропущено ФОПів без активних терміналів: %d",
+            skipped_no_terminals,
+        )
 
     # Level A: Strategic summary
     strategic = calculate_strategic_summary(
