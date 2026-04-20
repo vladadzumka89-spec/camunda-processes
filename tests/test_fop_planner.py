@@ -40,10 +40,13 @@ class TestFindReserveFops:
             b"\x01": {"total_income": 2_500_000},
         }
         store_employees = {}
+        # Петренко has active terminals, Сидоренко has none (is reserve)
+        active_bindings = {b"\x01": ["Store A"]}
 
         result = find_reserve_fops(
             all_fops, fop_statuses, fop_groups, analyses, store_employees,
             reserve_threshold=100_000, employee_limit=8,
+            active_terminal_bindings=active_bindings,
         )
 
         assert len(result) == 1
@@ -51,6 +54,49 @@ class TestFindReserveFops:
         assert result[0]["fop_edrpou"] == "222"
         assert result[0]["current_income"] == 0
         assert result[0]["free_employee_slots"] == 8
+        assert result[0]["reserve_type"] == "empty"
+
+    def test_finds_inactive_fop_with_room(self):
+        """FOP without active terminals but with income below limit is a reserve."""
+        all_fops = [
+            {"id": b"\x01", "name": "ФОП Iнактив", "edrpou": "100"},
+        ]
+        fop_statuses = {b"\x01": "Відкрита"}
+        fop_groups = {b"\x01": 2}
+        analyses = {b"\x01": {"total_income": 3_000_000}}
+        store_employees = {}
+        active_bindings = {}  # no active terminals
+
+        result = find_reserve_fops(
+            all_fops, fop_statuses, fop_groups, analyses, store_employees,
+            reserve_threshold=100_000, employee_limit=8,
+            income_limit=6_600_000,
+            active_terminal_bindings=active_bindings,
+        )
+
+        assert len(result) == 1
+        assert result[0]["fop_name"] == "ФОП Iнактив"
+        assert result[0]["current_income"] == 3_000_000
+        assert result[0]["income_remaining"] == 3_600_000
+        assert result[0]["reserve_type"] == "inactive"
+
+    def test_excludes_exhausted_fop(self):
+        """FOP without active terminals but income >= limit is NOT a reserve."""
+        all_fops = [
+            {"id": b"\x01", "name": "ФОП Вичерпаний", "edrpou": "100"},
+        ]
+        fop_statuses = {b"\x01": "Відкрита"}
+        fop_groups = {b"\x01": 2}
+        analyses = {b"\x01": {"total_income": 7_000_000}}
+        store_employees = {}
+
+        result = find_reserve_fops(
+            all_fops, fop_statuses, fop_groups, analyses, store_employees,
+            reserve_threshold=100_000, employee_limit=8,
+            income_limit=6_600_000,
+            active_terminal_bindings={},
+        )
+        assert len(result) == 0
 
     def test_excludes_closed_fops(self):
         all_fops = [{"id": b"\x01", "name": "ФОП Закритий", "edrpou": "333"}]

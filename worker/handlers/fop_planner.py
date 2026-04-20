@@ -55,11 +55,23 @@ def find_reserve_fops(
     *,
     reserve_threshold: float = 100_000,
     employee_limit: int = 8,
+    income_limit: float = 6_600_000,
+    active_terminal_bindings: dict[bytes, list[str]] | None = None,
 ) -> list[dict]:
-    """Find FOPs that are open but not actively used (reserve pool).
+    """Find FOPs available to take on new stores (reserve pool).
 
-    Criteria: status=Відкрита, group=2, income < reserve_threshold.
+    A FOP is considered a "reserve" if:
+    - Status = Відкрита
+    - Group = 2
+    - Has room below income limit
+    - AND (income < reserve_threshold OR no active terminal bindings)
+
+    The second category (no active terminals) covers FOPs that previously
+    worked but are currently idle — their remaining income capacity can be
+    reused. Each entry has `income_remaining` showing how much they can
+    still absorb.
     """
+    bindings = active_terminal_bindings or {}
     reserve = []
     for fop in all_fops:
         fop_id = bytes(fop["id"])
@@ -72,7 +84,17 @@ def find_reserve_fops(
 
         analysis = analyses.get(fop_id)
         income = analysis["total_income"] if analysis else 0.0
-        if income >= reserve_threshold:
+
+        # Must have room below limit
+        if income >= income_limit:
+            continue
+
+        has_active_terminals = bool(bindings.get(fop_id))
+        is_empty_reserve = income < reserve_threshold
+        is_inactive = not has_active_terminals
+
+        # Include as reserve if either empty OR inactive with room
+        if not (is_empty_reserve or is_inactive):
             continue
 
         edrpou = (fop.get("edrpou") or "").strip()
@@ -88,8 +110,10 @@ def find_reserve_fops(
             "network": network,
             "ep_group": group,
             "current_income": income,
+            "income_remaining": round(income_limit - income, 2),
             "current_employees": emp_count,
             "free_employee_slots": employee_limit - emp_count,
+            "reserve_type": "empty" if is_empty_reserve else "inactive",
         })
 
     return reserve
@@ -440,6 +464,8 @@ def _run_fop_plan(
     reserve = find_reserve_fops(
         fops, fop_statuses, fop_groups, analyses, store_employees,
         reserve_threshold=reserve_threshold, employee_limit=employee_limit,
+        income_limit=income_limit,
+        active_terminal_bindings=active_terminal_bindings,
     )
     reserve_edrpous = {r["fop_edrpou"] for r in reserve}
     logger.info("Резервних ФОПів: %d", len(reserve))
