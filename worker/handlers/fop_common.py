@@ -26,8 +26,8 @@ EP_GROUP_ENUM = {
 }
 
 LIMITS = {
-    2: float(os.environ.get("FOP_LIMIT_GROUP_2", "3500000")),
-    3: float(os.environ.get("FOP_LIMIT_GROUP_3", "3500000")),
+    2: float(os.environ.get("FOP_LIMIT_GROUP_2", "6600000")),
+    3: float(os.environ.get("FOP_LIMIT_GROUP_3", "6600000")),
 }
 
 REPORT_DIR = Path(os.environ.get("FOP_REPORT_DIR", "reports/fop"))

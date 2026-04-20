@@ -86,10 +86,6 @@ CAMUNDA_CLIENT_SECRET = os.environ.get(
 )
 CAMUNDA_PROCESS_ID = "Process_rebvtea"
 
-# If FOP income already exceeds 4M, it's too late to change terminal —
-# we won't make it in time, so leave the FOP until 7M limit.
-SKIP_CHANGE_THRESHOLD = 4_000_000
-HIGH_LIMIT = 7_000_000
 
 _token_cache: dict = {"token": None, "expires_at": 0.0}
 
@@ -293,19 +289,7 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         is_critical = days_to_limit <= days_ahead
         has_active_process = edrpou in active_edrpous
 
-        # If income already >= 4M, too late to change terminal.
-        # Leave on terminal until 7M limit.
-        exceeded_high = analysis["total_income"] >= HIGH_LIMIT
-        skip_change = (
-            analysis["total_income"] >= SKIP_CHANGE_THRESHOLD
-            and not exceeded_high
-        )
-
-        if exceeded_high:
-            status = "Перевищено 7 млн"
-        elif skip_change:
-            status = "Очікує 7 млн"
-        elif is_critical and has_active_process:
+        if is_critical and has_active_process:
             status = "В роботі"
         elif is_critical:
             status = "Критично"
@@ -407,8 +391,7 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         all_fops_report.append(fop_entry)
 
         # critical_fops for Camunda multi-instance: only NEW (no active process)
-        # Skip zone 4M-7M (too late for terminal change), but 7M+ gets a task too
-        if (is_critical or exceeded_high) and not has_active_process and not skip_change:
+        if is_critical and not has_active_process:
             # Build stores text with employee count per store
             _stores_parts = []
             for s in stores_list[:5]:
@@ -438,15 +421,12 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
                 "terminal_change_percent": fop_entry["terminal_change_percent"],
             })
 
-    _non_critical = {"Норма", "Очікує 7 млн", "Перевищено 7 млн"}
-    critical_all = sum(1 for f in all_fops_report if f["status"] not in _non_critical)
+    critical_all = sum(1 for f in all_fops_report if f["status"] != "Норма")
     critical_in_progress = sum(1 for f in all_fops_report if f["status"] == "В роботі")
-    skip_count = sum(1 for f in all_fops_report if f["status"] == "Очікує 7 млн")
-    exceeded_count = sum(1 for f in all_fops_report if f["status"] == "Перевищено 7 млн")
 
     logger.info(
-        "Критичних ФОПів: %d всього (%d нових, %d вже в роботі, %d очікують 7 млн, %d перевищено 7 млн)",
-        critical_all, len(critical_fops), critical_in_progress, skip_count, exceeded_count,
+        "Критичних ФОПів: %d всього (%d нових, %d вже в роботі)",
+        critical_all, len(critical_fops), critical_in_progress,
     )
 
     # JSON report — sorted by total income descending
