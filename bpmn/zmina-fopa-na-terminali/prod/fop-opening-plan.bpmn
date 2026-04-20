@@ -40,7 +40,7 @@
         <zeebe:taskDefinition type="fop-opening-plan" retries="1" />
         <zeebe:ioMapping>
           <zeebe:input source="= if is defined(horizon_months) and horizon_months != null then horizon_months else 12" target="horizon_months" />
-          <zeebe:input source="= if is defined(income_limit) and income_limit != null then income_limit else 3500000" target="income_limit" />
+          <zeebe:input source="= if is defined(income_limit) and income_limit != null then income_limit else 6600000" target="income_limit" />
           <zeebe:input source="= if is defined(employee_limit) and employee_limit != null then employee_limit else 8" target="employee_limit" />
           <zeebe:input source="= if is defined(reserve_threshold) and reserve_threshold != null then reserve_threshold else 100000" target="reserve_threshold" />
         </zeebe:ioMapping>

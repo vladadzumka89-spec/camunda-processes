@@ -101,7 +101,7 @@ def calculate_strategic_summary(
     fop_entries: list[dict],
     reserve_fops: list[dict],
     *,
-    income_limit: float = 3_500_000,
+    income_limit: float = 6_600_000,
     growth_percent: float = 0.0,
 ) -> dict[str, dict]:
     """Level A: how many FOPs each network needs for the year.
@@ -324,7 +324,7 @@ def build_monthly_plan(
 def _run_fop_plan(
     *,
     horizon_months: int = 12,
-    income_limit: float = 3_500_000,
+    income_limit: float = 6_600_000,
     employee_limit: int = 8,
     reserve_threshold: float = 100_000,
     growth_percent: float = 0.0,
@@ -555,7 +555,7 @@ def register_fop_planner_handlers(
     @worker.task(task_type="fop-opening-plan", timeout_ms=300_000)
     async def fop_opening_plan(
         horizon_months: int = 12,
-        income_limit: float = 3_500_000,
+        income_limit: float = 6_600_000,
         employee_limit: int = 8,
         reserve_threshold: float = 100_000,
         growth_percent: float = 0.0,
@@ -565,7 +565,7 @@ def register_fop_planner_handlers(
 
         Input variables:
             horizon_months (int): горизонт планування в місяцях (default: 12)
-            income_limit (float): річний ліміт доходу ФОП (default: 3500000)
+            income_limit (float): річний ліміт доходу ФОП (default: 6600000)
             employee_limit (int): максимум працівників на ФОП (default: 8)
             reserve_threshold (float): поріг доходу для резервного ФОП (default: 100000)
             growth_percent (float): % росту бізнесу рік-до-року (default: 0)
