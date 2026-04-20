@@ -95,6 +95,49 @@ def find_reserve_fops(
     return reserve
 
 
+# ── Planned store openings ────────────────────────────────────────────
+
+
+def calculate_planned_store_income(
+    planned_stores: list[dict],
+    network_avg_monthly_income: dict[str, float],
+    today: date,
+    year_end: date,
+) -> dict[str, float]:
+    """Calculate projected income from planned store openings per network.
+
+    Args:
+        planned_stores: list of {name, opening_date, network, monthly_income?}
+            opening_date as ISO string or date.
+            monthly_income optional — defaults to network average.
+        network_avg_monthly_income: {network: avg monthly income per store}
+        today: current date
+        year_end: end of planning horizon
+
+    Returns: {network: additional_projected_income}
+    """
+    result: dict[str, float] = {}
+    for store in planned_stores:
+        net = store.get("network", "ФАМО")
+        opening = store.get("opening_date")
+        if isinstance(opening, str):
+            opening = date.fromisoformat(opening)
+
+        effective_start = max(opening, today)
+        if effective_start >= year_end:
+            continue
+
+        months_active = (year_end.year - effective_start.year) * 12
+        months_active += year_end.month - effective_start.month
+        months_active = max(1, months_active)
+
+        monthly = store.get("monthly_income") or network_avg_monthly_income.get(net, 0)
+        added = monthly * months_active
+
+        result[net] = result.get(net, 0.0) + added
+    return result
+
+
 # ── Strategic summary ─────────────────────────────────────────────────
 
 
@@ -104,6 +147,7 @@ def calculate_strategic_summary(
     *,
     income_limit: float = 6_600_000,
     growth_percent: float = 0.0,
+    planned_income_by_network: dict[str, float] | None = None,
 ) -> dict[str, dict]:
     """Level A: how many FOPs each network needs for the year.
 
@@ -141,6 +185,20 @@ def calculate_strategic_summary(
                 "fops_to_open": 0,
             }
         networks[net]["fops_reserve"] += 1
+
+    # Add income from planned store openings
+    if planned_income_by_network:
+        for net, added in planned_income_by_network.items():
+            if net not in networks:
+                networks[net] = {
+                    "projected_annual_income": 0.0,
+                    "fops_needed": 0,
+                    "fops_active": 0,
+                    "fops_reserve": 0,
+                    "fops_to_open": 0,
+                }
+            networks[net]["projected_annual_income"] += added
+            networks[net]["planned_stores_income"] = round(added, 2)
 
     growth_multiplier = 1.0 + growth_percent / 100.0
 
@@ -329,6 +387,7 @@ def _run_fop_plan(
     employee_limit: int = 8,
     reserve_threshold: float = 100_000,
     growth_percent: float = 0.0,
+    planned_stores: list[dict] | None = None,
 ) -> dict:
     """Synchronous: full FOP opening plan (DB -> analysis -> JSON plan).
 
@@ -483,10 +542,35 @@ def _run_fop_plan(
             skipped_no_terminals,
         )
 
+    # Calculate planned stores income per network
+    planned_income_by_network: dict[str, float] = {}
+    if planned_stores:
+        # Build network average monthly income from current FOPs
+        net_totals: dict[str, float] = {}
+        net_counts: dict[str, int] = {}
+        for entry in fop_entries:
+            net = entry["network"]
+            for s in entry.get("stores", []):
+                net_totals[net] = net_totals.get(net, 0) + s.get("monthly_income", 0)
+                net_counts[net] = net_counts.get(net, 0) + 1
+        network_avg = {
+            net: (net_totals[net] / net_counts[net]) if net_counts.get(net) else 0
+            for net in net_totals
+        }
+        year_end = date(today.year, 12, 31)
+        planned_income_by_network = calculate_planned_store_income(
+            planned_stores, network_avg, today, year_end,
+        )
+        logger.info(
+            "Планові відкриття магазинів — додатковий дохід: %s",
+            {k: f"{v:,.0f}" for k, v in planned_income_by_network.items()},
+        )
+
     # Level A: Strategic summary
     strategic = calculate_strategic_summary(
         fop_entries, reserve, income_limit=income_limit,
         growth_percent=growth_percent,
+        planned_income_by_network=planned_income_by_network or None,
     )
     logger.info(
         "Стратегічний план: %s",
@@ -528,7 +612,9 @@ def _run_fop_plan(
             "reserve_threshold": reserve_threshold,
             "horizon_months": horizon_months,
             "growth_percent": growth_percent,
+            "planned_stores_count": len(planned_stores) if planned_stores else 0,
         },
+        "planned_stores": planned_stores or [],
         "strategic_summary": strategic,
         "reserve_fops": reserve,
         "monthly_plan": monthly_plan,
@@ -576,6 +662,7 @@ def register_fop_planner_handlers(
         employee_limit: int = 8,
         reserve_threshold: float = 100_000,
         growth_percent: float = 0.0,
+        planned_stores: list | None = None,
         **kwargs: Any,
     ) -> dict:
         """Планування відкриття нових ФОП.
@@ -586,6 +673,8 @@ def register_fop_planner_handlers(
             employee_limit (int): максимум працівників на ФОП (default: 8)
             reserve_threshold (float): поріг доходу для резервного ФОП (default: 100000)
             growth_percent (float): % росту бізнесу рік-до-року (default: 0)
+            planned_stores (list): список планових відкриттів магазинів
+                [{name, opening_date, network, monthly_income?}]
 
         Output variables:
             plan_date (str): дата плану (ISO)
@@ -607,6 +696,7 @@ def register_fop_planner_handlers(
             employee_limit=employee_limit,
             reserve_threshold=reserve_threshold,
             growth_percent=growth_percent,
+            planned_stores=planned_stores,
         )
 
         logger.info(
