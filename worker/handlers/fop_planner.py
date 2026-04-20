@@ -473,6 +473,7 @@ def _run_fop_plan(
     # Build FOP entries for planning (active FOPs only, not reserves)
     fop_entries = []
     skipped_no_terminals = 0
+    skipped_closed = 0
     for fop in fops:
         fop_id = bytes(fop["id"])
         edrpou = (fop.get("edrpou") or "").strip()
@@ -480,6 +481,11 @@ def _run_fop_plan(
             continue
         analysis = analyses.get(fop_id)
         if not analysis:
+            continue
+
+        # Skip closed FOPs — not planning to replace them
+        if fop_statuses.get(fop_id, "Відкрита") == "Закрита":
+            skipped_closed += 1
             continue
 
         # Skip FOPs without active terminal bindings — they are not currently
@@ -567,6 +573,8 @@ def _run_fop_plan(
             "Пропущено ФОПів без активних терміналів: %d",
             skipped_no_terminals,
         )
+    if skipped_closed:
+        logger.info("Пропущено закритих ФОПів: %d", skipped_closed)
 
     # Calculate planned stores income per network
     planned_income_by_network: dict[str, float] = {}
