@@ -5,7 +5,7 @@
   </bpmn:collaboration>
   <bpmn:process id="Process_invoice_ocr" name="Оплата рахунків оренда та комунальні (OCR)" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="3.1" />
+      <zeebe:versionTag value="4.0" />
     </bpmn:extensionElements>
     <bpmn:laneSet id="LaneSet_1">
       <bpmn:lane id="Lane_Buhgalter" name="Бухгалтер">
@@ -18,8 +18,6 @@
       <bpmn:lane id="Lane_Camunda" name="Система (Camunda)">
         <bpmn:flowNodeRef>ST_ocr_extract</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>GW_recognized</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>GW_count</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>CA_single_invoice</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>CA_per_invoice</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Odoo" name="Система (Odoo авто)">
@@ -84,18 +82,6 @@
           <zeebe:output source="= total_amount" target="total_amount" />
           <zeebe:output source="= recognized" target="recognized" />
           <zeebe:output source="= ocr_summary" target="ocr_summary" />
-          <zeebe:output source="= first_partner_name" target="first_partner_name" />
-          <zeebe:output source="= first_invoice_number" target="first_invoice_number" />
-          <zeebe:output source="= first_invoice_date" target="first_invoice_date" />
-          <zeebe:output source="= first_invoice_line_name" target="first_invoice_line_name" />
-          <zeebe:output source="= first_invoice_amount_no_vat" target="first_invoice_amount_no_vat" />
-          <zeebe:output source="= first_vat_amount" target="first_vat_amount" />
-          <zeebe:output source="= first_supplier_code" target="first_supplier_code" />
-          <zeebe:output source="= first_contract" target="first_contract" />
-          <zeebe:output source="= first_buyer_name" target="first_buyer_name" />
-          <zeebe:output source="= first_quantity" target="first_quantity" />
-          <zeebe:output source="= first_unit" target="first_unit" />
-          <zeebe:output source="= first_invoice_type" target="first_invoice_type" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_upload_to_ocr</bpmn:incoming>
@@ -106,18 +92,18 @@
       <bpmn:outgoing>Flow_recognized_yes</bpmn:outgoing>
       <bpmn:outgoing>Flow_not_recognized</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:serviceTask id="ST_update_summary" name="Записати результати OCR в Odoo">
+    <bpmn:serviceTask id="ST_update_summary" name="Записати summary в головне завдання">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="http-request-smart" />
         <zeebe:ioMapping>
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="= &#34;https://odoo.dev.dobrom.com/web/hook/b1c3b316-0624-438d-a82e-461500b26d12&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="= {_id: odoo_task_id, process_instance_key: process_instance_key, description: &#34;Розпізнано &#34; + string(total_invoices) + &#34; рахунків:\n&#34; + ocr_summary, x_studio_camunda_invoice_file: x_studio_camunda_invoice_file, x_studio_camunda_invoice_number: first_invoice_number, x_studio_camunda_invoice_date: first_invoice_date, x_studio_camunda_invoice_line_name: first_invoice_line_name, x_studio_camunda_invoice_amount: total_amount, x_studio_camunda_invoice_amount_no_vat: first_invoice_amount_no_vat, x_studio_camunda_vat_amount: first_vat_amount, x_studio_camunda_supplier_code: first_supplier_code, x_studio_camunda_contract: first_contract, x_studio_camunda_buyer_name: first_buyer_name, x_studio_camunda_quantity: first_quantity, x_studio_camunda_unit: first_unit, x_studio_camunda_invoice_type: first_invoice_type, x_studio_camunda_partner_name: first_partner_name}" target="body" />
+          <zeebe:input source="= {_id: odoo_task_id, process_instance_key: process_instance_key, x_studio_camunda_process_instance_key: process_instance_key, description: &#34;Розпізнано &#34; + string(total_invoices) + &#34; рахунків на загальну суму &#34; + string(total_amount) + &#34; грн\n&#34; + ocr_summary}" target="body" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_recognized_yes</bpmn:incoming>
-      <bpmn:outgoing>Flow_summary_to_count</bpmn:outgoing>
+      <bpmn:outgoing>Flow_summary_to_ca</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:serviceTask id="ST_notify_empty" name="Повідомити: OCR не розпізнав">
       <bpmn:extensionElements>
@@ -132,36 +118,6 @@
       <bpmn:incoming>Flow_not_recognized</bpmn:incoming>
       <bpmn:outgoing>Flow_notify_to_upload</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:exclusiveGateway id="GW_count" name="Кількість рахунків?" default="Flow_multi">
-      <bpmn:incoming>Flow_summary_to_count</bpmn:incoming>
-      <bpmn:outgoing>Flow_single</bpmn:outgoing>
-      <bpmn:outgoing>Flow_multi</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-    <bpmn:callActivity id="CA_single_invoice" name="Обробка рахунку (в головному завданні)">
-      <bpmn:extensionElements>
-        <zeebe:calledElement processId="Process_u0wy9yd" propagateAllChildVariables="false" />
-        <zeebe:ioMapping>
-          <zeebe:input source="= first_partner_name" target="x_studio_camunda_partner_name" />
-          <zeebe:input source="= first_invoice_number" target="x_studio_camunda_invoice_number" />
-          <zeebe:input source="= first_invoice_date" target="x_studio_camunda_invoice_date" />
-          <zeebe:input source="= first_invoice_line_name" target="x_studio_camunda_invoice_line_name" />
-          <zeebe:input source="= total_amount" target="x_studio_camunda_invoice_amount" />
-          <zeebe:input source="= first_invoice_amount_no_vat" target="x_studio_camunda_invoice_amount_no_vat" />
-          <zeebe:input source="= first_vat_amount" target="x_studio_camunda_vat_amount" />
-          <zeebe:input source="= first_supplier_code" target="x_studio_camunda_supplier_code" />
-          <zeebe:input source="= first_contract" target="x_studio_camunda_contract" />
-          <zeebe:input source="= first_buyer_name" target="x_studio_camunda_buyer_name" />
-          <zeebe:input source="= first_quantity" target="x_studio_camunda_quantity" />
-          <zeebe:input source="= first_unit" target="x_studio_camunda_unit" />
-          <zeebe:input source="= first_invoice_type" target="x_studio_camunda_invoice_type" />
-          <zeebe:input source="= x_studio_camunda_invoice_file" target="x_studio_camunda_invoice_file" />
-          <zeebe:input source="= process_instance_key" target="parent_process_instance_key" />
-          <zeebe:input source="= odoo_task_id" target="parent_odoo_task_id" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_single</bpmn:incoming>
-      <bpmn:outgoing>Flow_single_to_end</bpmn:outgoing>
-    </bpmn:callActivity>
     <bpmn:callActivity id="CA_per_invoice" name="Обробка окремого рахунку">
       <bpmn:extensionElements>
         <zeebe:calledElement processId="Process_u0wy9yd" propagateAllChildVariables="false" />
@@ -184,8 +140,8 @@
           <zeebe:input source="= odoo_task_id" target="parent_odoo_task_id" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_multi</bpmn:incoming>
-      <bpmn:outgoing>Flow_multi_to_end</bpmn:outgoing>
+      <bpmn:incoming>Flow_summary_to_ca</bpmn:incoming>
+      <bpmn:outgoing>Flow_ca_to_end</bpmn:outgoing>
       <bpmn:multiInstanceLoopCharacteristics>
         <bpmn:extensionElements>
           <zeebe:loopCharacteristics inputCollection="= invoice_items" inputElement="item" />
@@ -193,8 +149,7 @@
       </bpmn:multiInstanceLoopCharacteristics>
     </bpmn:callActivity>
     <bpmn:endEvent id="End_main" name="Усі рахунки оброблено">
-      <bpmn:incoming>Flow_single_to_end</bpmn:incoming>
-      <bpmn:incoming>Flow_multi_to_end</bpmn:incoming>
+      <bpmn:incoming>Flow_ca_to_end</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_start_to_gw_odoo" sourceRef="StartEvent_1" targetRef="GW_odoo_check" />
     <bpmn:sequenceFlow id="Flow_odoo_no_task" sourceRef="GW_odoo_check" targetRef="ST_create_main" />
@@ -210,30 +165,25 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_not_recognized" sourceRef="GW_recognized" targetRef="ST_notify_empty" />
     <bpmn:sequenceFlow id="Flow_notify_to_upload" sourceRef="ST_notify_empty" targetRef="UT_upload_file" />
-    <bpmn:sequenceFlow id="Flow_summary_to_count" sourceRef="ST_update_summary" targetRef="GW_count" />
-    <bpmn:sequenceFlow id="Flow_single" name="1 рахунок" sourceRef="GW_count" targetRef="CA_single_invoice">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= total_invoices = 1</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="Flow_multi" sourceRef="GW_count" targetRef="CA_per_invoice" />
-    <bpmn:sequenceFlow id="Flow_single_to_end" sourceRef="CA_single_invoice" targetRef="End_main" />
-    <bpmn:sequenceFlow id="Flow_multi_to_end" sourceRef="CA_per_invoice" targetRef="End_main" />
+    <bpmn:sequenceFlow id="Flow_summary_to_ca" sourceRef="ST_update_summary" targetRef="CA_per_invoice" />
+    <bpmn:sequenceFlow id="Flow_ca_to_end" sourceRef="CA_per_invoice" targetRef="End_main" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collab_1">
       <bpmndi:BPMNShape id="Pool_1_di" bpmnElement="Pool_1" isHorizontal="true">
-        <dc:Bounds x="105" y="90" width="1600" height="475" />
+        <dc:Bounds x="105" y="90" width="1500" height="475" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Buhgalter_di" bpmnElement="Lane_Buhgalter" isHorizontal="true">
-        <dc:Bounds x="135" y="90" width="1570" height="170" />
+        <dc:Bounds x="135" y="90" width="1470" height="170" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Camunda_di" bpmnElement="Lane_Camunda" isHorizontal="true">
-        <dc:Bounds x="135" y="260" width="1570" height="150" />
+        <dc:Bounds x="135" y="260" width="1470" height="150" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Odoo_di" bpmnElement="Lane_Odoo" isHorizontal="true">
-        <dc:Bounds x="135" y="410" width="1570" height="155" />
+        <dc:Bounds x="135" y="410" width="1470" height="155" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
@@ -269,26 +219,16 @@
           <dc:Bounds x="858" y="280" width="76" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_update_summary_di" bpmnElement="ST_update_summary">
-        <dc:Bounds x="1020" y="447" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ST_notify_empty_di" bpmnElement="ST_notify_empty">
         <dc:Bounds x="845" y="447" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="GW_count_di" bpmnElement="GW_count" isMarkerVisible="true">
-        <dc:Bounds x="1095" y="310" width="50" height="50" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1083" y="280" width="76" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="CA_single_invoice_di" bpmnElement="CA_single_invoice">
-        <dc:Bounds x="1220" y="370" width="120" height="80" />
+      <bpmndi:BPMNShape id="ST_update_summary_di" bpmnElement="ST_update_summary">
+        <dc:Bounds x="1000" y="447" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="CA_per_invoice_di" bpmnElement="CA_per_invoice">
-        <dc:Bounds x="1220" y="275" width="120" height="80" />
+        <dc:Bounds x="1180" y="295" width="120" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_main_di" bpmnElement="End_main">
@@ -334,9 +274,9 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_recognized_yes_di" bpmnElement="Flow_recognized_yes">
         <di:waypoint x="920" y="335" />
-        <di:waypoint x="970" y="335" />
-        <di:waypoint x="970" y="487" />
-        <di:waypoint x="1020" y="487" />
+        <di:waypoint x="960" y="335" />
+        <di:waypoint x="960" y="487" />
+        <di:waypoint x="1000" y="487" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="930" y="317" width="19" height="14" />
         </bpmndi:BPMNLabel>
@@ -353,30 +293,15 @@
         <di:waypoint x="515" y="165" />
         <di:waypoint x="535" y="165" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_summary_to_count_di" bpmnElement="Flow_summary_to_count">
-        <di:waypoint x="1120" y="487" />
-        <di:waypoint x="1120" y="360" />
+      <bpmndi:BPMNEdge id="Flow_summary_to_ca_di" bpmnElement="Flow_summary_to_ca">
+        <di:waypoint x="1100" y="487" />
+        <di:waypoint x="1140" y="487" />
+        <di:waypoint x="1140" y="335" />
+        <di:waypoint x="1180" y="335" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_single_di" bpmnElement="Flow_single">
-        <di:waypoint x="1120" y="360" />
-        <di:waypoint x="1120" y="410" />
-        <di:waypoint x="1220" y="410" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1135" y="392" width="50" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_multi_di" bpmnElement="Flow_multi">
-        <di:waypoint x="1145" y="335" />
-        <di:waypoint x="1220" y="315" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_single_to_end_di" bpmnElement="Flow_single_to_end">
-        <di:waypoint x="1340" y="410" />
-        <di:waypoint x="1415" y="410" />
-        <di:waypoint x="1415" y="183" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_multi_to_end_di" bpmnElement="Flow_multi_to_end">
-        <di:waypoint x="1340" y="315" />
-        <di:waypoint x="1415" y="315" />
+      <bpmndi:BPMNEdge id="Flow_ca_to_end_di" bpmnElement="Flow_ca_to_end">
+        <di:waypoint x="1300" y="335" />
+        <di:waypoint x="1415" y="335" />
         <di:waypoint x="1415" y="183" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>

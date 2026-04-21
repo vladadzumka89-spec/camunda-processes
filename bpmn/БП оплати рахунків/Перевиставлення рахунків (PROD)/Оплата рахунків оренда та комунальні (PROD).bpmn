@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e3893a3" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:collaboration id="Collab_1" name="Оплата рахунків оренда та комунальні">
+    <bpmn:participant id="Pool_1" name="Оплата рахунків оренда та комунальні (OCR)" processRef="Process_invoice_ocr" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_invoice_ocr" name="Оплата рахунків оренда та комунальні (OCR)" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="4.0" />
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Buhgalter" name="Бухгалтер">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_upload_file</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_odoo_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_main</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Camunda" name="Система (Camunda)">
+        <bpmn:flowNodeRef>ST_ocr_extract</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>GW_recognized</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>CA_per_invoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Odoo" name="Система (Odoo авто)">
+        <bpmn:flowNodeRef>ST_create_main</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_notify_empty</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_update_summary</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:sequenceFlow id="Flow_create_main_done" sourceRef="ST_create_main" targetRef="GW_odoo_merge" />
+    <bpmn:sequenceFlow id="Flow_ca_to_end" sourceRef="CA_per_invoice" targetRef="End_main" />
+    <bpmn:sequenceFlow id="Flow_summary_to_ca" sourceRef="ST_update_summary" targetRef="CA_per_invoice" />
+    <bpmn:sequenceFlow id="Flow_notify_to_upload" sourceRef="ST_notify_empty" targetRef="UT_upload_file" />
+    <bpmn:sequenceFlow id="Flow_not_recognized" sourceRef="GW_recognized" targetRef="ST_notify_empty" />
+    <bpmn:sequenceFlow id="Flow_recognized_yes" name="Так" sourceRef="GW_recognized" targetRef="ST_update_summary">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= recognized = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ocr_to_recognized" sourceRef="ST_ocr_extract" targetRef="GW_recognized" />
+    <bpmn:sequenceFlow id="Flow_upload_to_ocr" sourceRef="UT_upload_file" targetRef="ST_ocr_extract" />
+    <bpmn:sequenceFlow id="Flow_odoo_has_task" name="Задача існує" sourceRef="GW_odoo_check" targetRef="GW_odoo_merge">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_odoo_no_task" sourceRef="GW_odoo_check" targetRef="ST_create_main" />
+    <bpmn:sequenceFlow id="Flow_start_to_gw_odoo" sourceRef="StartEvent_1" targetRef="GW_odoo_check" />
+    <bpmn:serviceTask id="ST_ocr_extract" name="Розпізнати рахунки (OCR)">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="invoice-data-extractor" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= x_studio_camunda_invoice_file" target="x_studio_camunda_invoice_file" />
+          <zeebe:input source="= file_extension" target="file_extension" />
+          <zeebe:output source="= invoice_items" target="invoice_items" />
+          <zeebe:output source="= total_invoices" target="total_invoices" />
+          <zeebe:output source="= total_amount" target="total_amount" />
+          <zeebe:output source="= recognized" target="recognized" />
+          <zeebe:output source="= ocr_summary" target="ocr_summary" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_upload_to_ocr</bpmn:incoming>
+      <bpmn:outgoing>Flow_ocr_to_recognized</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="GW_odoo_check" name="Задача в Odoo існує?" default="Flow_odoo_no_task">
+      <bpmn:incoming>Flow_start_to_gw_odoo</bpmn:incoming>
+      <bpmn:outgoing>Flow_odoo_no_task</bpmn:outgoing>
+      <bpmn:outgoing>Flow_odoo_has_task</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:startEvent id="StartEvent_1" name="Старт">
+      <bpmn:outgoing>Flow_start_to_gw_odoo</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="UT_upload_file" name="Завантажити файл рахунку">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Завантажити файл рахунку&#34;, description: &#34;Завантажте PDF/JPG/PNG/XLS файл з рахунками для автоматичного розпізнавання&#34;, _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key}" target="body" />
+          <zeebe:output source="= x_studio_camunda_invoice_file" target="x_studio_camunda_invoice_file" />
+          <zeebe:output source="= x_studio_camunda_file_extension" target="file_extension" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_notify_to_upload</bpmn:incoming>
+      <bpmn:incoming>Flow_merge_to_upload</bpmn:incoming>
+      <bpmn:outgoing>Flow_upload_to_ocr</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="GW_odoo_merge">
+      <bpmn:incoming>Flow_create_main_done</bpmn:incoming>
+      <bpmn:incoming>Flow_odoo_has_task</bpmn:incoming>
+      <bpmn:outgoing>Flow_merge_to_upload</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_merge_to_upload" sourceRef="GW_odoo_merge" targetRef="UT_upload_file" />
+    <bpmn:serviceTask id="ST_create_main" name="Створити головне завдання">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Оплата рахунків оренда та комунальні (OCR)&#34;, create_process: true, _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_odoo_no_task</bpmn:incoming>
+      <bpmn:outgoing>Flow_create_main_done</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="GW_recognized" name="Рахунки розпізнано?" default="Flow_not_recognized">
+      <bpmn:incoming>Flow_ocr_to_recognized</bpmn:incoming>
+      <bpmn:outgoing>Flow_recognized_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_not_recognized</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="ST_notify_empty" name="Повідомити: OCR не розпізнав">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/ecbaf8c8-7138-4ae2-add5-a019dc1cd796&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {_id: odoo_task_id, process_instance_key: process_instance_key, description: &#34;OCR не розпізнав жодного рахунку. Будь ласка, завантажте інший файл.&#34;}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_not_recognized</bpmn:incoming>
+      <bpmn:outgoing>Flow_notify_to_upload</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="ST_update_summary" name="Записати summary в головне завдання">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/ecbaf8c8-7138-4ae2-add5-a019dc1cd796&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {_id: odoo_task_id, process_instance_key: process_instance_key, x_studio_camunda_process_instance_key: process_instance_key, description: &#34;Розпізнано &#34; + string(total_invoices) + &#34; рахунків на загальну суму &#34; + string(total_amount) + &#34; грн\n&#34; + ocr_summary}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_recognized_yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_summary_to_ca</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:callActivity id="CA_per_invoice" name="Обробка окремого рахунку">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_u0wy9yd" propagateAllChildVariables="false" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= item.partner_name" target="x_studio_camunda_partner_name" />
+          <zeebe:input source="= item.invoice_number" target="x_studio_camunda_invoice_number" />
+          <zeebe:input source="= item.invoice_date" target="x_studio_camunda_invoice_date" />
+          <zeebe:input source="= item.invoice_line_name" target="x_studio_camunda_invoice_line_name" />
+          <zeebe:input source="= item.invoice_amount" target="x_studio_camunda_invoice_amount" />
+          <zeebe:input source="= item.invoice_amount_no_vat" target="x_studio_camunda_invoice_amount_no_vat" />
+          <zeebe:input source="= item.vat_amount" target="x_studio_camunda_vat_amount" />
+          <zeebe:input source="= item.partner_code" target="x_studio_camunda_partner_code" />
+          <zeebe:input source="= item.contract" target="x_studio_camunda_contract" />
+          <zeebe:input source="= item.fop_name" target="x_studio_camunda_fop_name" />
+          <zeebe:input source="= item.quantity" target="x_studio_camunda_quantity" />
+          <zeebe:input source="= item.unit" target="x_studio_camunda_unit" />
+          <zeebe:input source="= item.invoice_type" target="x_studio_camunda_invoice_type" />
+          <zeebe:input source="= x_studio_camunda_invoice_file" target="x_studio_camunda_invoice_file" />
+          <zeebe:input source="= process_instance_key" target="parent_process_instance_key" />
+          <zeebe:input source="= odoo_task_id" target="parent_odoo_task_id" />
+          <zeebe:input source="=item.partner_iban" target="x_studio_camunda_partner_iban" />
+          <zeebe:input source="=item.partner_bank_name" target="x_studio_camunda_partner_bank_name" />
+          <zeebe:input source="=item.service_period" target="x_studio_camunda_service_period" />
+          <zeebe:input source="=item.unit_price" target="x_studio_camunda_unit_price" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_summary_to_ca</bpmn:incoming>
+      <bpmn:outgoing>Flow_ca_to_end</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics>
+        <bpmn:extensionElements>
+          <zeebe:loopCharacteristics inputCollection="= invoice_items" inputElement="item" />
+        </bpmn:extensionElements>
+      </bpmn:multiInstanceLoopCharacteristics>
+    </bpmn:callActivity>
+    <bpmn:endEvent id="End_main" name="Усі рахунки оброблено">
+      <bpmn:incoming>Flow_ca_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collab_1">
+      <bpmndi:BPMNShape id="Pool_1_di" bpmnElement="Pool_1" isHorizontal="true">
+        <dc:Bounds x="105" y="90" width="1375" height="475" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Odoo_di" bpmnElement="Lane_Odoo" isHorizontal="true">
+        <dc:Bounds x="135" y="410" width="1345" height="155" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Camunda_di" bpmnElement="Lane_Camunda" isHorizontal="true">
+        <dc:Bounds x="135" y="260" width="1345" height="150" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Buhgalter_di" bpmnElement="Lane_Buhgalter" isHorizontal="true">
+        <dc:Bounds x="135" y="90" width="1345" height="170" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_ocr_extract_di" bpmnElement="ST_ocr_extract">
+        <dc:Bounds x="715" y="295" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_odoo_check_di" bpmnElement="GW_odoo_check" isMarkerVisible="true">
+        <dc:Bounds x="260" y="140" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="248" y="105" width="76" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="187" y="147" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="191" y="190" width="31" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_upload_file_di" bpmnElement="UT_upload_file">
+        <dc:Bounds x="535" y="125" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_odoo_merge_di" bpmnElement="GW_odoo_merge" isMarkerVisible="true">
+        <dc:Bounds x="440" y="140" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_create_main_di" bpmnElement="ST_create_main">
+        <dc:Bounds x="320" y="447" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_recognized_di" bpmnElement="GW_recognized" isMarkerVisible="true">
+        <dc:Bounds x="895" y="310" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="890" y="280" width="62" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_notify_empty_di" bpmnElement="ST_notify_empty">
+        <dc:Bounds x="870" y="447" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_update_summary_di" bpmnElement="ST_update_summary">
+        <dc:Bounds x="1080" y="447" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CA_per_invoice_di" bpmnElement="CA_per_invoice">
+        <dc:Bounds x="1220" y="295" width="120" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_main_di" bpmnElement="End_main">
+        <dc:Bounds x="1372" y="147" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1361" y="110" width="57" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_create_main_done_di" bpmnElement="Flow_create_main_done">
+        <di:waypoint x="420" y="487" />
+        <di:waypoint x="465" y="487" />
+        <di:waypoint x="465" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ca_to_end_di" bpmnElement="Flow_ca_to_end">
+        <di:waypoint x="1340" y="335" />
+        <di:waypoint x="1390" y="335" />
+        <di:waypoint x="1390" y="183" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_summary_to_ca_di" bpmnElement="Flow_summary_to_ca">
+        <di:waypoint x="1150" y="447" />
+        <di:waypoint x="1150" y="335" />
+        <di:waypoint x="1220" y="335" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_notify_to_upload_di" bpmnElement="Flow_notify_to_upload">
+        <di:waypoint x="870" y="487" />
+        <di:waypoint x="585" y="487" />
+        <di:waypoint x="585" y="205" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_not_recognized_di" bpmnElement="Flow_not_recognized">
+        <di:waypoint x="920" y="360" />
+        <di:waypoint x="920" y="447" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_recognized_yes_di" bpmnElement="Flow_recognized_yes">
+        <di:waypoint x="945" y="335" />
+        <di:waypoint x="1010" y="335" />
+        <di:waypoint x="1010" y="487" />
+        <di:waypoint x="1080" y="487" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="969" y="317" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ocr_to_recognized_di" bpmnElement="Flow_ocr_to_recognized">
+        <di:waypoint x="815" y="335" />
+        <di:waypoint x="895" y="335" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_upload_to_ocr_di" bpmnElement="Flow_upload_to_ocr">
+        <di:waypoint x="635" y="165" />
+        <di:waypoint x="675" y="165" />
+        <di:waypoint x="675" y="335" />
+        <di:waypoint x="715" y="335" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_odoo_has_task_di" bpmnElement="Flow_odoo_has_task">
+        <di:waypoint x="310" y="165" />
+        <di:waypoint x="440" y="165" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="345" y="147" width="66" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_odoo_no_task_di" bpmnElement="Flow_odoo_no_task">
+        <di:waypoint x="285" y="190" />
+        <di:waypoint x="285" y="487" />
+        <di:waypoint x="320" y="487" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_start_to_gw_odoo_di" bpmnElement="Flow_start_to_gw_odoo">
+        <di:waypoint x="223" y="165" />
+        <di:waypoint x="260" y="165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_merge_to_upload_di" bpmnElement="Flow_merge_to_upload">
+        <di:waypoint x="490" y="165" />
+        <di:waypoint x="535" y="165" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
