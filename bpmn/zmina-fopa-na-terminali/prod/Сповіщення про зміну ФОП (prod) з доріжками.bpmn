@@ -1,0 +1,647 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="e3893a3" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:collaboration id="Collaboration_10w925g">
+    <bpmn:participant id="Participant_1ofpzo6" processRef="Process_rebvtea" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_rebvtea" name="Сповіщення про зміну ФОП" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="4.0" />
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_13ccs32">
+      <bpmn:lane id="Lane_1hfjmkd" name="Система">
+        <bpmn:flowNodeRef>Event_1hzl12v</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1sbkk55</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1cqrobx</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_0aog6hp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_normalize_vars</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_0buteek</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_1guh0i3</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_11ydaqo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_1uh6oap</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_0h2pqu7" name="Менеджер з оренди">
+        <bpmn:flowNodeRef>Activity_1ym16t1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_03mw4xn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_113c8jv</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1glu1uv</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_1p8nj9s</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0kmtwkh</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_06lbkfh</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_0agj42w" name="Бухгалтер">
+        <bpmn:flowNodeRef>Event_1wwming</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0bkeomf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1m5lz1c</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0rhyd10</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1v9eoaf</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_1hmgpmz</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1gouaw1</bpmn:flowNodeRef>
+        <bpmn:childLaneSet id="LaneSet_06xtiax" />
+      </bpmn:lane>
+      <bpmn:lane id="Lane_12yc8v0" name="Фінансист / Бухгалтер оплати">
+        <bpmn:flowNodeRef>Event_1ts7u94</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_108v5z6</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1riu9zl</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:sequenceFlow id="Flow_1ylxgno" sourceRef="Activity_1riu9zl" targetRef="Event_1ts7u94" />
+    <bpmn:sequenceFlow id="Flow_1l637ur" sourceRef="Activity_108v5z6" targetRef="Activity_1riu9zl" />
+    <bpmn:sequenceFlow id="Flow_1cyy7d3" name="ні" sourceRef="Gateway_1guh0i3" targetRef="Activity_11ydaqo" />
+    <bpmn:sequenceFlow id="Flow_03tbdej" name="так" sourceRef="Gateway_1guh0i3" targetRef="Gateway_0buteek">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=landlord_approved = "Так"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_15nexvh" name="так" sourceRef="Gateway_0buteek" targetRef="Gateway_1hmgpmz">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is_paid_change = "Так"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_1j9v7nn" sourceRef="Activity_11ydaqo" targetRef="Event_1uh6oap" />
+    <bpmn:sequenceFlow id="Flow_1p61195" sourceRef="Activity_0kmtwkh" targetRef="Activity_108v5z6" />
+    <bpmn:sequenceFlow id="Flow_0sxiwrt" sourceRef="Gateway_1hmgpmz" targetRef="Event_06lbkfh" />
+    <bpmn:sequenceFlow id="Flow_1mejo49" sourceRef="Gateway_1hmgpmz" targetRef="Activity_1gouaw1" />
+    <bpmn:sequenceFlow id="Flow_1hxkjgf" name="ні" sourceRef="Gateway_0buteek" targetRef="Activity_1gouaw1" />
+    <bpmn:sequenceFlow id="Flow_1spb1a2" sourceRef="Activity_0rhyd10" targetRef="Activity_1v9eoaf" />
+    <bpmn:sequenceFlow id="Flow_0c40yaa" sourceRef="Activity_0bkeomf" targetRef="Activity_1m5lz1c" />
+    <bpmn:sequenceFlow id="Flow_08c6ueu" sourceRef="StartEvent_1" targetRef="ST_normalize_vars" />
+    <bpmn:sequenceFlow id="Flow_1hjjtgs" sourceRef="Gateway_0aog6hp" targetRef="Activity_0bkeomf">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_normalize_to_gw" sourceRef="ST_normalize_vars" targetRef="Gateway_0aog6hp" />
+    <bpmn:sequenceFlow id="Flow_08sqmwa" sourceRef="Activity_1cqrobx" targetRef="Activity_0bkeomf" />
+    <bpmn:sequenceFlow id="Flow_0j0ehf2" sourceRef="Gateway_0aog6hp" targetRef="Activity_1cqrobx" />
+    <bpmn:sequenceFlow id="Flow_1k7dg8u" sourceRef="Activity_1gouaw1" targetRef="Event_1wwming" />
+    <bpmn:sequenceFlow id="Flow_0zrpjt4" sourceRef="Event_1p8nj9s" targetRef="Activity_1sbkk55" />
+    <bpmn:sequenceFlow id="Flow_0x7bnbc" sourceRef="Activity_1sbkk55" targetRef="Event_1hzl12v" />
+    <bpmn:sequenceFlow id="Flow_14egqul" sourceRef="Activity_1glu1uv" targetRef="Activity_0rhyd10" />
+    <bpmn:sequenceFlow id="Flow_15htyy8" sourceRef="Activity_1m5lz1c" targetRef="Activity_1glu1uv" />
+    <bpmn:sequenceFlow id="Flow_1ls5iho" sourceRef="Activity_1v9eoaf" targetRef="Activity_113c8jv" />
+    <bpmn:sequenceFlow id="Flow_0oe344b" sourceRef="Activity_113c8jv" targetRef="Event_03mw4xn" />
+    <bpmn:sequenceFlow id="Flow_0ikdczh" sourceRef="Activity_1ym16t1" targetRef="Gateway_1guh0i3" />
+    <bpmn:sequenceFlow id="Flow_1uy59j7" sourceRef="Event_03mw4xn" targetRef="Activity_1ym16t1" />
+    <bpmn:boundaryEvent id="Event_1p8nj9s" name="кожні 2 дні" cancelActivity="false" attachedToRef="Activity_1ym16t1">
+      <bpmn:outgoing>Flow_0zrpjt4</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_10r9clr">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/P2D</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:endEvent id="Event_1ts7u94" name="Рахунок оплачено">
+      <bpmn:incoming>Flow_1ylxgno</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Gateway_1guh0i3" name="ТРЦ погодив?" default="Flow_1cyy7d3">
+      <bpmn:incoming>Flow_0ikdczh</bpmn:incoming>
+      <bpmn:outgoing>Flow_1cyy7d3</bpmn:outgoing>
+      <bpmn:outgoing>Flow_03tbdej</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_0buteek" name="Чи платна зміна?" default="Flow_1hxkjgf">
+      <bpmn:incoming>Flow_03tbdej</bpmn:incoming>
+      <bpmn:outgoing>Flow_1hxkjgf</bpmn:outgoing>
+      <bpmn:outgoing>Flow_15nexvh</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:parallelGateway id="Gateway_1hmgpmz">
+      <bpmn:incoming>Flow_15nexvh</bpmn:incoming>
+      <bpmn:outgoing>Flow_0sxiwrt</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1mejo49</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Activity_1v9eoaf" name="Визначити дату переключення">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Визначити дату переключення ФОП &#34; + fop_name + &#34; на &#34; + selected_store, description: &#34;&#60;b&#62;ФОП:&#60;/b&#62; &#34; + fop_name + &#34; (&#34; + string(income_percent) + &#34;% ліміту, &#34; + string(days_to_limit) + &#34; днів до ліміту)&#34; + &#34;&#60;br/&#62;&#60;b&#62;Магазин:&#60;/b&#62; &#34; + selected_store + &#34;&#60;br/&#62;&#60;b&#62;Новий ФОП:&#60;/b&#62; &#34; + (if is defined(new_fop_name) then new_fop_name else &#34;(не вказано)&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Чи платна зміна:&#60;/b&#62; &#34; + (if is_paid_change = &#34;Так&#34; then &#34;Так&#34; else &#34;Ні&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. Визначте дату переключення ФОП на терміналі.&#34; + &#34;&#60;br/&#62;2. Враховуйте, що відповідь від ТРЦ може займати 12–14 днів — плануйте дату переключення з цим запасом.&#34; + &#34;&#60;br/&#62;3. Вкажіть дату у полі «Дата переключення».&#34; + &#34;&#60;br/&#62;4. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_total_income: total_income, x_studio_camunda_days_to_limit: days_to_limit, x_studio_camunda_selected_store: selected_store, x_studio_camunda_new_fop_name: (if is defined(new_fop_name) then new_fop_name else &#34;&#34;), x_studio_camunda_is_paid_change: (if is defined(is_paid_change) then is_paid_change else &#34;Ні&#34;), parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;accountant&#34;, x_studio_camunda_task_code: &#34;set_date&#34;}" target="body" />
+          <zeebe:output source="= x_studio_camunda_switch_date" target="switch_date" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1spb1a2</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ls5iho</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_0rhyd10" name="Знайти ФОП з 0 оборотом та перевірити к-сть працівників">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Знайти ФОП з 0 оборотом для заміни &#34; + fop_name + &#34; на &#34; + selected_store + (if is_paid_change = &#34;Так&#34; then &#34; ⚠️ ПЛАТНА ЗМІНА&#34; else &#34;&#34;), description: &#34;&#60;b&#62;Магазин:&#60;/b&#62; &#34; + selected_store + &#34;&#60;br/&#62;&#60;b&#62;Старий ФОП:&#60;/b&#62; &#34; + fop_name + &#34; (група &#34; + string(ep_group) + &#34;)&#34; + &#34;&#60;br/&#62;&#60;b&#62;Дохід:&#60;/b&#62; &#34; + string(total_income) + &#34; грн (&#34; + string(income_percent) + &#34;% ліміту)&#34; + &#34;&#60;br/&#62;&#60;b&#62;К-сть працівників на поточному ФОП:&#60;/b&#62; &#34; + string(employee_count) + (if is_paid_change = &#34;Так&#34; then &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;⚠️ УВАГА: Зміна ФОП на цьому магазині ПЛАТНА!&#60;/b&#62;&#60;br/&#62;Оберіть ФОП з мінімальним або нульовим оборотом, щоб зменшити кількість переключень у майбутньому.&#34; else &#34;&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. Підберіть ФОП з нульовим або мінімальним оборотом у поточному році.&#34; + &#34;&#60;br/&#62;2. Перевірте к-сть зареєстрованих працівників на обраному ФОП.&#34; + &#34;&#60;br/&#62;3. Переконайтесь, що після переведення &#34; + string(employee_count) + &#34; працівників з поточного ФОП, загальна к-сть не перевищить 8 осіб — це максимум на один ФОП.&#34; + &#34;&#60;br/&#62;4. Впишіть назву обраного ФОП у поле «Новий ФОП (з 0 оборотом)».&#34; + &#34;&#60;br/&#62;5. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_total_income: total_income, x_studio_camunda_days_to_limit: days_to_limit, x_studio_camunda_selected_store: selected_store, x_studio_camunda_is_paid_change: (if is defined(is_paid_change) then is_paid_change else &#34;Ні&#34;), parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;accountant&#34;, x_studio_camunda_task_code: &#34;select_fop&#34;}" target="body" />
+          <zeebe:output source="= x_studio_camunda_new_fop_name" target="new_fop_name" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_14egqul</bpmn:incoming>
+      <bpmn:outgoing>Flow_1spb1a2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1m5lz1c" name="Вибрати магазин, який преключаємо">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Вибрати магазин для переключення ФОП &#34; + fop_name, description: &#34;&#60;b&#62;ФОП:&#60;/b&#62; &#34; + fop_name + &#34; (&#34; + string(income_percent) + &#34;% ліміту, &#34; + string(days_to_limit) + &#34; днів до ліміту)&#34; + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;Магазини:&#60;/b&#62;&#60;br/&#62;&#34; + stores + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. Проаналізуйте список магазинів та оберіть один, який будемо переключати на інший ФОП.&#34; + &#34;&#60;br/&#62;2. Оберіть магазин з найбільшим доходом, щоб максимально знизити навантаження на ФОП.&#34; + &#34;&#60;br/&#62;3. Впишіть назву обраного магазину у поле «Обраний магазин».&#34; + &#34;&#60;br/&#62;4. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_total_income: total_income, x_studio_camunda_days_to_limit: days_to_limit, parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;accountant&#34;, x_studio_camunda_task_code: &#34;select_store&#34;}" target="body" />
+          <zeebe:output source="= if is defined(x_studio_camunda_selected_store) and x_studio_camunda_selected_store != null then x_studio_camunda_selected_store else &#34;(не обрано)&#34;" target="selected_store" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0c40yaa</bpmn:incoming>
+      <bpmn:outgoing>Flow_15htyy8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_0bkeomf" name="Перевірити кількість магазинів на ФОП">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Перевірити магазини ФОП &#34; + fop_name, description: &#34;&#60;b&#62;ФОП:&#60;/b&#62; &#34; + fop_name + &#34; (ЄДРПОУ: &#34; + fop_edrpou + &#34;)&#34; + &#34;&#60;br/&#62;&#60;b&#62;Група ЄП:&#60;/b&#62; &#34; + string(ep_group) + &#34;&#60;br/&#62;&#60;b&#62;Дохід за рік:&#60;/b&#62; &#34; + string(total_income) + &#34; грн (&#34; + string(income_percent) + &#34;% від ліміту &#34; + string(limit_amount) + &#34; грн)&#34; + &#34;&#60;br/&#62;&#60;b&#62;Днів до ліміту:&#60;/b&#62; &#34; + string(days_to_limit) + &#34;&#60;br/&#62;&#60;b&#62;Прогнозна дата:&#60;/b&#62; &#34; + projected_date + &#34;&#60;br/&#62;&#60;b&#62;К-сть працівників на ФОП:&#60;/b&#62; &#34; + string(employee_count) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;Магазини:&#60;/b&#62;&#60;br/&#62;&#34; + stores + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. Перевірте список магазинів, на яких працює цей ФОП.&#34; + &#34;&#60;br/&#62;2. Звірте к-сть магазинів та працівників з даними у звіті.&#34; + &#34;&#60;br/&#62;3. Якщо дані коректні — підтвердіть інформацію.&#34; + &#34;&#60;br/&#62;4. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_total_income: total_income, x_studio_camunda_days_to_limit: days_to_limit, parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;accountant&#34;, x_studio_camunda_task_code: &#34;check_stores&#34;}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1hjjtgs</bpmn:incoming>
+      <bpmn:incoming>Flow_08sqmwa</bpmn:incoming>
+      <bpmn:outgoing>Flow_0c40yaa</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:startEvent id="StartEvent_1" name="Перевіряємо ліміти">
+      <bpmn:outgoing>Flow_08c6ueu</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:scriptTask id="ST_normalize_vars" name="Підготовка змінних">
+      <bpmn:extensionElements>
+        <zeebe:script expression="= 1" resultVariable="_normalized" />
+        <zeebe:ioMapping>
+          <zeebe:output source="= if is defined(fop_name) then fop_name else if is defined(x_studio_camunda_fop_name) then x_studio_camunda_fop_name else &#34;&#34;" target="fop_name" />
+          <zeebe:output source="= if is defined(fop_edrpou) then fop_edrpou else if is defined(x_studio_camunda_edrpou) then x_studio_camunda_edrpou else if is defined(x_studio_camunda_fop_edrpou) then x_studio_camunda_fop_edrpou else if is defined(x_studio_camunda_supplier_code) then x_studio_camunda_supplier_code else if is defined(x_studio_camunda_contract) then x_studio_camunda_contract else &#34;&#34;" target="fop_edrpou" />
+          <zeebe:output source="= if is defined(ep_group) then ep_group else if is defined(x_studio_camunda_ep_group) then x_studio_camunda_ep_group else 2" target="ep_group" />
+          <zeebe:output source="= if is defined(total_income) then total_income else 0" target="total_income" />
+          <zeebe:output source="= if is defined(income_percent) then income_percent else 0" target="income_percent" />
+          <zeebe:output source="= if is defined(limit_amount) then limit_amount else 0" target="limit_amount" />
+          <zeebe:output source="= if is defined(days_to_limit) then days_to_limit else 0" target="days_to_limit" />
+          <zeebe:output source="= if is defined(projected_date) then projected_date else &#34;ручний запуск&#34;" target="projected_date" />
+          <zeebe:output source="= if is defined(stores) then stores else &#34;н/д (ручний запуск)&#34;" target="stores" />
+          <zeebe:output source="= if is defined(stores_count) then stores_count else 0" target="stores_count" />
+          <zeebe:output source="= if is defined(trend_ratio) then trend_ratio else 0" target="trend_ratio" />
+          <zeebe:output source="= if is defined(process_instance_key) and process_instance_key != null and process_instance_key != &#34;&#34; then process_instance_key else if is defined(parent_process_instance_key) and parent_process_instance_key != null then parent_process_instance_key else string(odoo_task_id)" target="process_instance_key" />
+          <zeebe:output source="=if is defined(employee_count) then employee_count else 0" target="employee_count" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_08c6ueu</bpmn:incoming>
+      <bpmn:outgoing>Flow_normalize_to_gw</bpmn:outgoing>
+    </bpmn:scriptTask>
+    <bpmn:exclusiveGateway id="Gateway_0aog6hp" name="Задача існує в Odoo?" default="Flow_0j0ehf2">
+      <bpmn:incoming>Flow_normalize_to_gw</bpmn:incoming>
+      <bpmn:outgoing>Flow_1hjjtgs</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0j0ehf2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Activity_1cqrobx" name="Створити головне завдання">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Зміна ФОП на терміналі: &#34; + fop_name, description: &#34;&#60;b&#62;ФОП:&#60;/b&#62; &#34; + fop_name + &#34; (ЄДРПОУ: &#34; + fop_edrpou + &#34;)&#60;br/&#62;&#60;b&#62;Група ЄП:&#60;/b&#62; &#34; + string(ep_group) + &#34;&#60;br/&#62;&#60;b&#62;Дохід за рік:&#60;/b&#62; &#34; + string(total_income) + &#34; грн (&#34; + string(income_percent) + &#34;% від ліміту &#34; + string(limit_amount) + &#34; грн)&#60;br/&#62;&#60;b&#62;Днів до ліміту:&#60;/b&#62; &#34; + string(days_to_limit) + &#34;&#60;br/&#62;&#60;b&#62;Прогнозна дата:&#60;/b&#62; &#34; + projected_date + &#34;&#60;br/&#62;&#60;b&#62;К-сть працівників на ФОП:&#60;/b&#62; &#34; + string(employee_count) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;Магазини:&#60;/b&#62;&#60;br/&#62;&#34; + stores, create_process: true, _model: &#34;project.project&#34;, _id: 524, bpmn_process_id: &#34;Process_rebvtea&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_total_income: total_income, x_studio_camunda_days_to_limit: days_to_limit, process_instance_key: process_instance_key, x_studio_camunda_edrpou: fop_edrpou, x_studio_camunda_role_code: &#34;accountant&#34;}" target="body" />
+          <zeebe:input source="= &#34;odoo_response&#34;" target="result_variable_name" />
+          <zeebe:output source="= string(odoo_response.id)" target="odoo_task_id" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0j0ehf2</bpmn:incoming>
+      <bpmn:outgoing>Flow_08sqmwa</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="Event_1wwming" name="Термінал переключено">
+      <bpmn:incoming>Flow_1k7dg8u</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Activity_1sbkk55" name="Нагадати ТРЦ про погодження">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;🔔 Нагадайте ТРЦ про погодження переключення: &#34; + fop_name + &#34; → &#34; + (if is defined(new_fop_name) then new_fop_name else &#34;?&#34;) + &#34; на &#34; + selected_store, description: &#34;&#60;b&#62;Магазин:&#60;/b&#62; &#34; + selected_store + &#34;&#60;br/&#62;&#60;b&#62;Старий ФОП:&#60;/b&#62; &#34; + fop_name + &#34;&#60;br/&#62;&#60;b&#62;Новий ФОП:&#60;/b&#62; &#34; + (if is defined(new_fop_name) then new_fop_name else &#34;(не вказано)&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Дата переключення:&#60;/b&#62; &#34; + (if is defined(switch_date) then switch_date else &#34;(не визначено)&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. Відповідь від ТРЦ ще не отримана — зв&#39;яжіться з ТРЦ та нагадайте про погодження переключення.&#34; + &#34;&#60;br/&#62;2. Коли отримаєте відповідь від ТРЦ — поверніться до задачі «Перевірити погодження ТРЦ» та виконайте її.&#34;, x_studio_camunda_role_code: &#34;rental_manager&#34;, parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:taskDefinition type="http-request-smart" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0zrpjt4</bpmn:incoming>
+      <bpmn:outgoing>Flow_0x7bnbc</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="Event_1hzl12v">
+      <bpmn:incoming>Flow_0x7bnbc</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Activity_1glu1uv" name="Перевірити чи платна зміна ФОП та вказати Тип орендаря">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Перевірити умови зміни ФОП на &#34; + selected_store, description: &#34;&#60;b&#62;Магазин:&#60;/b&#62; &#34; + selected_store + &#34;&#60;br/&#62;&#60;b&#62;ФОП:&#60;/b&#62; &#34; + fop_name + &#34; (дохід &#34; + string(total_income) + &#34; грн, &#34; + string(income_percent) + &#34;% ліміту)&#34; + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. Перевірте чи ТРЦ бере плату за зміну ФОП на терміналі.&#34; + &#34;&#60;br/&#62;2. Оберіть «Так» або «Ні» у полі «Чи платна зміна ФОП».&#34; + &#34;&#60;br/&#62;3. Якщо зміна платна — з&#39;явиться поле «Тип орендаря», вкажіть хто орендар по договору:&#34; + &#34;&#60;br/&#62;   • &#60;b&#62;ТП&#60;/b&#62; — договір на Технопростір&#34; + &#34;&#60;br/&#62;   • &#60;b&#62;ТП+&#60;/b&#62; — договір на Технопростір Плюс&#34; + &#34;&#60;br/&#62;   • &#60;b&#62;ФОП&#60;/b&#62; — договір на ФОП&#34; + &#34;&#60;br/&#62;4. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_total_income: total_income, x_studio_camunda_days_to_limit: days_to_limit, x_studio_camunda_selected_store: selected_store, x_studio_camunda_role_code: &#34;rental_manager&#34;, parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key, x_studio_camunda_task_code: &#34;check_paid&#34;}" target="body" />
+          <zeebe:output source="= x_studio_camunda_is_paid_change" target="is_paid_change" />
+          <zeebe:output source="=x_studio_camunda_tenant_type" target="tenant_type" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_15htyy8</bpmn:incoming>
+      <bpmn:outgoing>Flow_14egqul</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_113c8jv" name="Сповістити ТРЦ про зміну ФОП з вказаною датою переключення">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Сповістити ТРЦ про зміну ФОП &#34; + fop_name + &#34; на &#34; + selected_store, description: &#34;&#60;b&#62;Магазин:&#60;/b&#62; &#34; + selected_store + &#34;&#60;br/&#62;&#60;b&#62;Старий ФОП:&#60;/b&#62; &#34; + fop_name + &#34;&#60;br/&#62;&#60;b&#62;Новий ФОП:&#60;/b&#62; &#34; + (if is defined(new_fop_name) then new_fop_name else &#34;(не вказано)&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Дата переключення:&#60;/b&#62; &#34; + (if is defined(switch_date) then switch_date else &#34;(не визначено)&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Чи платна зміна:&#60;/b&#62; &#34; + (if is_paid_change = &#34;Так&#34; then &#34;Так&#34; else &#34;Ні&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. Напишіть лист ТРЦ з проханням погодити переключення терміналу на нового ФОП із вказаною датою.&#34; + &#34;&#60;br/&#62;2. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_total_income: total_income, x_studio_camunda_days_to_limit: days_to_limit, x_studio_camunda_selected_store: selected_store, x_studio_camunda_is_paid_change: (if is defined(is_paid_change) then is_paid_change else &#34;Ні&#34;), x_studio_camunda_new_fop_name: (if is defined(new_fop_name) then new_fop_name else &#34;&#34;), x_studio_camunda_switch_date: (if is defined(switch_date) then switch_date else &#34;&#34;), x_studio_camunda_role_code: &#34;rental_manager&#34;, parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key, x_studio_camunda_task_code: &#34;notify_trc&#34;}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1ls5iho</bpmn:incoming>
+      <bpmn:outgoing>Flow_0oe344b</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:intermediateCatchEvent id="Event_03mw4xn" name="Чекаємо 3 дні відповідь ТРЦ">
+      <bpmn:incoming>Flow_0oe344b</bpmn:incoming>
+      <bpmn:outgoing>Flow_1uy59j7</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_19sxba3">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P3D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="Activity_1ym16t1" name="Перевірити чи погодженно ТРЦ переключення">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Перевірити погодження ТРЦ: &#34; + fop_name + &#34; → &#34; + (if is defined(new_fop_name) then new_fop_name else &#34;?&#34;) + &#34; на &#34; + selected_store, description: &#34;&#60;b&#62;Магазин:&#60;/b&#62; &#34; + selected_store + &#34;&#60;br/&#62;&#60;b&#62;Старий ФОП:&#60;/b&#62; &#34; + fop_name + &#34;&#60;br/&#62;&#60;b&#62;Новий ФОП:&#60;/b&#62; &#34; + (if is defined(new_fop_name) then new_fop_name else &#34;(не вказано)&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Дата переключення:&#60;/b&#62; &#34; + (if is defined(switch_date) then switch_date else &#34;(не визначено)&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. Якщо ТРЦ ще &#60;b&#62;не відповів&#60;/b&#62; — не чіпайте цю задачу. Через 2 дні прийде нагадування, щоб зв&#39;язатись з ТРЦ повторно.&#34; + &#34;&#60;br/&#62;2. Якщо ТРЦ &#60;b&#62;погодив&#60;/b&#62; — оберіть «Так» у полі «Погоджено орендодавцем».&#34; + &#34;&#60;br/&#62;3. Якщо ТРЦ &#60;b&#62;відмовив&#60;/b&#62; — оберіть «Ні» у полі «Погоджено орендодавцем».&#34; + &#34;&#60;br/&#62;4. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_selected_store: selected_store, x_studio_camunda_new_fop_name: (if is defined(new_fop_name) then new_fop_name else &#34;&#34;), x_studio_camunda_switch_date: (if is defined(switch_date) then switch_date else &#34;&#34;), x_studio_camunda_is_paid_change: (if is defined(is_paid_change) then is_paid_change else &#34;Ні&#34;), x_studio_camunda_role_code: &#34;rental_manager&#34;, parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key, x_studio_camunda_task_code: &#34;landlord_check&#34;}" target="body" />
+          <zeebe:output source="=x_studio_camunda_landlord_approved" target="landlord_approved" />
+        </zeebe:ioMapping>
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1uy59j7</bpmn:incoming>
+      <bpmn:outgoing>Flow_0ikdczh</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_0ftqxgx" sourceRef="Event_06lbkfh" targetRef="Activity_0kmtwkh" />
+    <bpmn:userTask id="Activity_0kmtwkh" name="Перевірити чи прийшов рахунок на оплату переключення">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Перевірити чи прийшов рахунок на оплату переключення: &#34; + fop_name + &#34; → &#34; + (if is defined(new_fop_name) then new_fop_name else &#34;?&#34;) + &#34; на &#34; + selected_store, description: &#34;&#60;b&#62;Магазин:&#60;/b&#62; &#34; + selected_store + &#34;&#60;br/&#62;&#60;b&#62;Старий ФОП:&#60;/b&#62; &#34; + fop_name + &#34;&#60;br/&#62;&#60;b&#62;Новий ФОП:&#60;/b&#62; &#34; + (if is defined(new_fop_name) then new_fop_name else &#34;(не вказано)&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Дата переключення:&#60;/b&#62; &#34; + (if is defined(switch_date) then switch_date else &#34;(не визначено)&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Тип орендаря:&#60;/b&#62; &#34; + (if is defined(tenant_type) then tenant_type else &#34;(не вказано)&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. ТРЦ погодив переключення — перевірте чи прийшов рахунок від ТРЦ на оплату зміни ФОП.&#34; + &#34;&#60;br/&#62;2. Коли рахунок отримано — змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_selected_store: selected_store, x_studio_camunda_new_fop_name: (if is defined(new_fop_name) then new_fop_name else &#34;&#34;), x_studio_camunda_switch_date: (if is defined(switch_date) then switch_date else &#34;&#34;), x_studio_camunda_tenant_type: (if is defined(tenant_type) then tenant_type else &#34;&#34;), x_studio_camunda_role_code: &#34;rental_manager&#34;, parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key, x_studio_camunda_task_code: &#34;check_invoice&#34;}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0ftqxgx</bpmn:incoming>
+      <bpmn:outgoing>Flow_1p61195</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:intermediateCatchEvent id="Event_06lbkfh" name="Чекаємо 2 дні">
+      <bpmn:incoming>Flow_0sxiwrt</bpmn:incoming>
+      <bpmn:outgoing>Flow_0ftqxgx</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_03zj11w">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P2D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:businessRuleTask id="Activity_108v5z6" name="Визначити відповідального за оплату">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="Decision_payment_responsible" resultVariable="payment_role_code" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1p61195</bpmn:incoming>
+      <bpmn:outgoing>Flow_1l637ur</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:userTask id="Activity_1riu9zl" name="Оплатити зміну ФОП">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Оплатити зміну ФОП на &#34; + selected_store, description: &#34;&#60;b&#62;Магазин:&#60;/b&#62; &#34; + selected_store + &#34;&#60;br/&#62;&#60;b&#62;Старий ФОП:&#60;/b&#62; &#34; + fop_name + &#34;&#60;br/&#62;&#60;b&#62;Новий ФОП:&#60;/b&#62; &#34; + (if is defined(new_fop_name) then new_fop_name else &#34;(не вказано)&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Дата переключення:&#60;/b&#62; &#34; + (if is defined(switch_date) then switch_date else &#34;(не визначено)&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. ТРЦ погодив переключення — необхідно оплатити зміну ФОП на терміналі.&#34; + &#34;&#60;br/&#62;2. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;.&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_total_income: total_income, x_studio_camunda_selected_store: selected_store, x_studio_camunda_is_paid_change: &#34;Так&#34;, x_studio_camunda_new_fop_name: (if is defined(new_fop_name) then new_fop_name else &#34;&#34;), x_studio_camunda_switch_date: (if is defined(switch_date) then switch_date else &#34;&#34;), x_studio_camunda_role_code: payment_role_code, parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key, x_studio_camunda_task_code: &#34;pay_change&#34;}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1l637ur</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ylxgno</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1gouaw1" name="Переключаємо на нового ФОП">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Переключити термінал на нового ФОП: &#34; + (if is defined(new_fop_name) then new_fop_name else &#34;(не вказано)&#34;), description: &#34;&#60;b&#62;Магазин:&#60;/b&#62; &#34; + selected_store + &#34;&#60;br/&#62;&#60;b&#62;Старий ФОП:&#60;/b&#62; &#34; + fop_name + &#34;&#60;br/&#62;&#60;b&#62;Новий ФОП:&#60;/b&#62; &#34; + (if is defined(new_fop_name) then new_fop_name else &#34;(не вказано)&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Дата переключення:&#60;/b&#62; &#34; + (if is defined(switch_date) then switch_date else &#34;(не визначено)&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Дохід старого ФОП:&#60;/b&#62; &#34; + string(total_income) + &#34; грн (&#34; + string(income_percent) + &#34;% ліміту)&#34; + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. Виконайте переключення терміналу на нового ФОП у вказану дату.&#34; + &#34;&#60;br/&#62;2. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;.&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_total_income: total_income, x_studio_camunda_days_to_limit: days_to_limit, x_studio_camunda_selected_store: selected_store, x_studio_camunda_is_paid_change: (if is defined(is_paid_change) then is_paid_change else &#34;Ні&#34;), x_studio_camunda_new_fop_name: (if is defined(new_fop_name) then new_fop_name else &#34;&#34;), x_studio_camunda_switch_date: (if is defined(switch_date) then switch_date else &#34;&#34;), x_studio_camunda_role_code: &#34;accountant&#34;, parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key, x_studio_camunda_task_code: &#34;switch_fop&#34;}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1hxkjgf</bpmn:incoming>
+      <bpmn:incoming>Flow_1mejo49</bpmn:incoming>
+      <bpmn:outgoing>Flow_1k7dg8u</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Activity_11ydaqo" name="Сповістити бухгалтера про непогодження">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;🔴 ТРЦ не погодив зміну ФОП на &#34; + selected_store, description: &#34;&#60;b&#62;Магазин:&#60;/b&#62; &#34; + selected_store + &#34;&#60;br/&#62;&#60;b&#62;Старий ФОП:&#60;/b&#62; &#34; + fop_name + &#34;&#60;br/&#62;&#60;b&#62;Новий ФОП:&#60;/b&#62; &#34; + (if is defined(new_fop_name) then new_fop_name else &#34;(не вказано)&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Дата переключення:&#60;/b&#62; &#34; + (if is defined(switch_date) then switch_date else &#34;(не визначено)&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. Орендодавець не погодив переключення терміналу — необхідно прийняти рішення щодо подальших дій.&#34; + &#34;&#60;br/&#62;2. Узгодьте з командою наступні кроки (пошук іншого ФОП, переговори з ТРЦ, інший магазин тощо).&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_selected_store: selected_store, x_studio_camunda_new_fop_name: (if is defined(new_fop_name) then new_fop_name else &#34;&#34;), x_studio_camunda_role_code: &#34;accountant&#34;, parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:taskDefinition type="http-request-smart" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1cyy7d3</bpmn:incoming>
+      <bpmn:outgoing>Flow_1j9v7nn</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="Event_1uh6oap">
+      <bpmn:incoming>Flow_1j9v7nn</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_10w925g">
+      <bpmndi:BPMNShape id="Participant_1ofpzo6_di" bpmnElement="Participant_1ofpzo6" isHorizontal="true">
+        <dc:Bounds x="-880" y="-610" width="2440" height="720" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_12yc8v0_di" bpmnElement="Lane_12yc8v0" isHorizontal="true">
+        <dc:Bounds x="-850" y="-610" width="2410" height="170" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_0agj42w_di" bpmnElement="Lane_0agj42w" isHorizontal="true">
+        <dc:Bounds x="-850" y="-210" width="2410" height="150" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_0h2pqu7_di" bpmnElement="Lane_0h2pqu7" isHorizontal="true">
+        <dc:Bounds x="-850" y="-60" width="2410" height="170" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_1hfjmkd_di" bpmnElement="Lane_1hfjmkd" isHorizontal="true">
+        <dc:Bounds x="-850" y="-440" width="2410" height="230" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1ts7u94_di" bpmnElement="Event_1ts7u94">
+        <dc:Bounds x="1492" y="-538" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1486" y="-495" width="49" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1guh0i3_di" bpmnElement="Gateway_1guh0i3" isMarkerVisible="true">
+        <dc:Bounds x="815" y="-325" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="745" y="-314" width="72" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0buteek_di" bpmnElement="Gateway_0buteek" isMarkerVisible="true">
+        <dc:Bounds x="1035" y="-325" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1016" y="-337" width="89" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_01dtgil_di" bpmnElement="Gateway_1hmgpmz">
+        <dc:Bounds x="1035" y="-165" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_056gbka_di" bpmnElement="Activity_1v9eoaf">
+        <dc:Bounds x="190" y="-180" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0zq5nb5_di" bpmnElement="Activity_0rhyd10">
+        <dc:Bounds x="20" y="-180" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0217r2j_di" bpmnElement="Activity_1m5lz1c">
+        <dc:Bounds x="-250" y="-180" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0fg1ped_di" bpmnElement="Activity_0bkeomf">
+        <dc:Bounds x="-420" y="-180" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="-788" y="-348" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="-802" y="-304" width="66" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_normalize_vars_di" bpmnElement="ST_normalize_vars">
+        <dc:Bounds x="-690" y="-370" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0aog6hp_di" bpmnElement="Gateway_0aog6hp" isMarkerVisible="true">
+        <dc:Bounds x="-535" y="-355" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="-547" y="-392" width="75" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_03qhdbm_di" bpmnElement="Activity_1cqrobx">
+        <dc:Bounds x="-420" y="-360" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1wwming_di" bpmnElement="Event_1wwming">
+        <dc:Bounds x="1422" y="-158" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1406" y="-115" width="68" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0x24qv6_di" bpmnElement="Activity_1sbkk55">
+        <dc:Bounds x="630" y="-340" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1hzl12v_di" bpmnElement="Event_1hzl12v">
+        <dc:Bounds x="692" y="-418" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0fxgitt_di" bpmnElement="Activity_1glu1uv">
+        <dc:Bounds x="-110" y="-20" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0wukj8g_di" bpmnElement="Activity_113c8jv">
+        <dc:Bounds x="340" y="-20" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1sklfh5_di" bpmnElement="Event_03mw4xn">
+        <dc:Bounds x="492" y="2" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="474" y="45" width="73" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1bqa7xd_di" bpmnElement="Activity_1ym16t1">
+        <dc:Bounds x="570" y="-20" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0jkouuo_di" bpmnElement="Activity_0kmtwkh">
+        <dc:Bounds x="1140" y="-20" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_14sbltt_di" bpmnElement="Event_06lbkfh">
+        <dc:Bounds x="1042" y="2" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1024" y="45" width="72" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1jdrxtm_di" bpmnElement="Activity_108v5z6">
+        <dc:Bounds x="1140" y="-560" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1bpc988_di" bpmnElement="Activity_1riu9zl">
+        <dc:Bounds x="1320" y="-560" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1ft5b6i_di" bpmnElement="Activity_1gouaw1">
+        <dc:Bounds x="1230" y="-180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0p6px9m_di" bpmnElement="Activity_11ydaqo">
+        <dc:Bounds x="900" y="-430" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1uh6oap_di" bpmnElement="Event_1uh6oap">
+        <dc:Bounds x="1072" y="-408" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1evaxg5_di" bpmnElement="Event_1p8nj9s">
+        <dc:Bounds x="652" y="42" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="643" y="85" width="55" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1ylxgno_di" bpmnElement="Flow_1ylxgno">
+        <di:waypoint x="1420" y="-520" />
+        <di:waypoint x="1492" y="-520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1l637ur_di" bpmnElement="Flow_1l637ur">
+        <di:waypoint x="1240" y="-520" />
+        <di:waypoint x="1320" y="-520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1cyy7d3_di" bpmnElement="Flow_1cyy7d3">
+        <di:waypoint x="840" y="-325" />
+        <di:waypoint x="840" y="-390" />
+        <di:waypoint x="900" y="-390" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="860" y="-407" width="9" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_03tbdej_di" bpmnElement="Flow_03tbdej">
+        <di:waypoint x="865" y="-300" />
+        <di:waypoint x="1035" y="-300" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="931" y="-290" width="16" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_15nexvh_di" bpmnElement="Flow_15nexvh">
+        <di:waypoint x="1060" y="-275" />
+        <di:waypoint x="1060" y="-165" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1082" y="-227" width="16" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1j9v7nn_di" bpmnElement="Flow_1j9v7nn">
+        <di:waypoint x="1000" y="-390" />
+        <di:waypoint x="1072" y="-390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1p61195_di" bpmnElement="Flow_1p61195">
+        <di:waypoint x="1190" y="-20" />
+        <di:waypoint x="1190" y="-480" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0sxiwrt_di" bpmnElement="Flow_0sxiwrt">
+        <di:waypoint x="1060" y="-115" />
+        <di:waypoint x="1060" y="2" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1mejo49_di" bpmnElement="Flow_1mejo49">
+        <di:waypoint x="1085" y="-140" />
+        <di:waypoint x="1230" y="-140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1hxkjgf_di" bpmnElement="Flow_1hxkjgf">
+        <di:waypoint x="1085" y="-300" />
+        <di:waypoint x="1300" y="-300" />
+        <di:waypoint x="1300" y="-180" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1130" y="-314" width="9" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1spb1a2_di" bpmnElement="Flow_1spb1a2">
+        <di:waypoint x="120" y="-140" />
+        <di:waypoint x="190" y="-140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0c40yaa_di" bpmnElement="Flow_0c40yaa">
+        <di:waypoint x="-320" y="-140" />
+        <di:waypoint x="-250" y="-140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_08c6ueu_di" bpmnElement="Flow_08c6ueu">
+        <di:waypoint x="-752" y="-330" />
+        <di:waypoint x="-690" y="-330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1hjjtgs_di" bpmnElement="Flow_1hjjtgs">
+        <di:waypoint x="-510" y="-305" />
+        <di:waypoint x="-510" y="-140" />
+        <di:waypoint x="-420" y="-140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_normalize_to_gw_di" bpmnElement="Flow_normalize_to_gw">
+        <di:waypoint x="-590" y="-330" />
+        <di:waypoint x="-535" y="-330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_08sqmwa_di" bpmnElement="Flow_08sqmwa">
+        <di:waypoint x="-370" y="-280" />
+        <di:waypoint x="-370" y="-180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0j0ehf2_di" bpmnElement="Flow_0j0ehf2">
+        <di:waypoint x="-485" y="-330" />
+        <di:waypoint x="-420" y="-330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1k7dg8u_di" bpmnElement="Flow_1k7dg8u">
+        <di:waypoint x="1330" y="-140" />
+        <di:waypoint x="1422" y="-140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0zrpjt4_di" bpmnElement="Flow_0zrpjt4">
+        <di:waypoint x="688" y="60" />
+        <di:waypoint x="710" y="60" />
+        <di:waypoint x="710" y="-260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0x7bnbc_di" bpmnElement="Flow_0x7bnbc">
+        <di:waypoint x="710" y="-340" />
+        <di:waypoint x="710" y="-382" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_14egqul_di" bpmnElement="Flow_14egqul">
+        <di:waypoint x="-10" y="20" />
+        <di:waypoint x="70" y="20" />
+        <di:waypoint x="70" y="-100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_15htyy8_di" bpmnElement="Flow_15htyy8">
+        <di:waypoint x="-150" y="-140" />
+        <di:waypoint x="-90" y="-140" />
+        <di:waypoint x="-90" y="-20" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ls5iho_di" bpmnElement="Flow_1ls5iho">
+        <di:waypoint x="290" y="-140" />
+        <di:waypoint x="360" y="-140" />
+        <di:waypoint x="360" y="-20" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0oe344b_di" bpmnElement="Flow_0oe344b">
+        <di:waypoint x="440" y="20" />
+        <di:waypoint x="492" y="20" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0ikdczh_di" bpmnElement="Flow_0ikdczh">
+        <di:waypoint x="670" y="20" />
+        <di:waypoint x="840" y="20" />
+        <di:waypoint x="840" y="-275" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1uy59j7_di" bpmnElement="Flow_1uy59j7">
+        <di:waypoint x="528" y="20" />
+        <di:waypoint x="570" y="20" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0ftqxgx_di" bpmnElement="Flow_0ftqxgx">
+        <di:waypoint x="1078" y="20" />
+        <di:waypoint x="1140" y="20" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
