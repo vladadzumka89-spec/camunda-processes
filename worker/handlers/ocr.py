@@ -186,22 +186,35 @@ _GEMINI_PROMPT = """\
 - invoice_amount: фінальна сума до оплати (число, з ПДВ якщо є)
 - invoice_amount_no_vat: сума без ПДВ (число або null)
 - vat_amount: сума ПДВ (число або null)
-- supplier_code: ЄДРПОУ / ДРФО / ІПН постачальника (тільки цифри)
+- partner_code: ЄДРПОУ / ДРФО / ІПН постачальника (тільки цифри)
 - contract: номер та дата договору (рядок або null)
-- buyer_name: назва покупця/орендаря (без "ФОП", "ТОВ", "Фізична особа-підприємець")
+- fop_name: назва покупця/орендаря (без "ФОП", "ТОВ", "Фізична особа-підприємець")
 - quantity: ОБОВ'ЯЗКОВО — кількість з табличної частини рахунку (число). \
 Наприклад: 470, 1, 12.5. Завжди шукай стовпець "Кількість" в таблиці.
 - unit: ОБОВ'ЯЗКОВО — одиниця виміру з табличної частини (рядок). \
 Наприклад: "м2", "шт", "послуга", "грн", "год", "кг". Завжди шукай у стовпці "Од." або поруч з кількістю.
+- unit_price: ціна за одиницю з табличної частини рахунку (число або null). \
+Шукай у стовпці "Ціна" або "Ціна без ПДВ".
+- partner_iban: IBAN постачальника — 29 символів, починається з "UA" + 27 цифр. \
+Зазвичай поруч з міткою "IBAN", "п/р", "р/р". Повертай тільки сам IBAN без пробілів, без префіксів.
+- partner_bank_name: назва банку постачальника (рядок або null). \
+Зазвичай поруч з міткою "Банк", "у банку", після IBAN. Наприклад: "АТ ОЩАДБАНК", "АТ КБ ПриватБанк".
+- service_period: період, за який виставлено рахунок, у форматі "MM.YYYY" (наприклад "03.2026"). \
+Шукай у назві послуги фрази типу "за березень 2026", "за 03.2026", "березень 2026р", "період: 03/2026". \
+Місяці українською: січень=01, лютий=02, березень=03, квітень=04, травень=05, червень=06, \
+липень=07, серпень=08, вересень=09, жовтень=10, листопад=11, грудень=12. \
+Якщо період не вказано явно — null.
 
 Правила:
 - Суми повертай як числа (float), НЕ рядки
 - Якщо ПДВ немає — invoice_amount_no_vat і vat_amount = null
 - Якщо ПДВ є — invoice_amount = сума з ПДВ (Всього із ПДВ)
-- partner_name — постачальник або орендодавець, buyer_name — покупець або орендар
+- partner_name — постачальник або орендодавець, fop_name — покупець або орендар
 - Видали юридичну форму з імен: "ФОП", "Фізична особа-підприємець", "ТОВ" тощо
 - quantity, unit, invoice_line_name — НІКОЛИ не повертай null якщо вони є на зображенні. \
 Уважно дивись на табличну частину рахунку (стовпці: №, Товари/послуги, Кількість, Ціна, Сума).
+- partner_iban: формат UA + 27 цифр (всього 29 символів), приклад: UA213223130000026007233566001
+- service_period: ТІЛЬКИ MM.YYYY формат (наприклад "03.2026" не "березень 2026" і не "2026-03")
 - Якщо не можеш розпізнати поле — постав null
 
 Поверни ТІЛЬКИ валідний JSON (масив об'єктів якщо на зображенні кілька рахунків, або один об'єкт якщо один).
@@ -282,14 +295,26 @@ async def _gemini_extract_from_images(images: list[Image.Image]) -> list[dict] |
                 if key in raw and raw[key] is not None:
                     item[key] = raw[key]
             # Гарантувати float для сум
-            for amt_key in ("invoice_amount", "invoice_amount_no_vat", "vat_amount"):
+            for amt_key in ("invoice_amount", "invoice_amount_no_vat", "vat_amount", "unit_price"):
                 if item[amt_key] is not None:
                     try:
                         item[amt_key] = float(item[amt_key])
                     except (ValueError, TypeError):
                         item[amt_key] = None
+            # IBAN — прибрати пробіли, перевірити формат UA + 27 цифр
+            if item["partner_iban"] is not None:
+                iban = re.sub(r"\s+", "", str(item["partner_iban"])).upper()
+                if re.match(r"^UA\d{27}$", iban):
+                    item["partner_iban"] = iban
+                else:
+                    item["partner_iban"] = None
+            # service_period — валідація формату MM.YYYY
+            if item["service_period"] is not None:
+                period = str(item["service_period"]).strip()
+                if not re.match(r"^(0[1-9]|1[0-2])\.\d{4}$", period):
+                    item["service_period"] = None
             # Очистка назв від юридичних форм і OCR-артефактів
-            for name_key in ("partner_name", "buyer_name"):
+            for name_key in ("partner_name", "fop_name"):
                 if item[name_key] is not None:
                     item[name_key] = _clean_partner_name(str(item[name_key]))
             # quantity як рядок
@@ -416,7 +441,7 @@ def _parse_xlsx(data: bytes) -> list[dict]:
         if "service" in col_map and row[col_map["service"]]:
             item["invoice_line_name"] = str(row[col_map["service"]]).strip()
         if "code" in col_map and row[col_map["code"]]:
-            item["supplier_code"] = str(row[col_map["code"]]).strip()
+            item["partner_code"] = str(row[col_map["code"]]).strip()
         if item["partner_name"] or item["invoice_amount"]:
             items.append(item)
 
@@ -495,7 +520,7 @@ def _parse_xls(data: bytes) -> list[dict]:
             for _, v in reversed(cells):
                 s = str(v).strip()
                 if s and "Покупець" not in s and len(s) > 3:
-                    item["buyer_name"] = _clean_partner_name(s)
+                    item["fop_name"] = _clean_partner_name(s)
                     break
 
         # --- Договір ---
@@ -509,13 +534,13 @@ def _parse_xls(data: bytes) -> list[dict]:
         # --- ІПН / ЄДРПОУ (можуть бути в багаторядковій комірці) ---
         for _, v in cells:
             sv = str(v)
-            if not item["supplier_code"]:
+            if not item["partner_code"]:
                 ipn_m = re.search(r"ІПН\s*(\d{10})", sv)
                 if ipn_m:
-                    item["supplier_code"] = ipn_m.group(1)
+                    item["partner_code"] = ipn_m.group(1)
                 edr_m = re.search(r"ЄДРПОУ\s*(\d{6,10})", sv)
                 if edr_m:
-                    item["supplier_code"] = edr_m.group(1)
+                    item["partner_code"] = edr_m.group(1)
 
         # --- Рядок номенклатури (послуга + кількість + одиниця + сума) ---
         if i > header_row_idx > -1 and not item["invoice_line_name"]:
@@ -622,11 +647,15 @@ def _empty_invoice_item() -> dict:
         "vat_amount": None,
         "payment_date": None,
         "invoice_type": None,
-        "supplier_code": None,
+        "partner_code": None,
         "contract": None,
-        "buyer_name": None,
+        "fop_name": None,
         "quantity": None,
         "unit": None,
+        "unit_price": None,
+        "partner_iban": None,
+        "partner_bank_name": None,
+        "service_period": None,
         "needs_review": False,
     }
 
@@ -786,10 +815,10 @@ def parse_single_invoice(text: str) -> dict:
                 ):
                     buyer = line
                     break
-        item["buyer_name"] = buyer
+        item["fop_name"] = buyer
 
     # Fallback: друга назва компанії = покупець
-    if not item["buyer_name"] and rakh_match:
+    if not item["fop_name"] and rakh_match:
         _company_re = re.compile(
             r"((?:ТОВАРИСТВО|ТОВ|ФОП|Фізична\s+особа|Приватне\s+підприємство)"
             r".*?)$",
@@ -797,7 +826,7 @@ def parse_single_invoice(text: str) -> dict:
         )
         companies = _company_re.findall(section)
         if len(companies) >= 2:
-            item["buyer_name"] = re.sub(r"\s+", " ", companies[1]).strip()
+            item["fop_name"] = re.sub(r"\s+", " ", companies[1]).strip()
 
     # --- 4. ЄДРПОУ / ДРФО ---
     code_m = re.search(
@@ -805,14 +834,52 @@ def parse_single_invoice(text: str) -> dict:
         section,
     )
     if code_m:
-        item["supplier_code"] = code_m.group(1)
-    if not item["supplier_code"] and rakh_match and rakh_match.start() > 0:
+        item["partner_code"] = code_m.group(1)
+    if not item["partner_code"] and rakh_match and rakh_match.start() > 0:
         header = text[: rakh_match.start()]
         code_fb = re.search(r"(?:Код|код)[:\s]+(\d{8,10})", header)
         if not code_fb:
             code_fb = re.search(r"\b(\d{8,10})\b", header)
         if code_fb:
-            item["supplier_code"] = code_fb.group(1)
+            item["partner_code"] = code_fb.group(1)
+
+    # --- 4.1. IBAN постачальника ---
+    iban_m = re.search(r"\b(UA\d{27})\b", section.replace(" ", ""))
+    if iban_m:
+        item["partner_iban"] = iban_m.group(1)
+
+    # --- 4.2. Банк постачальника ---
+    bank_m = re.search(
+        r"(?:у\s+банку|Банк)[:\s]+([А-ЯІЇЄҐA-Z][^\n]{3,60}?)(?:\n|МФО|IBAN|$)",
+        section,
+    )
+    if bank_m:
+        bank = re.sub(r"\s+", " ", bank_m.group(1)).strip(" ,.")
+        if len(bank) > 3:
+            item["partner_bank_name"] = bank
+
+    # --- 4.3. Період послуги ---
+    _MONTH_MAP = {
+        "січня": "01", "лютого": "02", "березня": "03", "квітня": "04",
+        "травня": "05", "червня": "06", "липня": "07", "серпня": "08",
+        "вересня": "09", "жовтня": "10", "листопада": "11", "грудня": "12",
+        "січень": "01", "лютий": "02", "березень": "03", "квітень": "04",
+        "травень": "05", "червень": "06", "липень": "07", "серпень": "08",
+        "вересень": "09", "жовтень": "10", "листопад": "11", "грудень": "12",
+    }
+    # "за березень 2026" / "за 03.2026" / "03/2026"
+    period_m = re.search(
+        r"за\s+(\w+)\s+(\d{4})", text, re.IGNORECASE,
+    )
+    if period_m:
+        month_name = period_m.group(1).lower()
+        month_num = _MONTH_MAP.get(month_name)
+        if month_num:
+            item["service_period"] = f"{month_num}.{period_m.group(2)}"
+    if not item["service_period"]:
+        period_m2 = re.search(r"(0[1-9]|1[0-2])[./](\d{4})", text)
+        if period_m2:
+            item["service_period"] = f"{period_m2.group(1)}.{period_m2.group(2)}"
 
     # --- 5. Договір ---
     ctr_m = re.search(r"Договір[.:]*\s*(\S+)", section)
@@ -1020,7 +1087,19 @@ def parse_single_invoice(text: str) -> dict:
                         qty = total / price
                         if 0.1 <= qty <= 100000 and abs(qty * price - total) < 1.0:
                             item["quantity"] = str(round(qty, 2)).rstrip("0").rstrip(".")
+                            if item["unit_price"] is None:
+                                item["unit_price"] = price
                             break
+
+    # Якщо є quantity і invoice_amount_no_vat — розрахувати unit_price
+    if (item["unit_price"] is None and item["quantity"]
+            and item["invoice_amount_no_vat"]):
+        try:
+            qty = float(item["quantity"])
+            if qty > 0:
+                item["unit_price"] = round(item["invoice_amount_no_vat"] / qty, 2)
+        except (ValueError, TypeError):
+            pass
 
     if not item["partner_name"] and not item["invoice_number"]:
         item["needs_review"] = True
@@ -1182,11 +1261,15 @@ def register_ocr_handlers(
                 result["first_invoice_line_name"] = first.get("invoice_line_name")
                 result["first_invoice_amount_no_vat"] = first.get("invoice_amount_no_vat")
                 result["first_vat_amount"] = first.get("vat_amount")
-                result["first_supplier_code"] = first.get("supplier_code")
+                result["first_partner_code"] = first.get("partner_code")
                 result["first_contract"] = first.get("contract")
-                result["first_buyer_name"] = first.get("buyer_name")
+                result["first_fop_name"] = first.get("fop_name")
                 result["first_quantity"] = first.get("quantity")
                 result["first_unit"] = first.get("unit")
+                result["first_unit_price"] = first.get("unit_price")
+                result["first_partner_iban"] = first.get("partner_iban")
+                result["first_partner_bank_name"] = first.get("partner_bank_name")
+                result["first_service_period"] = first.get("service_period")
                 result["first_invoice_type"] = first.get("invoice_type")
 
             logger.info("invoice-data-extractor | %d invoices, total %.2f",
