@@ -120,7 +120,7 @@ class AppConfig:
             ),
             odoo=OdooConfig(
                 webhook_url=os.getenv('ODOO_WEBHOOK_URL', ''),
-                project_id=int(os.getenv('ODOO_PROJECT_ID', '0')),
+                project_id=int(os.getenv('OCR_ODOO_PROJECT_ID') or os.getenv('ODOO_PROJECT_ID', '0')),
                 assignee_id=int(os.getenv('ODOO_ASSIGNEE_ID', '0')),
             ),
             ssh_key_path=str(Path.home() / '.ssh' / 'id_ed25519'),
