@@ -191,7 +191,7 @@ _GEMINI_PROMPT = """\
 Проаналізуй зображення рахунку та поверни JSON з такими полями:
 - partner_name: назва постачальника/орендодавця (без "ФОП", "ТОВ", "Фізична особа-підприємець")
 - invoice_number: номер рахунку (тільки номер, наприклад "170" або "Н0000034572")
-- invoice_date: дата рахунку у форматі "DD місяць YYYY" (наприклад "02 лютого 2026")
+- invoice_date: дата рахунку у форматі ISO "YYYY-MM-DD" (наприклад "2026-02-02")
 - invoice_line_name: ОБОВ'ЯЗКОВО — повна назва послуги/товару з табличної частини рахунку. \
 Наприклад: "Оренда частини нежитлового приміщення за адресою м.Хмельницький, вул.Молодіжна,6 21-Б, за березень 2026р". \
 Якщо є кілька рядків — бери перший (основний).
@@ -332,6 +332,11 @@ async def _gemini_extract_from_images(images: list[Image.Image]) -> list[dict] |
             # quantity як рядок
             if item["quantity"] is not None:
                 item["quantity"] = str(item["quantity"]).rstrip("0").rstrip(".")
+            # Нормалізація invoice_date у ISO формат для Odoo (Date field)
+            if item["invoice_date"]:
+                iso = _normalize_ua_date(str(item["invoice_date"]))
+                if iso:
+                    item["invoice_date"] = iso
             items.append(item)
 
         logger.info("Gemini extracted %d invoice(s)", len(items))
@@ -1194,6 +1199,12 @@ def parse_single_invoice(text: str) -> dict:
 
     if not item["partner_name"] and not item["invoice_number"]:
         item["needs_review"] = True
+
+    # Нормалізація invoice_date у ISO формат для Odoo (Date field)
+    if item["invoice_date"]:
+        iso = _normalize_ua_date(str(item["invoice_date"]))
+        if iso:
+            item["invoice_date"] = iso
 
     return item
 
