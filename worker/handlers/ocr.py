@@ -313,11 +313,11 @@ async def _gemini_extract_from_images(images: list[Image.Image]) -> list[dict] |
                         item[amt_key] = float(item[amt_key])
                     except (ValueError, TypeError):
                         item[amt_key] = None
-            # IBAN — прибрати пробіли, перевірити формат UA + 27 цифр
+            # IBAN — прибрати пробіли, перевірити формат UA + 25-28 цифр (стандарт 27, толеруємо OCR-помилки)
             raw_iban = item.get("partner_iban")
             if raw_iban is not None:
                 iban = re.sub(r"\s+", "", str(raw_iban)).upper()
-                if re.match(r"^UA\d{27}$", iban):
+                if re.match(r"^UA\d{25,28}$", iban):
                     item["partner_iban"] = iban
                 else:
                     logger.info("Gemini returned invalid IBAN %r (normalized: %r) — dropped", raw_iban, iban)
@@ -440,8 +440,8 @@ def _enrich_items_from_text(items: list[dict], text: str) -> None:
     if not text:
         return
 
-    # IBAN
-    iban_m = re.search(r"\b(UA\d{27})\b", text.replace(" ", ""))
+    # IBAN (UA + 25-28 цифр, толеруємо OCR-помилки навколо стандартних 27)
+    iban_m = re.search(r"(UA\d{25,28})", re.sub(r"\s+", "", text))
     iban = iban_m.group(1) if iban_m else None
 
     # Банк
@@ -726,7 +726,10 @@ def _parse_xls(data: bytes) -> list[dict]:
     )
 
     if not item["partner_iban"]:
-        iban_m = re.search(r"\b(UA\d{27})\b", full_text.replace(" ", ""))
+        # Всі whitespace (пробіли, переноси, таби) прибираємо — IBAN може бути розбитий по клітинках
+        iban_search_text = re.sub(r"\s+", "", full_text)
+        # Шукаємо UA + 25-28 цифр (стандарт 27, але буває помилки вводу)
+        iban_m = re.search(r"(UA\d{25,28})", iban_search_text)
         if iban_m:
             item["partner_iban"] = iban_m.group(1)
 
@@ -989,8 +992,8 @@ def parse_single_invoice(text: str) -> dict:
         if code_fb:
             item["partner_code"] = code_fb.group(1)
 
-    # --- 4.1. IBAN постачальника ---
-    iban_m = re.search(r"\b(UA\d{27})\b", section.replace(" ", ""))
+    # --- 4.1. IBAN постачальника (UA + 25-28 цифр, толеруємо OCR-помилки) ---
+    iban_m = re.search(r"(UA\d{25,28})", re.sub(r"\s+", "", section))
     if iban_m:
         item["partner_iban"] = iban_m.group(1)
 
