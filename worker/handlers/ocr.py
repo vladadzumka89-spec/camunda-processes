@@ -395,6 +395,36 @@ def ocr_image(data: bytes) -> str:
     return text
 
 # ---------------------------------------------------------------------------
+# Хелпери для нормалізації української дати та періоду
+# ---------------------------------------------------------------------------
+_UA_MONTHS = {
+    "січня": "01", "лютого": "02", "березня": "03", "квітня": "04",
+    "травня": "05", "червня": "06", "липня": "07", "серпня": "08",
+    "вересня": "09", "жовтня": "10", "листопада": "11", "грудня": "12",
+    "січень": "01", "лютий": "02", "березень": "03", "квітень": "04",
+    "травень": "05", "червень": "06", "липень": "07", "серпень": "08",
+    "вересень": "09", "жовтень": "10", "листопад": "11", "грудень": "12",
+}
+
+
+def _normalize_ua_date(date_str: str) -> str | None:
+    """«01 березня 2026» → «2026-03-01». Повертає None якщо не розпізнала."""
+    if not date_str:
+        return None
+    m = re.search(r"(\d{1,2})\s+(\w+)\s+(\d{4})", date_str)
+    if m:
+        day = m.group(1).zfill(2)
+        month = _UA_MONTHS.get(m.group(2).lower())
+        year = m.group(3)
+        if month:
+            return f"{year}-{month}-{day}"
+    # Якщо вже ISO — повертаємо як є
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", date_str.strip()):
+        return date_str.strip()
+    return None
+
+
+# ---------------------------------------------------------------------------
 # XLSX парсинг (прямий, без OCR)
 # ---------------------------------------------------------------------------
 def _parse_xlsx(data: bytes) -> list[dict]:
@@ -632,6 +662,55 @@ def _parse_xls(data: bytes) -> list[dict]:
                 if isinstance(v, (int, float)) and v > 0:
                     item["invoice_amount"] = float(v)
                     break
+
+    # --- IBAN / Банк / Період послуги — повнотекстовий пошук по всіх клітинках ---
+    full_text = "\n".join(
+        str(ws.cell_value(i, j))
+        for i in range(ws.nrows) for j in range(ws.ncols)
+        if ws.cell_value(i, j) not in (None, "")
+    )
+
+    if not item["partner_iban"]:
+        iban_m = re.search(r"\b(UA\d{27})\b", full_text.replace(" ", ""))
+        if iban_m:
+            item["partner_iban"] = iban_m.group(1)
+
+    if not item["partner_bank_name"]:
+        bank_m = re.search(
+            r"(?:у\s+банку|Банк)[:\s]+([А-ЯІЇЄҐA-Z\"][^\n]{3,80}?)(?:\n|,\s*МФО|МФО|IBAN|$)",
+            full_text,
+        )
+        if bank_m:
+            bank = re.sub(r"\s+", " ", bank_m.group(1)).strip(" ,.")
+            if len(bank) > 3:
+                item["partner_bank_name"] = bank
+
+    if not item["service_period"]:
+        period_m = re.search(r"за\s+(\w+)\s+(\d{4})", full_text, re.IGNORECASE)
+        if period_m:
+            month_num = _UA_MONTHS.get(period_m.group(1).lower())
+            if month_num:
+                item["service_period"] = f"{month_num}.{period_m.group(2)}"
+        if not item["service_period"]:
+            p2 = re.search(r"(0[1-9]|1[0-2])[./](\d{4})", full_text)
+            if p2:
+                item["service_period"] = f"{p2.group(1)}.{p2.group(2)}"
+
+    # --- Нормалізація invoice_date («01 березня 2026» → «2026-03-01») ---
+    if item["invoice_date"]:
+        iso = _normalize_ua_date(str(item["invoice_date"]))
+        if iso:
+            item["invoice_date"] = iso
+
+    # --- unit_price з quantity і суми без ПДВ ---
+    if (item["unit_price"] is None and item["quantity"]
+            and item["invoice_amount_no_vat"]):
+        try:
+            qty = float(str(item["quantity"]).replace(",", "."))
+            if qty > 0:
+                item["unit_price"] = round(item["invoice_amount_no_vat"] / qty, 2)
+        except (ValueError, TypeError):
+            pass
 
     wb.release_resources()
 
