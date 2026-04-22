@@ -108,11 +108,22 @@ async def _fetch_file_from_odoo(task_id: int) -> tuple[str, str]:
     """
     uid = await _odoo_authenticate()
 
-    # Читаємо binary поле та filename
+    # Перевіряємо, чи існує поле filename на моделі — на prod його може не бути
+    task_fields = await _odoo_jsonrpc(
+        ODOO_URL, "object", "execute_kw",
+        [ODOO_DB, uid, ODOO_PASSWORD, "project.task", "fields_get",
+         [["x_studio_camunda_invoice_file_filename"]], {"attributes": ["type"]}],
+    ) or {}
+    has_filename = "x_studio_camunda_invoice_file_filename" in task_fields
+
+    read_fields = ["x_studio_camunda_invoice_file"]
+    if has_filename:
+        read_fields.append("x_studio_camunda_invoice_file_filename")
+
     records = await _odoo_jsonrpc(
         ODOO_URL, "object", "execute_kw",
         [ODOO_DB, uid, ODOO_PASSWORD, "project.task", "read",
-         [[task_id], ["x_studio_camunda_invoice_file", "x_studio_camunda_invoice_file_filename"]]],
+         [[task_id], read_fields]],
     )
 
     if not records:
@@ -120,7 +131,7 @@ async def _fetch_file_from_odoo(task_id: int) -> tuple[str, str]:
 
     rec = records[0]
     file_content = rec.get("x_studio_camunda_invoice_file") or ""
-    filename = rec.get("x_studio_camunda_invoice_file_filename") or ""
+    filename = rec.get("x_studio_camunda_invoice_file_filename") or "" if has_filename else ""
 
     # Якщо файл не в полі задачі — шукаємо в підзадачах
     if not file_content:
@@ -129,12 +140,12 @@ async def _fetch_file_from_odoo(task_id: int) -> tuple[str, str]:
             [ODOO_DB, uid, ODOO_PASSWORD, "project.task", "search_read",
              [[["parent_id", "=", task_id],
                ["x_studio_camunda_invoice_file", "!=", False]]],
-             {"fields": ["x_studio_camunda_invoice_file", "x_studio_camunda_invoice_file_filename"],
-              "limit": 1}],
+             {"fields": read_fields, "limit": 1}],
         )
         if children:
             file_content = children[0].get("x_studio_camunda_invoice_file") or ""
-            filename = children[0].get("x_studio_camunda_invoice_file_filename") or filename
+            if has_filename:
+                filename = children[0].get("x_studio_camunda_invoice_file_filename") or filename
 
     if not file_content:
         raise ValueError(f"No file found in Odoo task {task_id} or its subtasks")
@@ -143,7 +154,8 @@ async def _fetch_file_from_odoo(task_id: int) -> tuple[str, str]:
     if filename and "." in filename:
         ext = filename.rsplit(".", 1)[-1].lower()
 
-    logger.info("Fetched file from Odoo task %d: %s (%d chars base64)", task_id, filename, len(file_content))
+    logger.info("Fetched file from Odoo task %d: %s (%d chars base64, has_filename=%s)",
+                task_id, filename or "<no filename field>", len(file_content), has_filename)
     return file_content, ext
 
 
