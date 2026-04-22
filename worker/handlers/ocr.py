@@ -314,11 +314,13 @@ async def _gemini_extract_from_images(images: list[Image.Image]) -> list[dict] |
                     except (ValueError, TypeError):
                         item[amt_key] = None
             # IBAN — прибрати пробіли, перевірити формат UA + 27 цифр
-            if item["partner_iban"] is not None:
-                iban = re.sub(r"\s+", "", str(item["partner_iban"])).upper()
+            raw_iban = item.get("partner_iban")
+            if raw_iban is not None:
+                iban = re.sub(r"\s+", "", str(raw_iban)).upper()
                 if re.match(r"^UA\d{27}$", iban):
                     item["partner_iban"] = iban
                 else:
+                    logger.info("Gemini returned invalid IBAN %r (normalized: %r) — dropped", raw_iban, iban)
                     item["partner_iban"] = None
             # service_period — валідація формату MM.YYYY
             if item["service_period"] is not None:
@@ -427,6 +429,54 @@ def _normalize_ua_date(date_str: str) -> str | None:
     if re.match(r"^\d{4}-\d{2}-\d{2}$", date_str.strip()):
         return date_str.strip()
     return None
+
+
+def _enrich_items_from_text(items: list[dict], text: str) -> None:
+    """Добиває відсутні поля (IBAN/банк/період) з сирого тексту tesseract OCR.
+
+    Викликається після Gemini, коли він пропустив ці поля на зображенні.
+    Мутує items на місці.
+    """
+    if not text:
+        return
+
+    # IBAN
+    iban_m = re.search(r"\b(UA\d{27})\b", text.replace(" ", ""))
+    iban = iban_m.group(1) if iban_m else None
+
+    # Банк
+    bank = None
+    bank_m = re.search(
+        r"(?:у\s+банку|Банк)[:\s]+([А-ЯІЇЄҐA-Z\"][^\n]{3,80}?)(?:\n|,\s*МФО|МФО|IBAN|$)",
+        text,
+    )
+    if bank_m:
+        b = re.sub(r"\s+", " ", bank_m.group(1)).strip(" ,.")
+        if len(b) > 3:
+            bank = b
+
+    # Період послуги
+    period = None
+    pm = re.search(r"за\s+(\w+)\s+(\d{4})", text, re.IGNORECASE)
+    if pm:
+        mn = _UA_MONTHS.get(pm.group(1).lower())
+        if mn:
+            period = f"{mn}.{pm.group(2)}"
+    if not period:
+        pm2 = re.search(r"(0[1-9]|1[0-2])[./](\d{4})", text)
+        if pm2:
+            period = f"{pm2.group(1)}.{pm2.group(2)}"
+
+    for it in items:
+        if not it.get("partner_iban") and iban:
+            it["partner_iban"] = iban
+            logger.info("Enriched partner_iban from tesseract: %s", iban)
+        if not it.get("partner_bank_name") and bank:
+            it["partner_bank_name"] = bank
+            logger.info("Enriched partner_bank_name from tesseract: %s", bank)
+        if not it.get("service_period") and period:
+            it["service_period"] = period
+            logger.info("Enriched service_period from tesseract: %s", period)
 
 
 # ---------------------------------------------------------------------------
@@ -1324,6 +1374,22 @@ def register_ocr_handlers(
                 if all_gemini_items:
                     items = all_gemini_items
                     logger.info("Using Gemini result (%d items from %d pages)", len(items), len(images))
+                    # Enrichment: якщо Gemini пропустив IBAN/банк/період — добиваємо через tesseract
+                    needs_enrichment = any(
+                        not it.get("partner_iban") or not it.get("partner_bank_name") or not it.get("service_period")
+                        for it in items
+                    )
+                    if needs_enrichment:
+                        try:
+                            if ext == "pdf":
+                                texts = ocr_pdf(file_data)
+                                tess_text = "\n".join(texts)
+                            else:
+                                tess_text = ocr_image(file_data)
+                            logger.info("Enrichment: tesseract text %d chars", len(tess_text))
+                            _enrich_items_from_text(items, tess_text)
+                        except Exception as e:
+                            logger.warning("Enrichment failed: %s", e)
                 elif gemini_failed:
                     # --- Tesseract (fallback) ---
                     logger.info("Gemini unavailable, falling back to tesseract")
