@@ -66,10 +66,10 @@ KNOWN_SERVICES = [
 # ---------------------------------------------------------------------------
 # Отримання файлу (base64 або URL)
 # ---------------------------------------------------------------------------
-ODOO_URL = os.getenv("ODOO_URL", "https://odoo.dev.dobrom.com:2689/odoo")
-ODOO_DB = os.getenv("ODOO_DB", "odoo19")
-ODOO_USER = os.getenv("ODOO_USER", "")
-ODOO_PASSWORD = os.getenv("ODOO_PASSWORD", "")
+ODOO_URL = os.getenv("OCR_ODOO_URL") or os.getenv("ODOO_URL", "https://odoo.dev.dobrom.com:2689/odoo")
+ODOO_DB = os.getenv("OCR_ODOO_DB") or os.getenv("ODOO_DB", "odoo19")
+ODOO_USER = os.getenv("OCR_ODOO_USER") or os.getenv("ODOO_USER", "")
+ODOO_PASSWORD = os.getenv("OCR_ODOO_PASSWORD") or os.getenv("ODOO_PASSWORD", "")
 
 
 async def _odoo_jsonrpc(url: str, service: str, method: str, args: list) -> Any:
