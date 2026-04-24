@@ -604,17 +604,23 @@ def _fetch_fop_stores(conn, year: int) -> dict:
     bas_end = f"{year + BAS_YEAR_OFFSET + 1}-01-01"
     recent_cutoff = date.today() - timedelta(days=14)
 
+    # Include subdivision from _InfoRg8773 (Додаткові відомості) — direct link
+    # to Reference100 (Підрозділ), bypassing fuzzy matching by terminal name.
     sql_payments = """
         SELECT
             d._Fld6004RRef AS org_id,
             d._Fld6019 AS purpose,
             d._Fld6010 AS amount,
             MONTH(DATEADD(year, -2000, d._Date_Time)) AS mn,
-            DATEADD(year, -2000, d._Date_Time) AS pay_date
+            DATEADD(year, -2000, d._Date_Time) AS pay_date,
+            r100._Description AS subdivision
         FROM _Document236 d
         JOIN _Reference90 o ON d._Fld6004RRef = o._IDRRef
         JOIN _Document236_VT6023 vt ON vt._Document236_IDRRef = d._IDRRef
         JOIN _Reference129 r129 ON r129._IDRRef = vt._Fld6037RRef
+        LEFT JOIN _InfoRg8773 i ON i._Fld8774_RRRef = d._IDRRef
+        LEFT JOIN _Reference100 r100 ON r100._IDRRef = i._Fld8776_RRRef
+            AND r100._Description LIKE N'[0-9][0-9][0-9] %'
         WHERE d._Posted = 0x01 AND d._Marked = 0x00
             AND d._Date_Time >= %s AND d._Date_Time < %s
             AND o._Marked = 0x00
@@ -647,6 +653,13 @@ def _fetch_fop_stores(conn, year: int) -> dict:
         monthly_cmps = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))  # org→name→month→total
         monthly_other = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))  # org→label→month→total
 
+        # Direct subdivision lookup from _InfoRg8773 — used instead of fuzzy
+        # matching when payment has subdivision attached in the register.
+        direct_subdiv_data = defaultdict(lambda: defaultdict(lambda: {"count": 0, "total": 0.0}))
+        direct_subdiv_monthly = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
+        direct_subdiv_count = 0
+        fallback_count = 0
+
         for row in cursor:
             org_id = bytes(row["org_id"])
             purpose = row["purpose"] or ""
@@ -654,8 +667,20 @@ def _fetch_fop_stores(conn, year: int) -> dict:
             month = row["mn"]
             pay_date = row["pay_date"]
             cat = _classify_payment(purpose)
+            subdivision = (row.get("subdivision") or "").strip() if row.get("subdivision") else ""
+
+            # Prefer direct subdivision from _InfoRg8773 over fuzzy matching
+            # for ALL categories (cmps, mono, liqpay, novapay, other)
+            if subdivision:
+                direct_subdiv_data[org_id][subdivision]["count"] += 1
+                direct_subdiv_data[org_id][subdivision]["total"] += amount
+                direct_subdiv_monthly[org_id][subdivision][month] += amount
+                direct_subdiv_count += 1
+                continue
 
             if cat == "cmps":
+                # Fallback: fuzzy matching by terminal name
+                fallback_count += 1
                 name, sub_code, tc = _parse_terminal_name(purpose)
                 if name:
                     terminal_data[org_id][name]["count"] += 1
@@ -683,29 +708,33 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                     )
                 monthly_other[org_id][label][month] += amount
 
-        # Cash receipts (ПКО — _Document243)
+        # Cash receipts (ПКО — _Document243) split by subdivision via _InfoRg8773
         sql_cash = """
             SELECT d._Fld6492RRef AS org_id,
-                   SUM(d._Fld6493) AS total,
-                   COUNT(*) AS cnt
+                   d._Fld6493 AS amount,
+                   r100._Description AS subdivision
             FROM _Document243 d
             JOIN _Reference90 o ON d._Fld6492RRef = o._IDRRef
+            LEFT JOIN _InfoRg8773 i ON i._Fld8774_RRRef = d._IDRRef
+            LEFT JOIN _Reference100 r100 ON r100._IDRRef = i._Fld8776_RRRef
+                AND r100._Description LIKE N'[0-9][0-9][0-9] %'
             WHERE d._Posted = 0x01 AND d._Marked = 0x00
                 AND d._Date_Time >= %s AND d._Date_Time < %s
                 AND o._Marked = 0x00
                 AND o._Description NOT LIKE N'яяя%%'
-            GROUP BY d._Fld6492RRef
         """
-        cash_data = {}
+        # cash_data: org_id → { subdivision | None → {count, total} }
+        cash_data: dict[bytes, dict] = defaultdict(lambda: defaultdict(lambda: {"count": 0, "total": 0.0}))
         _t1 = _time.time()
         logger.info("Початок sql_cash...")
         cursor.execute(sql_cash, (bas_start, bas_end))
         for row in cursor:
             org_id = bytes(row["org_id"])
-            cash_data[org_id] = {
-                "count": row["cnt"],
-                "total": float(row["total"] or 0),
-            }
+            amount = float(row["amount"] or 0)
+            subdivision = (row.get("subdivision") or "").strip() if row.get("subdivision") else None
+            key = subdivision if subdivision else "Каса (готівка)"
+            cash_data[org_id][key]["count"] += 1
+            cash_data[org_id][key]["total"] += amount
 
         logger.info("sql_cash виконано за %.1f сек", _time.time() - _t1)
 
@@ -834,7 +863,7 @@ def _fetch_fop_stores(conn, year: int) -> dict:
         cursor2.close()
 
         result = defaultdict(list)
-        all_org_ids = set(terminal_data.keys()) | set(doc_data.keys()) | set(other_income.keys()) | set(cash_data.keys())
+        all_org_ids = set(terminal_data.keys()) | set(doc_data.keys()) | set(other_income.keys()) | set(cash_data.keys()) | set(direct_subdiv_data.keys())
         mapped_count = 0
         unmapped_names = set()
 
@@ -976,6 +1005,22 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 if len(unmatched_bound) == 1 and len(wrong_resolved) == 1:
                     wrong_resolved[0]["name"] = unmatched_bound[0]
 
+            # 2d) Direct subdivision from _InfoRg8773 (Додаткові відомості)
+            # Merge with existing terminal entries if same subdivision
+            if org_id in direct_subdiv_data:
+                existing_terminal = {s["name"]: s for s in result[org_id] if s.get("source") == "terminal"}
+                for sub_name, info in direct_subdiv_data[org_id].items():
+                    if sub_name in existing_terminal:
+                        existing_terminal[sub_name]["total"] += info["total"]
+                        existing_terminal[sub_name]["doc_count"] += info["count"]
+                    else:
+                        result[org_id].append({
+                            "name": sub_name,
+                            "doc_count": info["count"],
+                            "total": info["total"],
+                            "source": "terminal",
+                        })
+
             # 3) Non-cmps payments (Mono, LiqPay, NovaPay, other)
             if org_id in other_income:
                 for cat_name, info in sorted(
@@ -992,16 +1037,16 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                             "recent_income": info.get("recent_income", 0),
                         })
 
-            # 4) Cash receipts (ПКО — _Document243)
+            # 4) Cash receipts (ПКО — _Document243) split by subdivision
             if org_id in cash_data:
-                info = cash_data[org_id]
-                if info["total"] > 0:
-                    result[org_id].append({
-                        "name": "Каса (готівка)",
-                        "doc_count": info["count"],
-                        "total": info["total"],
-                        "source": "cash",
-                    })
+                for key, info in cash_data[org_id].items():
+                    if info["total"] > 0:
+                        result[org_id].append({
+                            "name": key,
+                            "doc_count": info["count"],
+                            "total": info["total"],
+                            "source": "cash",
+                        })
 
         if unmapped_names:
             logger.warning(
@@ -1010,6 +1055,13 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 ", ".join(sorted(unmapped_names)[:10]),
             )
         logger.info("Термінал→підрозділ: %d зіставлено", mapped_count)
+        total_cmps = direct_subdiv_count + fallback_count
+        if total_cmps > 0:
+            logger.info(
+                "Прямий підрозділ з _InfoRg8773: %d/%d (%.1f%%), fallback fuzzy: %d",
+                direct_subdiv_count, total_cmps,
+                direct_subdiv_count / total_cmps * 100, fallback_count,
+            )
 
         # Build raw→resolved name mapping for monthly data
         name_map = {}  # (org_id, raw_name) → resolved_name
@@ -1094,6 +1146,11 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                     resolved = name_map.get((org_id, raw_name), raw_name)
                     for mn, amt in months.items():
                         store_monthly[resolved][mn] += amt
+            # Direct subdivision monthly (from _InfoRg8773)
+            if org_id in direct_subdiv_monthly:
+                for sub_name, months in direct_subdiv_monthly[org_id].items():
+                    for mn, amt in months.items():
+                        store_monthly[sub_name][mn] += amt
             # non-cmps monthly (labels already match)
             if org_id in monthly_other:
                 for label, months in monthly_other[org_id].items():

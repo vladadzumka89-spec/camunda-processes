@@ -603,28 +603,27 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         if edrpou:
             fop_terminal_stores[edrpou].append(store["subdivision"])
 
-    # Detect wholesale FOPs: no terminal stores + only "Інші надходження"
+    # Detect wholesale FOPs: >50% income on 80x subdivisions (800 Гурт ТП, 801-809)
     _fop_wholesale: set[str] = set()
     for fop_entry in all_fops_report:
         edrpou = fop_entry.get("fop_edrpou", "")
+        wholesale_income = sum(
+            s.get("total", 0) for s in fop_entry.get("stores", [])
+            if re.match(r'^80\d\s', s["name"])
+        )
+        total = fop_entry.get("total_income", 0)
+        if total > 0 and wholesale_income > total * 0.5 and wholesale_income > 100_000:
+            _fop_wholesale.add(edrpou)
+
+    for fop_entry in all_fops_report:
+        edrpou = fop_entry.get("fop_edrpou", "")
         terminal_stores = fop_terminal_stores.get(edrpou, [])
-        if terminal_stores:
+        if edrpou in _fop_wholesale:
+            fop_entry["current_terminal_stores"] = "Гурт (ТП)"
+        elif terminal_stores:
             fop_entry["current_terminal_stores"] = "\n".join(terminal_stores)
         else:
-            has_terminal_income = any(
-                s.get("source") == "terminal" for s in fop_entry.get("stores", [])
-            )
-            other_income = sum(
-                s.get("total", 0) for s in fop_entry.get("stores", [])
-                if s["name"] == "Інші надходження"
-            )
-            total = fop_entry.get("total_income", 0)
-            is_tp = fop_entry.get("organization") == "Технопростір"
-            if is_tp and not has_terminal_income and other_income > total * 0.5 and other_income > 100_000:
-                fop_entry["current_terminal_stores"] = "Гурт (Інші надходження)"
-                _fop_wholesale.add(edrpou)
-            else:
-                fop_entry["current_terminal_stores"] = ""
+            fop_entry["current_terminal_stores"] = ""
 
     # Filter critical_fops: keep FOPs with terminal stores OR wholesale
     before_filter = len(critical_fops)
