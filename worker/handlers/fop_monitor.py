@@ -525,14 +525,16 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
                     bindings = tb_bindings
                     break
         is_disbanded = data["store_status"] == "закритий"
-        current_fop_name, current_fop_edrpou = _determine_current_fop(
+        current_fop_name, current_fop_edrpou, has_active_binding = _determine_current_fop(
             bindings, data["fops"]
         )
         if is_disbanded:
             current_fop_name = ""
             current_fop_edrpou = ""
+            has_active_binding = False
         data["current_fop_name"] = current_fop_name
         data["current_fop_edrpou"] = current_fop_edrpou
+        data["current_fop_has_binding"] = has_active_binding
         data["company"] = _determine_store_company(name) or _determine_organization(current_fop_name)
 
         # Find FOP group → limit
@@ -597,10 +599,12 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
     logger.info("Звіт по магазинах: %d магазинів", len(stores_report))
 
     # ── Reverse lookup: FOP EDRPOU → currently connected stores ──
+    # Only include stores where FOP has an ACTIVE binding (not fallback by income)
     fop_terminal_stores: dict[str, list[str]] = defaultdict(list)
     for store in stores_report:
         edrpou = store.get("current_fop_edrpou", "")
-        if edrpou:
+        has_binding = store.get("current_fop_has_binding", False)
+        if edrpou and has_binding:
             fop_terminal_stores[edrpou].append(store["subdivision"])
 
     # Detect wholesale FOPs: >50% income on 80x subdivisions (800 Гурт ТП, 801-809)
@@ -619,7 +623,7 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         edrpou = fop_entry.get("fop_edrpou", "")
         terminal_stores = fop_terminal_stores.get(edrpou, [])
         if edrpou in _fop_wholesale:
-            fop_entry["current_terminal_stores"] = "Гурт (ТП)"
+            fop_entry["current_terminal_stores"] = "800 Гурт ТП"
         elif terminal_stores:
             fop_entry["current_terminal_stores"] = "\n".join(terminal_stores)
         else:

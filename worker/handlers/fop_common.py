@@ -1822,7 +1822,7 @@ def _calc_growth_percent(prev: float, curr: float) -> float | None:
 def _determine_current_fop(
     bindings: list[dict],
     fops_list: list[dict],
-) -> tuple[str, str]:
+) -> tuple[str, str, bool]:
     """Determine current FOP for a store.
 
     Priority:
@@ -1830,7 +1830,8 @@ def _determine_current_fop(
     2. Last connection record (value_date year >= 2090)
     3. Fallback: FOP with highest income_from_store
 
-    Returns: (fop_name, fop_edrpou)
+    Returns: (fop_name, fop_edrpou, has_active_binding)
+    has_active_binding=True only when determined by active binding (case 1).
     """
     # Legal entities to exclude when determining current FOP
     _LEGAL_ENTITIES = {"Плюс Технопростір", "Техно Простір", "Технопростір"}
@@ -1843,6 +1844,7 @@ def _determine_current_fop(
         periods = _group_binding_periods(bindings)
         # Find active period (date_to is None = FOP still connected)
         active = [p for p in periods if p["date_to"] is None]
+        has_active = False
         if active:
             # Take the most recently connected active FOP (skip legal entities)
             active.sort(
@@ -1850,6 +1852,7 @@ def _determine_current_fop(
             )
             fop_active = [p for p in active if _is_fop(p["fop_name"])]
             current_name = (fop_active or active)[-1]["fop_name"]
+            has_active = True
         else:
             # No active period — fall back to last connection record
             conn_records = [
@@ -1868,8 +1871,8 @@ def _determine_current_fop(
 
         for f in fops_list:
             if f["fop_name"] == current_name:
-                return current_name, f["fop_edrpou"]
-        return current_name, ""
+                return current_name, f["fop_edrpou"], has_active
+        return current_name, "", has_active
 
     if fops_list:
         # For payment-type stores (Mono, LiqPay etc.) prefer FOP with
@@ -1880,9 +1883,9 @@ def _determine_current_fop(
             best = max(fops_with_recent, key=lambda f: f["recent_income"])
         else:
             best = max(fops_list, key=lambda f: f.get("income_from_store", 0))
-        return best["fop_name"], best["fop_edrpou"]
+        return best["fop_name"], best["fop_edrpou"], False
 
-    return "", ""
+    return "", "", False
 
 
 # ── Analysis ───────────────────────────────────────────────────────────
