@@ -159,6 +159,54 @@ async def _fetch_file_from_odoo(task_id: int) -> tuple[str, str]:
     return file_content, ext
 
 
+async def _fetch_file_by_reference(ref: dict) -> tuple[bytes, str, str]:
+    """Fetch file content by Odoo reference (from attachedFile array).
+
+    Reference format:
+        {
+            "Name": "invoice.pdf",
+            "odoo": {
+                "model": "ir.attachment" | "project.task",
+                "name": "datas" | "x_studio_camunda_invoice_file",
+                "keyname": "id",
+                "key": 123
+            }
+        }
+
+    Returns: (file_bytes, filename, extension)
+    """
+    odoo_ref = ref.get("odoo") or {}
+    model = odoo_ref.get("model")
+    field_name = odoo_ref.get("name")
+    key = odoo_ref.get("key")
+
+    if not (model and field_name and key):
+        raise ValueError(f"Invalid attachedFile reference: {ref}")
+
+    uid = await _odoo_authenticate()
+    records = await _odoo_jsonrpc(
+        ODOO_URL, "object", "execute_kw",
+        [ODOO_DB, uid, ODOO_PASSWORD, model, "read",
+         [[int(key)], [field_name]]],
+    )
+    if not records:
+        raise ValueError(f"Odoo record {model}({key}) not found")
+
+    base64_content = records[0].get(field_name) or ""
+    if not base64_content:
+        raise ValueError(f"Empty file in {model}({key}).{field_name}")
+
+    filename = ref.get("Name") or ""
+    ext = ""
+    if filename and "." in filename:
+        ext = filename.rsplit(".", 1)[-1].lower()
+
+    file_bytes = base64.b64decode(base64_content)
+    logger.info("Fetched %s(%s).%s: %s (%d bytes, ext=%s)",
+                 model, key, field_name, filename or "<noname>", len(file_bytes), ext)
+    return file_bytes, filename, ext
+
+
 async def _acquire_file(file_data) -> bytes:
     """Отримати файл: base64-декодування або завантаження по URL з Odoo."""
     if not file_data:
@@ -1272,6 +1320,86 @@ def _build_ocr_summary(items: list[dict]) -> str:
     return "\n".join(lines)
 
 
+async def _process_single_file(file_data: bytes, ext: str) -> list[dict]:
+    """Process one file (PDF/image/XLSX/XLS) and extract invoice items.
+
+    Returns: list of invoice_item dicts (empty if nothing recognized).
+    """
+    # Auto-detect extension from magic bytes if not provided
+    if not ext and file_data:
+        if file_data[:4] == b"%PDF":
+            ext = "pdf"
+        elif file_data[:8] == b"\x89PNG\r\n\x1a\n":
+            ext = "png"
+        elif file_data[:2] == b"\xff\xd8":
+            ext = "jpg"
+        elif file_data[:2] == b"PK":
+            ext = "xlsx"
+        elif file_data[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
+            ext = "xls"
+        logger.info("Auto-detected file extension: %s", ext)
+
+    items: list[dict] = []
+
+    if ext in ("xlsx", "xls"):
+        items = _parse_xlsx(file_data) if ext == "xlsx" else _parse_xls(file_data)
+        return items
+
+    if ext not in ("pdf", "jpg", "jpeg", "png"):
+        logger.warning("Unsupported file extension: %s", ext)
+        return items
+
+    # Render to images
+    if ext == "pdf":
+        images = convert_from_bytes(file_data, dpi=OCR_DPI)
+    else:
+        img = Image.open(BytesIO(file_data))
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        images = [img]
+
+    # Gemini (primary, per-page)
+    all_gemini_items: list[dict] = []
+    gemini_failed = False
+    for page_idx, page_img in enumerate(images):
+        page_items = await _gemini_extract_from_images([page_img])
+        if page_items:
+            all_gemini_items.extend(page_items)
+            logger.info("Gemini page %d: %d invoice(s)", page_idx + 1, len(page_items))
+        elif page_items is None and not all_gemini_items:
+            gemini_failed = True
+            break
+        else:
+            logger.info("Gemini page %d: no invoices", page_idx + 1)
+
+    if all_gemini_items:
+        items = all_gemini_items
+        # Enrichment: якщо Gemini пропустив IBAN/банк/період — добиваємо через tesseract
+        needs_enrichment = any(
+            not it.get("partner_iban") or not it.get("partner_bank_name") or not it.get("service_period")
+            for it in items
+        )
+        if needs_enrichment:
+            try:
+                if ext == "pdf":
+                    tess_text = "\n".join(ocr_pdf(file_data))
+                else:
+                    tess_text = ocr_image(file_data)
+                logger.info("Enrichment: tesseract text %d chars", len(tess_text))
+                _enrich_items_from_text(items, tess_text)
+            except Exception as e:
+                logger.warning("Enrichment failed: %s", e)
+    elif gemini_failed:
+        logger.info("Gemini unavailable, falling back to tesseract")
+        if ext == "pdf":
+            for text in ocr_pdf(file_data):
+                items.append(parse_single_invoice(text))
+        else:
+            items.append(parse_single_invoice(ocr_image(file_data)))
+
+    return items
+
+
 # ---------------------------------------------------------------------------
 # Handler registration
 # ---------------------------------------------------------------------------
@@ -1285,124 +1413,71 @@ def register_ocr_handlers(
         invoice-data-extractor: OCR-розпізнавання рахунків (PDF/JPG/PNG/XLSX)
     """
 
-    @worker.task(task_type="invoice-data-extractor", timeout_ms=120_000)
+    @worker.task(task_type="invoice-data-extractor", timeout_ms=300_000)
     async def invoice_data_extractor(
         x_studio_camunda_invoice_file: str = "",
         file_extension: str = "",
         **kwargs: Any,
     ) -> dict:
-        """Витягнути дані з рахунку через OCR або прямий парсинг.
+        """Витягнути дані з одного або кількох рахунків через OCR.
 
-        Input:
-            x_studio_camunda_invoice_file — base64 або URL файлу
-            file_extension — pdf / jpg / jpeg / png / xlsx / xls
+        Input priority:
+            1. attachedFile — масив reference-об'єктів з Odoo (mutli-file)
+            2. x_studio_camunda_invoice_file — base64 (single file, legacy)
+            3. odoo_task_id — fallback fetch по task id
 
         Output:
-            invoice_items — список розпарсених рахунків
+            invoice_items — об'єднаний список рахунків з УСІХ файлів
             recognized — True якщо хоча б один рахунок знайдено
             total_invoices — кількість рахунків
             total_amount — загальна сума
         """
         odoo_task_id = kwargs.get("odoo_task_id")
-        logger.info("invoice-data-extractor | ext=%s, odoo_task_id=%s, file_present=%s",
-                     file_extension, odoo_task_id, bool(x_studio_camunda_invoice_file))
+        attached_file = kwargs.get("attachedFile") or []
+        if not isinstance(attached_file, list):
+            attached_file = []
+
+        logger.info("invoice-data-extractor | attached=%d, odoo_task_id=%s, file_present=%s",
+                     len(attached_file), odoo_task_id, bool(x_studio_camunda_invoice_file))
 
         try:
-            # Якщо файл не передано через Camunda — завантажити з Odoo напряму
-            if not x_studio_camunda_invoice_file and odoo_task_id:
-                logger.info("File not in Camunda vars, fetching from Odoo task %s", odoo_task_id)
-                x_studio_camunda_invoice_file, file_extension = await _fetch_file_from_odoo(
-                    int(odoo_task_id)
-                )
-
-            # Визначити ext з filename якщо є
-            x_studio_camunda_invoice_file_filename = kwargs.get("x_studio_camunda_invoice_file_filename", "")
-            if not file_extension and x_studio_camunda_invoice_file_filename:
-                fn = str(x_studio_camunda_invoice_file_filename)
-                if "." in fn:
-                    file_extension = fn.rsplit(".", 1)[-1]
-                    logger.info("Got extension from filename '%s': %s", fn, file_extension)
-
-            logger.info("File value first 80 chars: %s", repr(str(x_studio_camunda_invoice_file)[:80]))
-
-            file_data = await _acquire_file(x_studio_camunda_invoice_file)
-            ext = (file_extension or "").lower().strip(".")
-
-            # Автовизначення розширення з magic bytes якщо не вказано
-            if not ext and file_data:
-                logger.info("Magic bytes (first 16): %s", file_data[:16].hex())
-            if not ext and file_data:
-                if file_data[:4] == b"%PDF":
-                    ext = "pdf"
-                elif file_data[:8] == b"\x89PNG\r\n\x1a\n":
-                    ext = "png"
-                elif file_data[:2] == b"\xff\xd8":
-                    ext = "jpg"
-                elif file_data[:2] == b"PK":
-                    ext = "xlsx"
-                elif file_data[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
-                    ext = "xls"
-                logger.info("Auto-detected file extension: %s", ext)
-
             items: list[dict] = []
 
-            if ext in ("xlsx", "xls"):
-                # Spreadsheets — прямий парсинг, Gemini не потрібен
-                items = _parse_xlsx(file_data) if ext == "xlsx" else _parse_xls(file_data)
+            # 1. Multi-file path — attachedFile array (preferred)
+            if attached_file:
+                logger.info("Processing %d files from attachedFile", len(attached_file))
+                for idx, ref in enumerate(attached_file, 1):
+                    try:
+                        file_bytes, fname, ext = await _fetch_file_by_reference(ref)
+                        file_items = await _process_single_file(file_bytes, ext.lower().strip("."))
+                        items.extend(file_items)
+                        logger.info("File %d/%d '%s': %d invoice(s)",
+                                    idx, len(attached_file), fname, len(file_items))
+                    except Exception as e:
+                        logger.warning("Failed to process file %d (%s): %s",
+                                       idx, ref.get("Name", "?"), e)
 
-            elif ext in ("pdf", "jpg", "jpeg", "png"):
-                # Зображення — спершу Gemini (посторінково), fallback на tesseract
-                if ext == "pdf":
-                    images = convert_from_bytes(file_data, dpi=OCR_DPI)
-                else:
-                    img = Image.open(BytesIO(file_data))
-                    if img.mode in ("RGBA", "P"):
-                        img = img.convert("RGB")
-                    images = [img]
+            # 2. Legacy single-file path — base64 у змінній
+            elif x_studio_camunda_invoice_file:
+                # Визначити ext з filename якщо є
+                x_studio_camunda_invoice_file_filename = kwargs.get("x_studio_camunda_invoice_file_filename", "")
+                if not file_extension and x_studio_camunda_invoice_file_filename:
+                    fn = str(x_studio_camunda_invoice_file_filename)
+                    if "." in fn:
+                        file_extension = fn.rsplit(".", 1)[-1]
+                        logger.info("Got extension from filename '%s': %s", fn, file_extension)
 
-                # --- Gemini (primary, per-page) ---
-                all_gemini_items = []
-                gemini_failed = False
-                for page_idx, page_img in enumerate(images):
-                    page_items = await _gemini_extract_from_images([page_img])
-                    if page_items:
-                        all_gemini_items.extend(page_items)
-                        logger.info("Gemini page %d: %d invoice(s)", page_idx + 1, len(page_items))
-                    elif page_items is None and not all_gemini_items:
-                        gemini_failed = True
-                        break
-                    else:
-                        logger.info("Gemini page %d: no invoices", page_idx + 1)
+                logger.info("File value first 80 chars: %s", repr(str(x_studio_camunda_invoice_file)[:80]))
+                file_data = await _acquire_file(x_studio_camunda_invoice_file)
+                ext = (file_extension or "").lower().strip(".")
+                items = await _process_single_file(file_data, ext)
 
-                if all_gemini_items:
-                    items = all_gemini_items
-                    logger.info("Using Gemini result (%d items from %d pages)", len(items), len(images))
-                    # Enrichment: якщо Gemini пропустив IBAN/банк/період — добиваємо через tesseract
-                    needs_enrichment = any(
-                        not it.get("partner_iban") or not it.get("partner_bank_name") or not it.get("service_period")
-                        for it in items
-                    )
-                    if needs_enrichment:
-                        try:
-                            if ext == "pdf":
-                                texts = ocr_pdf(file_data)
-                                tess_text = "\n".join(texts)
-                            else:
-                                tess_text = ocr_image(file_data)
-                            logger.info("Enrichment: tesseract text %d chars", len(tess_text))
-                            _enrich_items_from_text(items, tess_text)
-                        except Exception as e:
-                            logger.warning("Enrichment failed: %s", e)
-                elif gemini_failed:
-                    # --- Tesseract (fallback) ---
-                    logger.info("Gemini unavailable, falling back to tesseract")
-                    if ext == "pdf":
-                        texts = ocr_pdf(file_data)
-                        for text in texts:
-                            items.append(parse_single_invoice(text))
-                    else:
-                        text = ocr_image(file_data)
-                        items.append(parse_single_invoice(text))
+            # 3. Fallback — fetch single file by odoo_task_id
+            elif odoo_task_id:
+                logger.info("Fallback: fetching file from Odoo task %s", odoo_task_id)
+                content_b64, ext = await _fetch_file_from_odoo(int(odoo_task_id))
+                file_data = await _acquire_file(content_b64)
+                items = await _process_single_file(file_data, ext.lower().strip("."))
 
             else:
                 return {
@@ -1410,7 +1485,7 @@ def register_ocr_handlers(
                     "invoice_items": [],
                     "total_invoices": 0,
                     "total_amount": 0,
-                    "error": f"Unsupported file extension: {ext}",
+                    "error": "No file provided (empty attachedFile, invoice_file, odoo_task_id)",
                 }
 
             total = sum(i["invoice_amount"] or 0 for i in items)
