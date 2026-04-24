@@ -485,12 +485,15 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
     stores_report = []
     # Skip non-store entries: only include real subdivisions with 3-digit code
     _NON_STORE_PREFIXES = {"2", "4"}
+    _EXCLUDED_CODES = {"103"}  # 103 Офіс — не магазин
     for name, data in sorted(store_agg.items(), key=lambda x: -x[1]["total_income"]):
         m = re.match(r'^(\d{3})\s', name)
         # Skip entries without 3-digit code (unresolved terminals, "Інші надходження", etc.)
         if not m:
             continue
         if m.group(1)[0] in _NON_STORE_PREFIXES:
+            continue
+        if m.group(1) in _EXCLUDED_CODES:
             continue
         data["total_income"] = round(data["total_income"], 2)
 
