@@ -1325,19 +1325,26 @@ async def _process_single_file(file_data: bytes, ext: str) -> list[dict]:
 
     Returns: list of invoice_item dicts (empty if nothing recognized).
     """
-    # Auto-detect extension from magic bytes if not provided
-    if not ext and file_data:
+    # Magic-bytes detect — спрацьовує якщо ext порожній АБО не у списку підтримуваних
+    # (захист від кривих імен на кшталт ".p_df", ".PDF.copy", без розширення)
+    supported_exts = ("pdf", "jpg", "jpeg", "png", "xlsx", "xls")
+    if ext not in supported_exts and file_data:
+        detected = ""
         if file_data[:4] == b"%PDF":
-            ext = "pdf"
+            detected = "pdf"
         elif file_data[:8] == b"\x89PNG\r\n\x1a\n":
-            ext = "png"
+            detected = "png"
         elif file_data[:2] == b"\xff\xd8":
-            ext = "jpg"
-        elif file_data[:2] == b"PK":
-            ext = "xlsx"
+            detected = "jpg"
         elif file_data[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
-            ext = "xls"
-        logger.info("Auto-detected file extension: %s", ext)
+            detected = "xls"
+        elif file_data[:2] == b"PK":
+            detected = "xlsx"
+        if detected:
+            logger.info("Magic-bytes detect: ext=%r → %s", ext, detected)
+            ext = detected
+        else:
+            logger.warning("Magic-bytes detect failed, ext stays %r", ext)
 
     items: list[dict] = []
 
