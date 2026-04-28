@@ -48,9 +48,7 @@ async def _get_fk_excluded_tables(
         f"JOIN pg_namespace pn ON pn.oid = pc.relnamespace AND pn.nspname = 'public' "
         f"JOIN pg_constraint fk ON fk.confrelid = pc.oid AND fk.contype = 'f' "
         f"JOIN pg_class c ON c.oid = fk.conrelid AND c.relkind = 'r' "
-        f"WHERE c.relname != ex.tbl AND ex.depth < 2 "
-        f"AND (ex.depth = 0 OR c.relname ~ "
-        f"'^(mail_|discuss_|bus_|chatbot_|telegram_|meeting_|sms_|snailmail_|rating_)')"
+        f"WHERE c.relname != ex.tbl AND ex.depth < 2"
         f") SELECT DISTINCT tbl FROM ex ORDER BY tbl"
     )
     # $'...' shell quoting: double-quotes are literal, single-quotes must be escaped as \'
