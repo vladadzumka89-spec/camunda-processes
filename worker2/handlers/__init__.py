@@ -17,6 +17,7 @@ from .notify import register_notify_handlers
 from .messaging import register_messaging_handlers
 from .progress import register_progress_handlers
 from .sync import register_sync_handlers
+from .staging_sync import register_staging_sync_handlers
 
 
 def register_all_handlers(
@@ -43,7 +44,8 @@ def register_all_handlers(
         HTTP Smart (1): http-request-smart
         Messaging (1):   publish-message
         Progress (1):    progress
-    Total: 30 task types
+        Staging sync (2): staging-dump, staging-deploy
+    Total: 32 task types
     """
     register_http_smart_handlers(worker, config)
     register_deploy_handlers(worker, config, ssh)
@@ -54,3 +56,4 @@ def register_all_handlers(
     register_notify_handlers(worker, config)
     register_messaging_handlers(worker, config)
     register_progress_handlers(worker, config)
+    register_staging_sync_handlers(worker, config, ssh)

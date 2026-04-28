@@ -36,7 +36,13 @@ class CommandResult:
                 logger.error("STDOUT:\n%s", stdout)
             if stderr:
                 logger.error("STDERR:\n%s", stderr)
-            error = stderr or stdout[-2000:]
+            # Include both stdout and stderr — stderr alone misses Odoo errors that go to stdout
+            parts = []
+            if stderr:
+                parts.append(stderr)
+            if stdout:
+                parts.append(stdout[-2000:])
+            error = "\n".join(parts) if parts else "(no output)"
             raise RemoteCommandError(
                 f'{message} (exit code {self.exit_code}): {error}'
             )
@@ -45,6 +51,10 @@ class CommandResult:
 
 class RemoteCommandError(Exception):
     """Raised when a remote command fails."""
+
+
+class SSHConnectionError(Exception):
+    """Raised when SSH connection to a server fails (infra error)."""
 
 
 class AsyncSSHClient:
@@ -79,7 +89,12 @@ class AsyncSSHClient:
                     connect_kwargs['client_keys'] = [self._key_path]
 
                 logger.info('Connecting to %s', key)
-                conn = await asyncssh.connect(**connect_kwargs)
+                try:
+                    conn = await asyncssh.connect(**connect_kwargs)
+                except asyncssh.Error as exc:
+                    raise SSHConnectionError(
+                        f'SSH connection failed to {key}: {exc}'
+                    ) from exc
                 self._connections[key] = conn
 
         return conn
@@ -118,6 +133,13 @@ class AsyncSSHClient:
             raise RemoteCommandError(
                 f'Command timed out after {timeout}s on {server.host}: {command[:100]}'
             )
+        except asyncssh.Error as exc:
+            # Connection dropped mid-command — evict from pool and raise infra error
+            key = f'{server.ssh_user}@{server.host}:{server.ssh_port}'
+            self._connections.pop(key, None)
+            raise SSHConnectionError(
+                f'SSH connection lost on {server.host}: {exc}'
+            ) from exc
 
         cmd_result = CommandResult(
             stdout=result.stdout or '',

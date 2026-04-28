@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+import traceback
 
 from pyzeebe import Job, ZeebeWorker
 from pyzeebe.job.job import JobController
@@ -55,13 +56,22 @@ async def _exception_handler(exc: Exception, job: Job, job_controller: JobContro
         from .errors import BpmnError
         error_code = exc.error_code if isinstance(exc, BpmnError) else "PROCESS_ERROR"
         error_msg = str(exc)[:500]
+        error_tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+        # Include traceback in the message itself — Zeebe propagates the message string
+        # via zeebe:errorMessageVariable, but throwError.variables don't reach event subprocesses.
+        message_with_tb = f"{error_msg}\n\n{error_tb[-1500:]}" if error_tb.strip() else error_msg
         logger.error(
             "Job %s [%s] exhausted retries — throwing BPMN Error: %s: %s",
             job.key, job.type, error_code, error_msg,
         )
-        variables = getattr(exc, "variables", None)
+        variables = dict(getattr(exc, "variables", None) or {})
+        variables["caught_error_message"] = error_msg
+        variables["error_traceback"] = error_tb
+        if not variables.get("error_type"):
+            from .ssh import SSHConnectionError
+            variables["error_type"] = "infra" if isinstance(exc, SSHConnectionError) else "code"
         await job_controller.set_error_status(
-            message=error_msg,
+            message=message_with_tb,
             error_code=error_code,
             variables=variables,
         )

@@ -56,6 +56,11 @@ def register_clickbot_handlers(
             await ssh.run(
                 server,
                 f"docker exec {ctr}-db pg_dump -U odoo -Fc --no-owner --no-acl {db} "
+                f"--exclude-table-data=telegram_message "
+                f"--exclude-table-data=mail_message "
+                f"--exclude-table-data=chatbot_message "
+                f"--exclude-table-data=bus_bus "
+                f"--exclude-table-data=ir_logging "
                 f"> /tmp/clickbot_db_dump.custom",
                 check=True,
                 timeout=600,
@@ -87,7 +92,8 @@ def register_clickbot_handlers(
             await ssh.run(
                 server,
                 "docker exec clickbot-test-db pg_restore -U clickbot -d postgres "
-                "--no-owner --no-acl --create /tmp/dump.custom 2>/dev/null || true",
+                "--no-owner --no-acl --create --exit-on-error /tmp/dump.custom",
+                check=True,
                 timeout=600,
             )
 
@@ -126,6 +132,19 @@ def register_clickbot_handlers(
             # 5. Parse results
             log_output = result.stdout + result.stderr
 
+            # ── Phase 1 failure detection ──────────────────────────────────
+            # Phase 1 = odoo-bin -u ALL_MODULES --stop-after-init
+            # If it crashes, no browser tests run at all.
+            _PHASE1_INDICATORS = (
+                "FileNotFoundError",
+                "Failed to load registry",
+                "ERROR odoo.registry",
+                "load_openerp_module",
+                "cannot import name",
+                "ModuleNotFoundError",
+            )
+            phase1_crashed = any(ind in log_output for ind in _PHASE1_INDICATORS)
+
             # Passed apps
             passed_matches = re.findall(
                 r"clickbot test succeeded.*?app='([^']+)'", log_output,
@@ -162,6 +181,50 @@ def register_clickbot_handlers(
                 log_output.count("skipped Subtest")
                 + log_output.count("Skipping app without xmlid")
             )
+
+            # Also catch: no results + bad exit + odoo reset indicator (ambiguous case)
+            if not phase1_crashed and result.exit_code != 0 and (n_passed + n_failed + n_skipped) == 0:
+                phase1_crashed = "Transient module states were reset" in log_output
+
+            # ── Phase 1 crashed — return immediately with clear report ──────
+            if phase1_crashed:
+                fnf_match = re.search(
+                    r"FileNotFoundError[^\n]*['\"]([^'\"]+)['\"]", log_output,
+                )
+                mod_match = re.search(r"load_openerp_module\('([^']+)'\)", log_output)
+                reg_match = re.search(
+                    r"((?:ERROR\s+)?odoo[^\n]*Failed to load registry[^\n]*)", log_output,
+                )
+
+                details: list[str] = []
+                if fnf_match:
+                    details.append(f"Missing file: {fnf_match.group(1)}")
+                if mod_match:
+                    details.append(f"Module: {mod_match.group(1)}")
+                if reg_match:
+                    details.append(reg_match.group(1).strip()[:200])
+
+                clickbot_report = "\n".join([
+                    f"Mode: {test_mode}",
+                    "⚠️ PHASE 1 FAILED — odoo-bin -u crashed, browser tests never started",
+                    "",
+                ] + details + [
+                    "",
+                    "Fix: validate that all files referenced in __manifest__.py exist on disk.",
+                ])
+
+                logger.error(
+                    "Clickbot Phase 1 crash on %s: %s",
+                    server.host,
+                    "; ".join(details) or log_output[-500:],
+                )
+                return {
+                    "clickbot_passed": False,
+                    "clickbot_report": clickbot_report,
+                    "clickbot_failed_apps": "",
+                    "clickbot_passed_apps": "",
+                    "clickbot_skipped_apps": "",
+                }
 
             clickbot_passed = n_passed > 0 and n_failed == 0 and result.exit_code == 0
 

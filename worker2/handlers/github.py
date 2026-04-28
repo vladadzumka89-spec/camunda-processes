@@ -17,6 +17,8 @@ from ..ssh import AsyncSSHClient
 
 logger = logging.getLogger(__name__)
 
+# Limit concurrent Claude Code review processes to avoid API rate-limit competition.
+_CLAUDE_SEMAPHORE = asyncio.Semaphore(2)
 
 _REVIEW_PROMPT_PATH = Path(__file__).resolve().parent.parent / "review_prompt.txt"
 
@@ -60,11 +62,12 @@ async def _run_claude_review_once(
     diff: str,
     pr_number: int,
     repo: str,
-    timeout: int = 300,
+    timeout: int = 500,
 ) -> dict | None:
     """Single attempt to run Claude Code CLI review.
 
     Returns structured result dict on success, None on failure (for retry).
+    Acquires _CLAUDE_SEMAPHORE to avoid concurrent API rate-limit issues.
     """
     prompt = (
         f"Review this PR #{pr_number} in {repo}. "
@@ -72,58 +75,64 @@ async def _run_claude_review_once(
         f"```diff\n{diff[:80000]}\n```"
     )
 
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "claude", "-p", prompt,
-            "--output-format", "json",
-            "--json-schema", REVIEW_JSON_SCHEMA,
-            "--append-system-prompt", REVIEW_SYSTEM_PROMPT,
-            "--allowedTools", "WebSearch,WebFetch",
-            "--max-turns", "10",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(), timeout=timeout,
-        )
-    except asyncio.TimeoutError:
-        logger.error("Claude Code timed out after %ds for PR #%d", timeout, pr_number)
-        proc.kill()
-        await proc.wait()
-        return None
-    except FileNotFoundError:
-        logger.error("Claude Code CLI not found — is 'claude' installed?")
-        return None
+    async with _CLAUDE_SEMAPHORE:
+        try:
+            # Claude Code refuses --dangerously-skip-permissions as root — run as claude-runner
+            proc = await asyncio.create_subprocess_exec(
+                "sudo", "-u", "claude-runner",
+                "HOME=/home/claude-runner",
+                "claude", "-p", prompt,
+                "--output-format", "json",
+                "--json-schema", REVIEW_JSON_SCHEMA,
+                "--append-system-prompt", REVIEW_SYSTEM_PROMPT,
+                "--allowedTools", "WebSearch,WebFetch",
+                "--max-turns", "20",
+                "--dangerously-skip-permissions",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.error("Claude Code timed out after %ds for PR #%d", timeout, pr_number)
+            proc.kill()
+            await proc.wait()
+            return None
+        except FileNotFoundError:
+            logger.error("Claude Code CLI not found — is 'claude' installed?")
+            return None
 
-    if proc.returncode != 0:
-        logger.error(
-            "Claude Code exited %d for PR #%d. stderr: %s",
-            proc.returncode, pr_number,
-            stderr.decode()[-2000:] if stderr else "(empty)",
-        )
-        return None
+        if proc.returncode != 0:
+            logger.error(
+                "Claude Code exited %d for PR #%d. stderr: %s | stdout: %s",
+                proc.returncode, pr_number,
+                stderr.decode()[-2000:] if stderr else "(empty)",
+                stdout.decode()[-2000:] if stdout else "(empty)",
+            )
+            return None
 
-    try:
-        envelope = json.loads(stdout.decode())
-        # claude -p --output-format json wraps result in {"result": "...", ...}
-        structured = envelope.get("structured_output")
-        if structured and isinstance(structured, dict):
-            return structured
-        # Fallback: parse result field as JSON string
-        raw = envelope.get("result", "")
-        return json.loads(raw) if isinstance(raw, str) else None
-    except (json.JSONDecodeError, KeyError, TypeError) as exc:
-        logger.error("Failed to parse Claude output for PR #%d: %s", pr_number, exc)
-        return None
+        try:
+            envelope = json.loads(stdout.decode())
+            # claude -p --output-format json wraps result in {"result": "...", ...}
+            structured = envelope.get("structured_output")
+            if structured and isinstance(structured, dict):
+                return structured
+            # Fallback: parse result field as JSON string
+            raw = envelope.get("result", "")
+            return json.loads(raw) if isinstance(raw, str) else None
+        except (json.JSONDecodeError, KeyError, TypeError) as exc:
+            logger.error("Failed to parse Claude output for PR #%d: %s", pr_number, exc)
+            return None
 
 
 async def _run_claude_review(
     diff: str,
     pr_number: int,
     repo: str,
-    timeout: int = 300,
-    max_retries: int = 5,
-    retry_delay: int = 60,
+    timeout: int = 500,
+    max_retries: int = 3,
+    retry_delay: int = 30,
 ) -> dict:
     """Run Claude Code CLI to review a PR diff with retries.
 
@@ -194,7 +203,7 @@ def register_github_handlers(
 
     # ── pr-agent-review ────────────────────────────────────────
 
-    @worker.task(task_type="pr-agent-review", timeout_ms=600_000)
+    @worker.task(task_type="pr-agent-review", timeout_ms=1_800_000)  # 30 min: 3 retries × 500s + queuing
     async def pr_agent_review(
         job: Job,
         pr_number: int,

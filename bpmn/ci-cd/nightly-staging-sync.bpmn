@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  id="Definitions_nightly_staging_sync"
+  targetNamespace="http://tut.ua/bpmn/nightly-staging-sync"
+  exporter="Claude Code" exporterVersion="4.0">
+
+  <bpmn:error id="Error_merge_failed"     name="Merge Failed"     errorCode="MERGE_FAILED" />
+  <bpmn:error id="Error_dump_failed"      name="Dump Failed"      errorCode="DUMP_FAILED" />
+  <bpmn:error id="Error_anonymize_failed" name="Anonymize Failed" errorCode="ANONYMIZE_FAILED" />
+  <bpmn:error id="Error_export_failed"    name="Export Failed"    errorCode="EXPORT_FAILED" />
+
+  <!-- ── Process ───────────────────────────────────────── -->
+  <bpmn:process id="nightly-staging-sync" name="Нічний Sync Staging" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="2.0" />
+    </bpmn:extensionElements>
+
+    <!-- ── 1. Start Events ──────────────────────────── -->
+    <bpmn:startEvent id="start_timer" name="Щодня 02:00 EEST">
+      <bpmn:documentation>CRON 0 0 23 * * * = 23:00 UTC = 02:00 EEST (літній час). Взимку (EET) — 01:00 Київ.</bpmn:documentation>
+      <bpmn:outgoing>f_timer_to_join</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_nightly_staging">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">0 0 23 * * *</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:startEvent>
+
+    <bpmn:startEvent id="start_manual" name="Ручний запуск">
+      <bpmn:outgoing>f_manual_to_join</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ── 2. Join ───────────────────────────────────── -->
+    <bpmn:exclusiveGateway id="GW_join">
+      <bpmn:incoming>f_timer_to_join</bpmn:incoming>
+      <bpmn:incoming>f_manual_to_join</bpmn:incoming>
+      <bpmn:outgoing>f_join_to_reset</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ── 3. Hard reset staging → main ──────────────── -->
+    <bpmn:serviceTask id="ST_reset_staging" name="Hard reset staging → main">
+      <bpmn:documentation>Git reset --hard + force push staging до main. Оновлює код на staging сервері.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="merge-to-staging" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;main&quot;" target="sync_branch" />
+          <zeebe:input source="=&quot;staging&quot;" target="server_host" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_join_to_reset</bpmn:incoming>
+      <bpmn:outgoing>f_reset_to_dump</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:boundaryEvent id="BE_merge_error" name="Reset failed" attachedToRef="ST_reset_staging">
+      <bpmn:outgoing>f_merge_error_to_end</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_merge_failed" errorRef="Error_merge_failed" />
+    </bpmn:boundaryEvent>
+
+    <bpmn:endEvent id="End_merge_failed" name="Ресет коду не вдався">
+      <bpmn:incoming>f_merge_error_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── 4. Дамп прод БД на kozak_demo ────────────── -->
+    <bpmn:serviceTask id="ST_dump_prod" name="Дамп прод БД">
+      <bpmn:documentation>SSH: docker exec odoo19-db pg_dump | zstd → /tmp/nightly_staging_dump.sql.zst на kozak_demo</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="staging-dump" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_reset_to_dump</bpmn:incoming>
+      <bpmn:outgoing>f_dump_to_anonymize</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:boundaryEvent id="BE_dump_error" name="Dump failed" attachedToRef="ST_dump_prod">
+      <bpmn:outgoing>f_dump_error_to_end</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_dump_failed" errorRef="Error_dump_failed" />
+    </bpmn:boundaryEvent>
+
+    <bpmn:endEvent id="End_dump_failed" name="Дамп не вдався">
+      <bpmn:incoming>f_dump_error_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── 5. Анонімізація на kozak_demo ────────────── -->
+    <bpmn:serviceTask id="ST_anonymize" name="Анонімізація БД на kozak_demo">
+      <bpmn:documentation>SSH на kozak_demo: sync.sh deploy /tmp/nightly_staging_dump.sql.zst</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="staging-anonymize" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=dump_path" target="dump_path" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_dump_to_anonymize</bpmn:incoming>
+      <bpmn:outgoing>f_anonymize_to_export</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:boundaryEvent id="BE_anonymize_error" name="Anonymize failed" attachedToRef="ST_anonymize">
+      <bpmn:outgoing>f_anonymize_error_to_end</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_anonymize_failed" errorRef="Error_anonymize_failed" />
+    </bpmn:boundaryEvent>
+
+    <bpmn:endEvent id="End_anonymize_failed" name="Анонімізація не вдалась">
+      <bpmn:incoming>f_anonymize_error_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── 6. Перенос анонімізованої БД на staging ───── -->
+    <bpmn:serviceTask id="ST_export" name="Перенос анонімізованої БД на staging">
+      <bpmn:documentation>pg_dump kozak_demo → SFTP стримінг → staging: replace odoo19 DB + docker start + msg_deploy_trigger</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="staging-export" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_anonymize_to_export</bpmn:incoming>
+      <bpmn:outgoing>f_export_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:boundaryEvent id="BE_export_error" name="Export failed" attachedToRef="ST_export">
+      <bpmn:outgoing>f_export_error_to_end</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_export_failed" errorRef="Error_export_failed" />
+    </bpmn:boundaryEvent>
+
+    <bpmn:endEvent id="End_export_failed" name="Перенос на staging не вдався">
+      <bpmn:incoming>f_export_error_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── 7. End ────────────────────────────────────── -->
+    <bpmn:endEvent id="End_success" name="Staging оновлено">
+      <bpmn:incoming>f_export_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ── Sequence Flows ────────────────────────────── -->
+    <bpmn:sequenceFlow id="f_timer_to_join"          sourceRef="start_timer"       targetRef="GW_join" />
+    <bpmn:sequenceFlow id="f_manual_to_join"         sourceRef="start_manual"      targetRef="GW_join" />
+    <bpmn:sequenceFlow id="f_join_to_reset"          sourceRef="GW_join"           targetRef="ST_reset_staging" />
+    <bpmn:sequenceFlow id="f_reset_to_dump"          sourceRef="ST_reset_staging"  targetRef="ST_dump_prod" />
+    <bpmn:sequenceFlow id="f_dump_to_anonymize"      sourceRef="ST_dump_prod"      targetRef="ST_anonymize" />
+    <bpmn:sequenceFlow id="f_anonymize_to_export"    sourceRef="ST_anonymize"      targetRef="ST_export" />
+    <bpmn:sequenceFlow id="f_export_to_end"          sourceRef="ST_export"         targetRef="End_success" />
+    <bpmn:sequenceFlow id="f_merge_error_to_end"     sourceRef="BE_merge_error"    targetRef="End_merge_failed" />
+    <bpmn:sequenceFlow id="f_dump_error_to_end"      sourceRef="BE_dump_error"     targetRef="End_dump_failed" />
+    <bpmn:sequenceFlow id="f_anonymize_error_to_end" sourceRef="BE_anonymize_error" targetRef="End_anonymize_failed" />
+    <bpmn:sequenceFlow id="f_export_error_to_end"    sourceRef="BE_export_error"   targetRef="End_export_failed" />
+  </bpmn:process>
+
+  <!-- ── Diagram ───────────────────────────────────────── -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_nightly_staging_sync">
+    <bpmndi:BPMNPlane id="BPMNPlane_nightly_staging_sync" bpmnElement="nightly-staging-sync">
+
+      <bpmndi:BPMNShape id="di_start_timer" bpmnElement="start_timer">
+        <dc:Bounds x="152" y="172" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="130" y="215" width="81" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_start_manual" bpmnElement="start_manual">
+        <dc:Bounds x="152" y="242" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="130" y="285" width="81" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_GW_join" bpmnElement="GW_join" isMarkerVisible="true">
+        <dc:Bounds x="258" y="165" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_ST_reset_staging" bpmnElement="ST_reset_staging">
+        <dc:Bounds x="388" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_BE_merge_error" bpmnElement="BE_merge_error">
+        <dc:Bounds x="420" y="212" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="400" y="255" width="76" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_End_merge_failed" bpmnElement="End_merge_failed">
+        <dc:Bounds x="420" y="330" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="395" y="373" width="87" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_ST_dump_prod" bpmnElement="ST_dump_prod">
+        <dc:Bounds x="558" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_BE_dump_error" bpmnElement="BE_dump_error">
+        <dc:Bounds x="590" y="212" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="570" y="255" width="76" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_End_dump_failed" bpmnElement="End_dump_failed">
+        <dc:Bounds x="590" y="330" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="565" y="373" width="87" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_ST_anonymize" bpmnElement="ST_anonymize">
+        <dc:Bounds x="728" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_BE_anonymize_error" bpmnElement="BE_anonymize_error">
+        <dc:Bounds x="760" y="212" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="740" y="255" width="76" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_End_anonymize_failed" bpmnElement="End_anonymize_failed">
+        <dc:Bounds x="760" y="330" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="735" y="373" width="87" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_ST_export" bpmnElement="ST_export">
+        <dc:Bounds x="898" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_BE_export_error" bpmnElement="BE_export_error">
+        <dc:Bounds x="930" y="212" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="910" y="255" width="76" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_End_export_failed" bpmnElement="End_export_failed">
+        <dc:Bounds x="930" y="330" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="905" y="373" width="87" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_End_success" bpmnElement="End_success">
+        <dc:Bounds x="1068" y="172" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1051" y="215" width="71" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Edges — main flow -->
+      <bpmndi:BPMNEdge id="di_f_timer_to_join" bpmnElement="f_timer_to_join">
+        <di:waypoint x="188" y="190" />
+        <di:waypoint x="258" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="di_f_manual_to_join" bpmnElement="f_manual_to_join">
+        <di:waypoint x="188" y="260" />
+        <di:waypoint x="283" y="260" />
+        <di:waypoint x="283" y="215" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="di_f_join_to_reset" bpmnElement="f_join_to_reset">
+        <di:waypoint x="308" y="190" />
+        <di:waypoint x="388" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="di_f_reset_to_dump" bpmnElement="f_reset_to_dump">
+        <di:waypoint x="488" y="190" />
+        <di:waypoint x="558" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="di_f_dump_to_anonymize" bpmnElement="f_dump_to_anonymize">
+        <di:waypoint x="658" y="190" />
+        <di:waypoint x="728" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="di_f_anonymize_to_export" bpmnElement="f_anonymize_to_export">
+        <di:waypoint x="828" y="190" />
+        <di:waypoint x="898" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="di_f_export_to_end" bpmnElement="f_export_to_end">
+        <di:waypoint x="998" y="190" />
+        <di:waypoint x="1068" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Edges — error flows -->
+      <bpmndi:BPMNEdge id="di_f_merge_error_to_end" bpmnElement="f_merge_error_to_end">
+        <di:waypoint x="438" y="248" />
+        <di:waypoint x="438" y="330" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="di_f_dump_error_to_end" bpmnElement="f_dump_error_to_end">
+        <di:waypoint x="608" y="248" />
+        <di:waypoint x="608" y="330" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="di_f_anonymize_error_to_end" bpmnElement="f_anonymize_error_to_end">
+        <di:waypoint x="778" y="248" />
+        <di:waypoint x="778" y="330" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="di_f_export_error_to_end" bpmnElement="f_export_error_to_end">
+        <di:waypoint x="948" y="248" />
+        <di:waypoint x="948" y="330" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

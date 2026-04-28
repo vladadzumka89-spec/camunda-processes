@@ -291,7 +291,7 @@ def register_sync_handlers(
 
                 await ssh.run(
                     server,
-                    f"rsync -a --delete --checksum "
+                    f"rsync -a --delete "
                     f"{enterprise_dir}/{mod}/ {workspace_dir}/src/enterprise/{mod}/",
                     check=True,
                 )
@@ -319,7 +319,7 @@ def register_sync_handlers(
             # Sync community (full replace, exclude .git)
             await ssh.run(
                 server,
-                f"rsync -a --delete --checksum --exclude='.git' "
+                f"rsync -a --delete --exclude='.git' "
                 f"{community_dir}/ {workspace_dir}/src/community/",
                 check=True,
                 timeout=600,
@@ -328,7 +328,7 @@ def register_sync_handlers(
             # Sync enterprise (full replace, exclude .git)
             await ssh.run(
                 server,
-                f"rsync -a --delete --checksum --exclude='.git' "
+                f"rsync -a --delete --exclude='.git' "
                 f"{enterprise_dir}/ {workspace_dir}/src/enterprise/",
                 check=True,
                 timeout=600,
@@ -766,16 +766,45 @@ def register_sync_handlers(
                     merge_result.exit_code, merge_output, merge_stderr,
                 )
 
-                await ssh.run(
-                    server,
-                    f"cd {workspace} && git merge --abort",
-                    check=False, timeout=15,
+                # modify/delete conflicts: -X theirs resolves them by keeping the
+                # feature branch version ("left in tree"), but git still exits 1
+                # because it requires explicit `git add` to mark them resolved.
+                conflict_lines = [
+                    l for l in merge_output.splitlines() if l.startswith("CONFLICT")
+                ]
+                all_modify_delete_resolved = bool(conflict_lines) and all(
+                    "left in tree" in l for l in conflict_lines
                 )
 
-                raise SyncError(
-                    f"Merge failed: cannot merge {feature_branch} into staging "
-                    f"even with -X theirs. Output: {merge_output or merge_stderr}"
-                )
+                if all_modify_delete_resolved:
+                    logger.info(
+                        "merge-feature-to-staging: all %d conflict(s) are modify/delete "
+                        "resolved by -X theirs — staging and committing",
+                        len(conflict_lines),
+                    )
+                    await ssh.run(
+                        server,
+                        f"cd {workspace} && git add -A",
+                        check=True, timeout=30,
+                    )
+                    await ssh.run(
+                        server,
+                        f"cd {workspace} && git -c user.email='deploy@tut.ua' "
+                        f"-c user.name='Deploy Bot' commit --no-verify "
+                        f"-m {shlex.quote(merge_msg or f'Merge {feature_branch} into staging')}",
+                        check=True, timeout=30,
+                    )
+                else:
+                    await ssh.run(
+                        server,
+                        f"cd {workspace} && git merge --abort",
+                        check=False, timeout=15,
+                    )
+
+                    raise SyncError(
+                        f"Merge failed: cannot merge {feature_branch} into staging "
+                        f"even with -X theirs. Output: {merge_output or merge_stderr}"
+                    )
 
             # Push merged staging
             await ssh.run(

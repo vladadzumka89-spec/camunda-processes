@@ -60,7 +60,19 @@ Output: old_commit, new_commit, has_changes</bpmn:documentation>
         </zeebe:executionListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>f_checkpoint_to_pull</bpmn:incoming>
-      <bpmn:outgoing>f_pull_to_detect</bpmn:outgoing>
+      <bpmn:outgoing>f_pull_to_validate</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_validate_manifests" name="Перевірити маніфести">
+      <bpmn:documentation>Перевіряє що всі файли з data[] в __manifest__.py існують на диску.
+Якщо є зламані модулі — кидає BPMN Error і деплой не запускається.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="validate-manifests" retries="1" />
+        <zeebe:executionListeners>
+          <zeebe:executionListener eventType="end" type="progress" retries="3" />
+        </zeebe:executionListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_pull_to_validate</bpmn:incoming>
+      <bpmn:outgoing>f_validate_to_detect</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:serviceTask id="task_detect_modules" name="Визначити змінені модулі">
       <bpmn:documentation>Checksum порівняння: диск vs контейнер.
@@ -71,7 +83,7 @@ Output: changed_modules (CSV або порожній)</bpmn:documentation>
           <zeebe:executionListener eventType="end" type="progress" retries="3" />
         </zeebe:executionListeners>
       </bpmn:extensionElements>
-      <bpmn:incoming>f_pull_to_detect</bpmn:incoming>
+      <bpmn:incoming>f_validate_to_detect</bpmn:incoming>
       <bpmn:outgoing>f_detect_to_gw</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:exclusiveGateway id="gw_changes" name="Є зміни?" default="f_has_changes">
@@ -224,7 +236,7 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
     <bpmn:subProcess id="subprocess_error" name="Обробка помилок деплою" triggeredByEvent="true">
       <bpmn:startEvent id="evt_error_catch" name="Помилка деплою">
         <bpmn:outgoing>f_err_to_rollback</bpmn:outgoing>
-        <bpmn:errorEventDefinition id="ErrorDef_catch" />
+        <bpmn:errorEventDefinition id="ErrorDef_catch" zeebe:errorMessageVariable="caught_error_message" />
       </bpmn:startEvent>
       <bpmn:serviceTask id="task_rollback" name="Відкат до попередньої версії">
         <bpmn:documentation>Відкат на зліпок через HTTP API.</bpmn:documentation>
@@ -242,10 +254,11 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
           <zeebe:taskDefinition type="publish-message" retries="1" />
           <zeebe:ioMapping>
             <zeebe:input source="=&quot;msg_deploy_done&quot;" target="message_name" />
-            <zeebe:input source="=if is defined(trigger_sha) and trigger_sha != null then trigger_sha else &quot;none&quot;" target="correlation_key" />
+            <zeebe:input source="=if is defined(pr_number) and pr_number != null then string(pr_number) else &quot;none&quot;" target="correlation_key" />
             <zeebe:input source="=true" target="deploy_failed" />
             <zeebe:input source="=if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Unknown error&quot;" target="error_message" />
             <zeebe:input source="=if is defined(error_traceback) and error_traceback != null then error_traceback else &quot;&quot;" target="error_traceback" />
+            <zeebe:input source="=if is defined(error_type) and error_type != null then error_type else &quot;code&quot;" target="error_type" />
           </zeebe:ioMapping>
         </bpmn:extensionElements>
         <bpmn:incoming>f_err2</bpmn:incoming>
@@ -253,7 +266,7 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
       </bpmn:serviceTask>
       <bpmn:endEvent id="evt_error_end" name="Деплой провалився">
         <bpmn:incoming>f_err3</bpmn:incoming>
-        <bpmn:errorEventDefinition id="ErrorDef_throw" errorRef="Error_deploy_failed" />
+        <bpmn:errorEventDefinition id="ErrorDef_throw" errorRef="Error_deploy_failed" zeebe:errorMessageVariable="caught_error_message" />
       </bpmn:endEvent>
       <bpmn:sequenceFlow id="f_err_to_rollback" sourceRef="evt_error_catch" targetRef="task_rollback" />
       <bpmn:sequenceFlow id="f_err2" sourceRef="task_rollback" targetRef="ST_publish_deploy_failed" />
@@ -268,7 +281,8 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
     <bpmn:sequenceFlow id="f_subtask_to_merge" sourceRef="ST_create_subtask" targetRef="gw_merge_parent" />
     <bpmn:sequenceFlow id="f01_merged" sourceRef="gw_merge_parent" targetRef="ST_db_remove" />
     <bpmn:sequenceFlow id="f_remove_to_checkpoint" sourceRef="ST_db_remove" targetRef="ST_db_checkpoint" />
-    <bpmn:sequenceFlow id="f_pull_to_detect" sourceRef="task_git_pull" targetRef="task_detect_modules" />
+    <bpmn:sequenceFlow id="f_pull_to_validate" sourceRef="task_git_pull" targetRef="task_validate_manifests" />
+    <bpmn:sequenceFlow id="f_validate_to_detect" sourceRef="task_validate_manifests" targetRef="task_detect_modules" />
     <bpmn:sequenceFlow id="f_detect_to_gw" sourceRef="task_detect_modules" targetRef="gw_changes" />
     <bpmn:sequenceFlow id="f_no_changes" name="Ні" sourceRef="gw_changes" targetRef="ST_publish_no_changes">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=changed_modules = "" and (not(is defined(install_modules)) or install_modules = "")</bpmn:conditionExpression>
@@ -329,11 +343,14 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
       <bpmndi:BPMNShape id="task_git_pull_di" bpmnElement="task_git_pull">
         <dc:Bounds x="1191" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task_detect_modules_di" bpmnElement="task_detect_modules">
+      <bpmndi:BPMNShape id="task_validate_manifests_di" bpmnElement="task_validate_manifests">
         <dc:Bounds x="1371" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_detect_modules_di" bpmnElement="task_detect_modules">
+        <dc:Bounds x="1551" y="260" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_changes_di" bpmnElement="gw_changes" isMarkerVisible="true">
-        <dc:Bounds x="1576" y="275" width="50" height="50" />
+        <dc:Bounds x="1756" y="275" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ST_publish_no_changes_di" bpmnElement="ST_publish_no_changes">
         <dc:Bounds x="1681" y="210" width="100" height="80" />
@@ -437,13 +454,17 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <di:waypoint x="1111" y="300" />
         <di:waypoint x="1191" y="300" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_pull_to_detect_di" bpmnElement="f_pull_to_detect">
+      <bpmndi:BPMNEdge id="f_pull_to_validate_di" bpmnElement="f_pull_to_validate">
         <di:waypoint x="1291" y="300" />
         <di:waypoint x="1371" y="300" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_detect_to_gw_di" bpmnElement="f_detect_to_gw">
+      <bpmndi:BPMNEdge id="f_validate_to_detect_di" bpmnElement="f_validate_to_detect">
         <di:waypoint x="1471" y="300" />
-        <di:waypoint x="1576" y="300" />
+        <di:waypoint x="1551" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_detect_to_gw_di" bpmnElement="f_detect_to_gw">
+        <di:waypoint x="1651" y="300" />
+        <di:waypoint x="1756" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_no_changes_di" bpmnElement="f_no_changes">
         <di:waypoint x="1626" y="300" />

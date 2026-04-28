@@ -14,16 +14,17 @@
   <!-- ── Process ───────────────────────────────────────── -->
   <bpmn:process id="production-nightly-deploy" name="Production Nightly Deploy" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="1.0" />
+      <zeebe:versionTag value="1.1" />
     </bpmn:extensionElements>
 
     <!-- ── 1. Timer Start ────────────────────────────── -->
-    <bpmn:startEvent id="start_timer" name="Щодня 23:30 EEST">
-      <bpmn:documentation>CRON 0 30 20 * * * = 20:30 UTC = 23:30 EEST (літній час).
-Взимку (EET, UTC+2) буде 22:30 Київ.</bpmn:documentation>
+    <bpmn:startEvent id="start_timer" name="23:30 EEST (з 22.04.2026)">
+      <bpmn:documentation>Тимчасово вимкнено на ніч 21.04.2026.
+ISO 8601: R/2026-04-22T20:30:00Z/P1D = 23:30 EEST щодня починаючи з 22.04.2026.
+Щоб повернути CRON: замінити на "0 30 20 * * *" і задеплоїти нову версію.</bpmn:documentation>
       <bpmn:outgoing>f_start_to_deploy</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerDef_nightly_prod">
-        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">0 30 20 * * *</bpmn:timeCycle>
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/2026-04-22T20:30:00Z/P1D</bpmn:timeCycle>
       </bpmn:timerEventDefinition>
     </bpmn:startEvent>
 

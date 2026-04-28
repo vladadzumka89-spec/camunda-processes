@@ -135,7 +135,7 @@ def register_http_smart_handlers(worker, config=None):
         body: dict = None,
         headers: dict = None,
         result_variable_name: str = None,
-        ignore_errors: bool = False,
+        ignore_errors: bool = True,
         **kwargs,
     ):
         # Detect task listener: check for userTaskKey in custom_headers (set by Zeebe for task listeners)

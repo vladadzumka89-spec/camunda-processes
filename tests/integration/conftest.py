@@ -77,7 +77,6 @@ def deploy_bpmn(zeebe_stack):
         BPMN_DIR / "feature-to-production.bpmn",
         BPMN_DIR / "deploy-process.bpmn",
         BPMN_DIR / "pr-review.bpmn",
-        BPMN_DIR / "verification-process.bpmn",
         *FORMS_DIR.glob("*.form"),
     ]
     deadline = time.monotonic() + 30

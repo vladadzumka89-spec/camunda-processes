@@ -247,6 +247,8 @@ class WebhookServer:
     async def _publish_pr_event(self, pr: dict, payload: dict, include_ftp_event: bool = True) -> web.Response:
         pr_number = pr.get('number', 0)
         repo_full = payload.get('repository', {}).get('full_name', self._config.github.repository)
+        head_branch = pr.get('head', {}).get('ref', '')
+        base_branch = pr.get('base', {}).get('ref', 'main')
 
         variables: dict[str, Any] = {
             "pr_number": pr_number,
@@ -254,8 +256,8 @@ class WebhookServer:
             "pr_title": pr.get('title', ''),
             "pr_author": pr.get('user', {}).get('login', ''),
             "repository": repo_full,
-            "base_branch": pr.get('base', {}).get('ref', 'main'),
-            "head_branch": pr.get('head', {}).get('ref', ''),
+            "base_branch": base_branch,
+            "head_branch": head_branch,
             "odoo_project_id": self._config.odoo.project_id,
             "odoo_webhook_url": self._config.odoo.webhook_url,
         }
@@ -280,15 +282,22 @@ class WebhookServer:
                 "production_container": production.container,
             })
 
+        # Sync PRs (sync/* → staging) are too large for automated review — skip it
+        is_sync_pr = head_branch.startswith("sync/") and base_branch == "staging"
+
         try:
             client = self._create_zeebe_client()
-            await client.publish_message(
-                name="msg_pr_review",
-                correlation_key=str(pr_number),
-                variables=variables,
-                time_to_live_in_milliseconds=3_600_000,
-            )
-            messages = ["msg_pr_review"]
+            messages = []
+            if not is_sync_pr:
+                await client.publish_message(
+                    name="msg_pr_review",
+                    correlation_key=str(pr_number),
+                    variables=variables,
+                    time_to_live_in_milliseconds=3_600_000,
+                )
+                messages.append("msg_pr_review")
+            else:
+                logger.info("Skipping msg_pr_review for sync PR #%d (%s → %s)", pr_number, head_branch, base_branch)
             if include_ftp_event:
                 await client.publish_message(
                     name="msg_pr_event",

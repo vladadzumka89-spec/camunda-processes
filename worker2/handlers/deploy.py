@@ -47,6 +47,19 @@ def register_deploy_handlers(
         **kwargs: Any,
     ) -> dict:
         """Fetch and checkout branch on remote server."""
+        # Block deploy if nightly staging sync is active
+        try:
+            server_name = config.resolve_server_name(server_host)
+        except Exception:
+            server_name = ""
+        if server_name == "staging":
+            from .. import staging_lock
+            if staging_lock.is_active():
+                raise DeployError(
+                    "Staging sync активний — деплой заблоковано (~1-2 год). Спробуйте пізніше.",
+                    variables={"error_type": "infra"},
+                )
+
         lock = _get_deploy_lock(server_host)
         async with lock:
             server = config.resolve_server(server_host)
@@ -92,6 +105,206 @@ def register_deploy_handlers(
                 "new_commit": new_commit,
                 "has_changes": has_changes,
             }
+
+    # ── validate-branch ────────────────────────────────────────
+
+    @worker.task(task_type="validate-branch", timeout_ms=120_000)
+    async def validate_branch(
+        server_host: str,
+        feature_branch: str,
+        **kwargs: Any,
+    ) -> dict:
+        """Validate branch code BEFORE merging to staging.
+
+        Reads files directly from git (FETCH_HEAD) — staging working tree is
+        never modified. Catches: manifest syntax, missing files, XML parse errors,
+        Python syntax errors, ir.model.access.csv column errors.
+
+        Raises DeployError(error_type='code') with a list of every broken file.
+        """
+        server = config.resolve_server(server_host)
+
+        script = (
+            f"git fetch origin {feature_branch} --quiet 2>&1"
+            f" || {{ echo 'FETCH_FAILED: cannot fetch {feature_branch}'; exit 1; }}\n"
+            "python3 << 'PYEOF'\n"
+            "import ast, subprocess, sys\n"
+            "import xml.etree.ElementTree as ET\n"
+            "\n"
+            "REF = 'FETCH_HEAD'\n"
+            "broken = []\n"
+            "\n"
+            "def git_show(path):\n"
+            "    r = subprocess.run(['git','show',f'{REF}:{path}'], capture_output=True, text=True)\n"
+            "    return r.stdout if r.returncode == 0 else None\n"
+            "\n"
+            "def ls_tree(path):\n"
+            "    r = subprocess.run(['git','ls-tree','--name-only',f'{REF}:{path}'], capture_output=True, text=True)\n"
+            "    return r.stdout.splitlines() if r.returncode == 0 else []\n"
+            "\n"
+            "def ls_tree_r(path):\n"
+            "    r = subprocess.run(['git','ls-tree','-r','--name-only',f'{REF}:{path}'], capture_output=True, text=True)\n"
+            "    return r.stdout.splitlines() if r.returncode == 0 else []\n"
+            "\n"
+            "base = 'src/custom'\n"
+            "mods = ls_tree(base)\n"
+            "if not mods:\n"
+            "    print('ERROR: src/custom not found in branch'); sys.exit(1)\n"
+            "\n"
+            "for mod in mods:\n"
+            "    mf = git_show(f'{base}/{mod}/__manifest__.py')\n"
+            "    if mf is None:\n"
+            "        continue\n"
+            "    try:\n"
+            "        data = ast.literal_eval(mf)\n"
+            "    except Exception as e:\n"
+            "        broken.append(f'{mod}: cannot parse manifest: {e}')\n"
+            "        continue\n"
+            "\n"
+            "    # 1. Check files exist + XML syntax + CSV format\n"
+            "    for fname in data.get('data',[]) + data.get('demo',[]) + data.get('views',[]):\n"
+            "        content = git_show(f'{base}/{mod}/{fname}')\n"
+            "        if content is None:\n"
+            "            broken.append(f'{mod}: missing {fname}')\n"
+            "            continue\n"
+            "        if fname.endswith('.xml'):\n"
+            "            try:\n"
+            "                ET.fromstring(content)\n"
+            "            except ET.ParseError as e:\n"
+            "                broken.append(f'{mod}: invalid XML in {fname}: {e}')\n"
+            "        elif fname.endswith('.csv') and 'ir.model.access' in fname:\n"
+            "            rows = [l for l in content.splitlines() if l.strip() and not l.startswith('#')]\n"
+            "            if rows:\n"
+            "                n = len(rows[0].split(','))\n"
+            "                if n not in (6,7,8):\n"
+            "                    broken.append(f'{mod}: {fname}: header has {n} columns (expected 6-8)')\n"
+            "                for i,row in enumerate(rows[1:],2):\n"
+            "                    if row.strip() and len(row.split(',')) != n:\n"
+            "                        broken.append(f'{mod}: {fname}: line {i} has wrong column count')\n"
+            "                        break\n"
+            "\n"
+            "    # 2. Python syntax\n"
+            "    for fpath in ls_tree_r(f'{base}/{mod}'):\n"
+            "        if not fpath.endswith('.py'):\n"
+            "            continue\n"
+            "        src = git_show(fpath)\n"
+            "        if src is None:\n"
+            "            continue\n"
+            "        try:\n"
+            "            ast.parse(src, filename=fpath)\n"
+            "        except SyntaxError as e:\n"
+            "            rel = fpath.replace(f'{base}/{mod}/','',1)\n"
+            "            broken.append(f'{mod}: syntax error in {rel} line {e.lineno}: {e.msg}')\n"
+            "\n"
+            "if broken:\n"
+            "    print('BROKEN'); [print(b) for b in broken[:10]]; sys.exit(1)\n"
+            "print('OK')\n"
+            "PYEOF\n"
+        )
+
+        from ..ssh import SSHConnectionError as _SSHErr
+        try:
+            result = await ssh.run_in_repo(server, script, timeout=90)
+        except _SSHErr as e:
+            logger.error("validate-branch SSH error for %s: %s", feature_branch, e)
+            return {"validate_ok": False, "validate_errors": f"Не вдалося підключитися до сервера: {e}"}
+
+        if "FETCH_FAILED" in result.stdout:
+            msg = result.stdout.strip().replace("FETCH_FAILED: ", "")
+            logger.error("validate-branch FETCH_FAILED for %s: %s", feature_branch, msg)
+            return {"validate_ok": False, "validate_errors": msg}
+
+        if not result.success or "BROKEN" in result.stdout:
+            broken_lines = [
+                line for line in result.stdout.splitlines()
+                if line and line != "BROKEN"
+            ]
+            summary = "; ".join(broken_lines[:5]) or result.stderr[:200]
+            logger.error(
+                "validate-branch FAILED for %s:\n%s",
+                feature_branch,
+                "\n".join(broken_lines),
+            )
+            return {
+                "validate_ok": False,
+                "validate_errors": f"Branch `{feature_branch}` has errors: {summary}",
+            }
+
+        logger.info("validate-branch for %s: OK", feature_branch)
+        return {"validate_ok": True, "validate_errors": ""}
+
+    # ── validate-manifests ─────────────────────────────────────
+
+    @worker.task(task_type="validate-manifests", timeout_ms=60_000)
+    async def validate_manifests(
+        server_host: str,
+        repo_dir: str = "",
+        **kwargs: Any,
+    ) -> dict:
+        """Validate that all files referenced in __manifest__.py exist on disk.
+
+        Runs before detect-modules so broken staging is caught before the deploy
+        starts. Raises DeployError(error_type='code') listing every broken module.
+        """
+        server = config.resolve_server(server_host)
+        repo = repo_dir or server.repo_dir
+
+        script = (
+            "python3 -c \"\n"
+            "import ast, os, sys\n"
+            "import xml.etree.ElementTree as ET\n"
+            "base = 'src/custom'\n"
+            "broken = []\n"
+            "try:\n"
+            "    mods = sorted(os.listdir(base))\n"
+            "except FileNotFoundError:\n"
+            "    print('ERROR: src/custom not found'); sys.exit(1)\n"
+            "for mod in mods:\n"
+            "    mf = os.path.join(base, mod, '__manifest__.py')\n"
+            "    if not os.path.isfile(mf):\n"
+            "        continue\n"
+            "    try:\n"
+            "        data = ast.literal_eval(open(mf).read())\n"
+            "    except Exception as e:\n"
+            "        broken.append(mod + ': cannot parse manifest: ' + str(e))\n"
+            "        continue\n"
+            "    for fname in data.get('data', []) + data.get('demo', []) + data.get('views', []):\n"
+            "        fpath = os.path.join(base, mod, fname)\n"
+            "        if not os.path.exists(fpath):\n"
+            "            broken.append(mod + ': missing ' + fname)\n"
+            "        elif fname.endswith('.xml'):\n"
+            "            try:\n"
+            "                ET.parse(fpath)\n"
+            "            except ET.ParseError as e:\n"
+            "                broken.append(mod + ': invalid XML in ' + fname + ': ' + str(e))\n"
+            "        elif fname.endswith('.csv') and 'ir.model.access' in fname:\n"
+            "            rows = [l for l in open(fpath).read().splitlines() if l.strip() and not l.startswith('#')]\n"
+            "            if rows:\n"
+            "                n = len(rows[0].split(','))\n"
+            "                if n not in (6,7,8):\n"
+            "                    broken.append(mod + ': ' + fname + ': header has ' + str(n) + ' cols (expected 6-8)')\n"
+            "if broken:\n"
+            "    print('BROKEN'); [print(b) for b in broken]; sys.exit(1)\n"
+            "print('OK')\n"
+            "\""
+        )
+
+        result = await ssh.run_in_repo(server, script, timeout=30)
+
+        if not result.success or "BROKEN" in result.stdout:
+            broken_lines = [
+                line for line in result.stdout.splitlines()
+                if line and line != "BROKEN"
+            ]
+            summary = "; ".join(broken_lines[:5]) or result.stderr[:200]
+            logger.error("validate-manifests FAILED on %s:\n%s", server.host, "\n".join(broken_lines))
+            raise DeployError(
+                f"Staging has broken module manifests: {summary}",
+                variables={"error_type": "code"},
+            )
+
+        logger.info("validate-manifests on %s: OK", server.host)
+        return {}
 
     # ── detect-modules ─────────────────────────────────────────
 
@@ -158,7 +371,7 @@ def register_deploy_handlers(
                 break
             await _sleep(5)
         else:
-            raise DeployError(f"Container {ctr} not running after 60s")
+            raise DeployError(f"Container {ctr} not running after 60s", variables={"error_type": "code"})
 
         # Wait for HTTP service (max 240s)
         await _wait_http(ssh, server, svc_port, max_attempts=24, interval=10)
@@ -329,7 +542,7 @@ def register_deploy_handlers(
 
         if not smoke_passed:
             error_summary = "; ".join(error_lines[:3]) if error_lines else f"exit code {result.exit_code}"
-            raise DeployError(f"Smoke test failed on {server.host}: {error_summary}")
+            raise DeployError(f"Smoke test failed on {server.host}: {error_summary}", variables={"error_type": "code"})
 
         logger.info("smoke-test on %s: passed=True", server.host)
         return {"smoke_passed": True}
@@ -652,7 +865,8 @@ async def _wait_http(
             await _sleep(interval)
 
     raise DeployError(
-        f"HTTP service not responding on {server.host}:{port} after {max_attempts * interval}s"
+        f"HTTP service not responding on {server.host}:{port} after {max_attempts * interval}s",
+        variables={"error_type": "code"},
     )
 
 
@@ -671,4 +885,4 @@ async def _get_db_password(ssh: AsyncSSHClient, server: Any, container: str) -> 
     if result.success and result.stdout.strip():
         return result.stdout.strip()
 
-    raise DeployError(f"Cannot retrieve DB password on {server.host}")
+    raise DeployError(f"Cannot retrieve DB password on {server.host}", variables={"error_type": "code"})

@@ -11,7 +11,7 @@
 
   <bpmn:process id="deploy-scheduler" name="Deploy Scheduler" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="7.0" />
+      <zeebe:versionTag value="8.0" />
     </bpmn:extensionElements>
 
     <!-- ═══ START ═══ -->
@@ -110,6 +110,9 @@
           <zeebe:input source="=&quot;msg_deploy_done&quot;" target="message_name" />
           <zeebe:input source="=if is defined(pr_number) and pr_number != null then string(pr_number) else &quot;unknown&quot;" target="correlation_key" />
           <zeebe:input source="=true" target="deploy_failed" />
+          <zeebe:input source="=if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Unknown error&quot;" target="error_message" />
+          <zeebe:input source="=if is defined(error_type) and error_type != null then error_type else &quot;code&quot;" target="error_type" />
+          <zeebe:input source="=if is defined(error_traceback) and error_traceback != null then error_traceback else &quot;&quot;" target="error_traceback" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_error_to_publish</bpmn:incoming>
