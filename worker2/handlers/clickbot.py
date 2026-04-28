@@ -37,30 +37,31 @@ async def _get_fk_excluded_tables(
     seed_literal = ",".join(f"'{t}'" for t in seed)
     # depth=2, but depth-2 tables must match messaging-related prefixes to
     # avoid pulling in the entire Odoo schema via mail_notification → res_partner → account_*.
+    # Uses ::text cast (not ::name COLLATE "C") to avoid double-quote shell-quoting issues
+    # and collation mismatch in the recursive CTE.
     sql = (
         f"WITH RECURSIVE ex(tbl, depth) AS ("
-        f"SELECT unnest(ARRAY[{seed_literal}])::name COLLATE \"C\", 0 "
+        f"SELECT unnest(ARRAY[{seed_literal}])::text, 0 "
         f"UNION "
-        f"SELECT c.relname, ex.depth + 1 FROM ex "
-        f"JOIN pg_class pc ON pc.relname = ex.tbl AND pc.relkind = 'r' "
+        f"SELECT c.relname::text, ex.depth + 1 FROM ex "
+        f"JOIN pg_class pc ON pc.relname::text = ex.tbl AND pc.relkind = 'r' "
         f"JOIN pg_namespace pn ON pn.oid = pc.relnamespace AND pn.nspname = 'public' "
         f"JOIN pg_constraint fk ON fk.confrelid = pc.oid AND fk.contype = 'f' "
         f"JOIN pg_class c ON c.oid = fk.conrelid AND c.relkind = 'r' "
-        f"WHERE c.relname != ex.tbl AND ex.depth < 2 "
+        f"WHERE c.relname::text <> ex.tbl AND ex.depth < 2 "
         f"AND (ex.depth = 0 OR c.relname ~ "
         f"'^(mail_|discuss_|bus_|chatbot_|telegram_|meeting_|sms_|snailmail_|rating_)')"
         f") SELECT DISTINCT tbl FROM ex ORDER BY tbl"
     )
-    sql_sh = sql.replace('"', '\\"')
     result = await ssh.run(
         server,
-        f'docker exec {ctr}-db psql -U odoo -d {db} -t -A -c "{sql_sh}"',
+        f'docker exec {ctr}-db psql -U odoo -d {db} -t -A -c "{sql}"',
         timeout=30,
     )
     if result.exit_code != 0 or not result.stdout.strip():
         logger.warning(
-            "FK table query failed (exit=%s), falling back to hardcoded list",
-            result.exit_code,
+            "FK table query failed (exit=%s) stderr=%r stdout=%r, falling back to hardcoded list",
+            result.exit_code, result.stderr[:300], result.stdout[:200],
         )
         return seed + [
             "discuss_call_history",
