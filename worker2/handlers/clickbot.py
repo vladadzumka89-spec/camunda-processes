@@ -18,6 +18,63 @@ from ..ssh import AsyncSSHClient
 logger = logging.getLogger(__name__)
 
 
+async def _get_fk_excluded_tables(
+    ssh: AsyncSSHClient,
+    server: Any,
+    ctr: str,
+    db: str,
+) -> list[str]:
+    """Recursively find all tables that must be excluded from pg_dump.
+
+    Starts from a seed set of large/noisy tables and walks the FK graph to
+    include every table that directly or transitively references them, so
+    pg_restore never trips over a FK violation.
+    """
+    seed = [
+        "mail_message", "bus_bus", "ir_logging",
+        "chatbot_message", "telegram_message",
+    ]
+    seed_literal = ",".join(f"'{t}'" for t in seed)
+    # depth=2, but depth-2 tables must match messaging-related prefixes to
+    # avoid pulling in the entire Odoo schema via mail_notification → res_partner → account_*.
+    sql = (
+        f"WITH RECURSIVE ex(tbl, depth) AS ("
+        f"SELECT unnest(ARRAY[{seed_literal}])::name COLLATE \"C\", 0 "
+        f"UNION "
+        f"SELECT c.relname, ex.depth + 1 FROM ex "
+        f"JOIN pg_class pc ON pc.relname = ex.tbl AND pc.relkind = 'r' "
+        f"JOIN pg_namespace pn ON pn.oid = pc.relnamespace AND pn.nspname = 'public' "
+        f"JOIN pg_constraint fk ON fk.confrelid = pc.oid AND fk.contype = 'f' "
+        f"JOIN pg_class c ON c.oid = fk.conrelid AND c.relkind = 'r' "
+        f"WHERE c.relname != ex.tbl AND ex.depth < 2 "
+        f"AND (ex.depth = 0 OR c.relname ~ "
+        f"'^(mail_|discuss_|bus_|chatbot_|telegram_|meeting_|sms_|snailmail_|rating_)')"
+        f") SELECT DISTINCT tbl FROM ex ORDER BY tbl"
+    )
+    result = await ssh.run(
+        server,
+        f'docker exec {ctr}-db psql -U odoo -d {db} -t -A -c "{sql}"',
+        timeout=30,
+    )
+    if result.exit_code != 0 or not result.stdout.strip():
+        logger.warning(
+            "FK table query failed (exit=%s), falling back to hardcoded list",
+            result.exit_code,
+        )
+        return seed + [
+            "discuss_call_history",
+            "discuss_call_history_im_livechat_channel_member_history_rel",
+            "discuss_call_recording_part_legacy",
+            "discuss_call_screen_recording_part_legacy",
+            "meeting_call_participant",
+            "meeting_transcript",
+            "discuss_channel",
+        ]
+    tables = [ln.strip() for ln in result.stdout.strip().splitlines() if ln.strip()]
+    logger.info("FK-excluded tables (%d): %s", len(tables), ", ".join(tables))
+    return tables
+
+
 def register_clickbot_handlers(
     worker: ZeebeWorker,
     config: AppConfig,
@@ -51,16 +108,14 @@ def register_clickbot_handlers(
                 timeout=300,
             )
 
-            # 2. Dump production DB
+            # 2. Dump production DB (exclude FK-dependent noisy tables auto-detected)
             logger.info("Dumping production DB %s on %s", db, server.host)
+            excluded_tables = await _get_fk_excluded_tables(ssh, server, ctr, db)
+            exclude_flags = " ".join(f"--exclude-table-data={t}" for t in excluded_tables)
             await ssh.run(
                 server,
                 f"docker exec {ctr}-db pg_dump -U odoo -Fc --no-owner --no-acl {db} "
-                f"--exclude-table-data=telegram_message "
-                f"--exclude-table-data=mail_message "
-                f"--exclude-table-data=chatbot_message "
-                f"--exclude-table-data=bus_bus "
-                f"--exclude-table-data=ir_logging "
+                f"{exclude_flags} "
                 f"> /tmp/clickbot_db_dump.custom",
                 check=True,
                 timeout=600,

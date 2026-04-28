@@ -153,7 +153,7 @@ Output: sync_branch</bpmn:documentation>
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_commit_to_deploy_demo</bpmn:incoming>
-      <bpmn:outgoing>f_deploy_demo_to_pr</bpmn:outgoing>
+      <bpmn:outgoing>f_deploy_demo_to_review</bpmn:outgoing>
     </bpmn:callActivity>
     <bpmn:userTask id="UT_review_demo" name="Перевірити демку та підтвердити деплой на staging">
       <bpmn:documentation>Перевір sync branch на козак демці (10.1.1.61).
