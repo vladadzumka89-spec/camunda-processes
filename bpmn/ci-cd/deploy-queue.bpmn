@@ -9,7 +9,7 @@
     </bpmn:extensionElements>
   </bpmn:message>
 
-  <bpmn:process id="deploy-scheduler" name="Deploy Scheduler" isExecutable="true">
+  <bpmn:process id="deploy-scheduler" name="Deploy Queue" isExecutable="true">
     <bpmn:extensionElements>
       <zeebe:versionTag value="8.0" />
     </bpmn:extensionElements>

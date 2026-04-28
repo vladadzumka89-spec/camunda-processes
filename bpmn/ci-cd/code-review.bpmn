@@ -16,9 +16,9 @@
     </bpmn:extensionElements>
   </bpmn:message>
 
-  <bpmn:process id="pr-review" name="PR Review" isExecutable="true">
+  <bpmn:process id="pr-review" name="Code Review" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="12.0" />
+      <zeebe:versionTag value="13.0" />
     </bpmn:extensionElements>
 
     <bpmn:startEvent id="evt_start" name="PR відкрито">
@@ -35,54 +35,8 @@
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_start_to_mapping</bpmn:incoming>
-      <bpmn:outgoing>f_mapping_to_parent_check</bpmn:outgoing>
+      <bpmn:outgoing>f_mapping_to_review</bpmn:outgoing>
     </bpmn:businessRuleTask>
-
-    <!-- ── CHECK: standalone or child process? ─────────────── -->
-    <bpmn:exclusiveGateway id="gw_parent_check" name="Є батьківський процес?" default="f_no_parent">
-      <bpmn:incoming>f_mapping_to_parent_check</bpmn:incoming>
-      <bpmn:outgoing>f_has_parent</bpmn:outgoing>
-      <bpmn:outgoing>f_no_parent</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-
-    <bpmn:serviceTask id="ST_create_review_task" name="Створити задачу ревʼю в Odoo">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=odoo_webhook_url" target="url" />
-          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[review] PR #&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;Code Review&quot;), description: &quot;&lt;p&gt;&lt;b&gt;PR:&lt;/b&gt; &lt;a href='&quot; + (if is defined(pr_url) and pr_url != null then pr_url else &quot;&quot;) + &quot;'&gt;#&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;&quot;) + &quot;&lt;/a&gt;&lt;br/&gt;&lt;b&gt;Автор:&lt;/b&gt; &quot; + (if is defined(pr_author) and pr_author != null then pr_author else &quot;—&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Гілка:&lt;/b&gt; &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot; → &quot; + (if is defined(base_branch) and base_branch != null then base_branch else &quot;unknown&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Репо:&lt;/b&gt; &quot; + (if is defined(repository) and repository != null then repository else &quot;—&quot;) + &quot;&lt;hr/&gt;&lt;b&gt;Процес:&lt;/b&gt; &lt;a href='http://camunda25.a.local:8088/operate/#/processes/&quot; + string(process_instance_key) + &quot;'&gt;Переглянути в Operate&lt;/a&gt;&lt;/p&gt;&quot;, create_process: true, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560, bpmn_process_id: &quot;pr-review&quot;, x_studio_camunda_user_ids: if github_user_mapping != null then github_user_mapping.odoo_user_id else null, process_instance_key: string(process_instance_key)}" target="body" />
-          <zeebe:input source="=&quot;odoo_create_response&quot;" target="result_variable_name" />
-          <zeebe:input source="=true" target="ignore_errors" />
-          <zeebe:output source="=string(odoo_create_response.id)" target="parent_process_instance_key" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_no_parent</bpmn:incoming>
-      <bpmn:outgoing>f_created_to_merge</bpmn:outgoing>
-    </bpmn:serviceTask>
-
-    <bpmn:serviceTask id="ST_create_review_subtask" name="Створити підзадачу ревʼю в Odoo">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=odoo_webhook_url" target="url" />
-          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={_model: &quot;project.project&quot;, name: &quot;[review] PR #&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;Code Review&quot;), description: &quot;&lt;p&gt;&lt;b&gt;PR:&lt;/b&gt; &lt;a href='&quot; + (if is defined(pr_url) and pr_url != null then pr_url else &quot;&quot;) + &quot;'&gt;#&quot; + string(pr_number) + &quot; — &quot; + (if is defined(pr_title) and pr_title != null then pr_title else &quot;&quot;) + &quot;&lt;/a&gt;&lt;br/&gt;&lt;b&gt;Автор:&lt;/b&gt; &quot; + (if is defined(pr_author) and pr_author != null then pr_author else &quot;—&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Гілка:&lt;/b&gt; &quot; + (if is defined(head_branch) and head_branch != null then head_branch else &quot;unknown&quot;) + &quot; → &quot; + (if is defined(base_branch) and base_branch != null then base_branch else &quot;unknown&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Репо:&lt;/b&gt; &quot; + (if is defined(repository) and repository != null then repository else &quot;—&quot;) + &quot;&lt;hr/&gt;&lt;b&gt;Процес:&lt;/b&gt; &lt;a href='http://camunda25.a.local:8088/operate/#/processes/&quot; + string(process_instance_key) + &quot;'&gt;Переглянути в Operate&lt;/a&gt;&lt;/p&gt;&quot;, parent_process_instance_key: parent_process_instance_key, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560, bpmn_process_id: &quot;pr-review&quot;, x_studio_camunda_user_ids: if github_user_mapping != null then github_user_mapping.odoo_user_id else null, process_instance_key: string(process_instance_key)}" target="body" />
-          <zeebe:input source="=&quot;odoo_subtask_response&quot;" target="result_variable_name" />
-          <zeebe:input source="=true" target="ignore_errors" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_has_parent</bpmn:incoming>
-      <bpmn:outgoing>f_subtask_to_merge</bpmn:outgoing>
-    </bpmn:serviceTask>
-
-    <bpmn:exclusiveGateway id="gw_merge_parent">
-      <bpmn:incoming>f_subtask_to_merge</bpmn:incoming>
-      <bpmn:incoming>f_created_to_merge</bpmn:incoming>
-      <bpmn:outgoing>f_start_to_review</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
 
     <!-- ── Claude Code Review ──────────────────────────────── -->
     <bpmn:serviceTask id="task_pr_agent" name="Claude Code Review">
@@ -91,7 +45,7 @@ Output: review_score, has_critical_issues</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="pr-agent-review" retries="5" />
       </bpmn:extensionElements>
-      <bpmn:incoming>f_start_to_review</bpmn:incoming>
+      <bpmn:incoming>f_mapping_to_review</bpmn:incoming>
       <bpmn:outgoing>f_review_to_score</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -174,14 +128,7 @@ Output: review_score, has_critical_issues</bpmn:documentation>
 
     <!-- ── Sequence flows ──────────────────────────────────── -->
     <bpmn:sequenceFlow id="f_start_to_mapping" sourceRef="evt_start" targetRef="BRT_user_mapping" />
-    <bpmn:sequenceFlow id="f_mapping_to_parent_check" sourceRef="BRT_user_mapping" targetRef="gw_parent_check" />
-    <bpmn:sequenceFlow id="f_has_parent" name="Так" sourceRef="gw_parent_check" targetRef="ST_create_review_subtask">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(parent_process_instance_key) and parent_process_instance_key != null</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="f_no_parent" name="Standalone" sourceRef="gw_parent_check" targetRef="ST_create_review_task" />
-    <bpmn:sequenceFlow id="f_created_to_merge" sourceRef="ST_create_review_task" targetRef="gw_merge_parent" />
-    <bpmn:sequenceFlow id="f_subtask_to_merge" sourceRef="ST_create_review_subtask" targetRef="gw_merge_parent" />
-    <bpmn:sequenceFlow id="f_start_to_review" sourceRef="gw_merge_parent" targetRef="task_pr_agent" />
+    <bpmn:sequenceFlow id="f_mapping_to_review" sourceRef="BRT_user_mapping" targetRef="task_pr_agent" />
     <bpmn:sequenceFlow id="f_review_to_score" sourceRef="task_pr_agent" targetRef="gw_score" />
     <bpmn:sequenceFlow id="f_score_ok" name="OK" sourceRef="gw_score" targetRef="gw_branch">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=review_score &gt;= 7 and has_critical_issues = false</bpmn:conditionExpression>
@@ -225,61 +172,45 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         <dc:Bounds x="270" y="170" width="100" height="80" />
       </bpmndi:BPMNShape>
 
-      <bpmndi:BPMNShape id="gw_parent_check_di" bpmnElement="gw_parent_check" isMarkerVisible="true">
-        <dc:Bounds x="470" y="185" width="50" height="50" />
-      </bpmndi:BPMNShape>
-
-      <bpmndi:BPMNShape id="ST_create_review_subtask_di" bpmnElement="ST_create_review_subtask">
-        <dc:Bounds x="600" y="90" width="100" height="80" />
-      </bpmndi:BPMNShape>
-
-      <bpmndi:BPMNShape id="ST_create_review_task_di" bpmnElement="ST_create_review_task">
-        <dc:Bounds x="600" y="170" width="100" height="80" />
-      </bpmndi:BPMNShape>
-
-      <bpmndi:BPMNShape id="gw_merge_parent_di" bpmnElement="gw_merge_parent" isMarkerVisible="true">
-        <dc:Bounds x="780" y="185" width="50" height="50" />
-      </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="task_pr_agent_di" bpmnElement="task_pr_agent">
-        <dc:Bounds x="910" y="170" width="100" height="80" />
+        <dc:Bounds x="440" y="170" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="gw_score_di" bpmnElement="gw_score" isMarkerVisible="true">
-        <dc:Bounds x="1270" y="185" width="50" height="50" />
+        <dc:Bounds x="615" y="185" width="50" height="50" />
       </bpmndi:BPMNShape>
 
       <!-- Branch check gateway -->
       <bpmndi:BPMNShape id="gw_branch_di" bpmnElement="gw_branch" isMarkerVisible="true">
-        <dc:Bounds x="1400" y="185" width="50" height="50" />
+        <dc:Bounds x="745" y="185" width="50" height="50" />
       </bpmndi:BPMNShape>
 
       <!-- OK+staging path: merge -->
       <bpmndi:BPMNShape id="task_github_merge_di" bpmnElement="task_github_merge">
-        <dc:Bounds x="1530" y="170" width="100" height="80" />
+        <dc:Bounds x="875" y="170" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Merge error boundary + comment -->
       <bpmndi:BPMNShape id="BE_merge_error_di" bpmnElement="BE_merge_error">
-        <dc:Bounds x="1562" y="232" width="36" height="36" />
+        <dc:Bounds x="907" y="232" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="task_comment_merge_fail_di" bpmnElement="task_comment_merge_fail">
-        <dc:Bounds x="1530" y="420" width="100" height="80" />
+        <dc:Bounds x="875" y="420" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Low score path Y=300 -->
       <bpmndi:BPMNShape id="task_comment_low_di" bpmnElement="task_comment_low">
-        <dc:Bounds x="1400" y="300" width="100" height="80" />
+        <dc:Bounds x="745" y="300" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Shared: publish + end -->
       <bpmndi:BPMNShape id="ST_publish_review_done_di" bpmnElement="ST_publish_review_done">
-        <dc:Bounds x="1890" y="170" width="100" height="80" />
+        <dc:Bounds x="1080" y="170" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="evt_end_di" bpmnElement="evt_end">
-        <dc:Bounds x="2070" y="192" width="36" height="36" />
+        <dc:Bounds x="1262" y="192" width="36" height="36" />
       </bpmndi:BPMNShape>
 
       <!-- ── Edges ─────────────────────────────────────────── -->
@@ -288,101 +219,74 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         <di:waypoint x="270" y="210" />
       </bpmndi:BPMNEdge>
 
-      <bpmndi:BPMNEdge id="f_mapping_to_parent_check_di" bpmnElement="f_mapping_to_parent_check">
+      <bpmndi:BPMNEdge id="f_mapping_to_review_di" bpmnElement="f_mapping_to_review">
         <di:waypoint x="370" y="210" />
-        <di:waypoint x="470" y="210" />
-      </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="f_has_parent_di" bpmnElement="f_has_parent">
-        <di:waypoint x="495" y="185" />
-        <di:waypoint x="495" y="130" />
-        <di:waypoint x="600" y="130" />
-      </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="f_no_parent_di" bpmnElement="f_no_parent">
-        <di:waypoint x="520" y="210" />
-        <di:waypoint x="600" y="210" />
-      </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="f_subtask_to_merge_di" bpmnElement="f_subtask_to_merge">
-        <di:waypoint x="700" y="130" />
-        <di:waypoint x="805" y="130" />
-        <di:waypoint x="805" y="185" />
-      </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="f_created_to_merge_di" bpmnElement="f_created_to_merge">
-        <di:waypoint x="700" y="210" />
-        <di:waypoint x="780" y="210" />
-      </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="f_start_to_review_di" bpmnElement="f_start_to_review">
-        <di:waypoint x="830" y="210" />
-        <di:waypoint x="910" y="210" />
+        <di:waypoint x="440" y="210" />
       </bpmndi:BPMNEdge>
 
       <!-- pr_agent → score gateway -->
       <bpmndi:BPMNEdge id="f_review_to_score_di" bpmnElement="f_review_to_score">
-        <di:waypoint x="1010" y="210" />
-        <di:waypoint x="1270" y="210" />
+        <di:waypoint x="540" y="210" />
+        <di:waypoint x="615" y="210" />
       </bpmndi:BPMNEdge>
 
       <!-- OK → branch check -->
       <bpmndi:BPMNEdge id="f_score_ok_di" bpmnElement="f_score_ok">
-        <di:waypoint x="1320" y="210" />
-        <di:waypoint x="1400" y="210" />
+        <di:waypoint x="665" y="210" />
+        <di:waypoint x="745" y="210" />
       </bpmndi:BPMNEdge>
 
       <!-- staging → merge -->
       <bpmndi:BPMNEdge id="f_branch_staging_di" bpmnElement="f_branch_staging">
-        <di:waypoint x="1450" y="210" />
-        <di:waypoint x="1530" y="210" />
+        <di:waypoint x="795" y="210" />
+        <di:waypoint x="875" y="210" />
       </bpmndi:BPMNEdge>
 
       <!-- main/other → publish -->
       <bpmndi:BPMNEdge id="f_branch_other_di" bpmnElement="f_branch_other">
-        <di:waypoint x="1425" y="185" />
-        <di:waypoint x="1425" y="120" />
-        <di:waypoint x="1940" y="120" />
-        <di:waypoint x="1940" y="170" />
+        <di:waypoint x="770" y="185" />
+        <di:waypoint x="770" y="120" />
+        <di:waypoint x="1130" y="120" />
+        <di:waypoint x="1130" y="170" />
       </bpmndi:BPMNEdge>
 
       <!-- merge → publish -->
       <bpmndi:BPMNEdge id="f_merge_to_publish_di" bpmnElement="f_merge_to_publish">
-        <di:waypoint x="1630" y="210" />
-        <di:waypoint x="1890" y="210" />
+        <di:waypoint x="975" y="210" />
+        <di:waypoint x="1080" y="210" />
       </bpmndi:BPMNEdge>
 
       <!-- low score → comment -->
       <bpmndi:BPMNEdge id="f_score_low_di" bpmnElement="f_score_low">
-        <di:waypoint x="1295" y="235" />
-        <di:waypoint x="1295" y="340" />
-        <di:waypoint x="1400" y="340" />
+        <di:waypoint x="640" y="235" />
+        <di:waypoint x="640" y="340" />
+        <di:waypoint x="745" y="340" />
       </bpmndi:BPMNEdge>
 
       <!-- low comment → publish -->
       <bpmndi:BPMNEdge id="f_low_to_publish_di" bpmnElement="f_low_to_publish">
-        <di:waypoint x="1500" y="340" />
-        <di:waypoint x="1940" y="340" />
-        <di:waypoint x="1940" y="250" />
+        <di:waypoint x="845" y="340" />
+        <di:waypoint x="1130" y="340" />
+        <di:waypoint x="1130" y="250" />
       </bpmndi:BPMNEdge>
 
       <!-- merge error → comment merge fail -->
       <bpmndi:BPMNEdge id="f_merge_error_to_comment_di" bpmnElement="f_merge_error_to_comment">
-        <di:waypoint x="1580" y="268" />
-        <di:waypoint x="1580" y="420" />
+        <di:waypoint x="925" y="268" />
+        <di:waypoint x="925" y="420" />
       </bpmndi:BPMNEdge>
 
       <!-- merge fail comment → publish -->
       <bpmndi:BPMNEdge id="f_merge_fail_to_publish_di" bpmnElement="f_merge_fail_to_publish">
-        <di:waypoint x="1630" y="460" />
-        <di:waypoint x="1940" y="460" />
-        <di:waypoint x="1940" y="250" />
+        <di:waypoint x="975" y="460" />
+        <di:waypoint x="1130" y="460" />
+        <di:waypoint x="1130" y="250" />
       </bpmndi:BPMNEdge>
 
       <!-- publish → end -->
       <bpmndi:BPMNEdge id="f_publish_to_end_di" bpmnElement="f_publish_to_end">
-        <di:waypoint x="1990" y="210" />
-        <di:waypoint x="2070" y="210" />
+        <di:waypoint x="1180" y="210" />
+        <di:waypoint x="1262" y="210" />
       </bpmndi:BPMNEdge>
 
       <!-- Error Event Subprocess -->

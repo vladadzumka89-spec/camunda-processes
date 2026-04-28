@@ -74,9 +74,9 @@ def zeebe_stack():
 def deploy_bpmn(zeebe_stack):
     """Deploy BPMN processes and forms to Zeebe."""
     resources = [
-        BPMN_DIR / "feature-to-production.bpmn",
-        BPMN_DIR / "deploy-process.bpmn",
-        BPMN_DIR / "pr-review.bpmn",
+        BPMN_DIR / "feature-pipeline.bpmn",
+        BPMN_DIR / "server-deploy.bpmn",
+        BPMN_DIR / "code-review.bpmn",
         *FORMS_DIR.glob("*.form"),
     ]
     deadline = time.monotonic() + 30

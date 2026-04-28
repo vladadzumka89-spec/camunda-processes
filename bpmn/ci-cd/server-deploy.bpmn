@@ -1,54 +1,32 @@
 <?xml version='1.0' encoding='utf-8'?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_deploy" targetNamespace="http://tut.ua/bpmn/deploy" exporter="Claude Code" exporterVersion="1.0">
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
-  <bpmn:process id="deploy-process" name="Deploy Process" isExecutable="true">
+  <bpmn:process id="deploy-process" name="Server Deploy" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="14.0" />
+      <zeebe:versionTag value="15.0" />
     </bpmn:extensionElements>
     <bpmn:startEvent id="evt_start" name="Початок деплою">
-      <bpmn:outgoing>f_start_to_parent_check</bpmn:outgoing>
+      <bpmn:outgoing>f_start_to_db_remove</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:exclusiveGateway id="gw_parent_check" name="Є батьківський процес?" default="f_no_parent">
-      <bpmn:incoming>f_start_to_parent_check</bpmn:incoming>
-      <bpmn:outgoing>f_has_parent</bpmn:outgoing>
-      <bpmn:outgoing>f_no_parent</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-    <bpmn:serviceTask id="ST_create_deploy_task" name="Створити задачу деплою в Odoo">
+    <bpmn:serviceTask id="ST_db_remove" name="Видалити старий чекпоінт">
+      <bpmn:documentation>Видаляє попередній чекпоінт перед створенням нового.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=odoo_webhook_url" target="url" />
-          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;[deploy] &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot; ← &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;) + (if is defined(pr_number) and pr_number != null then &quot; (PR #&quot; + string(pr_number) + &quot;)&quot; else &quot;&quot;) + (if is defined(pr_title) and pr_title != null and pr_title != &quot;&quot; then &quot; — &quot; + pr_title else &quot;&quot;) + (if is defined(pusher) and pusher != null and pusher != &quot;&quot; then &quot; by @&quot; + pusher else &quot;&quot;), description: &quot;&lt;p&gt;&lt;b&gt;Сервер:&lt;/b&gt; &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Гілка:&lt;/b&gt; &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;) + &quot;&lt;br/&gt;&lt;b&gt;SHA:&lt;/b&gt; &quot; + (if is defined(trigger_sha) and trigger_sha != null then trigger_sha else &quot;—&quot;) + (if is defined(pr_number) and pr_number != null then &quot;&lt;br/&gt;&lt;b&gt;PR:&lt;/b&gt; #&quot; + string(pr_number) else &quot;&quot;) + (if is defined(compare_url) and compare_url != null and compare_url != &quot;&quot; then &quot;&lt;br/&gt;&lt;b&gt;Diff:&lt;/b&gt; &lt;a href=\&quot;&quot; + compare_url + &quot;\&quot;&gt;GitHub&lt;/a&gt;&quot; else &quot;&quot;) + (if is defined(pusher) and pusher != null and pusher != &quot;&quot; then &quot;&lt;br/&gt;&lt;b&gt;Автор:&lt;/b&gt; &quot; + pusher else &quot;&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Процес:&lt;/b&gt; &lt;a href=&apos;http://camunda25.a.local:8088/operate/#/processes/&quot; + string(process_instance_key) + &quot;&apos;&gt;Переглянути в Operate&lt;/a&gt;&lt;/p&gt;&quot;, create_process: true, _model: &quot;project.project&quot;, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560, bpmn_process_id: &quot;deploy-process&quot;, process_instance_key: string(process_instance_key)}" target="body" />
-          <zeebe:input source="=&quot;odoo_create_response&quot;" target="result_variable_name" />
-          <zeebe:input source="=true" target="ignore_errors" />
-          <zeebe:output source="=if is defined(odoo_create_response) and odoo_create_response != null and is defined(odoo_create_response.id) then string(odoo_create_response.id) else string(process_instance_key)" target="parent_process_instance_key" />
-        </zeebe:ioMapping>
+        <zeebe:taskDefinition type="db-remove" retries="2" />
       </bpmn:extensionElements>
-      <bpmn:incoming>f_no_parent</bpmn:incoming>
-      <bpmn:outgoing>f_created_to_merge</bpmn:outgoing>
+      <bpmn:incoming>f_start_to_db_remove</bpmn:incoming>
+      <bpmn:outgoing>f_remove_to_checkpoint</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="ST_create_subtask" name="Створити підзадачу деплою в Odoo">
+    <bpmn:serviceTask id="ST_db_checkpoint" name="DB Checkpoint">
+      <bpmn:documentation>Створює зліпок через HTTP API перед деплоєм.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&quot;POST&quot;" target="method" />
-          <zeebe:input source="=odoo_webhook_url" target="url" />
-          <zeebe:input source="={&quot;Content-Type&quot;:&quot;application/json&quot;}" target="headers" />
-          <zeebe:input source="={name: &quot;[deploy] &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot; ← &quot; + (if is defined(branch) and branch != null then branch else &quot;staging&quot;), description: &quot;&lt;p&gt;Автоматичний деплой на &quot; + (if is defined(server_host) and server_host != null then server_host else &quot;unknown&quot;) + &quot;&lt;br/&gt;&lt;b&gt;Процес:&lt;/b&gt; &lt;a href=&apos;http://camunda25.a.local:8088/operate/#/processes/&quot; + string(process_instance_key) + &quot;&apos;&gt;Переглянути в Operate&lt;/a&gt;&lt;/p&gt;&quot;, parent_process_instance_key: parent_process_instance_key, _model: &quot;project.project&quot;, _id: if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560, bpmn_process_id: &quot;deploy-process&quot;, process_instance_key: string(process_instance_key)}" target="body" />
-          <zeebe:input source="=&quot;odoo_subtask_response&quot;" target="result_variable_name" />
-          <zeebe:input source="=true" target="ignore_errors" />
-        </zeebe:ioMapping>
+        <zeebe:taskDefinition type="db-checkpoint" retries="2" />
+        <zeebe:executionListeners>
+          <zeebe:executionListener eventType="end" type="progress" retries="3" />
+        </zeebe:executionListeners>
       </bpmn:extensionElements>
-      <bpmn:incoming>f_has_parent</bpmn:incoming>
-      <bpmn:outgoing>f_subtask_to_merge</bpmn:outgoing>
+      <bpmn:incoming>f_remove_to_checkpoint</bpmn:incoming>
+      <bpmn:outgoing>f_checkpoint_to_pull</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:exclusiveGateway id="gw_merge_parent">
-      <bpmn:incoming>f_subtask_to_merge</bpmn:incoming>
-      <bpmn:incoming>f_created_to_merge</bpmn:incoming>
-      <bpmn:outgoing>f01_merged</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="task_git_pull" name="Завантажити код">
       <bpmn:documentation>SSH на сервер, git fetch origin, checkout branch.
 Retry 3x з інтервалом 5s.
@@ -109,25 +87,6 @@ Output: changed_modules (CSV або порожній)</bpmn:documentation>
     <bpmn:endEvent id="evt_end_no_changes" name="Без змін">
       <bpmn:incoming>f_no_changes_end</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:serviceTask id="ST_db_remove" name="Видалити старий чекпоінт">
-      <bpmn:documentation>Видаляє попередній чекпоінт перед створенням нового.</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="db-remove" retries="2" />
-      </bpmn:extensionElements>
-      <bpmn:incoming>f01_merged</bpmn:incoming>
-      <bpmn:outgoing>f_remove_to_checkpoint</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:serviceTask id="ST_db_checkpoint" name="DB Checkpoint">
-      <bpmn:documentation>Створює зліпок через HTTP API перед деплоєм.</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="db-checkpoint" retries="2" />
-        <zeebe:executionListeners>
-          <zeebe:executionListener eventType="end" type="progress" retries="3" />
-        </zeebe:executionListeners>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_remove_to_checkpoint</bpmn:incoming>
-      <bpmn:outgoing>f_checkpoint_to_pull</bpmn:outgoing>
-    </bpmn:serviceTask>
     <bpmn:serviceTask id="task_module_update" name="Міграція БД (module-update)">
       <bpmn:documentation>Запускає окремий контейнер для міграції БД:
 docker compose run --rm web odoo-bin -d DB -u MODULES --stop-after-init --no-http
@@ -142,18 +101,6 @@ Output: modules_updated</bpmn:documentation>
       <bpmn:incoming>f_has_changes</bpmn:incoming>
       <bpmn:outgoing>f10</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="task_cache_clear" name="Очистити кеш assets">
-      <bpmn:documentation>DELETE FROM ir_attachment WHERE url LIKE '/web/assets/%' OR name LIKE 'web.assets%';
-Запускає Odoo: docker compose up -d</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="cache-clear" retries="1" />
-        <zeebe:executionListeners>
-          <zeebe:executionListener eventType="end" type="progress" retries="3" />
-        </zeebe:executionListeners>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_merge_clickbot_to_cache</bpmn:incoming>
-      <bpmn:outgoing>f12</bpmn:outgoing>
-    </bpmn:serviceTask>
     <bpmn:serviceTask id="task_smoke_test" name="Перевірка запуску Odoo">
       <bpmn:documentation>Окремий контейнер: odoo-bin --stop-after-init --no-http (120s timeout).
 Аналіз логів на CRITICAL/ERROR/ImportError/SyntaxError.
@@ -166,17 +113,6 @@ Output: smoke_passed</bpmn:documentation>
       </bpmn:extensionElements>
       <bpmn:incoming>f10</bpmn:incoming>
       <bpmn:outgoing>f_smoke_to_gw_clickbot</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:serviceTask id="task_http_verify" name="Перевірка доступності сайту">
-      <bpmn:documentation>curl -sf http://localhost:PORT/web/login (24 спроби x 10s)</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-verify" retries="3" />
-        <zeebe:executionListeners>
-          <zeebe:executionListener eventType="end" type="progress" retries="3" />
-        </zeebe:executionListeners>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f12</bpmn:incoming>
-      <bpmn:outgoing>f_http_to_save</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:exclusiveGateway id="gw_clickbot" name="Clickbot?" default="f_run_clickbot">
       <bpmn:incoming>f_smoke_to_gw_clickbot</bpmn:incoming>
@@ -208,6 +144,29 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
       <bpmn:incoming>f_clickbot_to_merge</bpmn:incoming>
       <bpmn:outgoing>f_merge_clickbot_to_cache</bpmn:outgoing>
     </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="task_cache_clear" name="Очистити кеш assets">
+      <bpmn:documentation>DELETE FROM ir_attachment WHERE url LIKE '/web/assets/%' OR name LIKE 'web.assets%';
+Запускає Odoo: docker compose up -d</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="cache-clear" retries="1" />
+        <zeebe:executionListeners>
+          <zeebe:executionListener eventType="end" type="progress" retries="3" />
+        </zeebe:executionListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_merge_clickbot_to_cache</bpmn:incoming>
+      <bpmn:outgoing>f12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_http_verify" name="Перевірка доступності сайту">
+      <bpmn:documentation>curl -sf http://localhost:PORT/web/login (24 спроби x 10s)</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-verify" retries="3" />
+        <zeebe:executionListeners>
+          <zeebe:executionListener eventType="end" type="progress" retries="3" />
+        </zeebe:executionListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f12</bpmn:incoming>
+      <bpmn:outgoing>f_http_to_save</bpmn:outgoing>
+    </bpmn:serviceTask>
     <bpmn:serviceTask id="task_save_state" name="Зберегти стан деплою">
       <bpmn:documentation>Записує new_commit SHA у .deploy-state/deploy_state_BRANCH</bpmn:documentation>
       <bpmn:extensionElements>
@@ -272,15 +231,9 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
       <bpmn:sequenceFlow id="f_err2" sourceRef="task_rollback" targetRef="ST_publish_deploy_failed" />
       <bpmn:sequenceFlow id="f_err3" sourceRef="ST_publish_deploy_failed" targetRef="evt_error_end" />
     </bpmn:subProcess>
-    <bpmn:sequenceFlow id="f_start_to_parent_check" sourceRef="evt_start" targetRef="gw_parent_check" />
-    <bpmn:sequenceFlow id="f_has_parent" name="Так" sourceRef="gw_parent_check" targetRef="ST_create_subtask">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(parent_process_instance_key) and parent_process_instance_key != null</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="f_no_parent" name="Standalone" sourceRef="gw_parent_check" targetRef="ST_create_deploy_task" />
-    <bpmn:sequenceFlow id="f_created_to_merge" sourceRef="ST_create_deploy_task" targetRef="gw_merge_parent" />
-    <bpmn:sequenceFlow id="f_subtask_to_merge" sourceRef="ST_create_subtask" targetRef="gw_merge_parent" />
-    <bpmn:sequenceFlow id="f01_merged" sourceRef="gw_merge_parent" targetRef="ST_db_remove" />
+    <bpmn:sequenceFlow id="f_start_to_db_remove" sourceRef="evt_start" targetRef="ST_db_remove" />
     <bpmn:sequenceFlow id="f_remove_to_checkpoint" sourceRef="ST_db_remove" targetRef="ST_db_checkpoint" />
+    <bpmn:sequenceFlow id="f_checkpoint_to_pull" sourceRef="ST_db_checkpoint" targetRef="task_git_pull" />
     <bpmn:sequenceFlow id="f_pull_to_validate" sourceRef="task_git_pull" targetRef="task_validate_manifests" />
     <bpmn:sequenceFlow id="f_validate_to_detect" sourceRef="task_validate_manifests" targetRef="task_detect_modules" />
     <bpmn:sequenceFlow id="f_detect_to_gw" sourceRef="task_detect_modules" targetRef="gw_changes" />
@@ -289,7 +242,6 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="f_no_changes_end" sourceRef="ST_publish_no_changes" targetRef="evt_end_no_changes" />
     <bpmn:sequenceFlow id="f_has_changes" name="Так" sourceRef="gw_changes" targetRef="task_module_update" />
-    <bpmn:sequenceFlow id="f_checkpoint_to_pull" sourceRef="ST_db_checkpoint" targetRef="task_git_pull" />
     <bpmn:sequenceFlow id="f10" sourceRef="task_module_update" targetRef="task_smoke_test" />
     <bpmn:sequenceFlow id="f_smoke_to_gw_clickbot" sourceRef="task_smoke_test" targetRef="gw_clickbot" />
     <bpmn:sequenceFlow id="f_run_clickbot" sourceRef="gw_clickbot" targetRef="task_clickbot" />
@@ -306,227 +258,172 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="deploy-process">
       <!-- Error subprocess -->
+      <bpmndi:BPMNShape id="subprocess_error_di" bpmnElement="subprocess_error" isExpanded="true">
+        <dc:Bounds x="170" y="160" width="750" height="120" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="evt_error_catch_di" bpmnElement="evt_error_catch">
-        <dc:Bounds x="207" y="254" width="36" height="36" />
+        <dc:Bounds x="207" y="202" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_rollback_di" bpmnElement="task_rollback">
-        <dc:Bounds x="471" y="160" width="100" height="80" />
+        <dc:Bounds x="330" y="180" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ST_publish_deploy_failed_di" bpmnElement="ST_publish_deploy_failed">
-        <dc:Bounds x="651" y="225" width="100" height="80" />
+        <dc:Bounds x="510" y="180" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="evt_error_end_di" bpmnElement="evt_error_end">
-        <dc:Bounds x="863" y="232" width="36" height="36" />
+        <dc:Bounds x="702" y="202" width="36" height="36" />
       </bpmndi:BPMNShape>
       <!-- Main flow -->
       <bpmndi:BPMNShape id="evt_start_di" bpmnElement="evt_start">
-        <dc:Bounds x="207" y="310" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="gw_parent_check_di" bpmnElement="gw_parent_check" isMarkerVisible="true">
-        <dc:Bounds x="316" y="325" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_create_subtask_di" bpmnElement="ST_create_subtask">
-        <dc:Bounds x="471" y="260" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_create_deploy_task_di" bpmnElement="ST_create_deploy_task">
-        <dc:Bounds x="471" y="360" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="gw_merge_parent_di" bpmnElement="gw_merge_parent" isMarkerVisible="true">
-        <dc:Bounds x="676" y="325" width="50" height="50" />
+        <dc:Bounds x="207" y="342" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ST_db_remove_di" bpmnElement="ST_db_remove">
-        <dc:Bounds x="831" y="288" width="100" height="80" />
+        <dc:Bounds x="310" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ST_db_checkpoint_di" bpmnElement="ST_db_checkpoint">
-        <dc:Bounds x="1011" y="260" width="100" height="80" />
+        <dc:Bounds x="490" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_git_pull_di" bpmnElement="task_git_pull">
-        <dc:Bounds x="1191" y="260" width="100" height="80" />
+        <dc:Bounds x="670" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_validate_manifests_di" bpmnElement="task_validate_manifests">
-        <dc:Bounds x="1371" y="260" width="100" height="80" />
+        <dc:Bounds x="850" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_detect_modules_di" bpmnElement="task_detect_modules">
-        <dc:Bounds x="1551" y="260" width="100" height="80" />
+        <dc:Bounds x="1030" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_changes_di" bpmnElement="gw_changes" isMarkerVisible="true">
-        <dc:Bounds x="1756" y="275" width="50" height="50" />
+        <dc:Bounds x="1205" y="335" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ST_publish_no_changes_di" bpmnElement="ST_publish_no_changes">
-        <dc:Bounds x="1681" y="210" width="100" height="80" />
+        <dc:Bounds x="1130" y="250" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="evt_end_no_changes_di" bpmnElement="evt_end_no_changes">
-        <dc:Bounds x="1893" y="232" width="36" height="36" />
+        <dc:Bounds x="1342" y="272" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_module_update_di" bpmnElement="task_module_update">
-        <dc:Bounds x="1681" y="310" width="100" height="80" />
+        <dc:Bounds x="1130" y="370" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_smoke_test_di" bpmnElement="task_smoke_test">
-        <dc:Bounds x="1861" y="288" width="100" height="80" />
+        <dc:Bounds x="1310" y="348" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_clickbot_di" bpmnElement="gw_clickbot" isMarkerVisible="true">
-        <dc:Bounds x="2066" y="275" width="50" height="50" />
+        <dc:Bounds x="1515" y="335" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_clickbot_di" bpmnElement="task_clickbot">
-        <dc:Bounds x="2171" y="260" width="100" height="80" />
+        <dc:Bounds x="1620" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_merge_clickbot_di" bpmnElement="gw_merge_clickbot" isMarkerVisible="true">
-        <dc:Bounds x="2376" y="275" width="50" height="50" />
+        <dc:Bounds x="1825" y="335" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_cache_clear_di" bpmnElement="task_cache_clear">
-        <dc:Bounds x="2661" y="260" width="100" height="80" />
+        <dc:Bounds x="2110" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_http_verify_di" bpmnElement="task_http_verify">
-        <dc:Bounds x="2841" y="260" width="100" height="80" />
+        <dc:Bounds x="2290" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_save_state_di" bpmnElement="task_save_state">
-        <dc:Bounds x="3021" y="260" width="100" height="80" />
+        <dc:Bounds x="2470" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ST_publish_deploy_done_di" bpmnElement="ST_publish_deploy_done">
-        <dc:Bounds x="3201" y="260" width="100" height="80" />
+        <dc:Bounds x="2650" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="evt_end_success_di" bpmnElement="evt_end_success">
-        <dc:Bounds x="3413" y="282" width="36" height="36" />
+        <dc:Bounds x="2862" y="342" width="36" height="36" />
       </bpmndi:BPMNShape>
       <!-- Error subprocess edges -->
       <bpmndi:BPMNEdge id="f_err_to_rollback_di" bpmnElement="f_err_to_rollback">
-        <di:waypoint x="243" y="272" />
-        <di:waypoint x="357" y="272" />
-        <di:waypoint x="357" y="200" />
-        <di:waypoint x="471" y="200" />
+        <di:waypoint x="243" y="220" />
+        <di:waypoint x="330" y="220" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_err2_di" bpmnElement="f_err2">
-        <di:waypoint x="571" y="200" />
-        <di:waypoint x="601" y="200" />
-        <di:waypoint x="601" y="265" />
-        <di:waypoint x="651" y="265" />
+        <di:waypoint x="430" y="220" />
+        <di:waypoint x="510" y="220" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_err3_di" bpmnElement="f_err3">
-        <di:waypoint x="751" y="265" />
-        <di:waypoint x="781" y="265" />
-        <di:waypoint x="781" y="250" />
-        <di:waypoint x="863" y="250" />
+        <di:waypoint x="610" y="220" />
+        <di:waypoint x="702" y="220" />
       </bpmndi:BPMNEdge>
       <!-- Main flow edges -->
-      <bpmndi:BPMNEdge id="f_start_to_parent_check_di" bpmnElement="f_start_to_parent_check">
-        <di:waypoint x="243" y="328" />
-        <di:waypoint x="273" y="328" />
-        <di:waypoint x="273" y="350" />
-        <di:waypoint x="316" y="350" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_has_parent_di" bpmnElement="f_has_parent">
-        <di:waypoint x="366" y="350" />
-        <di:waypoint x="396" y="350" />
-        <di:waypoint x="396" y="300" />
-        <di:waypoint x="471" y="300" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_no_parent_di" bpmnElement="f_no_parent">
-        <di:waypoint x="366" y="350" />
-        <di:waypoint x="411" y="350" />
-        <di:waypoint x="411" y="400" />
-        <di:waypoint x="471" y="400" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_created_to_merge_di" bpmnElement="f_created_to_merge">
-        <di:waypoint x="571" y="400" />
-        <di:waypoint x="601" y="400" />
-        <di:waypoint x="601" y="350" />
-        <di:waypoint x="676" y="350" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f_subtask_to_merge_di" bpmnElement="f_subtask_to_merge">
-        <di:waypoint x="571" y="300" />
-        <di:waypoint x="616" y="300" />
-        <di:waypoint x="616" y="350" />
-        <di:waypoint x="676" y="350" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="f01_merged_di" bpmnElement="f01_merged">
-        <di:waypoint x="726" y="350" />
-        <di:waypoint x="756" y="350" />
-        <di:waypoint x="756" y="328" />
-        <di:waypoint x="831" y="328" />
+      <bpmndi:BPMNEdge id="f_start_to_db_remove_di" bpmnElement="f_start_to_db_remove">
+        <di:waypoint x="243" y="360" />
+        <di:waypoint x="310" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_remove_to_checkpoint_di" bpmnElement="f_remove_to_checkpoint">
-        <di:waypoint x="931" y="328" />
-        <di:waypoint x="961" y="328" />
-        <di:waypoint x="961" y="300" />
-        <di:waypoint x="1011" y="300" />
+        <di:waypoint x="410" y="360" />
+        <di:waypoint x="490" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_checkpoint_to_pull_di" bpmnElement="f_checkpoint_to_pull">
-        <di:waypoint x="1111" y="300" />
-        <di:waypoint x="1191" y="300" />
+        <di:waypoint x="590" y="360" />
+        <di:waypoint x="670" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_pull_to_validate_di" bpmnElement="f_pull_to_validate">
-        <di:waypoint x="1291" y="300" />
-        <di:waypoint x="1371" y="300" />
+        <di:waypoint x="770" y="360" />
+        <di:waypoint x="850" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_validate_to_detect_di" bpmnElement="f_validate_to_detect">
-        <di:waypoint x="1471" y="300" />
-        <di:waypoint x="1551" y="300" />
+        <di:waypoint x="950" y="360" />
+        <di:waypoint x="1030" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_detect_to_gw_di" bpmnElement="f_detect_to_gw">
-        <di:waypoint x="1651" y="300" />
-        <di:waypoint x="1756" y="300" />
+        <di:waypoint x="1130" y="360" />
+        <di:waypoint x="1205" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_no_changes_di" bpmnElement="f_no_changes">
-        <di:waypoint x="1626" y="300" />
-        <di:waypoint x="1656" y="300" />
-        <di:waypoint x="1656" y="250" />
-        <di:waypoint x="1681" y="250" />
+        <di:waypoint x="1230" y="335" />
+        <di:waypoint x="1230" y="290" />
+        <di:waypoint x="1230" y="290" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_no_changes_end_di" bpmnElement="f_no_changes_end">
-        <di:waypoint x="1781" y="250" />
-        <di:waypoint x="1893" y="250" />
+        <di:waypoint x="1230" y="250" />
+        <di:waypoint x="1342" y="290" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_has_changes_di" bpmnElement="f_has_changes">
-        <di:waypoint x="1626" y="300" />
-        <di:waypoint x="1671" y="300" />
-        <di:waypoint x="1671" y="350" />
-        <di:waypoint x="1681" y="350" />
+        <di:waypoint x="1230" y="385" />
+        <di:waypoint x="1230" y="410" />
+        <di:waypoint x="1230" y="410" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f10_di" bpmnElement="f10">
-        <di:waypoint x="1781" y="350" />
-        <di:waypoint x="1811" y="350" />
-        <di:waypoint x="1811" y="328" />
-        <di:waypoint x="1861" y="328" />
+        <di:waypoint x="1230" y="410" />
+        <di:waypoint x="1310" y="388" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_smoke_to_gw_clickbot_di" bpmnElement="f_smoke_to_gw_clickbot">
-        <di:waypoint x="1961" y="328" />
-        <di:waypoint x="1991" y="328" />
-        <di:waypoint x="1991" y="300" />
-        <di:waypoint x="2066" y="300" />
+        <di:waypoint x="1410" y="388" />
+        <di:waypoint x="1515" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_run_clickbot_di" bpmnElement="f_run_clickbot">
-        <di:waypoint x="2116" y="300" />
-        <di:waypoint x="2171" y="300" />
+        <di:waypoint x="1565" y="360" />
+        <di:waypoint x="1620" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_skip_clickbot_di" bpmnElement="f_skip_clickbot">
-        <di:waypoint x="2116" y="300" />
-        <di:waypoint x="2116" y="245" />
-        <di:waypoint x="2376" y="245" />
-        <di:waypoint x="2376" y="300" />
+        <di:waypoint x="1540" y="335" />
+        <di:waypoint x="1540" y="300" />
+        <di:waypoint x="1850" y="300" />
+        <di:waypoint x="1850" y="335" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_clickbot_to_merge_di" bpmnElement="f_clickbot_to_merge">
-        <di:waypoint x="2271" y="300" />
-        <di:waypoint x="2376" y="300" />
+        <di:waypoint x="1720" y="360" />
+        <di:waypoint x="1825" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_merge_clickbot_to_cache_di" bpmnElement="f_merge_clickbot_to_cache">
-        <di:waypoint x="2426" y="300" />
-        <di:waypoint x="2661" y="300" />
+        <di:waypoint x="1875" y="360" />
+        <di:waypoint x="2110" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f12_di" bpmnElement="f12">
-        <di:waypoint x="2761" y="300" />
-        <di:waypoint x="2841" y="300" />
+        <di:waypoint x="2210" y="360" />
+        <di:waypoint x="2290" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_http_to_save_di" bpmnElement="f_http_to_save">
-        <di:waypoint x="2941" y="300" />
-        <di:waypoint x="3021" y="300" />
+        <di:waypoint x="2390" y="360" />
+        <di:waypoint x="2470" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f18_di" bpmnElement="f18">
-        <di:waypoint x="3121" y="300" />
-        <di:waypoint x="3201" y="300" />
+        <di:waypoint x="2570" y="360" />
+        <di:waypoint x="2650" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_publish_to_end_di" bpmnElement="f_publish_to_end">
-        <di:waypoint x="3301" y="300" />
-        <di:waypoint x="3413" y="300" />
+        <di:waypoint x="2750" y="360" />
+        <di:waypoint x="2862" y="360" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

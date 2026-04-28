@@ -15,7 +15,7 @@
   <bpmn:error id="Error_export_failed"    name="Export Failed"    errorCode="EXPORT_FAILED" />
 
   <!-- ── Process ───────────────────────────────────────── -->
-  <bpmn:process id="nightly-staging-sync" name="Нічний Sync Staging" isExecutable="true">
+  <bpmn:process id="nightly-staging-sync" name="Staging DB Sync" isExecutable="true">
     <bpmn:extensionElements>
       <zeebe:versionTag value="2.0" />
     </bpmn:extensionElements>

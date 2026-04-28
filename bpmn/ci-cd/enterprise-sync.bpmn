@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_sync" targetNamespace="http://tut.ua/bpmn/upstream-sync" exporter="Claude Code" exporterVersion="1.0">
-  <bpmn:process id="upstream-sync" name="Upstream Sync" isExecutable="true">
+  <bpmn:process id="upstream-sync" name="Enterprise Sync" isExecutable="true">
     <bpmn:extensionElements>
       <zeebe:versionTag value="1.8" />
     </bpmn:extensionElements>

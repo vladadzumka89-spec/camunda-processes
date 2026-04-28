@@ -35,9 +35,9 @@
       <zeebe:subscription correlationKey="=string(pr_number)" />
     </bpmn:extensionElements>
   </bpmn:message>
-  <bpmn:process id="feature-to-production" name="Feature to Production" isExecutable="true">
+  <bpmn:process id="feature-to-production" name="Feature Pipeline" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="18.0" />
+      <zeebe:versionTag value="19.0" />
     </bpmn:extensionElements>
 
     <!-- ═══ START EVENTS ═══ -->
@@ -72,50 +72,18 @@
     <bpmn:exclusiveGateway id="Merge_entry">
       <bpmn:incoming>f_pr_to_merge_entry</bpmn:incoming>
       <bpmn:incoming>f_auto_to_merge_entry</bpmn:incoming>
-      <bpmn:outgoing>f_merge_entry_to_odoo_check</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-
-    <!-- ═══ ODOO TASK ═══ -->
-    <bpmn:exclusiveGateway id="GW_odoo_check" name="Задача в Odoo існує?" default="f_odoo_create">
-      <bpmn:incoming>f_merge_entry_to_odoo_check</bpmn:incoming>
-      <bpmn:outgoing>f_odoo_create</bpmn:outgoing>
-      <bpmn:outgoing>f_odoo_skip</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-    <bpmn:serviceTask id="ST_create_odoo" name="Створити задачу в Odoo">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=odoo_webhook_url" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={_model: &#34;project.project&#34;, name: if is defined(task_name) and task_name != null and task_name != &#34;&#34; then task_name else if is defined(pr_title) and pr_title != null and pr_title != &#34;&#34; then pr_title else &#34;[feature] Нова задача&#34;, description: if is defined(task_description) and task_description != null then task_description else &#34;&#34;, _id: odoo_project_id, create_process: true}" target="body" />
-          <zeebe:input source="=&#34;odoo_response&#34;" target="result_variable_name" />
-          <zeebe:input source="=true" target="ignore_errors" />
-          <zeebe:output source="=if is defined(odoo_response) and odoo_response != null and is defined(odoo_response.id) then string(odoo_response.id) else string(process_instance_key)" target="odoo_task_id" />
-          <zeebe:output source="=process_instance_key" target="process_instance_key" />
-          <zeebe:output source="=if is defined(pr_number) and pr_number != null then pr_number else null" target="pr_number" />
-          <zeebe:output source="=if is defined(pr_url) and pr_url != null then pr_url else &#34;&#34;" target="pr_url" />
-          <zeebe:output source="=if is defined(pr_title) and pr_title != null then pr_title else &#34;&#34;" target="pr_title" />
-          <zeebe:output source="=if is defined(head_branch) and head_branch != null then head_branch else &#34;&#34;" target="head_branch" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_odoo_create</bpmn:incoming>
-      <bpmn:outgoing>f_odoo_to_merge</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:exclusiveGateway id="Merge_odoo">
-      <bpmn:incoming>f_odoo_to_merge</bpmn:incoming>
-      <bpmn:incoming>f_odoo_skip</bpmn:incoming>
-      <bpmn:outgoing>f_odoo_to_review</bpmn:outgoing>
+      <bpmn:outgoing>f_entry_to_review</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
     <!-- ═══ REVIEW LOOP ═══ -->
     <bpmn:intermediateCatchEvent id="catch_review_done" name="Чекаємо результат ревʼю">
       <bpmn:documentation>Чекає msg_review_done від standalone pr-review процесу (correlation: pr_number).</bpmn:documentation>
-      <bpmn:incoming>f_odoo_to_review</bpmn:incoming>
+      <bpmn:incoming>f_entry_to_review</bpmn:incoming>
       <bpmn:incoming>f_rework_to_review</bpmn:incoming>
       <bpmn:incoming>f_staging_rework_to_review</bpmn:incoming>
       <bpmn:incoming>f_deploy_failed_to_rework</bpmn:incoming>
       <bpmn:incoming>f_merge_failed_to_rework</bpmn:incoming>
+      <bpmn:incoming>f_validate_failed_to_rework</bpmn:incoming>
       <bpmn:outgoing>f_review_to_score</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_review_done" messageRef="Message_review_done" />
     </bpmn:intermediateCatchEvent>
@@ -141,28 +109,6 @@
       <bpmn:incoming>f_comment_to_wait</bpmn:incoming>
       <bpmn:outgoing>f_rework_to_review</bpmn:outgoing>
     </bpmn:receiveTask>
-    <bpmn:boundaryEvent id="BE_rem_rework" name="Нагадування (3 дні)" cancelActivity="false" attachedToRef="catch_pr_updated">
-      <bpmn:outgoing>f_rem_to_notify</bpmn:outgoing>
-      <bpmn:timerEventDefinition id="TimerDef_rem_rework">
-        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/P3D</bpmn:timeCycle>
-      </bpmn:timerEventDefinition>
-    </bpmn:boundaryEvent>
-    <bpmn:serviceTask id="ST_rem_rework" name="Нагадування: PR потребує виправлення">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=odoo_webhook_url" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={_model: &#34;project.project&#34;, name: &#34;⚠️ НАГАДУВАННЯ: PR #&#34; + string(pr_number) + &#34; потребує виправлення&#34;, description: &#34;PR: &#34; + pr_url + &#34;\nГілка: &#34; + head_branch, _id: odoo_project_id, process_instance_key: process_instance_key}" target="body" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_rem_to_notify</bpmn:incoming>
-      <bpmn:outgoing>f_rem_to_end</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:endEvent id="End_rem_rework" name="Нагадування надіслано">
-      <bpmn:incoming>f_rem_to_end</bpmn:incoming>
-    </bpmn:endEvent>
 
     <!-- ═══ VALIDATE BRANCH (before merge) ═══ -->
     <bpmn:serviceTask id="ST_validate_branch" name="Перевірити гілку">
@@ -245,8 +191,6 @@
           <zeebe:input source="=&#34;staging&#34;" target="server_host" />
           <zeebe:input source="=&#34;staging&#34;" target="branch" />
           <zeebe:input source="=true" target="run_smoke_test" />
-          <zeebe:input source="=if is defined(odoo_webhook_url) and odoo_webhook_url != null then odoo_webhook_url else &#34;&#34;" target="odoo_webhook_url" />
-          <zeebe:input source="=if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560" target="odoo_project_id" />
           <zeebe:input source="=&#34;light&#34;" target="test_mode" />
           <zeebe:input source="=3600000" target="ttl_ms" />
         </zeebe:ioMapping>
@@ -321,7 +265,7 @@
     <bpmn:intermediateCatchEvent id="catch_pr_ready" name="PR знято з draft">
       <bpmn:documentation>Розробник перевірив staging і зняв draft з PR — staging ок.</bpmn:documentation>
       <bpmn:incoming>f_event_to_ready</bpmn:incoming>
-      <bpmn:outgoing>f_ready_to_merge_task</bpmn:outgoing>
+      <bpmn:outgoing>f_ready_to_catch_merged</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_pr_ready" messageRef="Message_pr_ready" />
     </bpmn:intermediateCatchEvent>
     <bpmn:intermediateCatchEvent id="catch_staging_rework" name="Push: rework staging">
@@ -332,24 +276,9 @@
     </bpmn:intermediateCatchEvent>
 
     <!-- ═══ MERGE PR + PRODUCTION ═══ -->
-    <bpmn:serviceTask id="ST_create_merge_task" name="Задача: review та merge PR">
-      <bpmn:documentation>Створює задачу в Odoo для тімліда — зробити review та merge PR в main.</bpmn:documentation>
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="http-request-cicd" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=odoo_webhook_url" target="url" />
-          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={_model: &#34;project.project&#34;, name: &#34;Review та merge PR #&#34; + string(pr_number) + &#34; в main&#34;, description: &#34;PR: &#34; + pr_url + &#34;\nГілка: &#34; + head_branch + &#34;\nStaging перевірено ✅&#34;, _id: odoo_project_id, process_instance_key: process_instance_key}" target="body" />
-          <zeebe:input source="=true" target="ignore_errors" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>f_ready_to_merge_task</bpmn:incoming>
-      <bpmn:outgoing>f_merge_task_to_catch</bpmn:outgoing>
-    </bpmn:serviceTask>
     <bpmn:intermediateCatchEvent id="catch_pr_merged" name="Чекаємо merge PR в main">
       <bpmn:documentation>Чекає msg_pr_merged від GitHub webhook (correlation: pr_number).</bpmn:documentation>
-      <bpmn:incoming>f_merge_task_to_catch</bpmn:incoming>
+      <bpmn:incoming>f_ready_to_catch_merged</bpmn:incoming>
       <bpmn:outgoing>f_merged_to_prod</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_pr_merged" messageRef="Message_pr_merged" />
     </bpmn:intermediateCatchEvent>
@@ -367,13 +296,7 @@
     <bpmn:sequenceFlow id="f_start_to_catch_pr" sourceRef="start_manual" targetRef="catch_pr_created" />
     <bpmn:sequenceFlow id="f_pr_to_merge_entry" sourceRef="catch_pr_created" targetRef="Merge_entry" />
     <bpmn:sequenceFlow id="f_auto_to_merge_entry" sourceRef="start_pr_event" targetRef="Merge_entry" />
-    <bpmn:sequenceFlow id="f_merge_entry_to_odoo_check" sourceRef="Merge_entry" targetRef="GW_odoo_check" />
-    <bpmn:sequenceFlow id="f_odoo_create" sourceRef="GW_odoo_check" targetRef="ST_create_odoo" />
-    <bpmn:sequenceFlow id="f_odoo_skip" sourceRef="GW_odoo_check" targetRef="Merge_odoo">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="f_odoo_to_merge" sourceRef="ST_create_odoo" targetRef="Merge_odoo" />
-    <bpmn:sequenceFlow id="f_odoo_to_review" sourceRef="Merge_odoo" targetRef="catch_review_done" />
+    <bpmn:sequenceFlow id="f_entry_to_review" sourceRef="Merge_entry" targetRef="catch_review_done" />
     <bpmn:sequenceFlow id="f_review_to_score" sourceRef="catch_review_done" targetRef="GW_score" />
     <bpmn:sequenceFlow id="f_score_ok" sourceRef="GW_score" targetRef="ST_validate_branch" />
     <bpmn:sequenceFlow id="f_validate_to_gw" sourceRef="ST_validate_branch" targetRef="GW_validate_ok" />
@@ -387,8 +310,6 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="f_comment_to_wait" sourceRef="ST_comment_rework" targetRef="catch_pr_updated" />
     <bpmn:sequenceFlow id="f_rework_to_review" sourceRef="catch_pr_updated" targetRef="catch_review_done" />
-    <bpmn:sequenceFlow id="f_rem_to_notify" sourceRef="BE_rem_rework" targetRef="ST_rem_rework" />
-    <bpmn:sequenceFlow id="f_rem_to_end" sourceRef="ST_rem_rework" targetRef="End_rem_rework" />
     <bpmn:sequenceFlow id="f_merge_to_deploy" sourceRef="ST_merge_to_staging" targetRef="ST_publish_deploy_trigger" />
     <bpmn:sequenceFlow id="f_merge_err_to_comment" sourceRef="BE_merge_failed" targetRef="ST_comment_merge_failed" />
     <bpmn:sequenceFlow id="f_merge_failed_to_rework" sourceRef="ST_comment_merge_failed" targetRef="catch_review_done" />
@@ -408,9 +329,8 @@
     <bpmn:sequenceFlow id="f_deploy_failed_to_rework" sourceRef="ST_comment_deploy_failed" targetRef="catch_review_done" />
     <bpmn:sequenceFlow id="f_event_to_ready" sourceRef="GW_event_staging" targetRef="catch_pr_ready" />
     <bpmn:sequenceFlow id="f_event_to_staging_rework" sourceRef="GW_event_staging" targetRef="catch_staging_rework" />
-    <bpmn:sequenceFlow id="f_ready_to_merge_task" sourceRef="catch_pr_ready" targetRef="ST_create_merge_task" />
+    <bpmn:sequenceFlow id="f_ready_to_catch_merged" sourceRef="catch_pr_ready" targetRef="catch_pr_merged" />
     <bpmn:sequenceFlow id="f_staging_rework_to_review" sourceRef="catch_staging_rework" targetRef="catch_review_done" />
-    <bpmn:sequenceFlow id="f_merge_task_to_catch" sourceRef="ST_create_merge_task" targetRef="catch_pr_merged" />
     <bpmn:sequenceFlow id="f_merged_to_prod" sourceRef="catch_pr_merged" targetRef="catch_prod_deployed" />
     <bpmn:sequenceFlow id="f_prod_to_end" sourceRef="catch_prod_deployed" targetRef="evt_end_success" />
 
@@ -447,10 +367,10 @@
   <!-- ═══════════════════════════════════════════════════════════
        DI LAYOUT
        Main flow Y=200 (center line)
-       Rework branch Y=370 (low score) → Y=500 (wait push) → Y=640 (reminder)
+       Rework branch Y=370 (low score) → Y=500 (wait push)
        Merge failed Y=370
        Staging rework Y=80
-       Odoo create Y=80
+       Validate branch Y=80 (top corridor)
        ═══════════════════════════════════════════════════════════ -->
   <bpmndi:BPMNDiagram id="BPMNDiagram_ftp">
     <bpmndi:BPMNPlane id="BPMNPlane_ftp" bpmnElement="feature-to-production">
@@ -480,203 +400,173 @@
         <dc:Bounds x="385" y="175" width="50" height="50" />
       </bpmndi:BPMNShape>
 
-      <!-- ── Odoo check ── -->
-      <bpmndi:BPMNShape id="di_GW_odoo_check" bpmnElement="GW_odoo_check" isMarkerVisible="true">
-        <dc:Bounds x="505" y="175" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="di_ST_create_odoo" bpmnElement="ST_create_odoo">
-        <dc:Bounds x="580" y="50" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="di_Merge_odoo" bpmnElement="Merge_odoo" isMarkerVisible="true">
-        <dc:Bounds x="745" y="175" width="50" height="50" />
-      </bpmndi:BPMNShape>
-
       <!-- ── Review catch ── -->
       <bpmndi:BPMNShape id="di_catch_review_done" bpmnElement="catch_review_done">
-        <dc:Bounds x="862" y="182" width="36" height="36" />
+        <dc:Bounds x="512" y="182" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="838" y="222" width="84" height="27" />
+          <dc:Bounds x="488" y="222" width="84" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_note_pr_review" bpmnElement="note_pr_review">
-        <dc:Bounds x="830" y="130" width="120" height="30" />
+        <dc:Bounds x="480" y="130" width="120" height="30" />
       </bpmndi:BPMNShape>
 
       <!-- ── Score gateway ── -->
       <bpmndi:BPMNShape id="di_GW_score" bpmnElement="GW_score" isMarkerVisible="true">
-        <dc:Bounds x="965" y="175" width="50" height="50" />
+        <dc:Bounds x="615" y="175" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="955" y="153" width="70" height="14" />
+          <dc:Bounds x="605" y="153" width="70" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
       <!-- ── Rework: low score branch (Y=370, Y=500) ── -->
       <bpmndi:BPMNShape id="di_ST_comment_rework" bpmnElement="ST_comment_rework">
-        <dc:Bounds x="940" y="340" width="100" height="80" />
+        <dc:Bounds x="590" y="340" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_catch_pr_updated" bpmnElement="catch_pr_updated">
-        <dc:Bounds x="940" y="490" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="di_BE_rem_rework" bpmnElement="BE_rem_rework">
-        <dc:Bounds x="950" y="552" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="889" y="583" width="79" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="di_ST_rem_rework" bpmnElement="ST_rem_rework">
-        <dc:Bounds x="940" y="640" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="di_End_rem_rework" bpmnElement="End_rem_rework">
-        <dc:Bounds x="1102" y="662" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1082" y="702" width="76" height="27" />
-        </bpmndi:BPMNLabel>
+        <dc:Bounds x="590" y="490" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- ── Validate branch (above merge) ── -->
       <bpmndi:BPMNShape id="di_ST_validate_branch" bpmnElement="ST_validate_branch">
-        <dc:Bounds x="1090" y="50" width="100" height="80" />
+        <dc:Bounds x="740" y="50" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_GW_validate_ok" bpmnElement="GW_validate_ok" isMarkerVisible="true">
-        <dc:Bounds x="1215" y="65" width="50" height="50" />
+        <dc:Bounds x="865" y="65" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1198" y="38" width="84" height="14" />
+          <dc:Bounds x="848" y="38" width="84" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_ST_comment_validate_failed" bpmnElement="ST_comment_validate_failed">
-        <dc:Bounds x="1295" y="50" width="100" height="80" />
+        <dc:Bounds x="945" y="50" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- ── Merge to staging ── -->
       <bpmndi:BPMNShape id="di_ST_merge_to_staging" bpmnElement="ST_merge_to_staging">
-        <dc:Bounds x="1090" y="160" width="100" height="80" />
+        <dc:Bounds x="740" y="160" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_BE_merge_failed" bpmnElement="BE_merge_failed">
-        <dc:Bounds x="1100" y="222" width="36" height="36" />
+        <dc:Bounds x="750" y="222" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1056" y="256" width="64" height="14" />
+          <dc:Bounds x="706" y="256" width="64" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_ST_comment_merge_failed" bpmnElement="ST_comment_merge_failed">
-        <dc:Bounds x="1090" y="340" width="100" height="80" />
+        <dc:Bounds x="740" y="340" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- ── Deploy trigger + wait ── -->
       <bpmndi:BPMNShape id="di_ST_publish_deploy_trigger" bpmnElement="ST_publish_deploy_trigger">
-        <dc:Bounds x="1260" y="160" width="100" height="80" />
+        <dc:Bounds x="910" y="160" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_note_deploy_scheduler" bpmnElement="note_deploy_scheduler">
-        <dc:Bounds x="1240" y="110" width="140" height="30" />
+        <dc:Bounds x="890" y="110" width="140" height="30" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_catch_staging_deployed" bpmnElement="catch_staging_deployed">
-        <dc:Bounds x="1422" y="182" width="36" height="36" />
+        <dc:Bounds x="1072" y="182" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1395" y="222" width="90" height="27" />
+          <dc:Bounds x="1045" y="222" width="90" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
       <!-- ── Deploy check ── -->
       <bpmndi:BPMNShape id="di_GW_deploy_ok" bpmnElement="GW_deploy_ok" isMarkerVisible="true">
-        <dc:Bounds x="1525" y="175" width="50" height="50" />
+        <dc:Bounds x="1175" y="175" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1520" y="153" width="60" height="14" />
+          <dc:Bounds x="1170" y="153" width="60" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
-      <!-- ── Retry logic: GW_retry_type + ST_increment_retry + TE_retry_wait ── -->
+      <!-- ── Retry logic ── -->
       <bpmndi:BPMNShape id="di_GW_retry_type" bpmnElement="GW_retry_type" isMarkerVisible="true">
-        <dc:Bounds x="1525" y="265" width="50" height="50" />
+        <dc:Bounds x="1175" y="265" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1515" y="243" width="70" height="14" />
+          <dc:Bounds x="1165" y="243" width="70" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_ST_increment_retry" bpmnElement="ST_increment_retry">
-        <dc:Bounds x="1350" y="260" width="100" height="80" />
+        <dc:Bounds x="1000" y="260" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_TE_retry_wait" bpmnElement="TE_retry_wait">
-        <dc:Bounds x="1210" y="282" width="36" height="36" />
+        <dc:Bounds x="860" y="282" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1185" y="322" width="86" height="14" />
+          <dc:Bounds x="835" y="322" width="86" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="di_ST_comment_deploy_failed" bpmnElement="ST_comment_deploy_failed">
-        <dc:Bounds x="1500" y="340" width="100" height="80" />
+        <dc:Bounds x="1150" y="340" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- ── Staging deploy OK comment ── -->
       <bpmndi:BPMNShape id="di_ST_comment_staging_ok" bpmnElement="ST_comment_staging_ok">
-        <dc:Bounds x="1620" y="160" width="100" height="80" />
+        <dc:Bounds x="1270" y="160" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- ── Staging verification: event-based gateway ── -->
       <bpmndi:BPMNShape id="di_GW_event_staging" bpmnElement="GW_event_staging">
-        <dc:Bounds x="1795" y="175" width="50" height="50" />
+        <dc:Bounds x="1445" y="175" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1779" y="229" width="82" height="14" />
+          <dc:Bounds x="1429" y="229" width="82" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_catch_pr_ready" bpmnElement="catch_pr_ready">
-        <dc:Bounds x="1912" y="182" width="36" height="36" />
+        <dc:Bounds x="1562" y="182" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1888" y="222" width="84" height="14" />
+          <dc:Bounds x="1538" y="222" width="84" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_catch_staging_rework" bpmnElement="catch_staging_rework">
-        <dc:Bounds x="1802" y="72" width="36" height="36" />
+        <dc:Bounds x="1452" y="72" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1772" y="52" width="96" height="14" />
+          <dc:Bounds x="1422" y="52" width="96" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
-      <!-- ── Merge task + PR merged + prod deploy + end ── -->
-      <bpmndi:BPMNShape id="di_ST_create_merge_task" bpmnElement="ST_create_merge_task">
-        <dc:Bounds x="2010" y="160" width="100" height="80" />
-      </bpmndi:BPMNShape>
+      <!-- ── PR merged + prod deploy + end ── -->
       <bpmndi:BPMNShape id="di_catch_pr_merged" bpmnElement="catch_pr_merged">
-        <dc:Bounds x="2172" y="182" width="36" height="36" />
+        <dc:Bounds x="1662" y="182" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="2140" y="222" width="100" height="27" />
+          <dc:Bounds x="1630" y="222" width="100" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_catch_prod_deployed" bpmnElement="catch_prod_deployed">
-        <dc:Bounds x="2272" y="182" width="36" height="36" />
+        <dc:Bounds x="1762" y="182" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="2240" y="222" width="100" height="27" />
+          <dc:Bounds x="1730" y="222" width="100" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_note_nightly_deploy" bpmnElement="note_nightly_deploy">
-        <dc:Bounds x="2230" y="130" width="130" height="30" />
+        <dc:Bounds x="1720" y="130" width="130" height="30" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_evt_end_success" bpmnElement="evt_end_success">
-        <dc:Bounds x="2372" y="182" width="36" height="36" />
+        <dc:Bounds x="1862" y="182" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="2348" y="222" width="84" height="14" />
+          <dc:Bounds x="1838" y="222" width="84" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
-      <!-- ── TTL Event Subprocess (Y=780) ── -->
+      <!-- ── TTL Event Subprocess (Y=600) ── -->
       <bpmndi:BPMNShape id="di_SP_ttl" bpmnElement="SP_ttl" isExpanded="true">
-        <dc:Bounds x="160" y="780" width="350" height="120" />
+        <dc:Bounds x="160" y="600" width="350" height="120" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="290" y="762" width="90" height="14" />
+          <dc:Bounds x="290" y="582" width="90" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_SE_ttl_timer" bpmnElement="SE_ttl_timer">
-        <dc:Bounds x="212" y="832" width="36" height="36" />
+        <dc:Bounds x="212" y="652" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="207" y="872" width="46" height="14" />
+          <dc:Bounds x="207" y="692" width="46" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_EE_ttl" bpmnElement="EE_ttl">
-        <dc:Bounds x="442" y="832" width="36" height="36" />
+        <dc:Bounds x="442" y="652" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="416" y="872" width="88" height="27" />
+          <dc:Bounds x="416" y="692" width="88" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="di_f_ttl_to_end" bpmnElement="f_ttl_to_end">
-        <di:waypoint x="248" y="850" />
-        <di:waypoint x="442" y="850" />
+        <di:waypoint x="248" y="670" />
+        <di:waypoint x="442" y="670" />
       </bpmndi:BPMNEdge>
 
       <!-- ═══ EDGES ═══ -->
@@ -701,245 +591,201 @@
         <di:waypoint x="410" y="225" />
       </bpmndi:BPMNEdge>
 
-      <!-- Merge_entry → GW_odoo_check (horizontal) -->
-      <bpmndi:BPMNEdge id="di_f_merge_entry_to_odoo_check" bpmnElement="f_merge_entry_to_odoo_check">
+      <!-- Merge_entry → catch_review_done (horizontal) -->
+      <bpmndi:BPMNEdge id="di_f_entry_to_review" bpmnElement="f_entry_to_review">
         <di:waypoint x="435" y="200" />
-        <di:waypoint x="505" y="200" />
-      </bpmndi:BPMNEdge>
-
-      <!-- GW_odoo → create odoo (L-shape up) -->
-      <bpmndi:BPMNEdge id="di_f_odoo_create" bpmnElement="f_odoo_create">
-        <di:waypoint x="530" y="175" />
-        <di:waypoint x="530" y="90" />
-        <di:waypoint x="580" y="90" />
-      </bpmndi:BPMNEdge>
-
-      <!-- GW_odoo → Merge_odoo (horizontal skip) -->
-      <bpmndi:BPMNEdge id="di_f_odoo_skip" bpmnElement="f_odoo_skip">
-        <di:waypoint x="555" y="200" />
-        <di:waypoint x="745" y="200" />
-      </bpmndi:BPMNEdge>
-
-      <!-- create odoo → Merge_odoo (L-shape down) -->
-      <bpmndi:BPMNEdge id="di_f_odoo_to_merge" bpmnElement="f_odoo_to_merge">
-        <di:waypoint x="680" y="90" />
-        <di:waypoint x="770" y="90" />
-        <di:waypoint x="770" y="175" />
-      </bpmndi:BPMNEdge>
-
-      <!-- Merge_odoo → review (horizontal) -->
-      <bpmndi:BPMNEdge id="di_f_odoo_to_review" bpmnElement="f_odoo_to_review">
-        <di:waypoint x="795" y="200" />
-        <di:waypoint x="862" y="200" />
+        <di:waypoint x="512" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- review → score (horizontal) -->
       <bpmndi:BPMNEdge id="di_f_review_to_score" bpmnElement="f_review_to_score">
-        <di:waypoint x="898" y="200" />
-        <di:waypoint x="965" y="200" />
+        <di:waypoint x="548" y="200" />
+        <di:waypoint x="615" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- score → validate branch (right then up) -->
       <bpmndi:BPMNEdge id="di_f_score_ok" bpmnElement="f_score_ok">
-        <di:waypoint x="1015" y="200" />
-        <di:waypoint x="1140" y="200" />
-        <di:waypoint x="1140" y="130" />
+        <di:waypoint x="665" y="200" />
+        <di:waypoint x="790" y="200" />
+        <di:waypoint x="790" y="130" />
       </bpmndi:BPMNEdge>
 
       <!-- validate branch → GW_validate_ok (right) -->
       <bpmndi:BPMNEdge id="di_f_validate_to_gw" bpmnElement="f_validate_to_gw">
-        <di:waypoint x="1190" y="90" />
-        <di:waypoint x="1215" y="90" />
+        <di:waypoint x="840" y="90" />
+        <di:waypoint x="865" y="90" />
       </bpmndi:BPMNEdge>
 
       <!-- GW_validate_ok → merge (ok path, down-left) -->
       <bpmndi:BPMNEdge id="di_f_validate_ok" bpmnElement="f_validate_ok">
-        <di:waypoint x="1240" y="115" />
-        <di:waypoint x="1240" y="200" />
-        <di:waypoint x="1190" y="200" />
+        <di:waypoint x="890" y="115" />
+        <di:waypoint x="890" y="200" />
+        <di:waypoint x="840" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- GW_validate_ok → comment validate failed (right) -->
       <bpmndi:BPMNEdge id="di_f_validate_err" bpmnElement="f_validate_err">
-        <di:waypoint x="1265" y="90" />
-        <di:waypoint x="1295" y="90" />
+        <di:waypoint x="915" y="90" />
+        <di:waypoint x="945" y="90" />
       </bpmndi:BPMNEdge>
 
       <!-- comment validate failed → catch_review_done (left then down) -->
       <bpmndi:BPMNEdge id="di_f_validate_failed_to_rework" bpmnElement="f_validate_failed_to_rework">
-        <di:waypoint x="1295" y="90" />
-        <di:waypoint x="880" y="90" />
-        <di:waypoint x="880" y="200" />
+        <di:waypoint x="945" y="90" />
+        <di:waypoint x="530" y="90" />
+        <di:waypoint x="530" y="182" />
       </bpmndi:BPMNEdge>
 
       <!-- score → comment rework (down) -->
       <bpmndi:BPMNEdge id="di_f_score_low" bpmnElement="f_score_low">
-        <di:waypoint x="990" y="225" />
-        <di:waypoint x="990" y="340" />
+        <di:waypoint x="640" y="225" />
+        <di:waypoint x="640" y="340" />
       </bpmndi:BPMNEdge>
 
       <!-- comment rework → wait push (down) -->
       <bpmndi:BPMNEdge id="di_f_comment_to_wait" bpmnElement="f_comment_to_wait">
-        <di:waypoint x="990" y="420" />
-        <di:waypoint x="990" y="490" />
+        <di:waypoint x="640" y="420" />
+        <di:waypoint x="640" y="490" />
       </bpmndi:BPMNEdge>
 
-      <!-- wait push → review (loop back left, via Y=530 corridor) -->
+      <!-- wait push → review (loop back left) -->
       <bpmndi:BPMNEdge id="di_f_rework_to_review" bpmnElement="f_rework_to_review">
-        <di:waypoint x="940" y="530" />
-        <di:waypoint x="880" y="530" />
-        <di:waypoint x="880" y="218" />
-      </bpmndi:BPMNEdge>
-
-      <!-- BE reminder → reminder task (down from boundary) -->
-      <bpmndi:BPMNEdge id="di_f_rem_to_notify" bpmnElement="f_rem_to_notify">
-        <di:waypoint x="968" y="588" />
-        <di:waypoint x="968" y="640" />
-      </bpmndi:BPMNEdge>
-
-      <!-- reminder task → end reminder (horizontal) -->
-      <bpmndi:BPMNEdge id="di_f_rem_to_end" bpmnElement="f_rem_to_end">
-        <di:waypoint x="1040" y="680" />
-        <di:waypoint x="1102" y="680" />
+        <di:waypoint x="590" y="530" />
+        <di:waypoint x="530" y="530" />
+        <di:waypoint x="530" y="218" />
       </bpmndi:BPMNEdge>
 
       <!-- merge staging → deploy trigger (horizontal) -->
       <bpmndi:BPMNEdge id="di_f_merge_to_deploy" bpmnElement="f_merge_to_deploy">
-        <di:waypoint x="1190" y="200" />
-        <di:waypoint x="1260" y="200" />
+        <di:waypoint x="840" y="200" />
+        <di:waypoint x="910" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- BE merge failed → comment merge failed (down from boundary) -->
       <bpmndi:BPMNEdge id="di_f_merge_err_to_comment" bpmnElement="f_merge_err_to_comment">
-        <di:waypoint x="1118" y="258" />
-        <di:waypoint x="1118" y="340" />
+        <di:waypoint x="768" y="258" />
+        <di:waypoint x="768" y="340" />
       </bpmndi:BPMNEdge>
 
       <!-- comment merge failed → review (loop back left) -->
       <bpmndi:BPMNEdge id="di_f_merge_failed_to_rework" bpmnElement="f_merge_failed_to_rework">
-        <di:waypoint x="1140" y="420" />
-        <di:waypoint x="1140" y="450" />
-        <di:waypoint x="880" y="450" />
-        <di:waypoint x="880" y="218" />
+        <di:waypoint x="790" y="420" />
+        <di:waypoint x="790" y="450" />
+        <di:waypoint x="530" y="450" />
+        <di:waypoint x="530" y="218" />
       </bpmndi:BPMNEdge>
 
       <!-- deploy trigger → catch deployed (horizontal) -->
       <bpmndi:BPMNEdge id="di_f_trigger_to_catch" bpmnElement="f_trigger_to_catch">
-        <di:waypoint x="1360" y="200" />
-        <di:waypoint x="1422" y="200" />
+        <di:waypoint x="1010" y="200" />
+        <di:waypoint x="1072" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- catch deployed → GW deploy ok (horizontal) -->
       <bpmndi:BPMNEdge id="di_f_deploy_to_check" bpmnElement="f_deploy_to_check">
-        <di:waypoint x="1458" y="200" />
-        <di:waypoint x="1525" y="200" />
+        <di:waypoint x="1108" y="200" />
+        <di:waypoint x="1175" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- deploy ok → staging comment (horizontal) -->
       <bpmndi:BPMNEdge id="di_f_deploy_ok" bpmnElement="f_deploy_ok">
-        <di:waypoint x="1575" y="200" />
-        <di:waypoint x="1620" y="200" />
+        <di:waypoint x="1225" y="200" />
+        <di:waypoint x="1270" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- staging comment → event staging (horizontal) -->
       <bpmndi:BPMNEdge id="di_f_staging_comment_to_event" bpmnElement="f_staging_comment_to_event">
-        <di:waypoint x="1720" y="200" />
-        <di:waypoint x="1795" y="200" />
+        <di:waypoint x="1370" y="200" />
+        <di:waypoint x="1445" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- deploy failed → retry gateway (down) -->
       <bpmndi:BPMNEdge id="di_f_deploy_failed" bpmnElement="f_deploy_failed">
-        <di:waypoint x="1550" y="225" />
-        <di:waypoint x="1550" y="265" />
+        <di:waypoint x="1200" y="225" />
+        <di:waypoint x="1200" y="265" />
       </bpmndi:BPMNEdge>
 
       <!-- retry gateway → infra retry (left to ST_increment_retry) -->
       <bpmndi:BPMNEdge id="di_f_retry_infra" bpmnElement="f_retry_infra">
-        <di:waypoint x="1525" y="290" />
-        <di:waypoint x="1450" y="300" />
+        <di:waypoint x="1175" y="290" />
+        <di:waypoint x="1100" y="300" />
       </bpmndi:BPMNEdge>
 
       <!-- retry gateway → code fail (down to comment task) -->
       <bpmndi:BPMNEdge id="di_f_deploy_failed_code" bpmnElement="f_deploy_failed_code">
-        <di:waypoint x="1550" y="315" />
-        <di:waypoint x="1550" y="340" />
+        <di:waypoint x="1200" y="315" />
+        <di:waypoint x="1200" y="340" />
       </bpmndi:BPMNEdge>
 
       <!-- ST_increment_retry → TE_retry_wait (left) -->
       <bpmndi:BPMNEdge id="di_f_increment_to_wait" bpmnElement="f_increment_to_wait">
-        <di:waypoint x="1350" y="300" />
-        <di:waypoint x="1246" y="300" />
+        <di:waypoint x="1000" y="300" />
+        <di:waypoint x="896" y="300" />
       </bpmndi:BPMNEdge>
 
       <!-- TE_retry_wait → ST_merge_to_staging (up then left) -->
       <bpmndi:BPMNEdge id="di_f_wait_to_merge" bpmnElement="f_wait_to_merge">
-        <di:waypoint x="1228" y="282" />
-        <di:waypoint x="1228" y="240" />
-        <di:waypoint x="1140" y="240" />
+        <di:waypoint x="878" y="282" />
+        <di:waypoint x="878" y="240" />
+        <di:waypoint x="790" y="240" />
       </bpmndi:BPMNEdge>
 
       <!-- comment deploy failed → review (loop back left) -->
       <bpmndi:BPMNEdge id="di_f_deploy_failed_to_rework" bpmnElement="f_deploy_failed_to_rework">
-        <di:waypoint x="1500" y="380" />
-        <di:waypoint x="880" y="380" />
-        <di:waypoint x="880" y="218" />
+        <di:waypoint x="1150" y="380" />
+        <di:waypoint x="530" y="380" />
+        <di:waypoint x="530" y="218" />
       </bpmndi:BPMNEdge>
 
       <!-- event staging → PR ready (horizontal) -->
       <bpmndi:BPMNEdge id="di_f_event_to_ready" bpmnElement="f_event_to_ready">
-        <di:waypoint x="1845" y="200" />
-        <di:waypoint x="1912" y="200" />
+        <di:waypoint x="1495" y="200" />
+        <di:waypoint x="1562" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- event staging → staging rework (up) -->
       <bpmndi:BPMNEdge id="di_f_event_to_staging_rework" bpmnElement="f_event_to_staging_rework">
-        <di:waypoint x="1820" y="175" />
-        <di:waypoint x="1820" y="108" />
+        <di:waypoint x="1470" y="175" />
+        <di:waypoint x="1470" y="108" />
       </bpmndi:BPMNEdge>
 
       <!-- staging rework → review (loop back left via Y=90 corridor) -->
       <bpmndi:BPMNEdge id="di_f_staging_rework_to_review" bpmnElement="f_staging_rework_to_review">
-        <di:waypoint x="1802" y="90" />
-        <di:waypoint x="880" y="90" />
-        <di:waypoint x="880" y="182" />
+        <di:waypoint x="1452" y="90" />
+        <di:waypoint x="530" y="90" />
+        <di:waypoint x="530" y="182" />
       </bpmndi:BPMNEdge>
 
-      <!-- PR ready → merge task (horizontal) -->
-      <bpmndi:BPMNEdge id="di_f_ready_to_merge_task" bpmnElement="f_ready_to_merge_task">
-        <di:waypoint x="1948" y="200" />
-        <di:waypoint x="2010" y="200" />
-      </bpmndi:BPMNEdge>
-
-      <!-- merge task → catch merged (horizontal) -->
-      <bpmndi:BPMNEdge id="di_f_merge_task_to_catch" bpmnElement="f_merge_task_to_catch">
-        <di:waypoint x="2110" y="200" />
-        <di:waypoint x="2172" y="200" />
+      <!-- PR ready → catch merged (horizontal) -->
+      <bpmndi:BPMNEdge id="di_f_ready_to_catch_merged" bpmnElement="f_ready_to_catch_merged">
+        <di:waypoint x="1598" y="200" />
+        <di:waypoint x="1662" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- catch merged → catch prod deployed (horizontal) -->
       <bpmndi:BPMNEdge id="di_f_merged_to_prod" bpmnElement="f_merged_to_prod">
-        <di:waypoint x="2208" y="200" />
-        <di:waypoint x="2272" y="200" />
+        <di:waypoint x="1698" y="200" />
+        <di:waypoint x="1762" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- catch prod deployed → end (horizontal) -->
       <bpmndi:BPMNEdge id="di_f_prod_to_end" bpmnElement="f_prod_to_end">
-        <di:waypoint x="2308" y="200" />
-        <di:waypoint x="2372" y="200" />
+        <di:waypoint x="1798" y="200" />
+        <di:waypoint x="1862" y="200" />
       </bpmndi:BPMNEdge>
 
       <!-- ── Annotations ── -->
       <bpmndi:BPMNEdge id="di_assoc_pr_review" bpmnElement="assoc_pr_review">
-        <di:waypoint x="880" y="182" />
-        <di:waypoint x="880" y="160" />
+        <di:waypoint x="530" y="182" />
+        <di:waypoint x="530" y="160" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="di_assoc_nightly_deploy" bpmnElement="assoc_nightly_deploy">
-        <di:waypoint x="2290" y="182" />
-        <di:waypoint x="2290" y="160" />
+        <di:waypoint x="1780" y="182" />
+        <di:waypoint x="1780" y="160" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="di_assoc_deploy_scheduler" bpmnElement="assoc_deploy_scheduler">
-        <di:waypoint x="1310" y="160" />
-        <di:waypoint x="1310" y="140" />
+        <di:waypoint x="960" y="160" />
+        <di:waypoint x="960" y="140" />
       </bpmndi:BPMNEdge>
 
     </bpmndi:BPMNPlane>

@@ -12,7 +12,7 @@
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
 
   <!-- ── Process ───────────────────────────────────────── -->
-  <bpmn:process id="production-nightly-deploy" name="Production Nightly Deploy" isExecutable="true">
+  <bpmn:process id="production-nightly-deploy" name="Production Deploy" isExecutable="true">
     <bpmn:extensionElements>
       <zeebe:versionTag value="1.1" />
     </bpmn:extensionElements>
