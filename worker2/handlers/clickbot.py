@@ -51,9 +51,10 @@ async def _get_fk_excluded_tables(
         f"'^(mail_|discuss_|bus_|chatbot_|telegram_|meeting_|sms_|snailmail_|rating_)')"
         f") SELECT DISTINCT tbl FROM ex ORDER BY tbl"
     )
+    sql_sh = sql.replace('"', '\\"')
     result = await ssh.run(
         server,
-        f'docker exec {ctr}-db psql -U odoo -d {db} -t -A -c "{sql}"',
+        f'docker exec {ctr}-db psql -U odoo -d {db} -t -A -c "{sql_sh}"',
         timeout=30,
     )
     if result.exit_code != 0 or not result.stdout.strip():
