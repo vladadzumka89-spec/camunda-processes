@@ -41,7 +41,7 @@ async def _get_fk_excluded_tables(
     # and collation mismatch in the recursive CTE.
     sql = (
         f"WITH RECURSIVE ex(tbl, depth) AS ("
-        f"SELECT unnest(ARRAY[{seed_literal}])::text, 0 "
+        f"SELECT unnest(ARRAY[{seed_literal}])::text COLLATE C, 0 "
         f"UNION "
         f"SELECT c.relname::text, ex.depth + 1 FROM ex "
         f"JOIN pg_class pc ON pc.relname::text = ex.tbl AND pc.relkind = 'r' "
