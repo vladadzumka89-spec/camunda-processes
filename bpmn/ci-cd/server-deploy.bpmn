@@ -3,7 +3,7 @@
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
   <bpmn:process id="deploy-process" name="Server Deploy" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="15.0" />
+      <zeebe:versionTag value="15.1" />
     </bpmn:extensionElements>
     <bpmn:startEvent id="evt_start" name="Початок деплою">
       <bpmn:outgoing>f_start_to_db_remove</bpmn:outgoing>
@@ -74,7 +74,7 @@ Output: changed_modules (CSV або порожній)</bpmn:documentation>
         <zeebe:taskDefinition type="publish-message" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;msg_deploy_done&quot;" target="message_name" />
-          <zeebe:input source="=if is defined(trigger_sha) and trigger_sha != null then trigger_sha else &quot;none&quot;" target="correlation_key" />
+          <zeebe:input source="=if is defined(pr_number) and pr_number != null then string(pr_number) else &quot;none&quot;" target="correlation_key" />
           <zeebe:input source="=true" target="no_changes" />
         </zeebe:ioMapping>
         <zeebe:executionListeners>
@@ -183,7 +183,7 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <zeebe:taskDefinition type="publish-message" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;msg_deploy_done&quot;" target="message_name" />
-          <zeebe:input source="=if is defined(trigger_sha) and trigger_sha != null then trigger_sha else &quot;none&quot;" target="correlation_key" />
+          <zeebe:input source="=if is defined(pr_number) and pr_number != null then string(pr_number) else &quot;none&quot;" target="correlation_key" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f18</bpmn:incoming>
@@ -238,7 +238,7 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
     <bpmn:sequenceFlow id="f_validate_to_detect" sourceRef="task_validate_manifests" targetRef="task_detect_modules" />
     <bpmn:sequenceFlow id="f_detect_to_gw" sourceRef="task_detect_modules" targetRef="gw_changes" />
     <bpmn:sequenceFlow id="f_no_changes" name="Ні" sourceRef="gw_changes" targetRef="ST_publish_no_changes">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=changed_modules = "" and (not(is defined(install_modules)) or install_modules = "")</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=changed_modules = "" and (not(is defined(install_modules)) or install_modules = "") and not(is defined(force_rebuild) and force_rebuild = true)</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="f_no_changes_end" sourceRef="ST_publish_no_changes" targetRef="evt_end_no_changes" />
     <bpmn:sequenceFlow id="f_has_changes" name="Так" sourceRef="gw_changes" targetRef="task_module_update" />

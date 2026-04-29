@@ -14,7 +14,7 @@
   <!-- ── Process ───────────────────────────────────────── -->
   <bpmn:process id="production-nightly-deploy" name="Production Deploy" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="1.1" />
+      <zeebe:versionTag value="1.2" />
     </bpmn:extensionElements>
 
     <!-- ── 1. Timer Start ────────────────────────────── -->
@@ -22,13 +22,31 @@
       <bpmn:documentation>Тимчасово вимкнено на ніч 21.04.2026.
 ISO 8601: R/2026-04-22T20:30:00Z/P1D = 23:30 EEST щодня починаючи з 22.04.2026.
 Щоб повернути CRON: замінити на "0 30 20 * * *" і задеплоїти нову версію.</bpmn:documentation>
-      <bpmn:outgoing>f_start_to_deploy</bpmn:outgoing>
+      <bpmn:outgoing>f_start_to_zabbix</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerDef_nightly_prod">
         <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/2026-04-22T20:30:00Z/P1D</bpmn:timeCycle>
       </bpmn:timerEventDefinition>
     </bpmn:startEvent>
 
-    <!-- ── 2. Call deploy-process ─────────────────────── -->
+    <!-- ── 2. Zabbix: Create Maintenance ─────────────── -->
+    <bpmn:serviceTask id="ST_zabbix_create" name="Zabbix: увімкнути maintenance">
+      <bpmn:documentation>REST Connector: maintenance.create. Вимикає сповіщення Zabbix на час деплою (30 хв). Зберігає maintenanceId для cleanup.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="io.camunda:http-json:1" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://zabbix.dobrom.com/api_jsonrpc.php&quot;" target="url" />
+          <zeebe:input source="={&quot;Authorization&quot;: &quot;Bearer &quot; + secrets.ZABBIX_API_TOKEN, &quot;Content-Type&quot;: &quot;application/json-rpc&quot;}" target="headers" />
+          <zeebe:input source="={jsonrpc: &quot;2.0&quot;, method: &quot;maintenance.create&quot;, params: {name: &quot;deploy-&quot; + string(processInstanceKey), active_since: (now() - date and time(&quot;1970-01-01T00:00:00Z&quot;)) / duration(&quot;PT1S&quot;), active_till: (now() - date and time(&quot;1970-01-01T00:00:00Z&quot;)) / duration(&quot;PT1S&quot;) + 1500, maintenance_type: 0, tags_evaltype: 0, hosts: [{hostid: &quot;10966&quot;}, {hostid: &quot;10967&quot;}, {hostid: &quot;10968&quot;}], timeperiods: [{timeperiod_type: 0, start_date: (now() - date and time(&quot;1970-01-01T00:00:00Z&quot;)) / duration(&quot;PT1S&quot;), period: 1500}]}, id: 1}" target="body" />
+          <zeebe:input source="=&quot;zabbixCreateResponse&quot;" target="resultVariable" />
+          <zeebe:input source="={maintenanceId: response.body.result.maintenanceids[1]}" target="resultExpression" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_start_to_zabbix</bpmn:incoming>
+      <bpmn:outgoing>f_zabbix_to_deploy</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── 3. Call deploy-process ─────────────────────── -->
     <bpmn:callActivity id="call_deploy_prod" name="Деплой на production">
       <bpmn:documentation>Call Activity: deploy-process для production server. Повертає has_changes, old_commit, new_commit.</bpmn:documentation>
       <bpmn:extensionElements>
@@ -45,33 +63,64 @@ ISO 8601: R/2026-04-22T20:30:00Z/P1D = 23:30 EEST щодня починаючи 
           <zeebe:output source="=if is defined(new_commit) and new_commit != null then new_commit else &quot;none&quot;" target="new_commit" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>f_start_to_deploy</bpmn:incoming>
-      <bpmn:outgoing>f_deploy_to_gw</bpmn:outgoing>
+      <bpmn:incoming>f_zabbix_to_deploy</bpmn:incoming>
+      <bpmn:outgoing>f_deploy_to_delete</bpmn:outgoing>
     </bpmn:callActivity>
 
-    <!-- ── 2a. Deploy error → end without notification ── -->
+    <!-- ── 3a. Deploy error → delete maintenance → end ── -->
     <bpmn:boundaryEvent id="BE_deploy_error" name="Deploy failed" attachedToRef="call_deploy_prod">
-      <bpmn:outgoing>f_error_to_end</bpmn:outgoing>
+      <bpmn:outgoing>f_error_to_delete_err</bpmn:outgoing>
       <bpmn:errorEventDefinition id="ErrorDef_deploy_failed" errorRef="Error_deploy_failed" />
     </bpmn:boundaryEvent>
 
+    <bpmn:serviceTask id="ST_zabbix_delete_error" name="Zabbix: вимкнути maintenance">
+      <bpmn:documentation>Cleanup: видалити maintenance window при помилці деплою.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="io.camunda:http-json:1" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://zabbix.dobrom.com/api_jsonrpc.php&quot;" target="url" />
+          <zeebe:input source="={&quot;Authorization&quot;: &quot;Bearer &quot; + secrets.ZABBIX_API_TOKEN, &quot;Content-Type&quot;: &quot;application/json-rpc&quot;}" target="headers" />
+          <zeebe:input source="={jsonrpc: &quot;2.0&quot;, method: &quot;maintenance.delete&quot;, params: [maintenanceId], id: 1}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_error_to_delete_err</bpmn:incoming>
+      <bpmn:outgoing>f_delete_err_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
     <bpmn:endEvent id="evt_end_deploy_failed" name="Deploy failed — чекаємо наступну ніч">
-      <bpmn:incoming>f_error_to_end</bpmn:incoming>
+      <bpmn:incoming>f_delete_err_to_end</bpmn:incoming>
     </bpmn:endEvent>
 
-    <!-- ── 3. Check changes ──────────────────────────── -->
+    <!-- ── 4. Zabbix: Delete Maintenance (success path) ─ -->
+    <bpmn:serviceTask id="ST_zabbix_delete" name="Zabbix: вимкнути maintenance">
+      <bpmn:documentation>Cleanup: видалити maintenance window після завершення деплою.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="io.camunda:http-json:1" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;POST&quot;" target="method" />
+          <zeebe:input source="=&quot;https://zabbix.dobrom.com/api_jsonrpc.php&quot;" target="url" />
+          <zeebe:input source="={&quot;Authorization&quot;: &quot;Bearer &quot; + secrets.ZABBIX_API_TOKEN, &quot;Content-Type&quot;: &quot;application/json-rpc&quot;}" target="headers" />
+          <zeebe:input source="={jsonrpc: &quot;2.0&quot;, method: &quot;maintenance.delete&quot;, params: [maintenanceId], id: 1}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_deploy_to_delete</bpmn:incoming>
+      <bpmn:outgoing>f_delete_to_gw</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── 5. Check changes ──────────────────────────── -->
     <bpmn:exclusiveGateway id="GW_has_changes" name="Є зміни?" default="f_has_changes">
-      <bpmn:incoming>f_deploy_to_gw</bpmn:incoming>
+      <bpmn:incoming>f_delete_to_gw</bpmn:incoming>
       <bpmn:outgoing>f_has_changes</bpmn:outgoing>
       <bpmn:outgoing>f_no_changes</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <!-- ── 3a. No changes → END ──────────────────────── -->
+    <!-- ── 5a. No changes → END ──────────────────────── -->
     <bpmn:endEvent id="evt_end_no_changes" name="Без змін">
       <bpmn:incoming>f_no_changes</bpmn:incoming>
     </bpmn:endEvent>
 
-    <!-- ── 4. Extract PR numbers ─────────────────────── -->
+    <!-- ── 6. Extract PR numbers ─────────────────────── -->
     <bpmn:serviceTask id="ST_extract_prs" name="Витягти номери PR">
       <bpmn:documentation>SSH на production, git log old..new, парсить PR номери.</bpmn:documentation>
       <bpmn:extensionElements>
@@ -87,7 +136,7 @@ ISO 8601: R/2026-04-22T20:30:00Z/P1D = 23:30 EEST щодня починаючи 
       <bpmn:outgoing>f_extract_to_publish</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- ── 5. Publish msg_prod_deployed per PR ────────── -->
+    <!-- ── 7. Publish msg_prod_deployed per PR ────────── -->
     <bpmn:serviceTask id="ST_publish_per_pr" name="Повідомити FTP про деплой">
       <bpmn:documentation>Multi-instance: для кожного PR публікує msg_prod_deployed.</bpmn:documentation>
       <bpmn:extensionElements>
@@ -106,15 +155,18 @@ ISO 8601: R/2026-04-22T20:30:00Z/P1D = 23:30 EEST щодня починаючи 
       </bpmn:multiInstanceLoopCharacteristics>
     </bpmn:serviceTask>
 
-    <!-- ── 6. END ────────────────────────────────────── -->
+    <!-- ── 8. END ────────────────────────────────────── -->
     <bpmn:endEvent id="evt_end_success" name="Production задеплоєно">
       <bpmn:incoming>f_publish_to_end</bpmn:incoming>
     </bpmn:endEvent>
 
     <!-- ── Sequence Flows ────────────────────────────── -->
-    <bpmn:sequenceFlow id="f_error_to_end" sourceRef="BE_deploy_error" targetRef="evt_end_deploy_failed" />
-    <bpmn:sequenceFlow id="f_start_to_deploy" sourceRef="start_timer" targetRef="call_deploy_prod" />
-    <bpmn:sequenceFlow id="f_deploy_to_gw" sourceRef="call_deploy_prod" targetRef="GW_has_changes" />
+    <bpmn:sequenceFlow id="f_start_to_zabbix" sourceRef="start_timer" targetRef="ST_zabbix_create" />
+    <bpmn:sequenceFlow id="f_zabbix_to_deploy" sourceRef="ST_zabbix_create" targetRef="call_deploy_prod" />
+    <bpmn:sequenceFlow id="f_error_to_delete_err" sourceRef="BE_deploy_error" targetRef="ST_zabbix_delete_error" />
+    <bpmn:sequenceFlow id="f_delete_err_to_end" sourceRef="ST_zabbix_delete_error" targetRef="evt_end_deploy_failed" />
+    <bpmn:sequenceFlow id="f_deploy_to_delete" sourceRef="call_deploy_prod" targetRef="ST_zabbix_delete" />
+    <bpmn:sequenceFlow id="f_delete_to_gw" sourceRef="ST_zabbix_delete" targetRef="GW_has_changes" />
     <bpmn:sequenceFlow id="f_has_changes" sourceRef="GW_has_changes" targetRef="ST_extract_prs" />
     <bpmn:sequenceFlow id="f_no_changes" sourceRef="GW_has_changes" targetRef="evt_end_no_changes">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=has_changes = false</bpmn:conditionExpression>
@@ -124,54 +176,103 @@ ISO 8601: R/2026-04-22T20:30:00Z/P1D = 23:30 EEST щодня починаючи 
   </bpmn:process>
 
   <!-- ── Diagram ───────────────────────────────────────── -->
+  <!--
+    Main flow (y-center=190):
+      start(165) → zabbix_create(271) → call_deploy(441) → zabbix_delete(611) → GW(781) → extract(901) → publish(1071) → end(1241)
+    Error path (below call_deploy):
+      BE_error(473,212) → zabbix_delete_error(441,320) → end_failed(611,342)
+    No-changes path:
+      GW(781) → end_no_changes(788,282)
+  -->
   <bpmndi:BPMNDiagram id="BPMNDiagram_nightly_prod">
     <bpmndi:BPMNPlane id="BPMNPlane_nightly_prod" bpmnElement="production-nightly-deploy">
+
+      <!-- Main flow -->
       <bpmndi:BPMNShape id="di_start_timer" bpmnElement="start_timer">
         <dc:Bounds x="165" y="172" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="di_call_deploy_prod" bpmnElement="call_deploy_prod">
+      <bpmndi:BPMNShape id="di_ST_zabbix_create" bpmnElement="ST_zabbix_create">
         <dc:Bounds x="271" y="150" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="di_GW_has_changes" bpmnElement="GW_has_changes" isMarkerVisible="true">
-        <dc:Bounds x="441" y="165" width="50" height="50" />
+      <bpmndi:BPMNShape id="di_call_deploy_prod" bpmnElement="call_deploy_prod">
+        <dc:Bounds x="441" y="150" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="di_evt_end_no_changes" bpmnElement="evt_end_no_changes">
-        <dc:Bounds x="448" y="282" width="36" height="36" />
+      <bpmndi:BPMNShape id="di_ST_zabbix_delete" bpmnElement="ST_zabbix_delete">
+        <dc:Bounds x="611" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_GW_has_changes" bpmnElement="GW_has_changes" isMarkerVisible="true">
+        <dc:Bounds x="781" y="165" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_ST_extract_prs" bpmnElement="ST_extract_prs">
-        <dc:Bounds x="561" y="150" width="100" height="80" />
+        <dc:Bounds x="901" y="150" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_ST_publish_per_pr" bpmnElement="ST_publish_per_pr">
-        <dc:Bounds x="731" y="150" width="100" height="80" />
+        <dc:Bounds x="1071" y="150" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="di_evt_end_success" bpmnElement="evt_end_success">
-        <dc:Bounds x="901" y="172" width="36" height="36" />
+        <dc:Bounds x="1241" y="172" width="36" height="36" />
       </bpmndi:BPMNShape>
 
-      <bpmndi:BPMNEdge id="di_f_start_to_deploy" bpmnElement="f_start_to_deploy">
+      <!-- No-changes branch -->
+      <bpmndi:BPMNShape id="di_evt_end_no_changes" bpmnElement="evt_end_no_changes">
+        <dc:Bounds x="788" y="282" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Error path -->
+      <bpmndi:BPMNShape id="di_BE_deploy_error" bpmnElement="BE_deploy_error">
+        <dc:Bounds x="473" y="212" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_ST_zabbix_delete_error" bpmnElement="ST_zabbix_delete_error">
+        <dc:Bounds x="441" y="320" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="di_evt_end_deploy_failed" bpmnElement="evt_end_deploy_failed">
+        <dc:Bounds x="611" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Main flow edges -->
+      <bpmndi:BPMNEdge id="di_f_start_to_zabbix" bpmnElement="f_start_to_zabbix">
         <di:waypoint x="201" y="190" />
         <di:waypoint x="271" y="190" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="di_f_deploy_to_gw" bpmnElement="f_deploy_to_gw">
+      <bpmndi:BPMNEdge id="di_f_zabbix_to_deploy" bpmnElement="f_zabbix_to_deploy">
         <di:waypoint x="371" y="190" />
         <di:waypoint x="441" y="190" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f_deploy_to_delete" bpmnElement="f_deploy_to_delete">
+        <di:waypoint x="541" y="190" />
+        <di:waypoint x="611" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f_delete_to_gw" bpmnElement="f_delete_to_gw">
+        <di:waypoint x="711" y="190" />
+        <di:waypoint x="781" y="190" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="di_f_has_changes" bpmnElement="f_has_changes">
-        <di:waypoint x="491" y="190" />
-        <di:waypoint x="561" y="190" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="di_f_no_changes" bpmnElement="f_no_changes">
-        <di:waypoint x="466" y="215" />
-        <di:waypoint x="466" y="282" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="di_f_extract_to_publish" bpmnElement="f_extract_to_publish">
-        <di:waypoint x="661" y="190" />
-        <di:waypoint x="731" y="190" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="di_f_publish_to_end" bpmnElement="f_publish_to_end">
         <di:waypoint x="831" y="190" />
         <di:waypoint x="901" y="190" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f_no_changes" bpmnElement="f_no_changes">
+        <di:waypoint x="806" y="215" />
+        <di:waypoint x="806" y="282" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f_extract_to_publish" bpmnElement="f_extract_to_publish">
+        <di:waypoint x="1001" y="190" />
+        <di:waypoint x="1071" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f_publish_to_end" bpmnElement="f_publish_to_end">
+        <di:waypoint x="1171" y="190" />
+        <di:waypoint x="1241" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Error path edges -->
+      <bpmndi:BPMNEdge id="di_f_error_to_delete_err" bpmnElement="f_error_to_delete_err">
+        <di:waypoint x="491" y="248" />
+        <di:waypoint x="491" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_f_delete_err_to_end" bpmnElement="f_delete_err_to_end">
+        <di:waypoint x="541" y="360" />
+        <di:waypoint x="611" y="360" />
+      </bpmndi:BPMNEdge>
+
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>

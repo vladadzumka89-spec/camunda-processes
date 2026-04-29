@@ -149,7 +149,9 @@ def register_clickbot_handlers(
             await ssh.run(
                 server,
                 "docker exec clickbot-test-db pg_restore -U clickbot -d postgres "
-                "--no-owner --no-acl --create --exit-on-error /tmp/dump.custom",
+                "--no-owner --no-acl --create "
+                "--section=pre-data --section=data "
+                "/tmp/dump.custom",
                 check=True,
                 timeout=600,
             )

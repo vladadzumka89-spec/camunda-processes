@@ -23,7 +23,7 @@ def register_messaging_handlers(worker: ZeebeWorker, config: AppConfig) -> None:
         )
         return ZeebeClient(create_channel(auth_config))
 
-    @worker.task(task_type="publish-message", timeout_ms=30_000)
+    @worker.task(task_type="publish-message", timeout_ms=30_000, max_jobs_to_activate=4)
     async def publish_message(
         job: Job,
         message_name: str = "",

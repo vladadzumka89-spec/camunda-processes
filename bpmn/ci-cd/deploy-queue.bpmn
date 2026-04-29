@@ -11,7 +11,7 @@
 
   <bpmn:process id="deploy-scheduler" name="Deploy Queue" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="8.0" />
+      <zeebe:versionTag value="8.1" />
     </bpmn:extensionElements>
 
     <!-- ═══ START ═══ -->
@@ -33,7 +33,7 @@
           <zeebe:input source="=branch" target="branch" />
           <zeebe:input source="=run_smoke_test" target="run_smoke_test" />
           <zeebe:input source="=if is defined(test_mode) and test_mode != null then test_mode else &quot;light&quot;" target="test_mode" />
-          <zeebe:input source="=if is defined(skip_clickbot) and skip_clickbot != null then skip_clickbot else false" target="skip_clickbot" />
+          <zeebe:input source="=if is defined(skip_clickbot) and skip_clickbot != null then skip_clickbot else true" target="skip_clickbot" />
           <zeebe:input source="=if is defined(odoo_project_id) and odoo_project_id != null then odoo_project_id else 560" target="odoo_project_id" />
           <zeebe:input source="=if is defined(trigger_sha) and trigger_sha != null then trigger_sha else &quot;unknown&quot;" target="trigger_sha" />
           <zeebe:input source="=if is defined(install_modules) and install_modules != null then install_modules else &quot;&quot;" target="install_modules" />
@@ -57,7 +57,7 @@
     <!-- Catch deploy errors -->
     <bpmn:boundaryEvent id="BE_deploy_error" name="Деплой впав" attachedToRef="CA_deploy">
       <bpmn:outgoing>f_error_to_publish</bpmn:outgoing>
-      <bpmn:errorEventDefinition id="ErrorDef_deploy_failed" />
+      <bpmn:errorEventDefinition id="ErrorDef_deploy_failed" zeebe:errorMessageVariable="caught_error_message" />
     </bpmn:boundaryEvent>
 
     <!-- ═══ AFTER DEPLOY: check changes ═══ -->

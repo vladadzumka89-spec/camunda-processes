@@ -293,6 +293,16 @@ def register_staging_sync_handlers(
             )
             logger.info("staging-export: restore done")
 
+            # Скидаємо deploy-state щоб deploy pipeline завжди запускав -u all після синку БД
+            # (без цього git-pull бачить has_changes=false якщо staging гілка не змінилась
+            # і пропускає оновлення модулів — нова БД від прод залишається без нових колонок)
+            await ssh.run(
+                staging,
+                f"rm -f {staging.repo_dir}/.deploy-state/deploy_state_staging",
+                check=False,
+            )
+            logger.info("staging-export: cleared deploy-state to force -u all on next deploy")
+
             # Запускаємо web — модульні оновлення виконає deploy pipeline з git
             await ssh.run(staging, f"docker start {STG_CTR}", timeout=30, check=True)
             logger.info("staging-export: staging ready at %s:8069", staging.host)

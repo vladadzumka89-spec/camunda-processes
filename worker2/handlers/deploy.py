@@ -230,8 +230,19 @@ def register_deploy_handlers(
                 "validate_errors": f"Branch `{feature_branch}` has errors: {summary}",
             }
 
-        logger.info("validate-branch for %s: OK", feature_branch)
-        return {"validate_ok": True, "validate_errors": ""}
+        # Extract module list from the branch for use as detect-modules filter
+        list_result = await ssh.run_in_repo(
+            server,
+            "python3 -c \"\nimport subprocess, sys\n"
+            "r = subprocess.run(['git','ls-tree','--name-only','FETCH_HEAD:src/custom'],\n"
+            "    capture_output=True, text=True)\n"
+            "print(','.join(r.stdout.splitlines()))\n\"",
+            timeout=10,
+        )
+        pr_modules = list_result.stdout.strip() if list_result.success else ""
+
+        logger.info("validate-branch for %s: OK (modules: %s)", feature_branch, pr_modules)
+        return {"validate_ok": True, "validate_errors": "", "pr_modules": pr_modules}
 
     # ── validate-manifests ─────────────────────────────────────
 
@@ -314,9 +325,15 @@ def register_deploy_handlers(
         container: str = "",
         db_name: str = "",
         repo_dir: str = "",
+        pr_modules: str = "",
         **kwargs: Any,
     ) -> dict:
-        """Detect changed modules by comparing manifest version on disk vs latest_version in DB."""
+        """Detect changed modules by comparing manifest version on disk vs latest_version in DB.
+
+        When pr_modules is provided (comma-separated list from validate-branch), only modules
+        that belong to the current PR are considered — prevents cross-PR contamination where
+        a broken module from a previous deploy/rollback gets pulled into an unrelated PR's deploy.
+        """
         server = config.resolve_server(server_host)
         ctr = container or server.container
         db = db_name or server.db_name
@@ -334,9 +351,20 @@ def register_deploy_handlers(
             logger.warning("detect-modules: version scan failed (%s), falling back to 'all'", result.stderr[:200])
             return {"changed_modules": "all"}
 
-        changed = [m.strip() for m in result.stdout.strip().split("\n") if m.strip()]
-        changed_modules = ",".join(sorted(set(changed))) if changed else ""
+        changed = {m.strip() for m in result.stdout.strip().split("\n") if m.strip()}
 
+        if pr_modules:
+            pr_set = {m.strip() for m in pr_modules.split(",") if m.strip()}
+            filtered = changed & pr_set
+            if changed - pr_set:
+                logger.info(
+                    "detect-modules: skipping %d out-of-PR modules with version mismatch: %s",
+                    len(changed - pr_set),
+                    ", ".join(sorted(changed - pr_set)),
+                )
+            changed = filtered
+
+        changed_modules = ",".join(sorted(changed)) if changed else ""
         logger.info("detect-modules (manifest version): %s", changed_modules or "none")
         return {"changed_modules": changed_modules}
 
@@ -396,6 +424,7 @@ def register_deploy_handlers(
         db_name: str = "",
         container: str = "",
         repo_dir: str = "",
+        force_rebuild: bool = False,
         **kwargs: Any,
     ) -> dict:
         """Update/install changed Odoo modules, rebuild and restart container."""
@@ -405,7 +434,16 @@ def register_deploy_handlers(
         ctr = container or server.container
 
         if not changed_modules and not install_modules:
-            return {"modules_updated": ""}
+            if not force_rebuild:
+                return {"modules_updated": ""}
+            # force_rebuild=True: rebuild image without module migrations
+            lock = _get_deploy_lock(server_host)
+            async with lock:
+                await ssh.run_in_repo(server, "docker compose stop web", check=True, timeout=60)
+                await ssh.run_in_repo(server, "docker compose build web", check=True, timeout=1200)
+                await ssh.run_in_repo(server, "docker compose up -d web", check=True, timeout=60)
+            logger.info("module-update: force_rebuild on %s — image rebuilt, no migrations", server.host)
+            return {"modules_updated": "rebuilt"}
 
         lock = _get_deploy_lock(server_host)
         async with lock:
@@ -597,47 +635,55 @@ def register_deploy_handlers(
     async def _try_revert_merge(
         server: Any, branch: str, merge_sha: str,
     ) -> bool:
-        """Try to revert a merge commit on the branch. Returns True on success."""
-        try:
-            # Pull latest branch state (may have new merges from other PRs)
-            await ssh.run_in_repo(
-                server,
-                f"git fetch origin {branch} && git reset --hard origin/{branch}",
-                check=True, timeout=60,
-            )
+        """Try to revert a merge commit via a temp git worktree.
 
-            # Revert the merge commit (-m 1 = revert relative to first parent, i.e. staging)
-            result = await ssh.run_in_repo(
+        Uses a separate worktree so the main working directory (restored checkpoint)
+        is never touched — the restored code stays intact regardless of outcome.
+        """
+        tmpdir = f"/tmp/rollback_{merge_sha[:8]}"
+        cleanup = f"git worktree remove --force {tmpdir} 2>/dev/null; rm -rf {tmpdir}"
+        try:
+            await ssh.run_in_repo(server, f"git fetch origin {branch}", check=True, timeout=60)
+
+            # Create a temp worktree at the remote branch tip (includes the failing merge)
+            setup = await ssh.run_in_repo(
                 server,
-                f"git revert {merge_sha} -m 1 --no-edit",
+                f"rm -rf {tmpdir} && git worktree add --detach {tmpdir} origin/{branch}",
+                check=False, timeout=30,
+            )
+            if not setup.success:
+                logger.warning("rollback: worktree setup failed: %s", (setup.stderr or "")[:200])
+                return False
+
+            result = await ssh.run(
+                server,
+                f"cd {tmpdir} && git revert {merge_sha} -m 1 --no-edit",
                 check=False, timeout=60,
             )
-
             if not result.success:
                 logger.warning(
                     "rollback: git revert %s failed (exit %d): %s",
                     merge_sha, result.exit_code, (result.stderr or "")[:200],
                 )
-                await ssh.run_in_repo(server, "git revert --abort", check=False, timeout=15)
+                await ssh.run(server, f"cd {tmpdir} && git revert --abort 2>/dev/null || true", check=False, timeout=15)
                 return False
 
-            # Push the revert commit
-            push_result = await ssh.run_in_repo(
-                server,
-                f"git push origin {branch}",
+            push = await ssh.run(
+                server, f"cd {tmpdir} && git push origin HEAD:{branch}",
                 check=False, timeout=30,
             )
-            if not push_result.success:
-                logger.warning("rollback: push revert failed: %s", (push_result.stderr or "")[:200])
+            if not push.success:
+                logger.warning("rollback: push revert failed: %s", (push.stderr or "")[:200])
                 return False
 
-            logger.info("rollback: successfully reverted merge %s on %s", merge_sha[:8], branch)
+            logger.info("rollback: reverted merge %s on %s", merge_sha[:8], branch)
             return True
 
         except Exception as exc:
             logger.warning("rollback: revert exception: %s", exc)
-            await ssh.run_in_repo(server, "git revert --abort", check=False, timeout=15)
             return False
+        finally:
+            await ssh.run(server, cleanup, check=False, timeout=15)
 
     # ── rollback ───────────────────────────────────────────────
 
@@ -663,6 +709,9 @@ def register_deploy_handlers(
 
         async with httpx.AsyncClient(timeout=540) as client:
             resp = await client.post(restore_url, headers=headers, content=b"")
+            if resp.status_code == 404:
+                logger.info("rollback: server %s not supported by checkpoint service, skipping restore", server_name)
+                return {"restored": False}
             resp.raise_for_status()
 
         logger.info(
@@ -687,24 +736,48 @@ def register_deploy_handlers(
             logger.error("rollback on %s: VM did not come back after 10 attempts", server_host)
             return {"restored": True, "branch_fixed": False}
 
-        # Strategy: prefer git revert (preserves other PRs), fall back to force-push
+        # Strategy 1: git revert (preserves other PRs merged after checkpoint)
+        code_reverted = False
+        method = ""
         if merge_sha:
-            reverted = await _try_revert_merge(server, branch, merge_sha)
-            if reverted:
-                return {"restored": True, "branch_fixed": True, "method": "revert"}
-            logger.warning("rollback on %s: revert failed, falling back to force-push", server_host)
+            code_reverted = await _try_revert_merge(server, branch, merge_sha)
+            if code_reverted:
+                method = "revert"
+            else:
+                logger.warning("rollback on %s: revert failed, falling back to force-push", server_host)
 
-        # Force-push restored branch to GitHub (legacy / fallback)
-        try:
-            await ssh.run_in_repo(
-                server, f"git push --force origin {branch}",
-                check=True, timeout=30,
+        # Strategy 2: force-push the RESTORED (checkpoint) state.
+        # After VM restore the local HEAD is already at the pre-deploy commit — push it.
+        # Internal retry: 3 attempts with 10s delay. Never raises — always returns gracefully.
+        if not code_reverted:
+            for attempt in range(1, 4):
+                try:
+                    await ssh.run_in_repo(
+                        server, f"git push --force origin HEAD:{branch}",
+                        check=True, timeout=30,
+                    )
+                    logger.info(
+                        "rollback on %s: force-pushed checkpoint state to %s (attempt %d)",
+                        server_host, branch, attempt,
+                    )
+                    code_reverted = True
+                    method = "force-push"
+                    break
+                except Exception as exc:
+                    logger.warning(
+                        "rollback on %s: force-push attempt %d/3 failed: %s",
+                        server_host, attempt, exc,
+                    )
+                    if attempt < 3:
+                        await _sleep(10)
+
+        if not code_reverted:
+            logger.error(
+                "rollback on %s: all code rollback strategies failed — %s may still be broken",
+                server_host, branch,
             )
-            logger.info("rollback on %s: force-pushed %s to match restored state", server_host, branch)
-            return {"restored": True, "branch_fixed": True, "method": "force-push"}
-        except Exception as exc:
-            logger.error("rollback on %s: force-push failed: %s", server_host, exc)
-            return {"restored": True, "branch_fixed": False}
+
+        return {"restored": True, "branch_fixed": code_reverted, "method": method}
 
     # ── db-remove ──────────────────────────────────────────────
 
@@ -727,6 +800,9 @@ def register_deploy_handlers(
 
         async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(remove_url, headers=headers, content=b"")
+            if resp.status_code == 404:
+                logger.info("db-remove: server %s not supported by checkpoint service, skipping", server_name)
+                return {"checkpoint_removed": False}
             resp.raise_for_status()
 
         logger.info("db-remove: completed (HTTP %d), waiting 60s...", resp.status_code)
@@ -754,6 +830,9 @@ def register_deploy_handlers(
 
         async with httpx.AsyncClient(timeout=540) as client:
             resp = await client.post(checkpoint_url, headers=headers, content=b"")
+            if resp.status_code == 404:
+                logger.info("db-checkpoint: server %s not supported by checkpoint service, skipping", server_name)
+                return {"checkpoint_created": False}
             resp.raise_for_status()
 
         logger.info("db-checkpoint: completed (HTTP %d), waiting 60s...", resp.status_code)

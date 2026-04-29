@@ -536,6 +536,67 @@ def register_sync_handlers(
             check=True, workspace=ws,
         )
 
+        # On retry, workspace may already have a committed sync branch (e.g. push timed out).
+        # Detect this: if HEAD is ahead of main (origin/main), reuse that branch + push.
+        current_branch_result = await _ws_run(
+            server, "git rev-parse --abbrev-ref HEAD", check=False, workspace=ws,
+        )
+        current_branch = current_branch_result.stdout.strip()
+        if current_branch.startswith("sync/upstream-"):
+            ahead_result = await _ws_run(
+                server,
+                "git rev-list --count origin/main..HEAD",
+                check=False, workspace=ws,
+            )
+            if ahead_result.stdout.strip().isdigit() and int(ahead_result.stdout.strip()) > 0:
+                branch_name = current_branch
+                logger.info(
+                    "git-commit-push: retry detected existing commit on %s — skipping commit, pushing",
+                    branch_name,
+                )
+                push_url = _git_auth_url(deploy_pat, repo)
+                try:
+                    await _ws_run(
+                        server,
+                        f"git push --no-verify {push_url} {branch_name}",
+                        check=True, timeout=300, workspace=ws,
+                    )
+                except Exception as e:
+                    raise SyncError(_redact_pat(str(e), deploy_pat)) from None
+                logger.info("Pushed sync branch (retry): %s", branch_name)
+                # fall through to cleanup + state save below (skip commit block)
+                com_short = runbot_community_sha[:8]
+                ent_short = runbot_enterprise_sha[:8]
+                pr_title = f"[sync] Upstream {upstream_branch} ({com_short}/{ent_short})"
+                pr_body_lines = [
+                    f"## Upstream Sync — {upstream_branch}", "",
+                    "| | SHA | Date |", "|---|---|---|",
+                    f"| Community | `{com_short}` | {community_date} |",
+                    f"| Enterprise | `{ent_short}` | {enterprise_date} |", "",
+                    f"**Mode:** {sync_mode}", f"**Enterprise modules synced:** {synced_enterprise}",
+                    f"**Changed modules:** {changed_modules}", "",
+                    "### Impact on custom modules", f"Affected: **{affected_custom_count}** custom modules", "",
+                    impact_table,
+                ]
+                for d in (community_dir, enterprise_dir, workspace_dir):
+                    if d:
+                        await ssh.run(server, f"rm -rf {d}", check=False)
+                state_json = json.dumps({
+                    "community_sha": runbot_community_sha, "enterprise_sha": runbot_enterprise_sha,
+                    "synced_at": timestamp, "upstream_branch": upstream_branch,
+                })
+                repo_dir = server.repo_dir
+                await ssh.run(
+                    server,
+                    f"mkdir -p {repo_dir}/.sync-state && "
+                    f"echo '{state_json}' > {repo_dir}/.sync-state/upstream_shas.json",
+                )
+                return {
+                    "sync_branch": branch_name, "head_branch": branch_name,
+                    "base_branch": "staging", "pr_title": pr_title,
+                    "pr_body": "\n".join(pr_body_lines), "is_draft": True,
+                }
+
         # Create sync branch
         await _ws_run(server, f"git checkout -b {branch_name}", check=True, workspace=ws)
 
@@ -559,11 +620,16 @@ def register_sync_handlers(
             )
 
         safe_msg = commit_msg.replace("'", "'\\''")
-        await _ws_run(
+        commit_result = await _ws_run(
             server,
             f"git commit --no-verify -m '{safe_msg}'",
-            check=True, workspace=ws,
+            check=False, workspace=ws,
         )
+        if commit_result.exit_code != 0:
+            if "nothing to commit" in commit_result.stdout or "nothing to commit" in commit_result.stderr:
+                logger.info("git-commit-push: nothing to commit — workspace already up-to-date, skipping push")
+                return {"sync_branch": "", "nothing_to_commit": True}
+            raise SyncError(f"git commit failed: {commit_result.stdout or commit_result.stderr}")
 
         # Push sync branch to GitHub
         push_url = _git_auth_url(deploy_pat, repo)
@@ -571,7 +637,7 @@ def register_sync_handlers(
             await _ws_run(
                 server,
                 f"git push --no-verify {push_url} {branch_name}",
-                check=True, timeout=60, workspace=ws,
+                check=True, timeout=300, workspace=ws,
             )
         except Exception as e:
             raise SyncError(_redact_pat(str(e), deploy_pat)) from None
