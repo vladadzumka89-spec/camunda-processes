@@ -114,14 +114,14 @@ async def test_nfs_deliver_filename_contains_today(
     captured: list = []
 
     async def capture_stream(*args, **kwargs) -> None:
-        captured.append(args)
+        captured.append(kwargs)
 
     with patch("worker2.handlers.staging_sync.asyncssh.connect", return_value=_make_nfs_conn_mock()):
         with patch("worker2.handlers.staging_sync._stream_file", side_effect=capture_stream):
             await handlers["staging-nfs-deliver"]()
 
     assert len(captured) == 1
-    dst_path = captured[0][3]  # positional arg: dst_path
+    dst_path = captured[0]["dst_path"]
     assert expected_filename in dst_path
 
 
@@ -133,15 +133,14 @@ async def test_nfs_deliver_streams_from_kozak_to_nfs_host(
     captured: list = []
 
     async def capture_stream(*args, **kwargs) -> None:
-        captured.append(args)
+        captured.append(kwargs)
 
     with patch("worker2.handlers.staging_sync.asyncssh.connect", return_value=_make_nfs_conn_mock()):
         with patch("worker2.handlers.staging_sync._stream_file", side_effect=capture_stream):
             await handlers["staging-nfs-deliver"]()
 
     assert len(captured) == 1
-    src_host, src_path, dst_host, dst_path, key_path = captured[0]
-    assert src_host == "kozak.example.com"
-    assert dst_host == "10.1.1.99"
-    assert dst_path.startswith("/mnt/borys-nfs-import-db/")
-    assert key_path == "/root/.ssh/id_ed25519"
+    assert captured[0]["src_host"] == "kozak.example.com"
+    assert captured[0]["dst_host"] == "10.1.1.99"
+    assert captured[0]["dst_path"].startswith("/mnt/borys-nfs-import-db/")
+    assert captured[0]["key_path"] == "/root/.ssh/id_ed25519"
