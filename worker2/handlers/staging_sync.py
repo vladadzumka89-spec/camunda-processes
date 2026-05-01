@@ -380,18 +380,6 @@ def register_staging_sync_handlers(
                 check=True,
             )
 
-            logger.info("staging-nfs-deliver: removing old snapshots on %s", NFS_HOST)
-            _ssh_kw = dict(
-                username="root",
-                client_keys=[config.ssh_key_path],
-                known_hosts=None,
-                connect_timeout=30,
-                keepalive_interval=60,
-                keepalive_count_max=5,
-            )
-            async with asyncssh.connect(NFS_HOST, **_ssh_kw) as conn:
-                await conn.run(f"rm -f {NFS_DEST_DIR}/odoo_anon_*.sql.zst")
-
             logger.info("staging-nfs-deliver: streaming to %s:%s", NFS_HOST, dst_path)
             await _stream_file(
                 src_host=kozak.host,
@@ -400,6 +388,21 @@ def register_staging_sync_handlers(
                 dst_path=dst_path,
                 key_path=config.ssh_key_path,
             )
+
+            logger.info("staging-nfs-deliver: removing old snapshots on %s", NFS_HOST)
+            _ssh_kw = dict(
+                username="root",
+                client_keys=[config.ssh_key_path],
+                known_hosts=None,
+                connect_timeout=_SFTP_CONNECT_TIMEOUT,
+                keepalive_interval=60,
+                keepalive_count_max=5,
+            )
+            async with asyncssh.connect(NFS_HOST, **_ssh_kw) as conn:
+                await conn.run(
+                    f"find {NFS_DEST_DIR} -name 'odoo_anon_*.sql.zst'"
+                    f" ! -name '{dst_filename}' -delete"
+                )
 
             await ssh.run(kozak, f"rm -f {NFS_TMP_PATH}", check=False)
             logger.info("staging-nfs-deliver: done — %s", dst_filename)
