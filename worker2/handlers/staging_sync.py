@@ -31,6 +31,10 @@ SYNC_SCRIPT    = "/opt/odoo-enterprise/scripts/db_anonymize/sync.sh"
 SYNC_LOG_PATH  = "/opt/odoo-enterprise/scripts/db_anonymize/sync.log"
 INCIDENTS_FILE = Path("/app/staging-sync-incidents.md")
 
+NFS_HOST      = "10.1.1.99"
+NFS_DEST_DIR  = "/mnt/borys-nfs-import-db"
+NFS_TMP_PATH  = "/tmp/nfs_deliver_tmp.sql.zst"
+
 # kozak_demo: тимчасові staging контейнери де sync.sh будує анонімізовану БД
 KOZAK_STAGING_DB     = "odoo_staging"
 KOZAK_STAGING_DB_CTR = "odoo19-staging-db"
@@ -328,6 +332,7 @@ def register_staging_sync_handlers(
                         "db_name": staging.db_name,
                         "container": staging.container,
                         "branch": "staging",
+                        "force_rebuild": True,
                     },
                     time_to_live_in_milliseconds=300_000,
                 ),
@@ -351,3 +356,59 @@ def register_staging_sync_handlers(
         finally:
             staging_lock.release()
             logger.info("staging-export: lock released — deploys to staging unblocked")
+
+    # ── staging-nfs-deliver ───────────────────────────────────
+
+    @worker.task(task_type="staging-nfs-deliver", timeout_ms=3_600_000, max_jobs_to_activate=1)
+    async def staging_nfs_deliver(**kwargs: Any) -> dict:
+        """Deliver anonymized DB snapshot to NFS share on 10.1.1.99 (non-critical).
+
+        Runs in parallel with staging-export. Any failure is caught and logged;
+        the process always continues.
+        """
+        today = datetime.now().strftime("%Y-%m-%d")
+        dst_filename = f"odoo_anon_{today}.sql.zst"
+        dst_path = f"{NFS_DEST_DIR}/{dst_filename}"
+
+        try:
+            logger.info("staging-nfs-deliver: dumping anonymized DB on kozak_demo")
+            await ssh.run(
+                kozak,
+                f"docker exec {KOZAK_STAGING_DB_CTR} pg_dump -U {KOZAK_PG_USER} {KOZAK_STAGING_DB}"
+                f" | zstd -T0 > {NFS_TMP_PATH}",
+                timeout=1800,
+                check=True,
+            )
+
+            logger.info("staging-nfs-deliver: removing old snapshots on %s", NFS_HOST)
+            _ssh_kw = dict(
+                username="root",
+                client_keys=[config.ssh_key_path],
+                known_hosts=None,
+                connect_timeout=30,
+                keepalive_interval=60,
+                keepalive_count_max=5,
+            )
+            async with asyncssh.connect(NFS_HOST, **_ssh_kw) as conn:
+                await conn.run(f"rm -f {NFS_DEST_DIR}/odoo_anon_*.sql.zst")
+
+            logger.info("staging-nfs-deliver: streaming to %s:%s", NFS_HOST, dst_path)
+            await _stream_file(
+                src_host=kozak.host,
+                src_path=NFS_TMP_PATH,
+                dst_host=NFS_HOST,
+                dst_path=dst_path,
+                key_path=config.ssh_key_path,
+            )
+
+            await ssh.run(kozak, f"rm -f {NFS_TMP_PATH}", check=False)
+            logger.info("staging-nfs-deliver: done — %s", dst_filename)
+
+        except Exception as exc:
+            logger.error("staging-nfs-deliver: FAILED (non-critical) — %s", exc)
+            try:
+                await ssh.run(kozak, f"rm -f {NFS_TMP_PATH}", check=False)
+            except Exception:
+                pass
+
+        return {}
