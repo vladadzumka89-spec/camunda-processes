@@ -17,7 +17,7 @@
   <!-- ── Process ───────────────────────────────────────── -->
   <bpmn:process id="nightly-staging-sync" name="Staging DB Sync" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="2.0" />
+      <zeebe:versionTag value="3.0" />
     </bpmn:extensionElements>
 
     <!-- ── 1. Start Events ──────────────────────────── -->
@@ -92,7 +92,7 @@
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_dump_to_anonymize</bpmn:incoming>
-      <bpmn:outgoing>f_anonymize_to_export</bpmn:outgoing>
+      <bpmn:outgoing>f_anonymize_to_split</bpmn:outgoing>
     </bpmn:serviceTask>
 
     <bpmn:boundaryEvent id="BE_anonymize_error" name="Anonymize failed" attachedToRef="ST_anonymize">
@@ -104,14 +104,21 @@
       <bpmn:incoming>f_anonymize_error_to_end</bpmn:incoming>
     </bpmn:endEvent>
 
-    <!-- ── 6. Перенос анонімізованої БД на staging ───── -->
+    <!-- ── 6. Parallel split ──────────────────────────── -->
+    <bpmn:parallelGateway id="GW_parallel_split">
+      <bpmn:incoming>f_anonymize_to_split</bpmn:incoming>
+      <bpmn:outgoing>f_split_to_export</bpmn:outgoing>
+      <bpmn:outgoing>f_split_to_nfs</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- ── 7. Перенос анонімізованої БД на staging ───── -->
     <bpmn:serviceTask id="ST_export" name="Перенос анонімізованої БД на staging">
       <bpmn:documentation>pg_dump kozak_demo → SFTP стримінг → staging: replace odoo19 DB + docker start + msg_deploy_trigger</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="staging-export" retries="1" />
       </bpmn:extensionElements>
-      <bpmn:incoming>f_anonymize_to_export</bpmn:incoming>
-      <bpmn:outgoing>f_export_to_end</bpmn:outgoing>
+      <bpmn:incoming>f_split_to_export</bpmn:incoming>
+      <bpmn:outgoing>f_export_to_join</bpmn:outgoing>
     </bpmn:serviceTask>
 
     <bpmn:boundaryEvent id="BE_export_error" name="Export failed" attachedToRef="ST_export">
@@ -123,23 +130,44 @@
       <bpmn:incoming>f_export_error_to_end</bpmn:incoming>
     </bpmn:endEvent>
 
-    <!-- ── 7. End ────────────────────────────────────── -->
+    <!-- ── 8. Доставка дампа на NFS (некритична) ─────── -->
+    <bpmn:serviceTask id="ST_nfs_deliver" name="Доставка дампа на NFS 10.1.1.99">
+      <bpmn:documentation>Паралельна некритична задача: pg_dump kozak_demo → SFTP → 10.1.1.99:/mnt/borys-nfs-import-db/odoo_anon_YYYY-MM-DD.sql.zst. Помилки ловляться у воркері — процес не зупиняється.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="staging-nfs-deliver" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_split_to_nfs</bpmn:incoming>
+      <bpmn:outgoing>f_nfs_to_join</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ── 9. Parallel join ───────────────────────────── -->
+    <bpmn:parallelGateway id="GW_parallel_join">
+      <bpmn:incoming>f_export_to_join</bpmn:incoming>
+      <bpmn:incoming>f_nfs_to_join</bpmn:incoming>
+      <bpmn:outgoing>f_join_to_end</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- ── 10. End ────────────────────────────────────── -->
     <bpmn:endEvent id="End_success" name="Staging оновлено">
-      <bpmn:incoming>f_export_to_end</bpmn:incoming>
+      <bpmn:incoming>f_join_to_end</bpmn:incoming>
     </bpmn:endEvent>
 
     <!-- ── Sequence Flows ────────────────────────────── -->
-    <bpmn:sequenceFlow id="f_timer_to_join"          sourceRef="start_timer"       targetRef="GW_join" />
-    <bpmn:sequenceFlow id="f_manual_to_join"         sourceRef="start_manual"      targetRef="GW_join" />
-    <bpmn:sequenceFlow id="f_join_to_reset"          sourceRef="GW_join"           targetRef="ST_reset_staging" />
-    <bpmn:sequenceFlow id="f_reset_to_dump"          sourceRef="ST_reset_staging"  targetRef="ST_dump_prod" />
-    <bpmn:sequenceFlow id="f_dump_to_anonymize"      sourceRef="ST_dump_prod"      targetRef="ST_anonymize" />
-    <bpmn:sequenceFlow id="f_anonymize_to_export"    sourceRef="ST_anonymize"      targetRef="ST_export" />
-    <bpmn:sequenceFlow id="f_export_to_end"          sourceRef="ST_export"         targetRef="End_success" />
-    <bpmn:sequenceFlow id="f_merge_error_to_end"     sourceRef="BE_merge_error"    targetRef="End_merge_failed" />
-    <bpmn:sequenceFlow id="f_dump_error_to_end"      sourceRef="BE_dump_error"     targetRef="End_dump_failed" />
+    <bpmn:sequenceFlow id="f_timer_to_join"          sourceRef="start_timer"        targetRef="GW_join" />
+    <bpmn:sequenceFlow id="f_manual_to_join"         sourceRef="start_manual"       targetRef="GW_join" />
+    <bpmn:sequenceFlow id="f_join_to_reset"          sourceRef="GW_join"            targetRef="ST_reset_staging" />
+    <bpmn:sequenceFlow id="f_reset_to_dump"          sourceRef="ST_reset_staging"   targetRef="ST_dump_prod" />
+    <bpmn:sequenceFlow id="f_dump_to_anonymize"      sourceRef="ST_dump_prod"       targetRef="ST_anonymize" />
+    <bpmn:sequenceFlow id="f_anonymize_to_split"     sourceRef="ST_anonymize"       targetRef="GW_parallel_split" />
+    <bpmn:sequenceFlow id="f_split_to_export"        sourceRef="GW_parallel_split"  targetRef="ST_export" />
+    <bpmn:sequenceFlow id="f_split_to_nfs"           sourceRef="GW_parallel_split"  targetRef="ST_nfs_deliver" />
+    <bpmn:sequenceFlow id="f_export_to_join"         sourceRef="ST_export"          targetRef="GW_parallel_join" />
+    <bpmn:sequenceFlow id="f_nfs_to_join"            sourceRef="ST_nfs_deliver"     targetRef="GW_parallel_join" />
+    <bpmn:sequenceFlow id="f_join_to_end"            sourceRef="GW_parallel_join"   targetRef="End_success" />
+    <bpmn:sequenceFlow id="f_merge_error_to_end"     sourceRef="BE_merge_error"     targetRef="End_merge_failed" />
+    <bpmn:sequenceFlow id="f_dump_error_to_end"      sourceRef="BE_dump_error"      targetRef="End_dump_failed" />
     <bpmn:sequenceFlow id="f_anonymize_error_to_end" sourceRef="BE_anonymize_error" targetRef="End_anonymize_failed" />
-    <bpmn:sequenceFlow id="f_export_error_to_end"    sourceRef="BE_export_error"   targetRef="End_export_failed" />
+    <bpmn:sequenceFlow id="f_export_error_to_end"    sourceRef="BE_export_error"    targetRef="End_export_failed" />
   </bpmn:process>
 
   <!-- ── Diagram ───────────────────────────────────────── -->
@@ -202,23 +230,35 @@
         <bpmndi:BPMNLabel><dc:Bounds x="735" y="373" width="87" height="27" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
+      <bpmndi:BPMNShape id="di_GW_parallel_split" bpmnElement="GW_parallel_split">
+        <dc:Bounds x="898" y="165" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
       <bpmndi:BPMNShape id="di_ST_export" bpmnElement="ST_export">
-        <dc:Bounds x="898" y="150" width="100" height="80" />
+        <dc:Bounds x="1018" y="150" width="100" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="di_BE_export_error" bpmnElement="BE_export_error">
-        <dc:Bounds x="930" y="212" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="910" y="255" width="76" height="14" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="1050" y="212" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1030" y="255" width="76" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="di_End_export_failed" bpmnElement="End_export_failed">
-        <dc:Bounds x="930" y="330" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="905" y="373" width="87" height="27" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="1050" y="480" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1025" y="523" width="87" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_ST_nfs_deliver" bpmnElement="ST_nfs_deliver">
+        <dc:Bounds x="1018" y="340" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="di_GW_parallel_join" bpmnElement="GW_parallel_join">
+        <dc:Bounds x="1178" y="165" width="50" height="50" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="di_End_success" bpmnElement="End_success">
-        <dc:Bounds x="1068" y="172" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="1051" y="215" width="71" height="14" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="1288" y="172" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1271" y="215" width="71" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
       <!-- Edges — main flow -->
@@ -248,14 +288,37 @@
         <di:waypoint x="728" y="190" />
       </bpmndi:BPMNEdge>
 
-      <bpmndi:BPMNEdge id="di_f_anonymize_to_export" bpmnElement="f_anonymize_to_export">
+      <bpmndi:BPMNEdge id="di_f_anonymize_to_split" bpmnElement="f_anonymize_to_split">
         <di:waypoint x="828" y="190" />
         <di:waypoint x="898" y="190" />
       </bpmndi:BPMNEdge>
 
-      <bpmndi:BPMNEdge id="di_f_export_to_end" bpmnElement="f_export_to_end">
-        <di:waypoint x="998" y="190" />
-        <di:waypoint x="1068" y="190" />
+      <bpmndi:BPMNEdge id="di_f_split_to_export" bpmnElement="f_split_to_export">
+        <di:waypoint x="948" y="190" />
+        <di:waypoint x="1018" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="di_f_split_to_nfs" bpmnElement="f_split_to_nfs">
+        <di:waypoint x="923" y="215" />
+        <di:waypoint x="923" y="380" />
+        <di:waypoint x="1018" y="380" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="di_f_export_to_join" bpmnElement="f_export_to_join">
+        <di:waypoint x="1118" y="190" />
+        <di:waypoint x="1178" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="di_f_nfs_to_join" bpmnElement="f_nfs_to_join">
+        <di:waypoint x="1118" y="380" />
+        <di:waypoint x="1148" y="380" />
+        <di:waypoint x="1148" y="190" />
+        <di:waypoint x="1178" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="di_f_join_to_end" bpmnElement="f_join_to_end">
+        <di:waypoint x="1228" y="190" />
+        <di:waypoint x="1288" y="190" />
       </bpmndi:BPMNEdge>
 
       <!-- Edges — error flows -->
@@ -275,8 +338,8 @@
       </bpmndi:BPMNEdge>
 
       <bpmndi:BPMNEdge id="di_f_export_error_to_end" bpmnElement="f_export_error_to_end">
-        <di:waypoint x="948" y="248" />
-        <di:waypoint x="948" y="330" />
+        <di:waypoint x="1068" y="248" />
+        <di:waypoint x="1068" y="480" />
       </bpmndi:BPMNEdge>
 
     </bpmndi:BPMNPlane>
