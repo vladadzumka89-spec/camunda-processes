@@ -381,17 +381,26 @@ def _fetch_subdivision_lookup(conn) -> dict[str, str]:
 
 
 def _fetch_disbanded_subdivision_codes(conn) -> set[str]:
-    """Fetch 3-digit codes of disbanded subdivisions from _Reference100.
+    """Fetch keys of disbanded subdivisions from _Reference100.
 
-    A code is considered disbanded if >= 90% of its entries are either
+    A subdivision is considered disbanded if >= 90% of its entries are either
     flagged as disbanded (_Fld27513 = 0x01) or under "Неактуальні" parent.
     This handles cases where a few old employee entries lack the flag.
+
+    Returns a set containing two kinds of keys:
+      • 3-digit code (e.g. "662") for subdivisions named like "662 Чабани Київ"
+      • full name (e.g. "Гараж Сейл") for text-only subdivisions without code
+
+    Callers should check both: `code in disbanded` AND `name in disbanded`.
     """
     cursor = conn.cursor(as_dict=True)
     try:
         cursor.execute("""
             SELECT
-                SUBSTRING(d._Description, 1, 3) AS code,
+                CASE WHEN d._Description LIKE N'[0-9][0-9][0-9] %'
+                     THEN SUBSTRING(d._Description, 1, 3)
+                     ELSE d._Description
+                END AS subdiv_key,
                 CASE WHEN d._Fld27513 = 0x01 THEN 1
                      WHEN EXISTS (
                          SELECT 1 FROM _Reference100 p
@@ -401,28 +410,29 @@ def _fetch_disbanded_subdivision_codes(conn) -> set[str]:
                      ELSE 0
                 END AS is_disbanded
             FROM _Reference100 d
-            WHERE d._Description LIKE N'[0-9][0-9][0-9] %'
-              AND d._Marked = 0x00
+            WHERE d._Marked = 0x00
         """)
         from collections import defaultdict as _dd
-        code_stats: dict[str, list[int]] = _dd(lambda: [0, 0])  # [disbanded, active]
+        stats: dict[str, list[int]] = _dd(lambda: [0, 0])  # [disbanded, active]
         for row in cursor:
-            code = row["code"].strip()
+            key = row["subdiv_key"].strip()
             if row["is_disbanded"] == 1:
-                code_stats[code][0] += 1
+                stats[key][0] += 1
             else:
-                code_stats[code][1] += 1
-        # Code is disbanded if >= 90% entries have the flag/inactive parent
-        codes = set()
-        for code, (d, a) in code_stats.items():
+                stats[key][1] += 1
+        # Subdivision is disbanded if >= 90% entries have the flag/inactive parent
+        keys = set()
+        for key, (d, a) in stats.items():
             total = d + a
             if total > 0 and d / total >= 0.9:
-                codes.add(code)
+                keys.add(key)
+        # Sort: 3-digit codes first, then text names
+        sorted_keys = sorted(keys, key=lambda k: (not k[:3].isdigit(), k))
         logger.info(
             "Розформовані підрозділи: %d (%s)",
-            len(codes), ", ".join(sorted(codes)) or "немає",
+            len(keys), ", ".join(sorted_keys) or "немає",
         )
-        return codes
+        return keys
     finally:
         cursor.close()
 

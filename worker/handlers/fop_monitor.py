@@ -340,7 +340,11 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         for tb_name in active_terminal_stores_per_fop.get(fop["name"].strip(), []):
             m_tb = re.match(r'^(\d{3})\s', tb_name)
             code = m_tb.group(1) if m_tb else None
+            # Skip disbanded: check both 3-digit code AND full name (for
+            # text-only stores like "Поп Ап Острів Одеса", "Гараж Сейл")
             if code and code in disbanded_subdivision_codes:
+                continue
+            if tb_name in disbanded_subdivision_codes:
                 continue
             canonical = _tb_code_names.get(code, tb_name) if code else tb_name
             if canonical in _existing_names or (code and code in _existing_codes):
