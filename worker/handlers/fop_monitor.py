@@ -338,6 +338,11 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         # цього доповнення. Закриті (розформовані) підрозділи пропускаємо —
         # навіть якщо binding відкритий у BAS, це data-quality issue.
         for tb_name in active_terminal_stores_per_fop.get(fop["name"].strip(), []):
+            # Skip BAS service-category markers like "[Фамо]", "[Пінкі]" —
+            # це не реальні магазини, а службові категорії (часто зустрічаються
+            # як помилкові дублі активних прив'язок).
+            if tb_name.startswith('[') or tb_name.startswith('('):
+                continue
             m_tb = re.match(r'^(\d{3})\s', tb_name)
             code = m_tb.group(1) if m_tb else None
             # Skip disbanded: check both 3-digit code AND full name (for
