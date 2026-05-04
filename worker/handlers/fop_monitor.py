@@ -261,6 +261,17 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
     # Get active EDRPOU set for dedup BEFORE building summary
     active_edrpous = _get_active_fop_edrpous()
 
+    # Build reverse map: FOP name → list of subdivision names with ACTIVE
+    # terminal binding (open period, date_to is None).
+    # Why: щоб додати у список магазинів ФОПа bound-магазин з total=0,
+    # навіть якщо у виписках цього ФОПа дохід записаний на інший підрозділ.
+    active_terminal_stores_per_fop: dict[str, list[str]] = defaultdict(list)
+    for tb_name, tb_bindings in terminal_bindings.items():
+        periods = _group_binding_periods(tb_bindings)
+        for p in periods:
+            if p.get("date_to") is None and p.get("fop_name"):
+                active_terminal_stores_per_fop[p["fop_name"]].append(tb_name)
+
     # Build summary for ALL analyzed FOPs with status
     all_fops_report = []
     critical_fops = []
@@ -304,6 +315,8 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
             if m_tb and m_tb.group(1) not in _tb_code_names:
                 _tb_code_names[m_tb.group(1)] = tb_name
         stores_list = []
+        _existing_codes: set[str] = set()
+        _existing_names: set[str] = set()
         for s in stores:
             sname = s["name"]
             m_sc = re.match(r'^(\d{3})\s', sname)
@@ -315,6 +328,32 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
                 "last_date": s.get("last_date"),
                 "recent_income": s.get("recent_income", 0),
             })
+            _existing_names.add(sname)
+            if m_sc:
+                _existing_codes.add(m_sc.group(1))
+
+        # Add bound terminal stores with total=0 (if not already present).
+        # Why: у виписках підрозділ часто записаний неправильно (101 Бухгалтерія),
+        # тому магазин з активним терміналом не з'являється у списку ФОПа без
+        # цього доповнення.
+        for tb_name in active_terminal_stores_per_fop.get(fop["name"].strip(), []):
+            m_tb = re.match(r'^(\d{3})\s', tb_name)
+            code = m_tb.group(1) if m_tb else None
+            canonical = _tb_code_names.get(code, tb_name) if code else tb_name
+            if canonical in _existing_names or (code and code in _existing_codes):
+                continue
+            stores_list.append({
+                "name": canonical,
+                "doc_count": 0,
+                "total": 0.0,
+                "source": "terminal_binding",
+                "last_date": None,
+                "recent_income": 0,
+            })
+            _existing_names.add(canonical)
+            if code:
+                _existing_codes.add(code)
+
         stores_total = round(sum(s["total"] for s in stores), 2)
         income_diff = round(analysis["total_income"] - stores_total, 2)
         stores_lines = [
