@@ -335,10 +335,13 @@ def _run_fop_check(days_ahead: int = 14) -> dict:
         # Add bound terminal stores with total=0 (if not already present).
         # Why: у виписках підрозділ часто записаний неправильно (101 Бухгалтерія),
         # тому магазин з активним терміналом не з'являється у списку ФОПа без
-        # цього доповнення.
+        # цього доповнення. Закриті (розформовані) підрозділи пропускаємо —
+        # навіть якщо binding відкритий у BAS, це data-quality issue.
         for tb_name in active_terminal_stores_per_fop.get(fop["name"].strip(), []):
             m_tb = re.match(r'^(\d{3})\s', tb_name)
             code = m_tb.group(1) if m_tb else None
+            if code and code in disbanded_subdivision_codes:
+                continue
             canonical = _tb_code_names.get(code, tb_name) if code else tb_name
             if canonical in _existing_names or (code and code in _existing_codes):
                 continue
