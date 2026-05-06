@@ -264,6 +264,14 @@ _GEMINI_PROMPT = """\
 Місяці українською: січень=01, лютий=02, березень=03, квітень=04, травень=05, червень=06, \
 липень=07, серпень=08, вересень=09, жовтень=10, листопад=11, грудень=12. \
 Якщо період не вказано явно — null.
+- vat_rate: ставка ПДВ — повертай ОДНЕ з допустимих значень:
+  * "20" — якщо ПДВ 20%
+  * "14" — якщо ПДВ 14% (на сільгосппродукцію)
+  * "7" — якщо ПДВ 7% (на ліки, медтовари, культурні послуги)
+  * "0" — якщо ПДВ 0% (експорт, міжнародні перевезення)
+  * "bez_pdv" — якщо постачальник не платник ПДВ (на рахунку "Без ПДВ", немає ставки і немає суми ПДВ)
+  * null — якщо не можеш визначити з рахунку
+Шукай явну вказівку ставки ("ПДВ 20%", "ставка 7%"). Якщо явно не вказано, але є vat_amount і invoice_amount_no_vat — обчисли: rate = vat_amount / invoice_amount_no_vat * 100, округли до найближчої з допустимих ставок.
 
 Правила:
 - Суми повертай як числа (float), НЕ рядки
@@ -375,6 +383,8 @@ async def _gemini_extract_from_images(images: list[Image.Image]) -> list[dict] |
                 period = str(item["service_period"]).strip()
                 if not re.match(r"^(0[1-9]|1[0-2])\.\d{4}$", period):
                     item["service_period"] = None
+            # vat_rate — валідація + fallback (винесено у helper)
+            _ensure_vat_rate(item)
             # Очистка назв від юридичних форм і OCR-артефактів
             for name_key in ("partner_name", "fop_name"):
                 if item[name_key] is not None:
@@ -853,8 +863,38 @@ def _empty_invoice_item() -> dict:
         "partner_iban": None,
         "partner_bank_name": None,
         "service_period": None,
+        "vat_rate": None,
         "needs_review": False,
     }
+
+
+def _ensure_vat_rate(item: dict) -> None:
+    """Нормалізує і доповнює vat_rate на основі vat_amount / invoice_amount_no_vat.
+
+    Допустимі значення: "20", "14", "7", "0", "bez_pdv", "ne_pdv".
+    Якщо vat_rate невідомий — обчислюється з сум, або ставиться bez_pdv (за замовчуванням
+    коли ПДВ відсутній). Логіку bez_pdv vs ne_pdv фінансист коригує вручну.
+    """
+    allowed = {"20", "14", "7", "0", "bez_pdv", "ne_pdv"}
+    raw = item.get("vat_rate")
+    # нормалізація вхідного значення (Gemini може повернути "20%", "20.0" тощо)
+    if raw is not None:
+        s = str(raw).strip().lower().replace("%", "").replace(",", ".").strip()
+        if s.endswith(".0"):
+            s = s[:-2]
+        item["vat_rate"] = s if s in allowed else None
+    # fallback: обчислити з vat_amount / invoice_amount_no_vat або поставити bez_pdv
+    if item["vat_rate"] is None:
+        vat_amt = item.get("vat_amount")
+        amt_no_vat = item.get("invoice_amount_no_vat")
+        if vat_amt and amt_no_vat and float(amt_no_vat) > 0:
+            rate_calc = round((float(vat_amt) / float(amt_no_vat)) * 100)
+            if rate_calc in (20, 14, 7, 0):
+                item["vat_rate"] = str(rate_calc)
+                logger.info("Calculated vat_rate=%s from amounts", item["vat_rate"])
+        elif not vat_amt or vat_amt == 0:
+            item["vat_rate"] = "bez_pdv"
+            logger.info("Set vat_rate=bez_pdv (no VAT detected)")
 
 
 def _fix_ocr_amount(raw: str) -> float:
@@ -1494,6 +1534,10 @@ def register_ocr_handlers(
                     "total_amount": 0,
                     "error": "No file provided (empty attachedFile, invoice_file, odoo_task_id)",
                 }
+
+            # Гарантуємо vat_rate для всіх items (Gemini вже має, для tesseract/Excel — обчислюється)
+            for it in items:
+                _ensure_vat_rate(it)
 
             total = sum(i["invoice_amount"] or 0 for i in items)
             result = {
