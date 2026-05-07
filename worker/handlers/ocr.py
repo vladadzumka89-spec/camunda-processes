@@ -994,13 +994,26 @@ def _normalize_invoice_lines(item: dict) -> None:
         })
         logger.info("invoice_lines fallback: created 1 line from header")
 
-    item["invoice_lines"] = normalized
-
     # Summary всіх назв послуг — пронумеровано, кожна з нового рядка (HTML <br/>)
     names = [line["name"] for line in normalized if line.get("name")]
     item["invoice_lines_summary"] = "<br/>".join(
         f"{i}. {name}" for i, name in enumerate(names, start=1)
     )
+
+    # Конвертуємо в Odoo-формат (x_name, x_studio_*) для прямого create() через webhook
+    item["invoice_lines"] = [
+        {
+            "x_name": line.get("name") or "",
+            "x_studio_quantity": line.get("quantity") or 0,
+            "x_studio_unit": line.get("unit") or "",
+            "x_studio_unit_price": line.get("unit_price") or 0,
+            "x_studio_amount_no_vat": line.get("amount_no_vat") or 0,
+            "x_studio_vat_amount": line.get("vat_amount") or 0,
+            "x_studio_amount_with_vat": line.get("amount_with_vat") or 0,
+            "x_studio_vat_rate": line.get("vat_rate") or "bez_pdv",
+        }
+        for line in normalized
+    ]
 
 
 def _fix_ocr_amount(raw: str) -> float:
