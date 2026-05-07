@@ -272,6 +272,17 @@ _GEMINI_PROMPT = """\
   * "bez_pdv" — якщо постачальник не платник ПДВ (на рахунку "Без ПДВ", немає ставки і немає суми ПДВ)
   * null — якщо не можеш визначити з рахунку
 Шукай явну вказівку ставки ("ПДВ 20%", "ставка 7%"). Якщо явно не вказано, але є vat_amount і invoice_amount_no_vat — обчисли: rate = vat_amount / invoice_amount_no_vat * 100, округли до найближчої з допустимих ставок.
+- invoice_lines: ОБОВ'ЯЗКОВО — масив всіх рядків з табличної частини рахунку. Кожен рядок — об'єкт з полями:
+  * name (обов'язково): повна назва послуги/товару з рядка таблиці (стовпець "Товар", "Послуга", "Зміст")
+  * quantity: кількість з рядка (число)
+  * unit: одиниця виміру з рядка ("м2", "шт", "послуга", "грн", "год", "кг")
+  * unit_price: ціна за одиницю з рядка (число)
+  * amount_no_vat: сума без ПДВ для рядка (число або null)
+  * vat_amount: сума ПДВ для рядка (число або null)
+  * amount_with_vat: сума з ПДВ для рядка (число)
+  * vat_rate: ставка ПДВ для рядка (значення з того ж списку, що для invoice).
+Якщо в рахунку лише ОДИН рядок — поверни масив з одним об'єктом. Якщо НЕ можеш розпізнати таблицю — поверни порожній масив [] (далі підставимо з header).
+Сума всіх amount_with_vat має дорівнювати invoice_amount (загальна сума з ПДВ).
 
 Правила:
 - Суми повертай як числа (float), НЕ рядки
@@ -864,6 +875,8 @@ def _empty_invoice_item() -> dict:
         "partner_bank_name": None,
         "service_period": None,
         "vat_rate": None,
+        "invoice_lines": [],
+        "invoice_lines_summary": "",
         "needs_review": False,
     }
 
@@ -895,6 +908,99 @@ def _ensure_vat_rate(item: dict) -> None:
         elif not vat_amt or vat_amt == 0:
             item["vat_rate"] = "bez_pdv"
             logger.info("Set vat_rate=bez_pdv (no VAT detected)")
+
+
+def _normalize_invoice_lines(item: dict) -> None:
+    """Нормалізує invoice_lines (масив рядків табличної частини рахунку).
+
+    - Гарантує що поле є списком (навіть для одно-рядкового рахунку).
+    - Конвертує суми в float, валідує vat_rate в кожному рядку.
+    - Якщо Gemini не повернув жодного рядка — створює один зі значень header
+      (для зворотної сумісності з простими рахунками).
+    - Обчислює відсутні суми де можливо.
+    """
+    lines = item.get("invoice_lines") or []
+    if not isinstance(lines, list):
+        lines = []
+
+    normalized: list[dict] = []
+    allowed_rates = {"20", "14", "7", "0", "bez_pdv", "ne_pdv"}
+    for raw_line in lines:
+        if not isinstance(raw_line, dict):
+            continue
+        line = {
+            "name": None,
+            "quantity": None,
+            "unit": None,
+            "unit_price": None,
+            "amount_no_vat": None,
+            "vat_amount": None,
+            "amount_with_vat": None,
+            "vat_rate": None,
+            "nomenclature": None,
+        }
+        # name (обов'язкове) — пропускаємо рядок без назви
+        name = raw_line.get("name")
+        if not name:
+            continue
+        line["name"] = str(name).strip()
+        # quantity, unit
+        if raw_line.get("quantity") is not None:
+            try:
+                line["quantity"] = float(raw_line["quantity"])
+            except (ValueError, TypeError):
+                line["quantity"] = None
+        if raw_line.get("unit") is not None:
+            line["unit"] = str(raw_line["unit"]).strip()
+        # суми — float
+        for amt_key in ("unit_price", "amount_no_vat", "vat_amount", "amount_with_vat"):
+            if raw_line.get(amt_key) is not None:
+                try:
+                    line[amt_key] = float(raw_line[amt_key])
+                except (ValueError, TypeError):
+                    line[amt_key] = None
+        # vat_rate — нормалізація
+        rate_raw = raw_line.get("vat_rate")
+        if rate_raw is not None:
+            s = str(rate_raw).strip().lower().replace("%", "").replace(",", ".").strip()
+            if s.endswith(".0"):
+                s = s[:-2]
+            line["vat_rate"] = s if s in allowed_rates else None
+        # обчислити amount_with_vat якщо відсутнє але є no_vat і vat
+        if line["amount_with_vat"] is None and line["amount_no_vat"] is not None:
+            vat = line["vat_amount"] or 0
+            line["amount_with_vat"] = line["amount_no_vat"] + vat
+        # обчислити amount_no_vat якщо відсутнє але є with_vat і vat
+        if line["amount_no_vat"] is None and line["amount_with_vat"] is not None:
+            vat = line["vat_amount"] or 0
+            line["amount_no_vat"] = line["amount_with_vat"] - vat
+        # успадкувати vat_rate з header, якщо в рядку відсутнє
+        if line["vat_rate"] is None and item.get("vat_rate"):
+            line["vat_rate"] = item["vat_rate"]
+        normalized.append(line)
+
+    # Fallback: якщо рядків немає взагалі — створюємо один з header-даних
+    if not normalized and (item.get("invoice_line_name") or item.get("invoice_amount")):
+        normalized.append({
+            "name": item.get("invoice_line_name") or "Послуга",
+            "quantity": float(item["quantity"]) if item.get("quantity") else None,
+            "unit": item.get("unit"),
+            "unit_price": item.get("unit_price"),
+            "amount_no_vat": item.get("invoice_amount_no_vat"),
+            "vat_amount": item.get("vat_amount"),
+            "amount_with_vat": item.get("invoice_amount"),
+            "vat_rate": item.get("vat_rate"),
+            "nomenclature": None,
+        })
+        logger.info("invoice_lines fallback: created 1 line from header")
+
+    item["invoice_lines"] = normalized
+
+    # Summary всіх назв послуг — пронумеровано, кожна з нового рядка (HTML <br/>)
+    names = [line["name"] for line in normalized if line.get("name")]
+    item["invoice_lines_summary"] = "<br/>".join(
+        f"{i}. {name}" for i, name in enumerate(names, start=1)
+    )
 
 
 def _fix_ocr_amount(raw: str) -> float:
@@ -1538,6 +1644,7 @@ def register_ocr_handlers(
             # Гарантуємо vat_rate для всіх items (Gemini вже має, для tesseract/Excel — обчислюється)
             for it in items:
                 _ensure_vat_rate(it)
+                _normalize_invoice_lines(it)
 
             total = sum(i["invoice_amount"] or 0 for i in items)
             result = {
