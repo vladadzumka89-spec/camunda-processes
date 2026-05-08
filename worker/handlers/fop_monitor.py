@@ -442,7 +442,8 @@ def _run_fop_check(days_ahead: int = 21) -> dict:
         all_fops_report.append(fop_entry)
 
         # critical_fops for Camunda multi-instance: only NEW (no active process)
-        if is_critical and not has_active_process:
+        # та тільки ВІДКРИТІ ФОПи (закриті у BAS не потребують зміни терміналу)
+        if is_critical and not has_active_process and org_status != "Закрита":
             # Build stores text with employee count per store
             _stores_parts = []
             for s in stores_list[:5]:
