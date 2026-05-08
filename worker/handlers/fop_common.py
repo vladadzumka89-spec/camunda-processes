@@ -614,35 +614,40 @@ def _fetch_fop_stores(conn, year: int) -> dict:
     bas_end = f"{year + BAS_YEAR_OFFSET + 1}-01-01"
     recent_cutoff = date.today() - timedelta(days=14)
 
-    # Include subdivision from _InfoRg8773 (Додаткові відомості) — direct link
-    # to Reference100 (Підрозділ), bypassing fuzzy matching by terminal name.
-    sql_payments = """
+    # SOURCE OF TRUTH: _AccumRg10618 (накопичувальний регістр Книги Доходів).
+    # Об'єднує всі типи документів-джерел доходу:
+    #   TRef=236 (0x000000EC) — банківські надходження (gross, з комісією)
+    #   TRef=243 (0x000000F3) — ПКО (прибуткові касові)
+    #   TRef=244 (0x000000F4) — РКО / повернення покупцям (мінусові суми)
+    # Підрозділ беремо через _InfoRg8773 → _Reference100, purpose-текст —
+    # через JOIN до _Document236 (тільки для банк-документів).
+    sql_register = """
         SELECT
-            d._Fld6004RRef AS org_id,
-            d._Fld6019 AS purpose,
-            d._Fld6010 AS amount,
-            MONTH(DATEADD(year, -2000, d._Date_Time)) AS mn,
-            DATEADD(year, -2000, d._Date_Time) AS pay_date,
-            r100._Description AS subdivision
-        FROM _Document236 d
-        JOIN _Reference90 o ON d._Fld6004RRef = o._IDRRef
-        JOIN _Document236_VT6023 vt ON vt._Document236_IDRRef = d._IDRRef
-        JOIN _Reference129 r129 ON r129._IDRRef = vt._Fld6037RRef
-        LEFT JOIN _InfoRg8773 i ON i._Fld8774_RRRef = d._IDRRef
-        LEFT JOIN _Reference100 r100 ON r100._IDRRef = i._Fld8776_RRRef
-            AND r100._Description LIKE N'[0-9][0-9][0-9] %'
-        WHERE d._Posted = 0x01 AND d._Marked = 0x00
-            AND d._Date_Time >= %s AND d._Date_Time < %s
+            r._Fld10619RRef AS org_id,
+            r._Fld10621 AS amount,
+            MONTH(DATEADD(year, -2000, r._Period)) AS mn,
+            DATEADD(year, -2000, r._Period) AS pay_date,
+            r._RecorderTRef AS doc_type,
+            ref100._Description AS subdivision,
+            d236._Fld6019 AS purpose
+        FROM _AccumRg10618 r
+        JOIN _Reference90 o ON o._IDRRef = r._Fld10619RRef
+        LEFT JOIN _InfoRg8773 i ON i._Fld8774_RRRef = r._RecorderRRef
+        LEFT JOIN _Reference100 ref100 ON ref100._IDRRef = i._Fld8776_RRRef
+            AND ref100._Description LIKE N'[0-9][0-9][0-9] %'
+        LEFT JOIN _Document236 d236 ON d236._IDRRef = r._RecorderRRef
+            AND r._RecorderTRef = 0x000000EC
+        WHERE r._Period >= %s AND r._Period < %s
+            AND r._Active = 0x01
             AND o._Marked = 0x00
             AND o._Description NOT LIKE N'яяя%%'
-            AND r129._Description = N'Стоимость проданных товаров (работ, услуг)'
     """
     cursor = conn.cursor(as_dict=True)
     try:
         import time as _time
         _t0 = _time.time()
-        cursor.execute(sql_payments, (bas_start, bas_end))
-        logger.info("sql_payments виконано за %.1f сек", _time.time() - _t0)
+        cursor.execute(sql_register, (bas_start, bas_end))
+        logger.info("sql_register виконано за %.1f сек", _time.time() - _t0)
 
         _CAT_LABELS = {
             "mono": "101 Інтернет-магазин (Моно)",
@@ -669,6 +674,11 @@ def _fetch_fop_stores(conn, year: int) -> dict:
         direct_subdiv_monthly = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
         direct_subdiv_count = 0
         fallback_count = 0
+        # cash_data: org_id → { key → {count, total} }
+        # Used for: ПКО без підрозділу ("Каса (готівка)"), РКО без підрозділу
+        # ("Повернення (без підрозділу)"). Підрозділо-прив'язані РКО йдуть
+        # у direct_subdiv_data з мінусом — це автоматично віднімає від магазину.
+        cash_data: dict[bytes, dict] = defaultdict(lambda: defaultdict(lambda: {"count": 0, "total": 0.0}))
 
         for row in cursor:
             org_id = bytes(row["org_id"])
@@ -676,11 +686,13 @@ def _fetch_fop_stores(conn, year: int) -> dict:
             amount = float(row["amount"] or 0)
             month = row["mn"]
             pay_date = row["pay_date"]
-            cat = _classify_payment(purpose)
+            doc_type_bytes = row["doc_type"]
+            doc_type_int = int.from_bytes(doc_type_bytes, "big") if doc_type_bytes else 0
             subdivision = (row.get("subdivision") or "").strip() if row.get("subdivision") else ""
 
             # Prefer direct subdivision from _InfoRg8773 over fuzzy matching
-            # for ALL categories (cmps, mono, liqpay, novapay, other)
+            # — для всіх типів документів (236/243/244). Doc244 з мінусом
+            # автоматично віднімається від магазину.
             if subdivision:
                 direct_subdiv_data[org_id][subdivision]["count"] += 1
                 direct_subdiv_data[org_id][subdivision]["total"] += amount
@@ -688,160 +700,50 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 direct_subdiv_count += 1
                 continue
 
-            if cat == "cmps":
-                # Fallback: fuzzy matching by terminal name
-                fallback_count += 1
-                name, sub_code, tc = _parse_terminal_name(purpose)
-                if name:
-                    terminal_data[org_id][name]["count"] += 1
-                    terminal_data[org_id][name]["total"] += amount
-                    monthly_cmps[org_id][name][month] += amount
-                    if sub_code:
-                        terminal_data[org_id][name]["code"] = sub_code
-                    if tc:
+            if doc_type_int == 236:
+                # Банк без підрозділу — класифікуємо за purpose
+                cat = _classify_payment(purpose)
+                if cat == "cmps":
+                    # Fallback: fuzzy matching by terminal name
+                    fallback_count += 1
+                    name, sub_code, tc = _parse_terminal_name(purpose)
+                    if name:
+                        terminal_data[org_id][name]["count"] += 1
+                        terminal_data[org_id][name]["total"] += amount
+                        monthly_cmps[org_id][name][month] += amount
                         if sub_code:
-                            tc_sub_global[tc].add(sub_code)
-                            tc_sub_per_fop[org_id][tc].add(sub_code)
-                        # Track terminal codes for generic PINKY entries
-                        if name.lower().strip() in ("pinky", "pinki"):
-                            pinky_tc_map[org_id][name].add(tc)
-            else:
-                label = _CAT_LABELS[cat]
-                other_income[org_id][label]["count"] += 1
-                other_income[org_id][label]["total"] += amount
-                cur_last = other_income[org_id][label].get("last_date")
-                if pay_date and (cur_last is None or pay_date > cur_last):
-                    other_income[org_id][label]["last_date"] = pay_date
-                if pay_date and hasattr(pay_date, 'date') and pay_date.date() >= recent_cutoff:
-                    other_income[org_id][label]["recent_income"] = (
-                        other_income[org_id][label].get("recent_income", 0) + amount
-                    )
-                monthly_other[org_id][label][month] += amount
+                            terminal_data[org_id][name]["code"] = sub_code
+                        if tc:
+                            if sub_code:
+                                tc_sub_global[tc].add(sub_code)
+                                tc_sub_per_fop[org_id][tc].add(sub_code)
+                            # Track terminal codes for generic PINKY entries
+                            if name.lower().strip() in ("pinky", "pinki"):
+                                pinky_tc_map[org_id][name].add(tc)
+                else:
+                    label = _CAT_LABELS[cat]
+                    other_income[org_id][label]["count"] += 1
+                    other_income[org_id][label]["total"] += amount
+                    cur_last = other_income[org_id][label].get("last_date")
+                    if pay_date and (cur_last is None or pay_date > cur_last):
+                        other_income[org_id][label]["last_date"] = pay_date
+                    if pay_date and hasattr(pay_date, 'date') and pay_date.date() >= recent_cutoff:
+                        other_income[org_id][label]["recent_income"] = (
+                            other_income[org_id][label].get("recent_income", 0) + amount
+                        )
+                    monthly_other[org_id][label][month] += amount
+            elif doc_type_int == 243:
+                # ПКО без підрозділу
+                cash_data[org_id]["Каса (готівка)"]["count"] += 1
+                cash_data[org_id]["Каса (готівка)"]["total"] += amount
+            elif doc_type_int == 244:
+                # РКО (повернення) без підрозділу — окрема категорія, мінусова
+                cash_data[org_id]["Повернення (без підрозділу)"]["count"] += 1
+                cash_data[org_id]["Повернення (без підрозділу)"]["total"] += amount
 
-        # Cash receipts (ПКО — _Document243) split by subdivision via _InfoRg8773
-        sql_cash = """
-            SELECT d._Fld6492RRef AS org_id,
-                   d._Fld6493 AS amount,
-                   r100._Description AS subdivision
-            FROM _Document243 d
-            JOIN _Reference90 o ON d._Fld6492RRef = o._IDRRef
-            LEFT JOIN _InfoRg8773 i ON i._Fld8774_RRRef = d._IDRRef
-            LEFT JOIN _Reference100 r100 ON r100._IDRRef = i._Fld8776_RRRef
-                AND r100._Description LIKE N'[0-9][0-9][0-9] %'
-            WHERE d._Posted = 0x01 AND d._Marked = 0x00
-                AND d._Date_Time >= %s AND d._Date_Time < %s
-                AND o._Marked = 0x00
-                AND o._Description NOT LIKE N'яяя%%'
-        """
-        # cash_data: org_id → { subdivision | None → {count, total} }
-        cash_data: dict[bytes, dict] = defaultdict(lambda: defaultdict(lambda: {"count": 0, "total": 0.0}))
-        _t1 = _time.time()
-        logger.info("Початок sql_cash...")
-        cursor.execute(sql_cash, (bas_start, bas_end))
-        for row in cursor:
-            org_id = bytes(row["org_id"])
-            amount = float(row["amount"] or 0)
-            subdivision = (row.get("subdivision") or "").strip() if row.get("subdivision") else None
-            key = subdivision if subdivision else "Каса (готівка)"
-            cash_data[org_id][key]["count"] += 1
-            cash_data[org_id][key]["total"] += amount
-
-        logger.info("sql_cash виконано за %.1f сек", _time.time() - _t1)
-
-        _t2 = _time.time()
-        logger.info("Початок sql_docs...")
-        sql_docs = """
-            ;WITH store_roots AS (
-                SELECT _IDRRef FROM _Reference116
-                WHERE _Description IN (N'500 Магазини', N'600 Магазини',
-                                       N'900 Пінкі', N'900 Пінкі  Сайт',
-                                       N'Фамо обладнання')
-            ),
-            store_tree AS (
-                SELECT _IDRRef FROM _Reference116
-                WHERE _IDRRef IN (SELECT _IDRRef FROM store_roots)
-                UNION ALL
-                SELECT c._IDRRef FROM _Reference116 c
-                JOIN store_tree t ON c._ParentIDRRef = t._IDRRef
-            ),
-            known_stores AS (
-                SELECT _IDRRef FROM store_tree
-                UNION
-                SELECT _IDRRef FROM _Reference100
-                WHERE _Description LIKE N'[0-9][0-9][0-9] %' AND _Marked = 0x00
-            ),
-            fop_filter AS (
-                SELECT _IDRRef FROM _Reference90
-                WHERE _Marked = 0x00
-                    AND _Description NOT LIKE N'яяя%%'
-            ),
-            all_stores AS (
-                SELECT d._Fld6686RRef AS org_id, d._Fld6687RRef AS store_id,
-                       COUNT(*) AS doc_count, SUM(d._Fld6704) AS total_sum
-                FROM _Document247 d
-                WHERE d._Posted = 0x01 AND d._Marked = 0x00
-                    AND d._Date_Time >= %s AND d._Date_Time < %s
-                    AND d._Fld6686RRef IN (SELECT _IDRRef FROM fop_filter)
-                    AND d._Fld6687RRef IN (SELECT _IDRRef FROM known_stores)
-                GROUP BY d._Fld6686RRef, d._Fld6687RRef
-
-                UNION ALL
-
-                SELECT d._Fld6103RRef, d._Fld6104RRef,
-                       COUNT(*), SUM(d._Fld6119)
-                FROM _Document238 d
-                WHERE d._Posted = 0x01 AND d._Marked = 0x00
-                    AND d._Date_Time >= %s AND d._Date_Time < %s
-                    AND d._Fld6103RRef IN (SELECT _IDRRef FROM fop_filter)
-                    AND d._Fld6104RRef IN (SELECT _IDRRef FROM known_stores)
-                GROUP BY d._Fld6103RRef, d._Fld6104RRef
-
-                UNION ALL
-
-                SELECT d._Fld5008RRef, d._Fld5011RRef,
-                       COUNT(*), SUM(d._Fld5016)
-                FROM _Document213 d
-                WHERE d._Posted = 0x01 AND d._Marked = 0x00
-                    AND d._Date_Time >= %s AND d._Date_Time < %s
-                    AND d._Fld5008RRef IN (SELECT _IDRRef FROM fop_filter)
-                    AND d._Fld5011RRef IN (SELECT _IDRRef FROM known_stores)
-                GROUP BY d._Fld5008RRef, d._Fld5011RRef
-            )
-            ,resolved AS (
-                SELECT a.org_id, a.doc_count, a.total_sum,
-                       COALESCE(
-                           (SELECT TOP 1 MIN(x._Description) FROM _Reference100 x
-                            WHERE x._IDRRef = a.store_id
-                              AND x._Description LIKE N'[0-9][0-9][0-9] %'
-                              AND x._Marked = 0x00),
-                           r116._Description
-                       ) AS store_name
-                FROM all_stores a
-                LEFT JOIN _Reference116 r116 ON a.store_id = r116._IDRRef
-            )
-            SELECT org_id, store_name,
-                   SUM(doc_count) AS doc_count, SUM(total_sum) AS total_sum
-            FROM resolved
-            WHERE store_name IS NOT NULL
-            GROUP BY org_id, store_name
-            ORDER BY org_id, SUM(total_sum) DESC
-        """
-        cursor.execute(sql_docs, (bas_start, bas_end, bas_start, bas_end, bas_start, bas_end))
-
-        doc_data = defaultdict(list)
-        doc_row_count = 0
-        for row in cursor:
-            org_id = bytes(row["org_id"])
-            doc_data[org_id].append({
-                "name": row["store_name"].strip(),
-                "doc_count": row["doc_count"],
-                "total": float(row["total_sum"] or 0),
-            })
-            doc_row_count += 1
-        logger.info(
-            "sql_docs виконано за %.1f сек: %d записів, %d ФОП",
-            _time.time() - _t2, doc_row_count, len(doc_data),
-        )
+        # NOTE: sql_docs (рух товарів з _Document247/238/213) видалено,
+        # бо це не дохід ФОПа, а лише товарообіг по складах. Дохід тепер
+        # повністю формується з регістру Книги Доходів (_AccumRg10618).
 
         # Build terminal → subdivision mapping
         _t3 = _time.time()
@@ -873,16 +775,15 @@ def _fetch_fop_stores(conn, year: int) -> dict:
         cursor2.close()
 
         result = defaultdict(list)
-        all_org_ids = set(terminal_data.keys()) | set(doc_data.keys()) | set(other_income.keys()) | set(cash_data.keys()) | set(direct_subdiv_data.keys())
+        all_org_ids = set(terminal_data.keys()) | set(other_income.keys()) | set(cash_data.keys()) | set(direct_subdiv_data.keys())
         mapped_count = 0
         unmapped_names = set()
 
         for org_id in all_org_ids:
-            # 1) Document-based stores (from _Document247/238/213)
-            if org_id in doc_data:
-                for item in doc_data[org_id]:
-                    item["source"] = "document"
-                    result[org_id].append(item)
+            # NOTE: doc_data (sql_docs з _Document247/238/213 — рух товарів)
+            # більше НЕ додаємо у звіт. Це рух товарів зі складу, а не дохід.
+            # Сума магазинів тепер базується тільки на регістрі Книги Доходів
+            # (_AccumRg10618), щоб total_income = sum(stores) точно.
 
             # 2) cmps: terminal payments (PrivatBank)
             if org_id in terminal_data:
@@ -1036,7 +937,7 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                 for cat_name, info in sorted(
                     other_income[org_id].items(), key=lambda x: -x[1]["total"]
                 ):
-                    if info["total"] > 0:
+                    if info["total"] != 0:
                         _ld = info.get("last_date")
                         result[org_id].append({
                             "name": cat_name,
@@ -1047,10 +948,10 @@ def _fetch_fop_stores(conn, year: int) -> dict:
                             "recent_income": info.get("recent_income", 0),
                         })
 
-            # 4) Cash receipts (ПКО — _Document243) split by subdivision
+            # 4) Cash without subdivision (ПКО) + returns without subdivision (РКО)
             if org_id in cash_data:
                 for key, info in cash_data[org_id].items():
-                    if info["total"] > 0:
+                    if info["total"] != 0:
                         result[org_id].append({
                             "name": key,
                             "doc_count": info["count"],
