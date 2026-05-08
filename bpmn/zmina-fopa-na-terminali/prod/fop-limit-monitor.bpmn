@@ -34,7 +34,7 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="fop-limit-check" retries="1" />
         <zeebe:ioMapping>
-          <zeebe:input source="= if is defined(days_ahead) and days_ahead != null then days_ahead else 14" target="days_ahead" />
+          <zeebe:input source="= if is defined(days_ahead) and days_ahead != null then days_ahead else 21" target="days_ahead" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_to_check</bpmn:incoming>
