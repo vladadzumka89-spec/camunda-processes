@@ -684,6 +684,16 @@ def _run_fop_check(days_ahead: int = 21) -> dict:
         else:
             fop_entry["current_terminal_stores"] = ""
 
+    # Re-sort report: active FOPs (with terminal) on top, by income% desc.
+    # Why: ФОПи без активного терміналу часто вже перевищили ліміт історично
+    # і не потребують уваги — їх показуємо внизу, щоб не спамити дашборд.
+    all_fops_report.sort(
+        key=lambda f: (
+            not bool(f.get("current_terminal_stores")),  # активні зверху
+            -f.get("income_percent", 0),                  # серед них — за %
+        )
+    )
+
     # Filter critical_fops: keep FOPs with terminal stores OR wholesale
     before_filter = len(critical_fops)
     critical_fops = [
