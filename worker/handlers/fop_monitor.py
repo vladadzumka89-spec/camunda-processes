@@ -185,7 +185,7 @@ def _get_active_fop_edrpous() -> set[str]:
         return set()
 
 
-def _run_fop_check(days_ahead: int = 21) -> dict:
+def _run_fop_check(days_ahead: int = 18) -> dict:
     """Synchronous: full FOP limit check (DB → analysis → JSON report).
 
     Returns summary dict for Camunda process variables.
@@ -746,13 +746,13 @@ def register_fop_monitor_handlers(
 
     @worker.task(task_type="fop-limit-check", timeout_ms=300_000)
     async def fop_limit_check(
-        days_ahead: int = 21,
+        days_ahead: int = 18,
         **kwargs: Any,
     ) -> dict:
         """Перевірка лімітів ФОП — підключення до БД BAS, аналіз, JSON звіт.
 
         Input variables:
-            days_ahead (int): горизонт попередження у днях (default: 21)
+            days_ahead (int): горизонт попередження у днях (default: 18)
 
         Output variables:
             report_date (str): дата звіту (ISO)
