@@ -288,8 +288,9 @@ _GEMINI_PROMPT = """\
 
 Правила:
 - Суми повертай як числа (float), НЕ рядки
-- Якщо ПДВ немає — invoice_amount_no_vat і vat_amount = null
-- Якщо ПДВ є — invoice_amount = сума з ПДВ (Всього із ПДВ)
+- Якщо ПДВ немає (постачальник не платник ПДВ, ставка 0% або "Без ПДВ"): \
+invoice_amount_no_vat = invoice_amount (повна сума), vat_amount = 0. НЕ null.
+- Якщо ПДВ є — invoice_amount = сума з ПДВ (Всього із ПДВ), invoice_amount_no_vat = сума без ПДВ, vat_amount = сума ПДВ
 - partner_name — постачальник або орендодавець, fop_name — покупець або орендар
 - partner_name, fop_name, partner_bank_name — повертай в ОРИГІНАЛЬНОМУ написанні з документа. \
 Якщо назва написана кирилицею — НЕ транслітеруй у латиницю. \
@@ -915,6 +916,16 @@ def _ensure_vat_rate(item: dict) -> None:
         elif not vat_amt or vat_amt == 0:
             item["vat_rate"] = "bez_pdv"
             logger.info("Set vat_rate=bez_pdv (no VAT detected)")
+
+    # Нормалізація сум для випадків без ПДВ:
+    # invoice_amount_no_vat має дорівнювати invoice_amount, vat_amount = 0
+    if item.get("vat_rate") in ("bez_pdv", "ne_pdv", "0"):
+        invoice_amt = item.get("invoice_amount")
+        if invoice_amt is not None:
+            if item.get("invoice_amount_no_vat") in (None, 0, 0.0):
+                item["invoice_amount_no_vat"] = float(invoice_amt)
+            if item.get("vat_amount") is None:
+                item["vat_amount"] = 0.0
 
 
 def _normalize_invoice_lines(item: dict) -> None:
