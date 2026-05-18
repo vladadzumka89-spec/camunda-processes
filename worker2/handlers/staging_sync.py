@@ -138,7 +138,7 @@ async def _stream_dump_to_kozak(
 
     await ssh.run(
         prod_server,
-        f"docker exec odoo19-db pg_dump -U odoo odoo19 | zstd -T0 > {prod_tmp}",
+        f"set -o pipefail; docker exec odoo19-db pg_dump -U odoo odoo19 | zstd -T0 > {prod_tmp}",
         timeout=3600,
         check=True,
     )
@@ -242,8 +242,8 @@ def register_staging_sync_handlers(
             logger.info("staging-export: dumping anonymized DB on kozak_demo")
             await ssh.run(
                 kozak,
-                f"docker exec {KOZAK_STAGING_DB_CTR} pg_dump -U {KOZAK_PG_USER} {KOZAK_STAGING_DB} "
-                f"| zstd -T0 > {TRANSFER_PATH}",
+                f"set -o pipefail; docker exec {KOZAK_STAGING_DB_CTR}"
+                f" pg_dump -U {KOZAK_PG_USER} {KOZAK_STAGING_DB} | zstd -T0 > {TRANSFER_PATH}",
                 timeout=1800,
                 check=True,
             )
@@ -374,8 +374,8 @@ def register_staging_sync_handlers(
             logger.info("staging-nfs-deliver: dumping anonymized DB on kozak_demo")
             await ssh.run(
                 kozak,
-                f"docker exec {KOZAK_STAGING_DB_CTR} pg_dump -U {KOZAK_PG_USER} {KOZAK_STAGING_DB}"
-                f" | zstd -T0 > {NFS_TMP_PATH}",
+                f"set -o pipefail; docker exec {KOZAK_STAGING_DB_CTR}"
+                f" pg_dump -U {KOZAK_PG_USER} {KOZAK_STAGING_DB} | zstd -T0 > {NFS_TMP_PATH}",
                 timeout=1800,
                 check=True,
             )

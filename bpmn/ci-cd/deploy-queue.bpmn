@@ -44,6 +44,7 @@
           <zeebe:input source="=if is defined(pusher) and pusher != null then pusher else &quot;&quot;" target="pusher" />
           <zeebe:input source="=if is defined(compare_url) and compare_url != null then compare_url else &quot;&quot;" target="compare_url" />
           <zeebe:input source="=if is defined(merge_sha) and merge_sha != null then merge_sha else &quot;&quot;" target="merge_sha" />
+          <zeebe:input source="=if is defined(force_rebuild) and force_rebuild = true then true else false" target="force_rebuild" />
           <zeebe:output source="=if is defined(has_changes) and has_changes != null then has_changes else false" target="has_changes" />
           <zeebe:output source="=if is defined(old_commit) and old_commit != null then old_commit else &quot;none&quot;" target="old_commit" />
           <zeebe:output source="=if is defined(new_commit) and new_commit != null then new_commit else &quot;none&quot;" target="new_commit" />
@@ -90,6 +91,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;msg_deploy_done&quot;" target="message_name" />
           <zeebe:input source="=string(pr_num)" target="correlation_key" />
+          <zeebe:input source="=0" target="ttl_ms" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_extract_to_publish</bpmn:incoming>
@@ -109,6 +111,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;msg_deploy_done&quot;" target="message_name" />
           <zeebe:input source="=if is defined(pr_number) and pr_number != null then string(pr_number) else &quot;unknown&quot;" target="correlation_key" />
+          <zeebe:input source="=0" target="ttl_ms" />
           <zeebe:input source="=true" target="deploy_failed" />
           <zeebe:input source="=if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Unknown error&quot;" target="error_message" />
           <zeebe:input source="=if is defined(error_type) and error_type != null then error_type else &quot;code&quot;" target="error_type" />

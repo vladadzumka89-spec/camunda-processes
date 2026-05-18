@@ -38,12 +38,12 @@
       <bpmn:outgoing>f_mapping_to_review</bpmn:outgoing>
     </bpmn:businessRuleTask>
 
-    <!-- ── Claude Code Review ──────────────────────────────── -->
-    <bpmn:serviceTask id="task_pr_agent" name="Claude Code Review">
-      <bpmn:documentation>Запускає Claude Code CLI для автоматичного code review.
+    <!-- ── Codex Code Review ──────────────────────────────── -->
+    <bpmn:serviceTask id="task_pr_agent" name="Codex Code Review">
+      <bpmn:documentation>Запускає Codex CLI для автоматичного code review.
 Output: review_score, has_critical_issues</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="pr-agent-review" retries="5" />
+        <zeebe:taskDefinition type="codex-review" retries="5" />
       </bpmn:extensionElements>
       <bpmn:incoming>f_mapping_to_review</bpmn:incoming>
       <bpmn:outgoing>f_review_to_score</bpmn:outgoing>
@@ -111,8 +111,8 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         <zeebe:taskDefinition type="publish-message" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;msg_review_done&quot;" target="message_name" />
-          <zeebe:input source="=string(pr_number)" target="correlation_key" />
-          <zeebe:input source="=1800000" target="ttl_ms" />
+          <zeebe:input source="=string(pr_number) + &quot;_&quot; + head_sha" target="correlation_key" />
+          <zeebe:input source="=300000" target="ttl_ms" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_to_publish</bpmn:incoming>

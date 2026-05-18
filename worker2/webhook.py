@@ -258,6 +258,7 @@ class WebhookServer:
             "repository": repo_full,
             "base_branch": base_branch,
             "head_branch": head_branch,
+            "head_sha": pr.get('head', {}).get('sha', ''),
             "odoo_project_id": self._config.odoo.project_id,
             "odoo_webhook_url": self._config.odoo.webhook_url,
         }

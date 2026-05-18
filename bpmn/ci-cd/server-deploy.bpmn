@@ -69,6 +69,13 @@ Output: changed_modules (CSV або порожній)</bpmn:documentation>
       <bpmn:outgoing>f_no_changes</bpmn:outgoing>
       <bpmn:outgoing>f_has_changes</bpmn:outgoing>
     </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="ST_release_lock_no_changes" name="Зняти лок">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="release-lock" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_no_changes</bpmn:incoming>
+      <bpmn:outgoing>f_release_no_changes_to_publish</bpmn:outgoing>
+    </bpmn:serviceTask>
     <bpmn:serviceTask id="ST_publish_no_changes" name="Повідомити: без змін">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="publish-message" retries="2" />
@@ -81,7 +88,7 @@ Output: changed_modules (CSV або порожній)</bpmn:documentation>
           <zeebe:executionListener eventType="end" type="progress" retries="3" />
         </zeebe:executionListeners>
       </bpmn:extensionElements>
-      <bpmn:incoming>f_no_changes</bpmn:incoming>
+      <bpmn:incoming>f_release_no_changes_to_publish</bpmn:incoming>
       <bpmn:outgoing>f_no_changes_end</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:endEvent id="evt_end_no_changes" name="Без змін">
@@ -203,6 +210,8 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
           <zeebe:taskDefinition type="rollback" retries="5" />
           <zeebe:ioMapping>
             <zeebe:input source="=if is defined(merge_sha) and merge_sha != null then merge_sha else &quot;&quot;" target="merge_sha" />
+            <zeebe:input source="=if is defined(caught_error_message) then caught_error_message else &quot;&quot;" target="caught_error_message" />
+            <zeebe:input source="=if is defined(error_type) then error_type else &quot;code&quot;" target="error_type" />
           </zeebe:ioMapping>
         </bpmn:extensionElements>
         <bpmn:incoming>f_err_to_rollback</bpmn:incoming>
@@ -237,9 +246,10 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
     <bpmn:sequenceFlow id="f_pull_to_validate" sourceRef="task_git_pull" targetRef="task_validate_manifests" />
     <bpmn:sequenceFlow id="f_validate_to_detect" sourceRef="task_validate_manifests" targetRef="task_detect_modules" />
     <bpmn:sequenceFlow id="f_detect_to_gw" sourceRef="task_detect_modules" targetRef="gw_changes" />
-    <bpmn:sequenceFlow id="f_no_changes" name="Ні" sourceRef="gw_changes" targetRef="ST_publish_no_changes">
+    <bpmn:sequenceFlow id="f_no_changes" name="Ні" sourceRef="gw_changes" targetRef="ST_release_lock_no_changes">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=changed_modules = "" and (not(is defined(install_modules)) or install_modules = "") and not(is defined(force_rebuild) and force_rebuild = true)</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_release_no_changes_to_publish" sourceRef="ST_release_lock_no_changes" targetRef="ST_publish_no_changes" />
     <bpmn:sequenceFlow id="f_no_changes_end" sourceRef="ST_publish_no_changes" targetRef="evt_end_no_changes" />
     <bpmn:sequenceFlow id="f_has_changes" name="Так" sourceRef="gw_changes" targetRef="task_module_update" />
     <bpmn:sequenceFlow id="f10" sourceRef="task_module_update" targetRef="task_smoke_test" />
@@ -295,8 +305,11 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
       <bpmndi:BPMNShape id="gw_changes_di" bpmnElement="gw_changes" isMarkerVisible="true">
         <dc:Bounds x="1205" y="335" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ST_publish_no_changes_di" bpmnElement="ST_publish_no_changes">
+      <bpmndi:BPMNShape id="ST_release_lock_no_changes_di" bpmnElement="ST_release_lock_no_changes">
         <dc:Bounds x="1130" y="250" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_publish_no_changes_di" bpmnElement="ST_publish_no_changes">
+        <dc:Bounds x="1260" y="250" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="evt_end_no_changes_di" bpmnElement="evt_end_no_changes">
         <dc:Bounds x="1342" y="272" width="36" height="36" />
@@ -369,13 +382,17 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <di:waypoint x="1130" y="360" />
         <di:waypoint x="1205" y="360" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_release_no_changes_to_publish_di" bpmnElement="f_release_no_changes_to_publish">
+        <di:waypoint x="1230" y="290" />
+        <di:waypoint x="1260" y="290" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_no_changes_di" bpmnElement="f_no_changes">
         <di:waypoint x="1230" y="335" />
-        <di:waypoint x="1230" y="290" />
-        <di:waypoint x="1230" y="290" />
+        <di:waypoint x="1180" y="335" />
+        <di:waypoint x="1180" y="330" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_no_changes_end_di" bpmnElement="f_no_changes_end">
-        <di:waypoint x="1230" y="250" />
+        <di:waypoint x="1360" y="290" />
         <di:waypoint x="1342" y="290" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_has_changes_di" bpmnElement="f_has_changes">

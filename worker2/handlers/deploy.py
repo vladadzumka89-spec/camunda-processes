@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from typing import Any
 
 import httpx
@@ -24,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 # One lock per server — serializes deploys to the same server
 _deploy_locks: dict[str, asyncio.Lock] = {}
+
+# Advisory lock file lives under .deploy-state/ on the server.
+# Prevents two concurrent deploy pipelines from clobbering each other across tasks.
+_DEPLOY_LOCK_STALE_SECS = 1800  # 30 min — discard lock if older than this
 
 
 def _get_deploy_lock(server_host: str) -> asyncio.Lock:
@@ -64,6 +69,9 @@ def register_deploy_handlers(
         async with lock:
             server = config.resolve_server(server_host)
             repo = repo_dir or server.repo_dir
+
+            pipeline_label = f"{server_host}/{branch}"
+            await _acquire_server_lock(server, repo, pipeline_label)
 
             # Read previous deploy state
             state_file = f"{repo}/.deploy-state/deploy_state_{branch}"
@@ -341,11 +349,15 @@ def register_deploy_handlers(
 
         scan_script = _build_version_compare_script(ctr, db)
 
-        result = await ssh.run_in_repo(
-            server,
-            scan_script,
-            timeout=120,
-        )
+        try:
+            result = await ssh.run_in_repo(
+                server,
+                scan_script,
+                timeout=120,
+            )
+        except Exception as exc:
+            logger.warning("detect-modules: SSH error (%s), falling back to 'all'", exc)
+            return {"changed_modules": "all"}
 
         if not result.success:
             logger.warning("detect-modules: version scan failed (%s), falling back to 'all'", result.stderr[:200])
@@ -442,7 +454,14 @@ def register_deploy_handlers(
                 await ssh.run_in_repo(server, "docker compose stop web", check=True, timeout=60)
                 await ssh.run_in_repo(server, "docker compose build web", check=True, timeout=1200)
                 await ssh.run_in_repo(server, "docker compose up -d web", check=True, timeout=60)
-            logger.info("module-update: force_rebuild on %s — image rebuilt, no migrations", server.host)
+                # Clear stale asset bundles — new image may have different JS/XML files
+                await ssh.run(
+                    server,
+                    f"docker exec {ctr}-db psql -U odoo -d {db} -c"
+                    f" \"DELETE FROM ir_attachment WHERE url LIKE '/web/assets/%';\"",
+                    check=False,
+                )
+            logger.info("module-update: force_rebuild on %s — image rebuilt, asset bundles cleared", server.host)
             return {"modules_updated": "rebuilt"}
 
         lock = _get_deploy_lock(server_host)
@@ -583,6 +602,7 @@ def register_deploy_handlers(
             raise DeployError(f"Smoke test failed on {server.host}: {error_summary}", variables={"error_type": "code"})
 
         logger.info("smoke-test on %s: passed=True", server.host)
+        await _release_server_lock(server, repo_dir or server.repo_dir)
         return {"smoke_passed": True}
 
     # ── http-verify ────────────────────────────────────────────
@@ -629,6 +649,41 @@ def register_deploy_handlers(
         except Exception as exc:
             logger.warning("Failed to save deploy state on %s: %s", server.host, exc)
             return {"state_saved": False}
+
+    # ── server-side advisory deploy lock ─────────────────────────
+
+    async def _acquire_server_lock(server: Any, repo: str, label: str = "") -> None:
+        """Create a per-pipeline lock file on the server.
+
+        Serializes the entire git-pull → smoke-test window across concurrent
+        Zeebe process instances.  Raises DeployError if a fresh lock exists.
+        """
+        lock_path = f"{repo}/.deploy-state/deploy_lock"
+        now = int(time.time())
+        result = await ssh.run(server, f"cat {lock_path} 2>/dev/null")
+        content = result.stdout.strip()
+        if content:
+            try:
+                lock_ts = int(content.split(":")[0])
+                if now - lock_ts < _DEPLOY_LOCK_STALE_SECS:
+                    lock_label = content.split(":", 1)[1] if ":" in content else content
+                    raise DeployError(
+                        f"Інший деплой вже виконується (pipeline {lock_label}). "
+                        "Спробуйте через кілька хвилин.",
+                        variables={"error_type": "infra"},
+                    )
+            except DeployError:
+                raise
+            except Exception:
+                pass  # corrupt lock file — overwrite
+        await ssh.run(server, f"echo '{now}:{label}' > {lock_path}", check=True)
+        logger.info("server-lock: acquired on %s (label=%s)", server.host, label or "—")
+
+    async def _release_server_lock(server: Any, repo: str) -> None:
+        """Remove the advisory deploy lock file from the server."""
+        lock_path = f"{repo}/.deploy-state/deploy_lock"
+        await ssh.run(server, f"rm -f {lock_path}")
+        logger.info("server-lock: released on %s", server.host)
 
     # ── rollback helpers ─────────────────────────────────────────
 
@@ -687,15 +742,33 @@ def register_deploy_handlers(
 
     # ── rollback ───────────────────────────────────────────────
 
+    @worker.task(task_type="release-lock", timeout_ms=30_000)
+    async def release_lock(
+        server_host: str,
+        repo_dir: str = "",
+        **kwargs: Any,
+    ) -> dict:
+        server = config.resolve_server(server_host)
+        repo = repo_dir or server.repo_dir
+        await _release_server_lock(server, repo)
+        return {}
+
     @worker.task(task_type="rollback", timeout_ms=600_000)
     async def rollback(
         server_host: str,
         branch: str = "staging",
         merge_sha: str = "",
+        error_type: str = "code",
+        caught_error_message: str = "",
         **kwargs: Any,
     ) -> dict:
         """Restore from checkpoint via HTTP API, then revert the merge commit
         (or fall back to force-push) so the remote branch is clean."""
+        if error_type == "infra":
+            # Lock conflict or staging-sync block — no code was deployed, nothing to restore
+            logger.info("rollback: error_type=infra, skipping checkpoint restore")
+            return {"restored": False, "branch_fixed": False, "caught_error_message": caught_error_message}
+
         if not config.db_checkpoint_base_url:
             logger.warning("rollback: no DB_CHECKPOINT_BASE_URL configured, skipping")
             return {"restored": False}
@@ -735,6 +808,8 @@ def register_deploy_handlers(
         if not ssh_ready:
             logger.error("rollback on %s: VM did not come back after 10 attempts", server_host)
             return {"restored": True, "branch_fixed": False}
+
+        await _release_server_lock(server, server.repo_dir)
 
         # Strategy 1: git revert (preserves other PRs merged after checkpoint)
         code_reverted = False
@@ -777,7 +852,7 @@ def register_deploy_handlers(
                 server_host, branch,
             )
 
-        return {"restored": True, "branch_fixed": code_reverted, "method": method}
+        return {"restored": True, "branch_fixed": code_reverted, "method": method, "caught_error_message": caught_error_message}
 
     # ── db-remove ──────────────────────────────────────────────
 
@@ -849,6 +924,10 @@ def register_deploy_handlers(
         **kwargs: Any,
     ) -> dict:
         """Extract PR numbers from git log between two commits."""
+        if not old_commit or old_commit.lower() == "none":
+            logger.info("extract-deployed-prs: old_commit is %r, no range to compare", old_commit)
+            return {"deployed_prs": []}
+
         server = config.resolve_server(server_host)
         result = await ssh.run(
             server,

@@ -7,7 +7,7 @@
   </bpmn:message>
   <bpmn:message id="Message_review_done" name="msg_review_done">
     <bpmn:extensionElements>
-      <zeebe:subscription correlationKey="=string(pr_number)" />
+      <zeebe:subscription correlationKey="=string(pr_number) + &quot;_&quot; + head_sha" />
     </bpmn:extensionElements>
   </bpmn:message>
   <bpmn:message id="Message_pr_updated" name="msg_pr_updated">
@@ -54,6 +54,7 @@
           <zeebe:output source="=pr_title" target="pr_title" />
           <zeebe:output source="=head_branch" target="head_branch" />
           <zeebe:output source="=if is defined(repository) then repository else &#34;&#34;" target="repository" />
+          <zeebe:output source="=if is defined(head_sha) then head_sha else &#34;&#34;" target="head_sha" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:outgoing>f_auto_to_merge_entry</bpmn:outgoing>
@@ -77,13 +78,10 @@
 
     <!-- ═══ REVIEW LOOP ═══ -->
     <bpmn:intermediateCatchEvent id="catch_review_done" name="Чекаємо результат ревʼю">
-      <bpmn:documentation>Чекає msg_review_done від standalone pr-review процесу (correlation: pr_number).</bpmn:documentation>
+      <bpmn:documentation>Чекає msg_review_done від standalone pr-review процесу (correlation: pr_number_head_sha). Підписується лише після отримання актуального head_sha через catch_pr_updated або catch_staging_rework.</bpmn:documentation>
       <bpmn:incoming>f_entry_to_review</bpmn:incoming>
       <bpmn:incoming>f_rework_to_review</bpmn:incoming>
       <bpmn:incoming>f_staging_rework_to_review</bpmn:incoming>
-      <bpmn:incoming>f_deploy_failed_to_rework</bpmn:incoming>
-      <bpmn:incoming>f_merge_failed_to_rework</bpmn:incoming>
-      <bpmn:incoming>f_validate_failed_to_rework</bpmn:incoming>
       <bpmn:outgoing>f_review_to_score</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_review_done" messageRef="Message_review_done" />
     </bpmn:intermediateCatchEvent>
@@ -105,8 +103,11 @@
       <bpmn:outgoing>f_comment_to_wait</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:receiveTask id="catch_pr_updated" name="Чекаємо оновлення PR" messageRef="Message_pr_updated">
-      <bpmn:documentation>Чекає push нових комітів в PR (msg_pr_updated, correlation: pr_number).</bpmn:documentation>
+      <bpmn:documentation>Чекає push нових комітів в PR (msg_pr_updated, correlation: pr_number). Оновлює head_sha — потрібно перед catch_review_done для коректної кореляції.</bpmn:documentation>
       <bpmn:incoming>f_comment_to_wait</bpmn:incoming>
+      <bpmn:incoming>f_validate_failed_to_rework</bpmn:incoming>
+      <bpmn:incoming>f_merge_failed_to_rework</bpmn:incoming>
+      <bpmn:incoming>f_deploy_failed_to_rework</bpmn:incoming>
       <bpmn:outgoing>f_rework_to_review</bpmn:outgoing>
     </bpmn:receiveTask>
 
@@ -304,7 +305,7 @@
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=validate_ok = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="f_validate_err" sourceRef="GW_validate_ok" targetRef="ST_comment_validate_failed" />
-    <bpmn:sequenceFlow id="f_validate_failed_to_rework" sourceRef="ST_comment_validate_failed" targetRef="catch_review_done" />
+    <bpmn:sequenceFlow id="f_validate_failed_to_rework" sourceRef="ST_comment_validate_failed" targetRef="catch_pr_updated" />
     <bpmn:sequenceFlow id="f_score_low" sourceRef="GW_score" targetRef="ST_comment_rework">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=review_score &lt; 7 or (is defined(has_critical_issues) and has_critical_issues = true)</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
@@ -312,7 +313,7 @@
     <bpmn:sequenceFlow id="f_rework_to_review" sourceRef="catch_pr_updated" targetRef="catch_review_done" />
     <bpmn:sequenceFlow id="f_merge_to_deploy" sourceRef="ST_merge_to_staging" targetRef="ST_publish_deploy_trigger" />
     <bpmn:sequenceFlow id="f_merge_err_to_comment" sourceRef="BE_merge_failed" targetRef="ST_comment_merge_failed" />
-    <bpmn:sequenceFlow id="f_merge_failed_to_rework" sourceRef="ST_comment_merge_failed" targetRef="catch_review_done" />
+    <bpmn:sequenceFlow id="f_merge_failed_to_rework" sourceRef="ST_comment_merge_failed" targetRef="catch_pr_updated" />
     <bpmn:sequenceFlow id="f_trigger_to_catch" sourceRef="ST_publish_deploy_trigger" targetRef="catch_staging_deployed" />
     <bpmn:sequenceFlow id="f_deploy_to_check" sourceRef="catch_staging_deployed" targetRef="GW_deploy_ok" />
     <bpmn:sequenceFlow id="f_deploy_ok" sourceRef="GW_deploy_ok" targetRef="ST_comment_staging_ok" />
@@ -326,7 +327,7 @@
     <bpmn:sequenceFlow id="f_deploy_failed_code" sourceRef="GW_retry_type" targetRef="ST_comment_deploy_failed" />
     <bpmn:sequenceFlow id="f_increment_to_wait" sourceRef="ST_increment_retry" targetRef="TE_retry_wait" />
     <bpmn:sequenceFlow id="f_wait_to_merge" sourceRef="TE_retry_wait" targetRef="ST_merge_to_staging" />
-    <bpmn:sequenceFlow id="f_deploy_failed_to_rework" sourceRef="ST_comment_deploy_failed" targetRef="catch_review_done" />
+    <bpmn:sequenceFlow id="f_deploy_failed_to_rework" sourceRef="ST_comment_deploy_failed" targetRef="catch_pr_updated" />
     <bpmn:sequenceFlow id="f_event_to_ready" sourceRef="GW_event_staging" targetRef="catch_pr_ready" />
     <bpmn:sequenceFlow id="f_event_to_staging_rework" sourceRef="GW_event_staging" targetRef="catch_staging_rework" />
     <bpmn:sequenceFlow id="f_ready_to_catch_merged" sourceRef="catch_pr_ready" targetRef="catch_pr_merged" />
@@ -629,11 +630,12 @@
         <di:waypoint x="945" y="90" />
       </bpmndi:BPMNEdge>
 
-      <!-- comment validate failed → catch_review_done (left then down) -->
+      <!-- comment validate failed → catch_pr_updated (down then left) -->
       <bpmndi:BPMNEdge id="di_f_validate_failed_to_rework" bpmnElement="f_validate_failed_to_rework">
-        <di:waypoint x="945" y="90" />
-        <di:waypoint x="530" y="90" />
-        <di:waypoint x="530" y="182" />
+        <di:waypoint x="995" y="130" />
+        <di:waypoint x="995" y="455" />
+        <di:waypoint x="640" y="455" />
+        <di:waypoint x="640" y="490" />
       </bpmndi:BPMNEdge>
 
       <!-- score → comment rework (down) -->
@@ -667,12 +669,12 @@
         <di:waypoint x="768" y="340" />
       </bpmndi:BPMNEdge>
 
-      <!-- comment merge failed → review (loop back left) -->
+      <!-- comment merge failed → catch_pr_updated (down) -->
       <bpmndi:BPMNEdge id="di_f_merge_failed_to_rework" bpmnElement="f_merge_failed_to_rework">
         <di:waypoint x="790" y="420" />
-        <di:waypoint x="790" y="450" />
-        <di:waypoint x="530" y="450" />
-        <di:waypoint x="530" y="218" />
+        <di:waypoint x="790" y="460" />
+        <di:waypoint x="640" y="460" />
+        <di:waypoint x="640" y="490" />
       </bpmndi:BPMNEdge>
 
       <!-- deploy trigger → catch deployed (horizontal) -->
@@ -730,11 +732,12 @@
         <di:waypoint x="790" y="240" />
       </bpmndi:BPMNEdge>
 
-      <!-- comment deploy failed → review (loop back left) -->
+      <!-- comment deploy failed → catch_pr_updated (left then down) -->
       <bpmndi:BPMNEdge id="di_f_deploy_failed_to_rework" bpmnElement="f_deploy_failed_to_rework">
-        <di:waypoint x="1150" y="380" />
-        <di:waypoint x="530" y="380" />
-        <di:waypoint x="530" y="218" />
+        <di:waypoint x="1200" y="420" />
+        <di:waypoint x="1200" y="465" />
+        <di:waypoint x="640" y="465" />
+        <di:waypoint x="640" y="490" />
       </bpmndi:BPMNEdge>
 
       <!-- event staging → PR ready (horizontal) -->

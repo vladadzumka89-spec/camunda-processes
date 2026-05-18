@@ -679,10 +679,29 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
         terminal_stores = fop_terminal_stores.get(edrpou, [])
         if edrpou in _fop_wholesale:
             fop_entry["current_terminal_stores"] = "800 Гурт ТП"
+            has_actionable = True
         elif terminal_stores:
             fop_entry["current_terminal_stores"] = "\n".join(terminal_stores)
+            has_actionable = True
         else:
             fop_entry["current_terminal_stores"] = ""
+            has_actionable = False
+
+        # Refine "status" з урахуванням org_status (BAS) та наявності
+        # терміналу/гурту. Без цього дашборд показував "Критично" і для
+        # закритих ФОПів (Ткачук), і для тих хто історично перевищив ліміт
+        # але вже не має активного терміналу — це вводило в оману.
+        #
+        # Пріоритети:
+        #   Закрита            — org_status="Закрита" у BAS
+        #   В роботі           — has_active_process (Camunda-процес уже існує)
+        #   Критично           — is_critical + є термінал/гурт (актуально діяти)
+        #   Історично перевищ. — is_critical, нема терміналу (минулорічні борги)
+        #   Норма              — інше
+        if fop_entry.get("org_status") == "Закрита":
+            fop_entry["status"] = "Закрита"
+        elif fop_entry["status"] == "Критично" and not has_actionable:
+            fop_entry["status"] = "Історично перевищено"
 
     # Re-sort report: active FOPs (with terminal) on top, by income% desc.
     # Why: ФОПи без активного терміналу часто вже перевищили ліміт історично

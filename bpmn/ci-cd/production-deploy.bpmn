@@ -18,13 +18,12 @@
     </bpmn:extensionElements>
 
     <!-- ── 1. Timer Start ────────────────────────────── -->
-    <bpmn:startEvent id="start_timer" name="23:30 EEST (з 22.04.2026)">
-      <bpmn:documentation>Тимчасово вимкнено на ніч 21.04.2026.
-ISO 8601: R/2026-04-22T20:30:00Z/P1D = 23:30 EEST щодня починаючи з 22.04.2026.
-Щоб повернути CRON: замінити на "0 30 20 * * *" і задеплоїти нову версію.</bpmn:documentation>
+    <bpmn:startEvent id="start_timer" name="23:30 EEST щодня">
+      <bpmn:documentation>CRON: 0 30 20 * * * = 20:30 UTC = 23:30 EEST щодня.
+Замінено з ISO 8601 (R/2026-04-22T20:30:00Z/P1D) — той прив'язувався до часу деплою при оновленні версії.</bpmn:documentation>
       <bpmn:outgoing>f_start_to_zabbix</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerDef_nightly_prod">
-        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/2026-04-22T20:30:00Z/P1D</bpmn:timeCycle>
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">0 30 20 * * *</bpmn:timeCycle>
       </bpmn:timerEventDefinition>
     </bpmn:startEvent>
 
@@ -37,7 +36,7 @@ ISO 8601: R/2026-04-22T20:30:00Z/P1D = 23:30 EEST щодня починаючи 
           <zeebe:input source="=&quot;POST&quot;" target="method" />
           <zeebe:input source="=&quot;https://zabbix.dobrom.com/api_jsonrpc.php&quot;" target="url" />
           <zeebe:input source="={&quot;Authorization&quot;: &quot;Bearer &quot; + secrets.ZABBIX_API_TOKEN, &quot;Content-Type&quot;: &quot;application/json-rpc&quot;}" target="headers" />
-          <zeebe:input source="={jsonrpc: &quot;2.0&quot;, method: &quot;maintenance.create&quot;, params: {name: &quot;deploy-&quot; + string(processInstanceKey), active_since: (now() - date and time(&quot;1970-01-01T00:00:00Z&quot;)) / duration(&quot;PT1S&quot;), active_till: (now() - date and time(&quot;1970-01-01T00:00:00Z&quot;)) / duration(&quot;PT1S&quot;) + 1500, maintenance_type: 0, tags_evaltype: 0, hosts: [{hostid: &quot;10966&quot;}, {hostid: &quot;10967&quot;}, {hostid: &quot;10968&quot;}], timeperiods: [{timeperiod_type: 0, start_date: (now() - date and time(&quot;1970-01-01T00:00:00Z&quot;)) / duration(&quot;PT1S&quot;), period: 1500}]}, id: 1}" target="body" />
+          <zeebe:input source="={jsonrpc: &quot;2.0&quot;, method: &quot;maintenance.create&quot;, params: {name: &quot;deploy-&quot; + string((now() - date and time(&quot;1970-01-01T00:00:00Z&quot;)) / duration(&quot;PT1S&quot;)), active_since: (now() - date and time(&quot;1970-01-01T00:00:00Z&quot;)) / duration(&quot;PT1S&quot;), active_till: (now() - date and time(&quot;1970-01-01T00:00:00Z&quot;)) / duration(&quot;PT1S&quot;) + 1500, maintenance_type: 0, tags_evaltype: 0, hosts: [{hostid: &quot;10966&quot;}, {hostid: &quot;10967&quot;}, {hostid: &quot;10968&quot;}], timeperiods: [{timeperiod_type: 0, start_date: (now() - date and time(&quot;1970-01-01T00:00:00Z&quot;)) / duration(&quot;PT1S&quot;), period: 1500}]}, id: 1}" target="body" />
           <zeebe:input source="=&quot;zabbixCreateResponse&quot;" target="resultVariable" />
           <zeebe:input source="={maintenanceId: response.body.result.maintenanceids[1]}" target="resultExpression" />
         </zeebe:ioMapping>
@@ -58,6 +57,7 @@ ISO 8601: R/2026-04-22T20:30:00Z/P1D = 23:30 EEST щодня починаючи 
           <zeebe:input source="=&quot;light&quot;" target="test_mode" />
           <zeebe:input source="=&quot;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&quot;" target="odoo_webhook_url" />
           <zeebe:input source="=560" target="odoo_project_id" />
+          <zeebe:input source="=true" target="skip_clickbot" />
           <zeebe:output source="=if is defined(has_changes) and has_changes != null then has_changes else false" target="has_changes" />
           <zeebe:output source="=if is defined(old_commit) and old_commit != null then old_commit else &quot;none&quot;" target="old_commit" />
           <zeebe:output source="=if is defined(new_commit) and new_commit != null then new_commit else &quot;none&quot;" target="new_commit" />

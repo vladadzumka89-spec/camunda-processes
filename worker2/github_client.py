@@ -185,3 +185,29 @@ class GitHubClient:
                 return comment
 
         return None
+
+    async def create_review(
+        self,
+        repo: str,
+        pr_number: int,
+        body: str,
+        event: str = "COMMENT",
+        comments: list[dict[str, Any]] | None = None,
+    ) -> dict:
+        """Create a PR review.
+        
+        event: APPROVE, REQUEST_CHANGES, or COMMENT.
+        comments: list of dicts with: path, position, body.
+        """
+        data = {
+            "body": body,
+            "event": event,
+        }
+        if comments:
+            data["comments"] = comments
+
+        return await self._request(
+            "POST",
+            f"{API_BASE}/repos/{repo}/pulls/{pr_number}/reviews",
+            json=data,
+        )
