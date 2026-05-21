@@ -7,7 +7,7 @@
   </bpmn:message>
   <bpmn:message id="Message_review_done" name="msg_review_done">
     <bpmn:extensionElements>
-      <zeebe:subscription correlationKey="=string(pr_number) + &quot;_&quot; + head_sha" />
+      <zeebe:subscription correlationKey="=string(pr_number)" />
     </bpmn:extensionElements>
   </bpmn:message>
   <bpmn:message id="Message_pr_updated" name="msg_pr_updated">
@@ -35,9 +35,9 @@
       <zeebe:subscription correlationKey="=string(pr_number)" />
     </bpmn:extensionElements>
   </bpmn:message>
-  <bpmn:process id="feature-to-production" name="Feature Pipeline" isExecutable="true">
+  <bpmn:process id="feature-to-production" name="feature-pipeline.bpmn" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="19.0" />
+      <zeebe:versionTag value="19.2" />
     </bpmn:extensionElements>
 
     <!-- ═══ START EVENTS ═══ -->
@@ -78,7 +78,7 @@
 
     <!-- ═══ REVIEW LOOP ═══ -->
     <bpmn:intermediateCatchEvent id="catch_review_done" name="Чекаємо результат ревʼю">
-      <bpmn:documentation>Чекає msg_review_done від standalone pr-review процесу (correlation: pr_number_head_sha). Підписується лише після отримання актуального head_sha через catch_pr_updated або catch_staging_rework.</bpmn:documentation>
+      <bpmn:documentation>Чекає msg_review_done від standalone pr-review процесу (correlation: pr_number). Актуальність reviewed SHA перевіряє merge-feature-to-staging перед merge.</bpmn:documentation>
       <bpmn:incoming>f_entry_to_review</bpmn:incoming>
       <bpmn:incoming>f_rework_to_review</bpmn:incoming>
       <bpmn:incoming>f_staging_rework_to_review</bpmn:incoming>
@@ -121,6 +121,7 @@
           <zeebe:input source="=&#34;staging&#34;" target="server_host" />
           <zeebe:output source="=validate_ok" target="validate_ok" />
           <zeebe:output source="=validate_errors" target="validate_errors" />
+          <zeebe:output source="=pr_modules" target="pr_modules" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_score_ok</bpmn:incoming>
@@ -178,6 +179,21 @@
     </bpmn:serviceTask>
 
     <!-- ═══ DEPLOY TRIGGER + WAIT ═══ -->
+    <bpmn:serviceTask id="ST_comment_deploy_started" name="Коментар: deploy started">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-deploy-status-comment" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;started&#34;" target="deploy_status" />
+          <zeebe:input source="=pr_number" target="pr_number" />
+          <zeebe:input source="=if is defined(repository) and repository != null then repository else &#34;&#34;" target="repository" />
+          <zeebe:input source="=head_branch" target="head_branch" />
+          <zeebe:input source="=merge_sha" target="merge_sha" />
+          <zeebe:input source="=string(process_instance_key)" target="process_instance_key" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_merge_to_deploy</bpmn:incoming>
+      <bpmn:outgoing>f_deploy_started_to_trigger</bpmn:outgoing>
+    </bpmn:serviceTask>
     <bpmn:serviceTask id="ST_publish_deploy_trigger" name="Тригер деплою staging">
       <bpmn:documentation>Публікує msg_deploy_trigger для deploy-scheduler. Черга гарантує що деплої йдуть послідовно.</bpmn:documentation>
       <bpmn:extensionElements>
@@ -191,12 +207,13 @@
           <zeebe:input source="=pr_title" target="pr_title" />
           <zeebe:input source="=&#34;staging&#34;" target="server_host" />
           <zeebe:input source="=&#34;staging&#34;" target="branch" />
+          <zeebe:input source="=if is defined(pr_modules) and pr_modules != null then pr_modules else &#34;&#34;" target="pr_modules" />
           <zeebe:input source="=true" target="run_smoke_test" />
           <zeebe:input source="=&#34;light&#34;" target="test_mode" />
           <zeebe:input source="=3600000" target="ttl_ms" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>f_merge_to_deploy</bpmn:incoming>
+      <bpmn:incoming>f_deploy_started_to_trigger</bpmn:incoming>
       <bpmn:outgoing>f_trigger_to_catch</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:intermediateCatchEvent id="catch_staging_deployed" name="Чекаємо деплой staging">
@@ -236,9 +253,16 @@
 
     <bpmn:serviceTask id="ST_comment_deploy_failed" name="Коментар: deploy failed">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="github-comment" retries="2" />
+        <zeebe:taskDefinition type="github-deploy-status-comment" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;❌ **Staging deploy failed**&#34; + (if is defined(error_message) and error_message != null and error_message != &#34;&#34; then &#34;: &#34; + error_message else &#34;&#34;) + &#34;&#10;&#10;&lt;details&gt;&lt;summary&gt;Traceback&lt;/summary&gt;&#10;&#10;```&#10;&#34; + (if is defined(error_traceback) and error_traceback != null and error_traceback != &#34;&#34; then error_traceback else if is defined(error_message) and error_message != null and error_message != &#34;&#34; then error_message else &#34;No traceback available&#34;) + &#34;&#10;```&#10;&#10;&lt;/details&gt;&#10;&#10;[Процес в Operate](http://camunda-demo.a.local:8088/operate/processes/&#34; + string(process_instance_key) + &#34;)&#10;&#10;Пушніть виправлення в `&#34; + head_branch + &#34;`.&#34;" target="comment_text" />
+          <zeebe:input source="=&#34;failed&#34;" target="deploy_status" />
+          <zeebe:input source="=pr_number" target="pr_number" />
+          <zeebe:input source="=if is defined(repository) and repository != null then repository else &#34;&#34;" target="repository" />
+          <zeebe:input source="=head_branch" target="head_branch" />
+          <zeebe:input source="=merge_sha" target="merge_sha" />
+          <zeebe:input source="=string(process_instance_key)" target="process_instance_key" />
+          <zeebe:input source="=if is defined(error_message) and error_message != null then error_message else if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &#34;&#34;" target="error_message" />
+          <zeebe:input source="=if is defined(error_traceback) and error_traceback != null then error_traceback else &#34;&#34;" target="error_traceback" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_deploy_failed_code</bpmn:incoming>
@@ -247,9 +271,14 @@
 
     <bpmn:serviceTask id="ST_comment_staging_ok" name="Коментар: staging deployed">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="github-comment" retries="2" />
+        <zeebe:taskDefinition type="github-deploy-status-comment" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;✅ **Staging deploy successful**&#10;&#10;Гілка `&#34; + head_branch + &#34;` задеплоєна на staging.&#10;Перевірте зміни і зніміть draft з PR коли все ок.&#10;&#10;[Процес в Operate](http://camunda-demo.a.local:8088/operate/processes/&#34; + string(process_instance_key) + &#34;)&#34;" target="comment_text" />
+          <zeebe:input source="=&#34;success&#34;" target="deploy_status" />
+          <zeebe:input source="=pr_number" target="pr_number" />
+          <zeebe:input source="=if is defined(repository) and repository != null then repository else &#34;&#34;" target="repository" />
+          <zeebe:input source="=head_branch" target="head_branch" />
+          <zeebe:input source="=merge_sha" target="merge_sha" />
+          <zeebe:input source="=string(process_instance_key)" target="process_instance_key" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_deploy_ok</bpmn:incoming>
@@ -284,7 +313,7 @@
       <bpmn:messageEventDefinition id="MsgDef_pr_merged" messageRef="Message_pr_merged" />
     </bpmn:intermediateCatchEvent>
     <bpmn:intermediateCatchEvent id="catch_prod_deployed" name="Чекаємо деплой production">
-      <bpmn:documentation>Чекає msg_prod_deployed від production-nightly-deploy (correlation: pr_number). Деплой відбувається щодня о 23:30.</bpmn:documentation>
+      <bpmn:documentation>Чекає msg_prod_deployed від production-nightly-deploy (correlation: pr_number). Деплой відбувається щодня о 22:30.</bpmn:documentation>
       <bpmn:incoming>f_merged_to_prod</bpmn:incoming>
       <bpmn:outgoing>f_prod_to_end</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_prod_deployed" messageRef="Message_prod_deployed" />
@@ -311,7 +340,8 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="f_comment_to_wait" sourceRef="ST_comment_rework" targetRef="catch_pr_updated" />
     <bpmn:sequenceFlow id="f_rework_to_review" sourceRef="catch_pr_updated" targetRef="catch_review_done" />
-    <bpmn:sequenceFlow id="f_merge_to_deploy" sourceRef="ST_merge_to_staging" targetRef="ST_publish_deploy_trigger" />
+    <bpmn:sequenceFlow id="f_merge_to_deploy" sourceRef="ST_merge_to_staging" targetRef="ST_comment_deploy_started" />
+    <bpmn:sequenceFlow id="f_deploy_started_to_trigger" sourceRef="ST_comment_deploy_started" targetRef="ST_publish_deploy_trigger" />
     <bpmn:sequenceFlow id="f_merge_err_to_comment" sourceRef="BE_merge_failed" targetRef="ST_comment_merge_failed" />
     <bpmn:sequenceFlow id="f_merge_failed_to_rework" sourceRef="ST_comment_merge_failed" targetRef="catch_pr_updated" />
     <bpmn:sequenceFlow id="f_trigger_to_catch" sourceRef="ST_publish_deploy_trigger" targetRef="catch_staging_deployed" />

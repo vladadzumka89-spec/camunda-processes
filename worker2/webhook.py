@@ -58,6 +58,7 @@ class WebhookServer:
         self._app.router.add_post('/webhook/github', self._handle_github)
         self._app.router.add_post('/webhook/odoo', self._handle_odoo)
         self._app.router.add_get('/health', self._handle_health)
+        self._app.router.add_post('/webhook/e2e', self._handle_e2e)
         self._runner: web.AppRunner | None = None
 
     # -- Lifecycle -------------------------------------------------
@@ -104,6 +105,58 @@ class WebhookServer:
         )
         channel = create_channel(auth_config)
         return ZeebeClient(channel)
+
+    # -- E2E test gate --------------------------------------------
+
+    async def _handle_e2e(self, request: web.Request) -> web.Response:
+        """Receive E2E test result from /ship and publish msg_e2e_passed to Zeebe.
+
+        Payload: {head_branch, pr_title, pr_body, base_branch, repository}
+        Triggers e2e-gate.bpmn → github-create-pr → GitHub webhook → feature-pipeline
+        """
+        try:
+            payload = await request.json()
+        except Exception:
+            return web.Response(status=400, text="Invalid JSON")
+
+        head_branch = payload.get('head_branch', '')
+        if not head_branch:
+            return web.Response(status=400, text="Missing head_branch")
+
+        pr_title = payload.get('pr_title', '')
+        pr_body = payload.get('pr_body', '')
+        base_branch = payload.get('base_branch', 'main')
+        repository = payload.get('repository', self._config.github.repository)
+
+        variables = {
+            "head_branch": head_branch,
+            "pr_title": pr_title,
+            "pr_body": pr_body,
+            "base_branch": base_branch,
+            "repository": repository,
+            "is_draft": False,
+        }
+
+        try:
+            client = self._create_zeebe_client()
+            await client.publish_message(
+                name="msg_e2e_passed",
+                correlation_key=head_branch,
+                variables=variables,
+                time_to_live_in_milliseconds=3_600_000,
+            )
+            logger.info(
+                "Published msg_e2e_passed for branch %s (pr_title=%r)",
+                head_branch, pr_title,
+            )
+            return web.json_response({
+                "status": "published",
+                "message": "msg_e2e_passed",
+                "head_branch": head_branch,
+            })
+        except Exception as exc:
+            logger.error("Failed to publish msg_e2e_passed for %s: %s", head_branch, exc)
+            return web.Response(status=502, text=f"Zeebe publish failed: {exc}")
 
     # -- Health check ----------------------------------------------
 
@@ -417,7 +470,7 @@ class WebhookServer:
                                     json={},
                                 )
                                 logger.info(
-                                    "Cancelled old FTP %d for branch %s (HTTP %d)",
+                                    "Cancelled old FTP %s for branch %s (HTTP %d)",
                                     pik, head_branch, cancel_resp.status_code,
                                 )
         except Exception as exc:

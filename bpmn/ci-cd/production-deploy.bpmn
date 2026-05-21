@@ -12,18 +12,18 @@
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
 
   <!-- ── Process ───────────────────────────────────────── -->
-  <bpmn:process id="production-nightly-deploy" name="Production Deploy" isExecutable="true">
+  <bpmn:process id="production-nightly-deploy" name="production-deploy.bpmn" isExecutable="true">
     <bpmn:extensionElements>
       <zeebe:versionTag value="1.2" />
     </bpmn:extensionElements>
 
     <!-- ── 1. Timer Start ────────────────────────────── -->
-    <bpmn:startEvent id="start_timer" name="23:30 EEST щодня">
-      <bpmn:documentation>CRON: 0 30 20 * * * = 20:30 UTC = 23:30 EEST щодня.
+    <bpmn:startEvent id="start_timer" name="22:30 EEST щодня">
+      <bpmn:documentation>CRON: 0 30 19 * * * = 19:30 UTC = 22:30 EEST щодня.
 Замінено з ISO 8601 (R/2026-04-22T20:30:00Z/P1D) — той прив'язувався до часу деплою при оновленні версії.</bpmn:documentation>
       <bpmn:outgoing>f_start_to_zabbix</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerDef_nightly_prod">
-        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">0 30 20 * * *</bpmn:timeCycle>
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">0 30 19 * * *</bpmn:timeCycle>
       </bpmn:timerEventDefinition>
     </bpmn:startEvent>
 

@@ -1,6 +1,6 @@
-"""GitHub-related handlers — 4 task types.
+"""GitHub-related handlers.
 
-Handles Codex CLI review, merge, comment, and PR creation.
+Handles Codex CLI review, merge, comments, deploy status, and PR creation.
 """
 
 import asyncio
@@ -82,12 +82,12 @@ async def _run_review_once(
         f"Analyze the diff below and provide your assessment.\n"
         f"Return your final response ONLY as JSON matching the required schema "
         f"(fields: score 0-10, critical bool, summary, issues[]).\n\n"
-        f"```diff\n{diff[:80000]}\n```"
+        f"```diff\n{diff}\n```"
     )
 
     async with _REVIEW_SEMAPHORE:
         try:
-            # Codex CLI 0.130+ takes prompt as positional arg; no more --prompt / --append-system-prompt.
+            # Codex CLI 0.130+ reads prompt from stdin when "-" is passed.
             # --skip-git-repo-check: worker CWD (/app) is not a git repo.
             # --output-schema: forces the final agent message to be JSON matching the schema.
             proc = await asyncio.create_subprocess_exec(
@@ -95,12 +95,13 @@ async def _run_review_once(
                 "--json",
                 "--skip-git-repo-check",
                 "--output-schema", str(_REVIEW_SCHEMA_PATH),
-                prompt,
+                "-",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                stdin=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout,
+                proc.communicate(prompt.encode()), timeout=timeout,
             )
         except asyncio.TimeoutError:
             logger.error("Codex CLI timed out after %ds for PR #%d", timeout, pr_number)
@@ -230,6 +231,65 @@ def _format_review_comment(review: dict) -> str:
     return "\n".join(lines)
 
 
+def _format_deploy_status_comment(
+    status: str,
+    head_branch: str = "",
+    merge_sha: str = "",
+    process_instance_key: str | int = "",
+    error_message: str = "",
+    error_traceback: str = "",
+) -> str:
+    """Format the single mutable staging deploy status comment."""
+    normalized = (status or "started").strip().lower()
+    if normalized in {"success", "successful", "ok", "done"}:
+        title = "✅ **Staging deploy successful**"
+        body = "Гілка задеплоєна на staging. Перевірте зміни і зніміть draft з PR коли все ок."
+    elif normalized in {"failed", "failure", "error"}:
+        title = "❌ **Staging deploy failed**"
+        body = error_message or "Deploy failed без деталізованої помилки."
+    else:
+        title = "🚀 **Staging deploy started**"
+        body = (
+            "Код уже замержено в `staging`, деплой запущено. "
+            "Цей коментар оновиться після завершення або падіння deploy."
+        )
+
+    lines = [
+        "<!-- Staging Deploy Status -->",
+        "## Staging Deploy Status",
+        "",
+        title,
+        "",
+        body,
+        "",
+    ]
+    if head_branch:
+        lines.append(f"**Branch:** `{head_branch}`")
+    if merge_sha:
+        lines.append(f"**Staging commit:** `{str(merge_sha)[:12]}`")
+    if process_instance_key:
+        lines.append(
+            "[Процес в Operate]"
+            f"(http://camunda-demo.a.local:8088/operate/processes/{process_instance_key})"
+        )
+
+    if normalized in {"failed", "failure", "error"}:
+        trace = error_traceback or error_message
+        if trace:
+            lines.extend([
+                "",
+                "<details><summary>Traceback</summary>",
+                "",
+                "```",
+                trace,
+                "```",
+                "",
+                "</details>",
+            ])
+
+    return "\n".join(lines)
+
+
 def register_github_handlers(
     worker: ZeebeWorker,
     config: AppConfig,
@@ -256,8 +316,18 @@ def register_github_handlers(
         and returns score + critical flag to Zeebe.
         """
         repo = repository or config.github.repository
+        review_head_sha = str(kwargs.get("head_sha") or "")
 
-        # 1. Fetch diff
+        # 1. Pin the review to the PR head seen at review time.
+        try:
+            pr_data = await github.get_pr(repo, pr_number)
+            review_head_sha = str(
+                (pr_data.get("head") or {}).get("sha") or review_head_sha
+            )
+        except Exception as exc:
+            logger.warning("Failed to fetch PR #%d head before review: %s", pr_number, exc)
+
+        # 2. Fetch diff
         try:
             diff = await github.get_pr_diff(repo, pr_number)
         except Exception as exc:
@@ -265,10 +335,12 @@ def register_github_handlers(
             return {
                 "review_score": 0,
                 "has_critical_issues": False,
+                "review_head_sha": review_head_sha,
+                "head_sha": review_head_sha,
                 "process_instance_key": job.process_instance_key,
             }
 
-        # 2. Run Codex CLI review
+        # 3. Run Codex CLI review
         review = await _run_review(diff, pr_number, repo)
         score = review.get("score", 0)
         critical = review.get("critical", False)
@@ -278,7 +350,7 @@ def register_github_handlers(
             pr_number, score, critical,
         )
 
-        # 3. Post or update review comment on PR (single comment per PR, edited on re-run).
+        # 4. Post or update review comment on PR (single comment per PR, edited on re-run).
         try:
             comment_body = _format_review_comment(review)
             await github.upsert_comment(
@@ -291,6 +363,8 @@ def register_github_handlers(
         return {
             "review_score": score,
             "has_critical_issues": critical,
+            "review_head_sha": review_head_sha,
+            "head_sha": review_head_sha,
             "process_instance_key": job.process_instance_key,
         }
 
@@ -331,6 +405,53 @@ def register_github_handlers(
         except Exception as exc:
             if ignore_errors:
                 logger.warning("Failed to comment on PR #%d (ignored): %s", pr_number, exc)
+            else:
+                raise
+        return {}
+
+    # ── github-deploy-status-comment ───────────────────────────
+
+    @worker.task(task_type="github-deploy-status-comment", timeout_ms=30_000)
+    async def github_deploy_status_comment(
+        pr_number: int,
+        deploy_status: str = "started",
+        repository: str = "",
+        head_branch: str = "",
+        merge_sha: str = "",
+        error_message: str = "",
+        error_traceback: str = "",
+        process_instance_key: str = "",
+        ignore_errors: bool = True,
+        **kwargs: Any,
+    ) -> dict:
+        """Create/update the single staging deploy status comment on a PR."""
+        repo = repository or config.github.repository
+        body = _format_deploy_status_comment(
+            deploy_status,
+            head_branch=head_branch,
+            merge_sha=merge_sha,
+            process_instance_key=process_instance_key or kwargs.get("process_instance_key", ""),
+            error_message=error_message or kwargs.get("caught_error_message", ""),
+            error_traceback=error_traceback,
+        )
+        try:
+            await github.upsert_comment(
+                repo,
+                pr_number,
+                body,
+                marker="Staging Deploy Status",
+                update_note=None,
+            )
+            logger.info(
+                "Posted/updated staging deploy status comment on PR #%d in %s: %s",
+                pr_number, repo, deploy_status,
+            )
+        except Exception as exc:
+            if ignore_errors:
+                logger.warning(
+                    "Failed to update deploy status comment on PR #%d (ignored): %s",
+                    pr_number, exc,
+                )
             else:
                 raise
         return {}

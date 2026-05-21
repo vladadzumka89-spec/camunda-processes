@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass
 from typing import Optional
 
@@ -12,6 +13,21 @@ import asyncssh
 from .config import ServerConfig
 
 logger = logging.getLogger(__name__)
+
+_SECRET_PATTERNS = (
+    re.compile(r"https://x-access-token:[^@\s]+@github\.com/"),
+    re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
+)
+
+
+def _redact_command(text: str) -> str:
+    """Remove credentials from command text before logging or surfacing errors."""
+    redacted = text
+    redacted = _SECRET_PATTERNS[0].sub("https://x-access-token:***@github.com/", redacted)
+    for pattern in _SECRET_PATTERNS[1:]:
+        redacted = pattern.sub("***", redacted)
+    return redacted
 
 
 @dataclass
@@ -122,7 +138,7 @@ class AsyncSSHClient:
             env_prefix = ' '.join(f'{k}={v}' for k, v in env.items())
             command = f'{env_prefix} {command}'
 
-        logger.debug('SSH %s: %s', server.host, command[:200])
+        logger.debug('SSH %s: %s', server.host, _redact_command(command)[:200])
 
         try:
             result = await asyncio.wait_for(
@@ -131,7 +147,8 @@ class AsyncSSHClient:
             )
         except asyncio.TimeoutError:
             raise RemoteCommandError(
-                f'Command timed out after {timeout}s on {server.host}: {command[:100]}'
+                f'Command timed out after {timeout}s on {server.host}: '
+                f'{_redact_command(command)[:100]}'
             )
         except asyncssh.Error as exc:
             # Connection dropped mid-command — evict from pool and raise infra error

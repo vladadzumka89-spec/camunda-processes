@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
+import shlex
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -19,6 +21,12 @@ from pyzeebe import ZeebeClient, ZeebeWorker
 
 from ..auth import ZeebeAuthConfig, create_channel
 from ..config import AppConfig
+from ..errors import (
+    BpmnError,
+    StagingAnonymizeError,
+    StagingDumpError,
+    StagingExportError,
+)
 from ..ssh import AsyncSSHClient
 from .. import staging_lock
 
@@ -30,6 +38,7 @@ ANON_SNAPSHOT  = "/opt/odoo-enterprise/backups/anon_latest.sql.zst"
 SYNC_SCRIPT    = "/opt/odoo-enterprise/scripts/db_anonymize/sync.sh"
 SYNC_LOG_PATH  = "/opt/odoo-enterprise/scripts/db_anonymize/sync.log"
 INCIDENTS_FILE = Path("/app/staging-sync-incidents.md")
+KOZAK_SYNC_REPO = "/opt/odoo-enterprise"
 
 NFS_HOST      = "10.1.1.99"
 NFS_DEST_DIR  = "/mnt/borys-nfs-import-db"
@@ -49,9 +58,298 @@ STG_VOLUME  = "odoo-enterprise_odoo-web-data"
 STG_PG_USER = "odoo"
 STG_IMAGE   = "odoo-custom:19.0"
 
+_SECRET_PATTERNS = (
+    re.compile(r"https://x-access-token:[^@\s]+@github\.com/"),
+    re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
+)
+
 
 _SFTP_CHUNK_TIMEOUT = 120   # seconds per 2MB chunk read/write
 _SFTP_CONNECT_TIMEOUT = 30  # seconds for SSH handshake
+
+_STOPPED_CONTAINER_STATES = {"missing", "exited", "dead", "created", "removing"}
+_STAGING_STOP_GRACE_SECONDS = 90
+_STAGING_STOP_COMMAND_TIMEOUT = 180
+
+
+def _staging_bpmn_error(exc: Exception, error_cls: type[BpmnError]) -> BpmnError:
+    """Wrap arbitrary failures in the BPMN error code the diagram catches."""
+    if isinstance(exc, error_cls):
+        return exc
+    return error_cls(str(exc), variables={"error_type": "infra"})
+
+
+def _git_auth_url(pat: str, repo: str) -> str:
+    """Build an authenticated GitHub URL for non-interactive server-side fetches."""
+    return f"https://x-access-token:{pat}@github.com/{repo}.git"
+
+
+def _redact_secrets(text: str, *secrets: str) -> str:
+    """Remove tokens from command output before logging, incidents, or BPMN errors."""
+    redacted = text
+    for secret in secrets:
+        if secret:
+            redacted = redacted.replace(secret, "***")
+    for pattern in _SECRET_PATTERNS:
+        redacted = pattern.sub("https://x-access-token:***@github.com/" if pattern is _SECRET_PATTERNS[0] else "***", redacted)
+    return redacted
+
+
+def _kozak_sync_preflight_command(repo_dir: str) -> str:
+    """Build a fail-fast preflight for kozak_demo before the long restore starts."""
+    command = r"""
+set -euo pipefail
+cd __REPO_DIR__
+
+script="scripts/db_anonymize/sync.sh"
+conf="scripts/db_anonymize/sync.conf"
+
+[ -x "$script" ] || { echo "sync.sh is missing or not executable: $script" >&2; exit 1; }
+[ -f "$conf" ] || { echo "sync.conf is missing: copy scripts/db_anonymize/sync.conf.example to sync.conf" >&2; exit 1; }
+[ -f "docker-compose.staging.yml" ] || { echo "docker-compose.staging.yml is missing" >&2; exit 1; }
+
+python3 - <<'PY'
+import importlib.util
+import sys
+
+missing = [mod for mod in ("psycopg2", "yaml") if importlib.util.find_spec(mod) is None]
+if missing:
+    print(
+        "Missing Python dependency for db anonymize: "
+        + ", ".join(missing)
+        + ". Install python3-psycopg2/python3-yaml or scripts/db_anonymize/requirements.txt.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+PY
+
+set -a
+# shellcheck source=/dev/null
+source "$conf"
+set +a
+
+POSTGRES_IMAGE="${POSTGRES_IMAGE:-odoo-db:16}"
+STAGING_DB_PORT="${STAGING_DB_PORT:-5433}"
+STAGING_ODOO_PORT="${STAGING_ODOO_PORT:-8070}"
+STAGING_DB_CONTAINER="${STAGING_DB_CONTAINER:-odoo19-staging-db}"
+STAGING_ODOO_CONTAINER="${STAGING_ODOO_CONTAINER:-odoo19-staging}"
+
+docker image inspect "$POSTGRES_IMAGE" >/dev/null 2>&1 \
+  || { echo "Docker image not present locally: $POSTGRES_IMAGE" >&2; exit 1; }
+
+conflicts="$(
+  docker ps --format '{{.Names}} {{.Ports}}' | while read -r name ports; do
+    case "$name" in
+      "$STAGING_DB_CONTAINER"|"$STAGING_ODOO_CONTAINER") continue ;;
+    esac
+    case "$ports" in
+      *":${STAGING_DB_PORT}->"*|*":${STAGING_ODOO_PORT}->"*) echo "$name $ports" ;;
+    esac
+  done
+)"
+
+if [ -n "$conflicts" ]; then
+  echo "Configured staging ports are already used by other containers:" >&2
+  echo "$conflicts" >&2
+  exit 1
+fi
+""".strip()
+    return command.replace("__REPO_DIR__", shlex.quote(repo_dir))
+
+
+async def _run_git_checked(
+    ssh: AsyncSSHClient,
+    server: Any,
+    command: str,
+    *,
+    timeout: int,
+    pat: str,
+    error_cls: type[BpmnError],
+    label: str,
+) -> None:
+    """Run a git command that may contain a PAT without letting ssh.py log it raw."""
+    result = await ssh.run(server, command, timeout=timeout, check=False)
+    if result.success:
+        return
+
+    output = "\n".join(part for part in (result.stderr.strip(), result.stdout.strip()) if part)
+    safe_output = _redact_secrets(output or "(no output)", pat)
+    raise error_cls(
+        f"{label} failed on {server.host} (exit code {result.exit_code}): {safe_output}",
+        variables={"error_type": "infra"},
+    )
+
+
+async def _reset_staging_code_to_deployed_commit(
+    ssh: AsyncSSHClient,
+    staging: Any,
+    config: AppConfig,
+    deployed_commit: str,
+) -> str:
+    """Reset local and remote staging code only after the replacement DB is ready."""
+    deploy_pat = config.github.deploy_pat
+    if not deploy_pat:
+        raise StagingExportError(
+            "DEPLOY_PAT is empty; cannot reset staging branch non-interactively",
+            variables={"error_type": "infra"},
+        )
+
+    target = (deployed_commit or "main").strip()
+    if target != "main" and not re.fullmatch(r"[0-9a-fA-F]{7,40}", target):
+        raise StagingExportError(
+            f"Invalid deployed_commit for staging reset: {target!r}",
+            variables={"error_type": "infra"},
+        )
+
+    repo_dir = shlex.quote(staging.repo_dir)
+    push_url = shlex.quote(_git_auth_url(deploy_pat, config.github.repository))
+    target_ref = "refs/remotes/ci/main" if target == "main" else shlex.quote(target)
+
+    command = (
+        "set -e; "
+        f"cd {repo_dir}; "
+        f"git config --global --add safe.directory {repo_dir} 2>/dev/null || true; "
+        f"git fetch {push_url} +refs/heads/main:refs/remotes/ci/main; "
+        f"git cat-file -e {target_ref}^{{commit}}; "
+        f"git reset --hard {target_ref}; "
+        "git clean -fd; "
+        f"git push --force {push_url} HEAD:staging"
+    )
+    await _run_git_checked(
+        ssh,
+        staging,
+        command,
+        timeout=180,
+        pat=deploy_pat,
+        error_cls=StagingExportError,
+        label=f"staging code reset to {target[:12]}",
+    )
+    logger.info("staging-export: reset staging code to %s", target[:12])
+    return target
+
+
+async def _container_status(
+    ssh: AsyncSSHClient,
+    server: Any,
+    container: str,
+) -> str:
+    """Return Docker container status, or ``missing`` when it does not exist."""
+    quoted = shlex.quote(container)
+    result = await ssh.run(
+        server,
+        f"docker inspect -f '{{{{.State.Status}}}}' {quoted} 2>/dev/null || echo missing",
+        timeout=20,
+        check=False,
+    )
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    return lines[-1] if lines else "unknown"
+
+
+async def _stop_container_for_db_replace(
+    ssh: AsyncSSHClient,
+    server: Any,
+    container: str,
+) -> None:
+    """Stop staging web before DB replacement without false-failing on slow shutdown.
+
+    Docker/Odoo can take slightly longer than the old 30s timeout to exit cleanly.
+    If our SSH command times out but Docker has already stopped the container, this
+    step is considered successful and the DB replacement may safely continue.
+    """
+    before = await _container_status(ssh, server, container)
+    if before in _STOPPED_CONTAINER_STATES:
+        logger.info("staging-export: %s already stopped (status=%s)", container, before)
+        return
+
+    quoted = shlex.quote(container)
+    stop_script = f"""
+status="$(docker inspect -f '{{{{.State.Status}}}}' {quoted} 2>/dev/null || echo missing)"
+case "$status" in
+  missing|exited|dead|created|removing) exit 0 ;;
+esac
+
+docker stop -t {_STAGING_STOP_GRACE_SECONDS} {quoted} 2>/dev/null || true
+
+for _i in $(seq 1 15); do
+  status="$(docker inspect -f '{{{{.State.Status}}}}' {quoted} 2>/dev/null || echo missing)"
+  case "$status" in
+    missing|exited|dead|created|removing) exit 0 ;;
+  esac
+  sleep 2
+done
+
+docker kill {quoted} 2>/dev/null || true
+
+for _i in $(seq 1 15); do
+  status="$(docker inspect -f '{{{{.State.Status}}}}' {quoted} 2>/dev/null || echo missing)"
+  case "$status" in
+    missing|exited|dead|created|removing) exit 0 ;;
+  esac
+  sleep 2
+done
+
+echo "{container} still $status after docker stop/kill" >&2
+exit 1
+""".strip()
+    command = f"timeout 150 sh -c {shlex.quote(stop_script)}"
+
+    try:
+        await ssh.run(
+            server,
+            command,
+            timeout=_STAGING_STOP_COMMAND_TIMEOUT,
+            check=True,
+        )
+    except Exception as exc:
+        status = await _container_status(ssh, server, container)
+        if status in _STOPPED_CONTAINER_STATES:
+            logger.warning(
+                "staging-export: stop command for %s failed/timed out, "
+                "but container is already stopped (status=%s): %s",
+                container,
+                status,
+                exc,
+            )
+            return
+        raise StagingExportError(
+            f"Could not stop {container} on {server.host}; current status={status}: {exc}",
+            variables={"error_type": "infra"},
+        ) from exc
+
+    after = await _container_status(ssh, server, container)
+    if after not in _STOPPED_CONTAINER_STATES:
+        raise StagingExportError(
+            f"Could not stop {container} on {server.host}; current status={after}",
+            variables={"error_type": "infra"},
+        )
+
+    logger.info("staging-export: %s stopped (status=%s)", container, after)
+
+
+async def _start_container_best_effort(
+    ssh: AsyncSSHClient,
+    server: Any,
+    container: str,
+) -> None:
+    """Best-effort recovery when export fails before DB mutation starts."""
+    try:
+        status = await _container_status(ssh, server, container)
+        if status == "running":
+            return
+        await ssh.run(
+            server,
+            f"docker start {shlex.quote(container)}",
+            timeout=60,
+            check=False,
+        )
+        logger.info("staging-export: best-effort started %s after pre-restore failure", container)
+    except Exception as exc:
+        logger.warning(
+            "staging-export: could not best-effort start %s after pre-restore failure: %s",
+            container,
+            exc,
+        )
 
 
 async def _stream_file(
@@ -168,26 +466,32 @@ def register_staging_sync_handlers(
         """Dump production DB → kozak_demo via worker relay."""
         staging_lock.acquire()
         logger.info("staging-dump: lock acquired — deploys to staging blocked")
-        logger.info("staging-dump: streaming pg_dump from %s → kozak_demo", prod.host)
+        try:
+            logger.info("staging-dump: streaming pg_dump from %s → kozak_demo", prod.host)
 
-        await _stream_dump_to_kozak(
-            prod_host=prod.host,
-            kozak_host=kozak.host,
-            dst_path=DUMP_PATH,
-            key_path=config.ssh_key_path,
-            ssh=ssh,
-            prod_server=prod,
-        )
+            await _stream_dump_to_kozak(
+                prod_host=prod.host,
+                kozak_host=kozak.host,
+                dst_path=DUMP_PATH,
+                key_path=config.ssh_key_path,
+                ssh=ssh,
+                prod_server=prod,
+            )
 
-        check = await ssh.run(kozak, f"test -s {DUMP_PATH} && du -h {DUMP_PATH}", check=True)
-        size = check.stdout.strip().split()[0] if check.stdout.strip() else "?"
-        logger.info("staging-dump: dump ready — %s", size)
+            check = await ssh.run(kozak, f"test -s {DUMP_PATH} && du -h {DUMP_PATH}", check=True)
+            size = check.stdout.strip().split()[0] if check.stdout.strip() else "?"
+            logger.info("staging-dump: dump ready — %s", size)
 
-        # Capture the exact commit deployed on prod so staging uses the same code
-        commit_r = await ssh.run(prod, "git -C /opt/odoo-enterprise rev-parse HEAD 2>/dev/null || echo main", check=False)
-        deployed_commit = commit_r.stdout.strip() or "main"
-        logger.info("staging-dump: prod deployed commit — %s", deployed_commit)
-        return {"dump_path": DUMP_PATH, "deployed_commit": deployed_commit}
+            # Capture the exact commit deployed on prod so staging uses the same code
+            commit_r = await ssh.run(prod, "git -C /opt/odoo-enterprise rev-parse HEAD 2>/dev/null || echo main", check=False)
+            deployed_commit = commit_r.stdout.strip() or "main"
+            logger.info("staging-dump: prod deployed commit — %s", deployed_commit)
+            return {"dump_path": DUMP_PATH, "deployed_commit": deployed_commit}
+        except Exception as exc:
+            await _capture_incident("staging-dump", str(exc), kozak.host, config.ssh_key_path)
+            staging_lock.release()
+            logger.info("staging-dump: lock released after failure")
+            raise _staging_bpmn_error(exc, StagingDumpError) from exc
 
     # ── staging-anonymize ─────────────────────────────────────
 
@@ -199,12 +503,50 @@ def register_staging_sync_handlers(
     ) -> dict:
         """Run sync.sh deploy on kozak_demo: restore → anonymize → local staging."""
         try:
-            logger.info("staging-anonymize: syncing src/ scripts/ docker-compose.staging.yml on kozak_demo to origin/main")
+            if not config.github.deploy_pat:
+                raise StagingAnonymizeError(
+                    "DEPLOY_PAT is empty; cannot sync kozak_demo sources non-interactively",
+                    variables={"error_type": "infra"},
+                )
+
+            source_commit = (deployed_commit or "main").strip()
+            if source_commit != "main" and not re.fullmatch(r"[0-9a-fA-F]{7,40}", source_commit):
+                raise StagingAnonymizeError(
+                    f"Invalid deployed_commit for kozak source sync: {source_commit!r}",
+                    variables={"error_type": "infra"},
+                )
+
+            logger.info(
+                "staging-anonymize: syncing scripts from main and src from %s on kozak_demo",
+                source_commit[:12],
+            )
+            fetch_url = shlex.quote(_git_auth_url(config.github.deploy_pat, config.github.repository))
+            kozak_repo = shlex.quote(KOZAK_SYNC_REPO)
+            source_ref = "refs/remotes/ci/main" if source_commit == "main" else shlex.quote(source_commit)
+            sync_sources_cmd = (
+                "set -e; "
+                f"cd {kozak_repo}; "
+                f"git config --global --add safe.directory {kozak_repo} 2>/dev/null || true; "
+                f"git fetch {fetch_url} +refs/heads/main:refs/remotes/ci/main; "
+                f"git cat-file -e {source_ref}^{{commit}}; "
+                "git checkout refs/remotes/ci/main -- scripts/ docker-compose.staging.yml; "
+                f"git checkout {source_ref} -- src/"
+            )
+            await _run_git_checked(
+                ssh,
+                kozak,
+                sync_sources_cmd,
+                timeout=120,
+                pat=config.github.deploy_pat,
+                error_cls=StagingAnonymizeError,
+                label="staging-anonymize source sync",
+            )
+
+            logger.info("staging-anonymize: running kozak_demo sync preflight")
             await ssh.run(
                 kozak,
-                f"git -C /opt/odoo-enterprise fetch origin main "
-                f"&& git -C /opt/odoo-enterprise checkout refs/remotes/origin/main -- src/ scripts/ docker-compose.staging.yml",
-                timeout=120,
+                _kozak_sync_preflight_command(KOZAK_SYNC_REPO),
+                timeout=60,
                 check=True,
             )
 
@@ -220,23 +562,41 @@ def register_staging_sync_handlers(
             logger.info("staging-anonymize: done")
             return {}
         except Exception as exc:
-            await _capture_incident("staging-anonymize", str(exc), kozak.host, config.ssh_key_path)
-            raise
+            safe_error = _redact_secrets(
+                str(exc),
+                config.github.deploy_pat,
+                config.github.enterprise_pat,
+                config.github.token,
+            )
+            await _capture_incident("staging-anonymize", safe_error, kozak.host, config.ssh_key_path)
+            staging_lock.release()
+            logger.info("staging-anonymize: lock released after failure")
+            raise _staging_bpmn_error(
+                StagingAnonymizeError(safe_error, variables={"error_type": "infra"}),
+                StagingAnonymizeError,
+            ) from exc
 
     # ── staging-export ────────────────────────────────────────
 
     @worker.task(task_type="staging-export", timeout_ms=7_200_000, max_jobs_to_activate=1)
-    async def staging_export(**kwargs: Any) -> dict:
+    async def staging_export(
+        deployed_commit: str = "main",
+        **kwargs: Any,
+    ) -> dict:
         """Transfer anonymized DB from kozak_demo → staging server.
 
         1. pg_dump odoo_staging з kozak_demo → /tmp/anon_transfer.sql.zst
         2. SFTP стримінг kozak_demo → staging (2MB chunks)
-        3. staging: зупинити odoo19, замінити odoo19 DB в odoo19-db, запустити
-        4. Публікує msg_deploy_trigger → deploy pipeline з git робить -u all
-        5. Cleanup
+        3. staging: зупинити odoo19, замінити odoo19 DB в odoo19-db
+        4. Reset staging code to the prod deployed commit only after DB restore
+        5. Публікує msg_deploy_trigger → deploy pipeline з git робить -u all
+        6. Cleanup
         """
         staging_lock.acquire()  # re-acquire in case worker restarted mid-pipeline
         logger.info("staging-export: exporting anonymized DB to %s", staging.host)
+        web_stopped = False
+        db_mutation_started = False
+        lock_released = False
         try:
             # 1. Дамп анонімізованої БД на козак_демо
             logger.info("staging-export: dumping anonymized DB on kozak_demo")
@@ -261,8 +621,9 @@ def register_staging_sync_handlers(
             # 3. Замінюємо DB на staging
             logger.info("staging-export: replacing %s DB on %s", STG_DB, staging.host)
 
-            # Зупиняємо web
-            await ssh.run(staging, f"docker stop {STG_CTR} 2>/dev/null || true", timeout=30)
+            # Зупиняємо web. Odoo can need >30s for graceful worker shutdown.
+            await _stop_container_for_db_replace(ssh, staging, STG_CTR)
+            web_stopped = True
 
             # Скидаємо всі з'єднання і дропаємо БД
             await ssh.run(
@@ -273,6 +634,7 @@ def register_staging_sync_handlers(
                 timeout=15,
                 check=False,
             )
+            db_mutation_started = True
             await ssh.run(
                 staging,
                 f"docker exec {STG_DB_CTR} dropdb -U {STG_PG_USER} --if-exists {STG_DB}",
@@ -297,18 +659,25 @@ def register_staging_sync_handlers(
             )
             logger.info("staging-export: restore done")
 
-            # Скидаємо deploy-state щоб deploy pipeline завжди запускав -u all після синку БД
-            # (без цього git-pull бачить has_changes=false якщо staging гілка не змінилась
-            # і пропускає оновлення модулів — нова БД від прод залишається без нових колонок)
+            await _reset_staging_code_to_deployed_commit(
+                ssh,
+                staging,
+                config,
+                deployed_commit,
+            )
+
+            # Скидаємо deploy-state щоб deploy pipeline завжди запускав після синку БД
+            # (без цього git-pull бачить has_changes=false якщо staging гілка не змінилась).
             await ssh.run(
                 staging,
                 f"rm -f {staging.repo_dir}/.deploy-state/deploy_state_staging",
                 check=False,
             )
-            logger.info("staging-export: cleared deploy-state to force -u all on next deploy")
+            logger.info("staging-export: cleared deploy-state for post-sync deploy")
 
             # Запускаємо web — модульні оновлення виконає deploy pipeline з git
             await ssh.run(staging, f"docker start {STG_CTR}", timeout=30, check=True)
+            web_stopped = False
             logger.info("staging-export: staging ready at %s:8069", staging.host)
 
             # Тригер деплою — deploy pipeline з git зробить -u all з актуального коду
@@ -333,12 +702,16 @@ def register_staging_sync_handlers(
                         "container": staging.container,
                         "branch": "staging",
                         "force_rebuild": True,
+                        "force_update_all": True,
+                        "staging_sync_deploy": True,
                     },
                     time_to_live_in_milliseconds=300_000,
                 ),
                 timeout=30,
             )
+            lock_released = True  # ownership transferred to the post-sync deploy
             logger.info("staging-export: published msg_deploy_trigger for staging deploy pipeline")
+            logger.info("staging-export: lock retained until post-sync deploy finishes")
 
             # 4. Cleanup — зберігаємо зліпок на kozak_demo, видаляємо зі staging
             await ssh.run(
@@ -351,11 +724,23 @@ def register_staging_sync_handlers(
 
             return {}
         except Exception as exc:
-            await _capture_incident("staging-export", str(exc), kozak.host, config.ssh_key_path)
-            raise
+            if web_stopped and not db_mutation_started:
+                await _start_container_best_effort(ssh, staging, STG_CTR)
+            safe_error = _redact_secrets(
+                str(exc),
+                config.github.deploy_pat,
+                config.github.enterprise_pat,
+                config.github.token,
+            )
+            await _capture_incident("staging-export", safe_error, kozak.host, config.ssh_key_path)
+            raise _staging_bpmn_error(
+                StagingExportError(safe_error, variables={"error_type": "infra"}),
+                StagingExportError,
+            ) from exc
         finally:
-            staging_lock.release()
-            logger.info("staging-export: lock released — deploys to staging unblocked")
+            if not lock_released:
+                staging_lock.release()
+                logger.info("staging-export: lock released — deploys to staging unblocked")
 
     # ── staging-nfs-deliver ───────────────────────────────────
 

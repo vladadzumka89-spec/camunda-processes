@@ -1,7 +1,8 @@
-"""Staging sync lock — prevents deploys to staging during nightly DB sync.
+"""Staging sync lock — prevents feature deploys during nightly staging refresh.
 
 In-memory flag with 4-hour stale-lock protection.
-Acquire at staging-dump start, release in staging-export finally block.
+Acquire when nightly staging sync starts, re-acquire at staging-dump,
+release after the post-sync deploy finishes.
 """
 
 from __future__ import annotations

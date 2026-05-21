@@ -33,8 +33,8 @@ def register_all_handlers(
         Deploy (10): git-pull, detect-modules, docker-build, docker-up,
                      module-update, cache-clear, smoke-test, http-verify,
                      save-deploy-state, rollback
-        GitHub (4):  pr-agent-review, github-merge, github-comment,
-                     github-create-pr
+        GitHub (5):  pr-agent-review, github-merge, github-comment,
+                     github-deploy-status-comment, github-create-pr
         Sync (9):    fetch-current-version, fetch-runbot, clone-upstream,
                      sync-modules, diff-report, impact-analysis,
                      git-commit-push, sync-code-to-demo, github-pr-ready

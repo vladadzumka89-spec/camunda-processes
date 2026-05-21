@@ -89,7 +89,12 @@ class GitHubClient:
         )
 
     async def upsert_comment(
-        self, repo: str, pr_number: int, body: str, marker: str,
+        self,
+        repo: str,
+        pr_number: int,
+        body: str,
+        marker: str,
+        update_note: str | None = "> _оновлено свіжим ревʼю_",
     ) -> dict:
         """Update existing comment with marker, or create new one.
 
@@ -110,10 +115,13 @@ class GitHubClient:
                 break
 
         if existing_id:
+            updated_body = body
+            if update_note:
+                updated_body = f"{body}\n\n{update_note}"
             return await self._request(
                 "PATCH",
                 f"{API_BASE}/repos/{repo}/issues/comments/{existing_id}",
-                json={"body": body + "\n\n> _оновлено свіжим ревʼю_"},
+                json={"body": updated_body},
             )
         return await self._request("POST", url, json={"body": body})
 

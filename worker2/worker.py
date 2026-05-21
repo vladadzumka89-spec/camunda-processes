@@ -32,6 +32,9 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)-8s [%(name)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+# asyncssh logs the full remote command at INFO, which can include authenticated
+# Git URLs. Keep worker-level command logging explicit and redacted in ssh.py.
+logging.getLogger("asyncssh").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Track in-flight jobs so we can release them on shutdown

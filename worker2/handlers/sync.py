@@ -163,6 +163,7 @@ def register_sync_handlers(
         """
         server = _resolve_server(server_host)
         deploy_pat = config.github.deploy_pat
+        enterprise_pat = config.github.enterprise_pat or deploy_pat
         repo = config.github.repository
 
         # Unique dirs per attempt — prevents concurrent retry conflicts
@@ -188,7 +189,7 @@ def register_sync_handlers(
                 await ssh.run(
                     server,
                     f"git clone --depth=1 --single-branch --branch {upstream_branch} "
-                    f"{_git_auth_url(deploy_pat, 'odoo/enterprise')} "
+                    f"{_git_auth_url(enterprise_pat, 'odoo/enterprise')} "
                     f"{enterprise_dir} && "
                     f"cd {enterprise_dir} && git fetch --depth=1 origin {runbot_enterprise_sha} && "
                     "git checkout FETCH_HEAD -q",
@@ -196,7 +197,7 @@ def register_sync_handlers(
                     timeout=300,
                 )
             except Exception as e:
-                raise SyncError(_redact_pat(str(e), deploy_pat)) from None
+                raise SyncError(_redact_pat(str(e), enterprise_pat)) from None
 
             # 3. Clone our repo to isolated workspace (clean state from main)
             try:
@@ -726,6 +727,7 @@ def register_sync_handlers(
 
     @worker.task(task_type="merge-to-staging", timeout_ms=180_000)
     async def merge_to_staging(
+        job: Job,
         sync_branch: str = "",
         server_host: str = "",
         repository: str = "",
@@ -742,6 +744,22 @@ def register_sync_handlers(
 
         if not sync_branch:
             raise ConfigError("sync_branch is required for merge-to-staging")
+
+        if (
+            sync_branch == "main"
+            and getattr(job, "bpmn_process_id", "") == "nightly-staging-sync"
+        ):
+            from .. import staging_lock
+
+            staging_lock.acquire()
+            logger.info(
+                "Staging sync lock acquired; reset to main deferred until staging-export"
+            )
+            return {
+                "staging_merged": False,
+                "staging_reset_deferred": True,
+                "staging_sync_lock_acquired": True,
+            }
 
         push_url = _git_auth_url(deploy_pat, repo)
 
@@ -785,6 +803,18 @@ def register_sync_handlers(
         if not feature_branch:
             raise ConfigError("feature_branch is required for merge-feature-to-staging")
 
+        try:
+            server_name = config.resolve_server_name(server_host or "staging")
+        except Exception:
+            server_name = ""
+        if server_name == "staging":
+            from .. import staging_lock
+            if staging_lock.is_active():
+                raise SyncError(
+                    "Staging sync активний — merge в staging заблоковано. "
+                    "Спробуйте після завершення nightly staging sync."
+                )
+
         push_url = _git_auth_url(deploy_pat, repo)
 
         run_id = uuid.uuid4().hex[:8]
@@ -808,6 +838,23 @@ def register_sync_handlers(
                 f"cd {workspace} && git fetch origin {feature_branch}:{feature_branch}",
                 check=True, timeout=60,
             )
+
+            reviewed_sha = str(
+                kwargs.get("review_head_sha") or kwargs.get("head_sha") or ""
+            ).strip()
+            if reviewed_sha:
+                head_result = await ssh.run(
+                    server,
+                    f"cd {workspace} && git rev-parse {shlex.quote(feature_branch)}",
+                    check=True, timeout=15,
+                )
+                current_sha = head_result.stdout.strip()
+                if current_sha and current_sha != reviewed_sha:
+                    raise SyncError(
+                        "PR branch changed after Codex review: "
+                        f"reviewed {reviewed_sha[:12]}, current {current_sha[:12]}. "
+                        "Waiting for a fresh review before staging merge."
+                    )
 
             # Merge feature into staging with -X theirs (feature branch wins).
             # Staging is a temporary test environment synced nightly from main,

@@ -3,7 +3,7 @@
   <bpmn:error id="Error_deploy_failed" name="DEPLOY_FAILED" errorCode="DEPLOY_FAILED" />
   <bpmn:process id="upstream-sync" name="Enterprise Sync" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="2.1" />
+      <zeebe:versionTag value="2.3" />
     </bpmn:extensionElements>
     <bpmn:startEvent id="evt_start" name="Ручний запуск">
       <bpmn:documentation>Ручний тригер через Operate або REST API.
@@ -149,7 +149,7 @@ Output: sync_branch, nothing_to_commit (true if workspace already up-to-date)</b
       <bpmn:incoming>f_nothing_to_commit_true</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:callActivity id="call_deploy_demo" name="Деплой на демку">
-      <bpmn:documentation>Деплоїть sync branch на козак демку (10.1.1.61).</bpmn:documentation>
+      <bpmn:documentation>Деплоїть sync branch на odoo-kozakvs demo (10.1.1.99).</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:calledElement processId="deploy-process" propagateAllChildVariables="false" />
         <zeebe:ioMapping>
@@ -157,6 +157,7 @@ Output: sync_branch, nothing_to_commit (true if workspace already up-to-date)</b
           <zeebe:input source="=sync_branch" target="branch" />
           <zeebe:input source="=&#34;full&#34;" target="test_mode" />
           <zeebe:input source="=true" target="force_rebuild" />
+          <zeebe:input source="=true" target="force_update_all" />
           <zeebe:input source="=process_instance_key" target="parent_process_instance_key" />
           <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
           <zeebe:input source="=odoo_webhook_url" target="odoo_webhook_url" />
@@ -173,7 +174,7 @@ Output: sync_branch, nothing_to_commit (true if workspace already up-to-date)</b
       <bpmn:incoming>f_deploy_demo_failed</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:userTask id="UT_review_demo" name="Перевірити демку та підтвердити деплой на staging">
-      <bpmn:documentation>Перевір sync branch на козак демці (10.1.1.61).
+      <bpmn:documentation>Перевір sync branch на odoo-kozakvs demo (10.1.1.99).
 Доступні змінні для аналізу: sync_branch, audit_critical, audit_warning, affected_custom_count, impact_table, audit_report.
 Підтверди виконання задачі в Operate щоб запустити деплой на staging.</bpmn:documentation>
       <bpmn:extensionElements>
@@ -224,6 +225,7 @@ Output: sync_branch, nothing_to_commit (true if workspace already up-to-date)</b
           <zeebe:input source="=&#34;staging&#34;" target="server_host" />
           <zeebe:input source="=&#34;staging&#34;" target="branch" />
           <zeebe:input source="=&#34;full&#34;" target="test_mode" />
+          <zeebe:input source="=true" target="force_update_all" />
           <zeebe:input source="=process_instance_key" target="parent_process_instance_key" />
           <zeebe:input source="=odoo_project_id" target="odoo_project_id" />
           <zeebe:input source="=odoo_webhook_url" target="odoo_webhook_url" />

@@ -15,9 +15,9 @@
   <bpmn:error id="Error_export_failed"    name="Export Failed"    errorCode="EXPORT_FAILED" />
 
   <!-- ── Process ───────────────────────────────────────── -->
-  <bpmn:process id="nightly-staging-sync" name="Staging DB Sync" isExecutable="true">
+  <bpmn:process id="nightly-staging-sync" name="staging-db-sync.bpmn" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="3.0" />
+      <zeebe:versionTag value="3.1" />
     </bpmn:extensionElements>
 
     <!-- ── 1. Start Events ──────────────────────────── -->
@@ -40,9 +40,9 @@
       <bpmn:outgoing>f_join_to_reset</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <!-- ── 3. Hard reset staging → main ──────────────── -->
-    <bpmn:serviceTask id="ST_reset_staging" name="Hard reset staging → main">
-      <bpmn:documentation>Git reset --hard + force push staging до main. Оновлює код на staging сервері.</bpmn:documentation>
+    <!-- ── 3. Defer staging reset until DB export is ready ───── -->
+    <bpmn:serviceTask id="ST_reset_staging" name="Підготувати reset staging → main">
+      <bpmn:documentation>Для nightly-staging-sync handler не міняє staging одразу. Reset staging до prod/main виконується в staging-export після успішного restore DB, щоб не лишати code=main + стара DB при падінні anonymize/export.</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="merge-to-staging" retries="2" />
         <zeebe:ioMapping>

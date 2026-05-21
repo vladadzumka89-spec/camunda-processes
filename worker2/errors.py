@@ -55,3 +55,21 @@ class SyncError(BpmnError):
     """Upstream sync operation failed."""
 
     error_code = "SYNC_ERROR"
+
+
+class StagingDumpError(BpmnError):
+    """Nightly staging sync failed while creating or transferring the prod dump."""
+
+    error_code = "DUMP_FAILED"
+
+
+class StagingAnonymizeError(BpmnError):
+    """Nightly staging sync failed while restoring/anonymizing on kozak_demo."""
+
+    error_code = "ANONYMIZE_FAILED"
+
+
+class StagingExportError(BpmnError):
+    """Nightly staging sync failed while exporting the anonymized DB to staging."""
+
+    error_code = "EXPORT_FAILED"

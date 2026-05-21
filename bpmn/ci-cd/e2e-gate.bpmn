@@ -1,0 +1,113 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  id="Definitions_e2e_gate"
+                  targetNamespace="http://tut.ua/bpmn/e2e-gate"
+                  exporter="Claude Code"
+                  exporterVersion="1.0">
+
+  <bpmn:message id="Message_e2e_passed" name="msg_e2e_passed">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=head_branch" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+
+  <bpmn:process id="e2e-gate" name="e2e-gate.bpmn" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0" />
+    </bpmn:extensionElements>
+
+    <!-- Start: wait for msg_e2e_passed from /ship -->
+    <bpmn:startEvent id="evt_start" name="E2E пройшли">
+      <bpmn:outgoing>f_start_to_create_pr</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_start" messageRef="Message_e2e_passed" />
+    </bpmn:startEvent>
+
+    <!-- Create PR via GitHub API -->
+    <bpmn:serviceTask id="task_create_pr" name="Створити PR">
+      <bpmn:documentation>Створює draft PR через GitHub API.
+Після створення GitHub webhook fires → msg_pr_event → feature-pipeline стартує.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="github-create-pr" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=head_branch" target="head_branch" />
+          <zeebe:input source="=base_branch" target="base_branch" />
+          <zeebe:input source="=pr_title" target="pr_title" />
+          <zeebe:input source="=pr_body" target="pr_body" />
+          <zeebe:input source="=repository" target="repository" />
+          <zeebe:input source="=is_draft" target="is_draft" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_start_to_create_pr</bpmn:incoming>
+      <bpmn:outgoing>f_create_pr_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="evt_end" name="PR створено">
+      <bpmn:incoming>f_create_pr_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence flows -->
+    <bpmn:sequenceFlow id="f_start_to_create_pr" sourceRef="evt_start" targetRef="task_create_pr" />
+    <bpmn:sequenceFlow id="f_create_pr_to_end" sourceRef="task_create_pr" targetRef="evt_end" />
+
+    <!-- Error catch-all subprocess -->
+    <bpmn:subProcess id="subprocess_error" name="Обробка помилок" triggeredByEvent="true">
+      <bpmn:startEvent id="evt_error_catch" name="Помилка">
+        <bpmn:outgoing>f_err_to_end</bpmn:outgoing>
+        <bpmn:errorEventDefinition id="ErrorDef_catch" />
+      </bpmn:startEvent>
+      <bpmn:endEvent id="evt_error_end" name="Завершено з помилкою">
+        <bpmn:incoming>f_err_to_end</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="f_err_to_end" sourceRef="evt_error_catch" targetRef="evt_error_end" />
+    </bpmn:subProcess>
+
+  </bpmn:process>
+
+  <!-- ═══════════ DIAGRAM ═══════════ -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="e2e-gate">
+
+      <bpmndi:BPMNShape id="evt_start_di" bpmnElement="evt_start">
+        <dc:Bounds x="170" y="192" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="task_create_pr_di" bpmnElement="task_create_pr">
+        <dc:Bounds x="280" y="170" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="evt_end_di" bpmnElement="evt_end">
+        <dc:Bounds x="462" y="192" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="f_start_to_create_pr_di" bpmnElement="f_start_to_create_pr">
+        <di:waypoint x="206" y="210" />
+        <di:waypoint x="280" y="210" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="f_create_pr_to_end_di" bpmnElement="f_create_pr_to_end">
+        <di:waypoint x="380" y="210" />
+        <di:waypoint x="462" y="210" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNShape id="subprocess_error_di" bpmnElement="subprocess_error" isExpanded="true">
+        <dc:Bounds x="170" y="340" width="360" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="evt_error_catch_di" bpmnElement="evt_error_catch">
+        <dc:Bounds x="200" y="372" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="evt_error_end_di" bpmnElement="evt_error_end">
+        <dc:Bounds x="462" y="372" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_err_to_end_di" bpmnElement="f_err_to_end">
+        <di:waypoint x="236" y="390" />
+        <di:waypoint x="462" y="390" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

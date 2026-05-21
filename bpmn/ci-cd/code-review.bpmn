@@ -16,7 +16,7 @@
     </bpmn:extensionElements>
   </bpmn:message>
 
-  <bpmn:process id="pr-review" name="Code Review" isExecutable="true">
+  <bpmn:process id="pr-review" name="code-review.bpmn" isExecutable="true">
     <bpmn:extensionElements>
       <zeebe:versionTag value="13.0" />
     </bpmn:extensionElements>
@@ -111,8 +111,8 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         <zeebe:taskDefinition type="publish-message" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;msg_review_done&quot;" target="message_name" />
-          <zeebe:input source="=string(pr_number) + &quot;_&quot; + head_sha" target="correlation_key" />
-          <zeebe:input source="=300000" target="ttl_ms" />
+          <zeebe:input source="=string(pr_number)" target="correlation_key" />
+          <zeebe:input source="=3600000" target="ttl_ms" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_merge_to_publish</bpmn:incoming>

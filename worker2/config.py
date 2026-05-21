@@ -43,6 +43,7 @@ class GitHubConfig:
 
     token: str = ''
     deploy_pat: str = ''
+    enterprise_pat: str = ''
     webhook_secret: str = ''
     repository: str = 'tut-ua/odoo-enterprise'
 
@@ -110,6 +111,7 @@ class AppConfig:
             github=GitHubConfig(
                 token=os.getenv('GITHUB_TOKEN', ''),
                 deploy_pat=os.getenv('DEPLOY_PAT', ''),
+                enterprise_pat=os.getenv('ODOO_ENTERPRISE_PAT', ''),
                 webhook_secret=os.getenv('GITHUB_WEBHOOK_SECRET', ''),
                 repository=os.getenv('REPOSITORY', 'tut-ua/odoo-enterprise'),
             ),
