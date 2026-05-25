@@ -62,7 +62,7 @@
               (електроенергія, водопостачання, опалення, генератор тощо)
       TIER 4: Ключові слова оренди
               (оренд, суборенд, маркетинг, експлуатаційний тощо)
-      TIER 5: Default = оренда (невідома позиція)
+      TIER 5: Default = "невідомо" (невідома позиція — потребує ручної класифікації в BPMN)
 
     Джерело даних: Excel "Деталізація рахунків (5).xlsx"
       451 запис, 172 оренда, 279 комунальні, 8 назв у обох категоріях
@@ -103,7 +103,7 @@
               name="x_studio_camunda_invoice_type"
               typeRef="string">
         <outputValues id="outputValues_type">
-          <text>"оренда","комунальні"</text>
+          <text>"оренда","комунальні","невідомо"</text>
         </outputValues>
       </output>
 
@@ -1345,7 +1345,7 @@
         <inputEntry id="ie_123_line"><text></text></inputEntry>
         <inputEntry id="ie_123_partner"><text></text></inputEntry>
         <inputEntry id="ie_123_buyer"><text></text></inputEntry>
-        <outputEntry id="oe_123_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_123_type"><text>"невідомо"</text></outputEntry>
         <outputEntry id="oe_123_notes"><text>"УВАГА: позиція не розпізнана — класифікуйте вручну"</text></outputEntry>
       </rule>
 
@@ -1390,25 +1390,25 @@
               typeRef="string" />
 
       <!-- ═════════════════════════════════════════════════════════════════
-           GUARD: якщо рахунок НЕ комунальний — класифікація не потрібна
+           GUARD: інший тип рахунку (не комунальні і не оренда)
            ═════════════════════════════════════════════════════════════════ -->
 
-      <rule id="rule_guard_not_utilities">
-        <description>Не комунальні — класифікація статей витрат не потрібна</description>
+      <rule id="rule_guard_other_types">
+        <description>Не комунальні та не оренда — класифікація не потрібна</description>
         <inputEntry id="ie_guard_service"><text></text></inputEntry>
-        <inputEntry id="ie_guard_type"><text>not("комунальні")</text></inputEntry>
-        <outputEntry id="oe_guard"><text>"N/A — тип рахунку: оренда, класифікація статей витрат не потрібна"</text></outputEntry>
+        <inputEntry id="ie_guard_type"><text>not("комунальні", "оренда")</text></inputEntry>
+        <outputEntry id="oe_guard"><text>"Невідома послуга — потребує ручної класифікації"</text></outputEntry>
       </rule>
 
       <!-- ═════════════════════════════════════════════════════════════════
-           Комунальні - вивіз сміття, прибирання
+           Оренда від Товарообігу — % від обороту
            ═════════════════════════════════════════════════════════════════ -->
 
-      <rule id="rule_garbage_1">
-        <description>Вивіз ТПВ та захоронення</description>
-        <inputEntry id="ie_garbage_1"><text>"компенс. витрат за вивіз ТПВ та їх захоронення"</text></inputEntry>
-        <inputEntry id="ie_garbage_1_type"><text></text></inputEntry>
-        <outputEntry id="oe_garbage_1"><text>"Комунальні - вивіз сміття, прибирання"</text></outputEntry>
+      <rule id="rule_turnover">
+        <description>Оренда від обороту/товарообігу</description>
+        <inputEntry id="ie_turnover_service"><text>contains(?, "товарообіг") or contains(?, "обороту") or contains(?, "обігу")</text></inputEntry>
+        <inputEntry id="ie_turnover_type"><text>"оренда"</text></inputEntry>
+        <outputEntry id="oe_turnover"><text>"Оренда від Товарообігу"</text></outputEntry>
       </rule>
 
       <!-- ═════════════════════════════════════════════════════════════════
@@ -1525,63 +1525,63 @@
       </rule>
 
       <!-- ═════════════════════════════════════════════════════════════════
-           Комунальні - опалення, кондиціонування
+           Комунальні - опалення, компресорне обладнання
            ═════════════════════════════════════════════════════════════════ -->
 
       <rule id="rule_heat_1">
         <description>Блок кондиціонування</description>
         <inputEntry id="ie_heat_1"><text>"блок кондиціонування"</text></inputEntry>
         <inputEntry id="ie_heat_1_type"><text></text></inputEntry>
-        <outputEntry id="oe_heat_1"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+        <outputEntry id="oe_heat_1"><text>"Комунальні - опалення, компресорне обладнання"</text></outputEntry>
       </rule>
 
       <rule id="rule_heat_2">
         <description>Приточно-витяжна система</description>
         <inputEntry id="ie_heat_2"><text>"приточно-витяжна система"</text></inputEntry>
         <inputEntry id="ie_heat_2_type"><text></text></inputEntry>
-        <outputEntry id="oe_heat_2"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+        <outputEntry id="oe_heat_2"><text>"Комунальні - опалення, компресорне обладнання"</text></outputEntry>
       </rule>
 
       <rule id="rule_heat_3">
         <description>Договірна потужність природного газу</description>
         <inputEntry id="ie_heat_3"><text>"відшкодування вартості замовленої (договірної) потужності природного газу"</text></inputEntry>
         <inputEntry id="ie_heat_3_type"><text></text></inputEntry>
-        <outputEntry id="oe_heat_3"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+        <outputEntry id="oe_heat_3"><text>"Комунальні - опалення, компресорне обладнання"</text></outputEntry>
       </rule>
 
       <rule id="rule_heat_4">
         <description>Розподіл природного газу</description>
         <inputEntry id="ie_heat_4"><text>"відшкодування витрат за розподіл природного газ"</text></inputEntry>
         <inputEntry id="ie_heat_4_type"><text></text></inputEntry>
-        <outputEntry id="oe_heat_4"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+        <outputEntry id="oe_heat_4"><text>"Комунальні - опалення, компресорне обладнання"</text></outputEntry>
       </rule>
 
       <rule id="rule_heat_5">
         <description>Використання природного газу</description>
         <inputEntry id="ie_heat_5"><text>"відшкодування витрат по викор. природного газ"</text></inputEntry>
         <inputEntry id="ie_heat_5_type"><text></text></inputEntry>
-        <outputEntry id="oe_heat_5"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+        <outputEntry id="oe_heat_5"><text>"Комунальні - опалення, компресорне обладнання"</text></outputEntry>
       </rule>
 
       <rule id="rule_heat_6">
         <description>Компенсація теплопостачання</description>
         <inputEntry id="ie_heat_6"><text>"комунальні послуги (компенсація теплопостачання"</text></inputEntry>
         <inputEntry id="ie_heat_6_type"><text></text></inputEntry>
-        <outputEntry id="oe_heat_6"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+        <outputEntry id="oe_heat_6"><text>"Комунальні - опалення, компресорне обладнання"</text></outputEntry>
       </rule>
 
       <rule id="rule_heat_7">
         <description>Теплова енергія</description>
         <inputEntry id="ie_heat_7"><text>"відшкодування комунальних послуг за теплову енергію"</text></inputEntry>
         <inputEntry id="ie_heat_7_type"><text></text></inputEntry>
-        <outputEntry id="oe_heat_7"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+        <outputEntry id="oe_heat_7"><text>"Комунальні - опалення, компресорне обладнання"</text></outputEntry>
       </rule>
 
       <rule id="rule_heat_8">
         <description>Витрати на опалення</description>
         <inputEntry id="ie_heat_8"><text>"відшкодування витрат на опалення"</text></inputEntry>
         <inputEntry id="ie_heat_8_type"><text></text></inputEntry>
-        <outputEntry id="oe_heat_8"><text>"Комунальні - опалення, кондиціонування"</text></outputEntry>
+        <outputEntry id="oe_heat_8"><text>"Комунальні - опалення, компресорне обладнання"</text></outputEntry>
       </rule>
 
       <!-- ═════════════════════════════════════════════════════════════════
@@ -1660,6 +1660,18 @@
         <inputEntry id="ie_sign_2"><text>"оренда вивіски"</text></inputEntry>
         <inputEntry id="ie_sign_2_type"><text></text></inputEntry>
         <outputEntry id="oe_sign_2"><text>"Оренда вивіски"</text></outputEntry>
+      </rule>
+
+      <!-- ═════════════════════════════════════════════════════════════════
+           Оренда приміщення — за замовчуванням для рахунків оренди
+           (оренда, маркетинг ТРЦ, експлуатація — все це «Оренда приміщення»)
+           ═════════════════════════════════════════════════════════════════ -->
+
+      <rule id="rule_rent_default">
+        <description>Будь-яка оренда без специфічного співпадіння → Оренда приміщення</description>
+        <inputEntry id="ie_rent_default_service"><text></text></inputEntry>
+        <inputEntry id="ie_rent_default_type"><text>"оренда"</text></inputEntry>
+        <outputEntry id="oe_rent_default"><text>"Оренда приміщення"</text></outputEntry>
       </rule>
 
       <!-- ═════════════════════════════════════════════════════════════════

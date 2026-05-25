@@ -1,0 +1,481 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_TO_TRC" targetNamespace="http://camunda.org/schema/1.0/bpmn" exporter="Camunda Web Modeler" exporterVersion="65aa273" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.9.0">
+  <bpmn:process id="to-zvity-trc" name="Подача звітів ТО для ТРЦ" isExecutable="true">
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Finansist" name="Фінансист">
+        <bpmn:flowNodeRef>UserTask_UploadToSite</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_CreateTPLDelivery</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SubmitFork</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateCatch_WeekTimer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_ReceiveConfirmation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ParJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_PrepareRefs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ParFork</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_FillRROinTable</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_FillTable</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_LoadSchedule</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_CheckConfirmation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Reminder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_WriteToTT</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SubmitJoin</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BoundaryEvent_Reminder</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>StartEvent_Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>IntermediateCatch_FirstWorkday</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Done</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_CorrectRefs</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Analyst" name="Аналітик">
+        <bpmn:flowNodeRef>ServiceTask_FetchRRO</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UserTask_WebchekReports</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Yulia" name="Юля Томусяк (затверджувач)">
+        <bpmn:flowNodeRef>UserTask_YuliaApprove</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CorrA_Join</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_NeedCorrections</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_Start" name="1 числа місяця, 09:00">
+      <bpmn:documentation>Timer start event — інстанція створюється 1 числа кожного місяця о 09:00 (cron). Якщо 1-ше припадає на вихідний, наступний крок-таймер зсуває процес до першого буднього дня.</bpmn:documentation>
+      <bpmn:outgoing>Flow_Start_to_FirstWorkday</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_Start">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">0 0 9 1 * *</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:startEvent>
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_FirstWorkday" name="Зсув до першого буднього дня">
+      <bpmn:documentation>Якщо 1-ше число — вихідний (Сб/Нд), таймер чекає до найближчого буднього дня о 09:00. Якщо 1-ше вже будній — спрацьовує одразу (нульова затримка). FEEL: weekday 6=Сб → +2 дні, 7=Нд → +1 день, інакше +0.</bpmn:documentation>
+      <bpmn:incoming>Flow_Start_to_FirstWorkday</bpmn:incoming>
+      <bpmn:outgoing>Flow_FirstWorkday_to_LoadSchedule</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_FirstWorkday">
+        <bpmn:timeDate xsi:type="bpmn:tFormalExpression">=date and time(date(now()) + (if date(now()).weekday = 6 then duration("P2D") else if date(now()).weekday = 7 then duration("P1D") else duration("P0D")), time("09:00:00@Europe/Kyiv"))</bpmn:timeDate>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="ServiceTask_LoadSchedule" name="Прочитати графік магазинів і згрупувати за дедлайнами">
+      <bpmn:documentation>scripts/build_submission_schedule.py:build_deadline_groups(year, month). Кладе у змінні процесу: stores, deadline_groups, upload_site_stores (607,918), original_stores (607,918,621,902), start_date, total_stores.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="load-store-schedule" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start_to_LoadSchedule</bpmn:incoming>
+      <bpmn:outgoing>Flow_LoadSchedule_to_FillTable</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="UserTask_FillTable" name="Заповнити таблицю: факт оберт та оренда за період">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="finansist" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_LoadSchedule_to_FillTable</bpmn:incoming>
+      <bpmn:outgoing>Flow_FillTable_to_FetchRRO</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="ServiceTask_FetchRRO" name="Витяг ФН ПРРО ФОП з 1С (famo)">
+      <bpmn:documentation>scripts/rro_fop_for_stores.py:fetch_active_fop_rro(stores, year, month).</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="fetch-rro-fop" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_FillTable_to_FetchRRO</bpmn:incoming>
+      <bpmn:outgoing>Flow_FetchRRO_to_Webchek</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="UserTask_WebchekReports" name="Сформувати звіти у вебчеку для кожного ФН та надіслати фінансисту">
+      <bpmn:documentation>Поки руками. Після автоматизації — service task з zeebe:taskDefinition type="generate-webchek-reports".</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="analyst" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_FetchRRO_to_Webchek</bpmn:incoming>
+      <bpmn:outgoing>Flow_Webchek_to_Send</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UserTask_FillRROinTable" name="Внести дані з РРО звітів у таблицю та надіслати Юлі на затвердження">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="finansist" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Webchek_to_Send</bpmn:incoming>
+      <bpmn:outgoing>Flow_FillRRO_to_SendYulia</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_ParFork">
+      <bpmn:incoming>Flow_FillRRO_to_SendYulia</bpmn:incoming>
+      <bpmn:outgoing>Flow_Fork_to_Yulia</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Fork_to_PrepRefs</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="UserTask_YuliaApprove" name="Затвердити таблицю та повернути">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="yulia" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Fork_to_Yulia</bpmn:incoming>
+      <bpmn:outgoing>Flow_Yulia_to_NeedCorr</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_NeedCorrections" name="Юля коригувала таблицю?">
+      <bpmn:incoming>Flow_Yulia_to_NeedCorr</bpmn:incoming>
+      <bpmn:outgoing>Flow_NeedCorr_Yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NeedCorr_No</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="UserTask_CorrectRefs" name="Скоригувати дані в довідках">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="finansist" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_NeedCorr_Yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_CorrectRefs_to_CorrAJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_CorrA_Join">
+      <bpmn:incoming>Flow_CorrectRefs_to_CorrAJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_NeedCorr_No</bpmn:incoming>
+      <bpmn:outgoing>Flow_CorrAJoin_to_ParJoin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="UserTask_PrepareRefs" name="Підготувати довідки">
+      <bpmn:documentation>Один task на весь місяць, паралельно з гілкою затвердження Юлі. По кожному з 51 магазину фінансист:
+1) готує довідку (електронна форма → друк → підпис → скан);
+2) надсилає скани довідки орендодавцю на e-mail;
+3) вносить дані по ТО в 1С.
+
+Форма (Odoo) — таблиця 51 рядок, відсортована за дедлайном, колонки:
+  №  Магазин  Дедлайн  Довідка готова  Скани надіслані  Дані по ТО в 1С
+Опціонально — підстатуси готовності (Електр./Друк/Підпис/Скан) та upload скан-файлу.
+Task завершується, коли всі 51 рядок повністю позначені.
+
+NB: назва "Підготувати довідки" вужча за реальний зміст (підготовка + надсилання + дані по ТО) — за потреби перейменувати.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="finansist" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Fork_to_PrepRefs</bpmn:incoming>
+      <bpmn:outgoing>Flow_PrepRefs_to_ParJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_ParJoin">
+      <bpmn:incoming>Flow_CorrAJoin_to_ParJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_PrepRefs_to_ParJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_ParJoin_to_SubmitFork</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:parallelGateway id="Gateway_SubmitFork">
+      <bpmn:incoming>Flow_ParJoin_to_SubmitFork</bpmn:incoming>
+      <bpmn:outgoing>Flow_SubmitFork_to_Upload</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SubmitFork_to_CreateTPL</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="UserTask_UploadToSite" name="Загрузити довідки на сайт орендодавця">
+      <bpmn:documentation>ТІЛЬКИ для магазинів зі змінної upload_site_stores: 607 Форум, 918 Пінкі Форум. Форма (Odoo): таблиця 2 рядки, галочка "Загружено на сайт".</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="finansist" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SubmitFork_to_Upload</bpmn:incoming>
+      <bpmn:outgoing>Flow_Upload_to_SubmitJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UserTask_CreateTPLDelivery" name="Створити внутрішню доставку на магазин в ТРЦ">
+      <bpmn:documentation>ТІЛЬКИ для магазинів зі змінної original_stores: 607 Форум, 918 Пінкі Форум, 621 Скай Парк, 902 Пінкі Океан. З коментарем "Документи в адміністрацію". Форма (Odoo): таблиця 4 рядки.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="finansist" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SubmitFork_to_CreateTPL</bpmn:incoming>
+      <bpmn:outgoing>Flow_CreateTPL_to_WeekTimer</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:intermediateCatchEvent id="IntermediateCatch_WeekTimer" name="До тижня">
+      <bpmn:documentation>Після створення доставки чекаємо тиждень. Лише після цього у фінансиста з'являється задача "Отримати підтвердження передачі документа".</bpmn:documentation>
+      <bpmn:incoming>Flow_CreateTPL_to_WeekTimer</bpmn:incoming>
+      <bpmn:outgoing>Flow_WeekTimer_to_Receive</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_Week">
+        <bpmn:timeDate xsi:type="bpmn:tFormalExpression">=date and time(date(now()) + duration("P7D"), time("09:00:00@Europe/Kyiv"))</bpmn:timeDate>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="UserTask_ReceiveConfirmation" name="Отримати підтвердження передачі документа">
+      <bpmn:documentation>Фінансист підтверджує отримання документів отримувачем по 4 магазинах. Поки задача активна, кожні 3 дні спрацьовує boundary timer-нагадування (не перериває задачу).</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="finansist" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_WeekTimer_to_Receive</bpmn:incoming>
+      <bpmn:outgoing>Flow_Receive_to_WriteTT</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:boundaryEvent id="BoundaryEvent_Reminder" name="Кожні 3 дні" cancelActivity="false" attachedToRef="UserTask_ReceiveConfirmation">
+      <bpmn:outgoing>Flow_Reminder_to_Check</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_Reminder">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">="R/" + string(date and time(date(now()), time("09:00:00@Europe/Kyiv")) + duration("P3D")) + "/P3D"</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="ServiceTask_CheckConfirmation" name="Перевірити підтвердження передачі документа">
+      <bpmn:documentation>Нагадування фінансисту перевірити, чи отримано підтвердження передачі. Спрацьовує кожні 3 дні, поки задача "Отримати підтвердження" активна. Реальна автоматична логіка не обов'язкова — воркер на topic "check-delivery-confirmation" може просто завершувати job без дій (no-op нагадування).</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="check-delivery-confirmation" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Reminder_to_Check</bpmn:incoming>
+      <bpmn:outgoing>Flow_Check_to_EndReminder</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Reminder" name="Нагадування опрацьовано">
+      <bpmn:incoming>Flow_Check_to_EndReminder</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="UserTask_WriteToTT" name="Написати працівникам магазинів в ТТ">
+      <bpmn:documentation>Повідомити працівників торгових точок (4 магазини original_stores) про передані документи.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="finansist" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Receive_to_WriteTT</bpmn:incoming>
+      <bpmn:outgoing>Flow_WriteTT_to_SubmitJoin</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_SubmitJoin">
+      <bpmn:incoming>Flow_Upload_to_SubmitJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_WriteTT_to_SubmitJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_SubmitJoin_to_End</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:endEvent id="EndEvent_Done" name="Всі звіти ТО подано">
+      <bpmn:incoming>Flow_SubmitJoin_to_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start_to_FirstWorkday" sourceRef="StartEvent_Start" targetRef="IntermediateCatch_FirstWorkday" />
+    <bpmn:sequenceFlow id="Flow_FirstWorkday_to_LoadSchedule" sourceRef="IntermediateCatch_FirstWorkday" targetRef="ServiceTask_LoadSchedule" />
+    <bpmn:sequenceFlow id="Flow_LoadSchedule_to_FillTable" sourceRef="ServiceTask_LoadSchedule" targetRef="UserTask_FillTable" />
+    <bpmn:sequenceFlow id="Flow_FillTable_to_FetchRRO" sourceRef="UserTask_FillTable" targetRef="ServiceTask_FetchRRO" />
+    <bpmn:sequenceFlow id="Flow_FetchRRO_to_Webchek" sourceRef="ServiceTask_FetchRRO" targetRef="UserTask_WebchekReports" />
+    <bpmn:sequenceFlow id="Flow_Webchek_to_Send" sourceRef="UserTask_WebchekReports" targetRef="UserTask_FillRROinTable" />
+    <bpmn:sequenceFlow id="Flow_FillRRO_to_SendYulia" sourceRef="UserTask_FillRROinTable" targetRef="Gateway_ParFork" />
+    <bpmn:sequenceFlow id="Flow_Fork_to_Yulia" sourceRef="Gateway_ParFork" targetRef="UserTask_YuliaApprove" />
+    <bpmn:sequenceFlow id="Flow_Fork_to_PrepRefs" sourceRef="Gateway_ParFork" targetRef="UserTask_PrepareRefs" />
+    <bpmn:sequenceFlow id="Flow_Yulia_to_NeedCorr" sourceRef="UserTask_YuliaApprove" targetRef="Gateway_NeedCorrections" />
+    <bpmn:sequenceFlow id="Flow_NeedCorr_Yes" name="Так" sourceRef="Gateway_NeedCorrections" targetRef="UserTask_CorrectRefs">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=yuliaCorrected = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_NeedCorr_No" name="Ні" sourceRef="Gateway_NeedCorrections" targetRef="Gateway_CorrA_Join">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=yuliaCorrected = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_CorrectRefs_to_CorrAJoin" sourceRef="UserTask_CorrectRefs" targetRef="Gateway_CorrA_Join" />
+    <bpmn:sequenceFlow id="Flow_CorrAJoin_to_ParJoin" sourceRef="Gateway_CorrA_Join" targetRef="Gateway_ParJoin" />
+    <bpmn:sequenceFlow id="Flow_PrepRefs_to_ParJoin" sourceRef="UserTask_PrepareRefs" targetRef="Gateway_ParJoin" />
+    <bpmn:sequenceFlow id="Flow_ParJoin_to_SubmitFork" sourceRef="Gateway_ParJoin" targetRef="Gateway_SubmitFork" />
+    <bpmn:sequenceFlow id="Flow_SubmitFork_to_Upload" sourceRef="Gateway_SubmitFork" targetRef="UserTask_UploadToSite" />
+    <bpmn:sequenceFlow id="Flow_SubmitFork_to_CreateTPL" sourceRef="Gateway_SubmitFork" targetRef="UserTask_CreateTPLDelivery" />
+    <bpmn:sequenceFlow id="Flow_Upload_to_SubmitJoin" sourceRef="UserTask_UploadToSite" targetRef="Gateway_SubmitJoin" />
+    <bpmn:sequenceFlow id="Flow_CreateTPL_to_WeekTimer" sourceRef="UserTask_CreateTPLDelivery" targetRef="IntermediateCatch_WeekTimer" />
+    <bpmn:sequenceFlow id="Flow_WeekTimer_to_Receive" sourceRef="IntermediateCatch_WeekTimer" targetRef="UserTask_ReceiveConfirmation" />
+    <bpmn:sequenceFlow id="Flow_Receive_to_WriteTT" sourceRef="UserTask_ReceiveConfirmation" targetRef="UserTask_WriteToTT" />
+    <bpmn:sequenceFlow id="Flow_Reminder_to_Check" sourceRef="BoundaryEvent_Reminder" targetRef="ServiceTask_CheckConfirmation" />
+    <bpmn:sequenceFlow id="Flow_Check_to_EndReminder" sourceRef="ServiceTask_CheckConfirmation" targetRef="EndEvent_Reminder" />
+    <bpmn:sequenceFlow id="Flow_WriteTT_to_SubmitJoin" sourceRef="UserTask_WriteToTT" targetRef="Gateway_SubmitJoin" />
+    <bpmn:sequenceFlow id="Flow_SubmitJoin_to_End" sourceRef="Gateway_SubmitJoin" targetRef="EndEvent_Done" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="to-zvity-trc">
+      <bpmndi:BPMNShape id="Lane_Yulia_di" bpmnElement="Lane_Yulia" isHorizontal="true">
+        <dc:Bounds x="80" y="620" width="3120" height="160" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Analyst_di" bpmnElement="Lane_Analyst" isHorizontal="true">
+        <dc:Bounds x="80" y="470" width="3120" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Finansist_di" bpmnElement="Lane_Finansist" isHorizontal="true">
+        <dc:Bounds x="80" y="80" width="3120" height="390" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Start_di" bpmnElement="StartEvent_Start">
+        <dc:Bounds x="102" y="202" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="86" y="242" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IntermediateCatch_FirstWorkday_di" bpmnElement="IntermediateCatch_FirstWorkday">
+        <dc:Bounds x="182" y="202" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="160" y="160" width="82" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_LoadSchedule_di" bpmnElement="ServiceTask_LoadSchedule">
+        <dc:Bounds x="250" y="180" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UserTask_FillTable_di" bpmnElement="UserTask_FillTable">
+        <dc:Bounds x="520" y="180" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_FetchRRO_di" bpmnElement="ServiceTask_FetchRRO">
+        <dc:Bounds x="530" y="510" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UserTask_WebchekReports_di" bpmnElement="UserTask_WebchekReports">
+        <dc:Bounds x="770" y="510" width="220" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UserTask_FillRROinTable_di" bpmnElement="UserTask_FillRROinTable">
+        <dc:Bounds x="820" y="180" width="160" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ParFork_di" bpmnElement="Gateway_ParFork">
+        <dc:Bounds x="1065" y="195" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UserTask_YuliaApprove_di" bpmnElement="UserTask_YuliaApprove">
+        <dc:Bounds x="1150" y="650" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_NeedCorrections_di" bpmnElement="Gateway_NeedCorrections" isMarkerVisible="true">
+        <dc:Bounds x="1395" y="665" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1378" y="724.5" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UserTask_CorrectRefs_di" bpmnElement="UserTask_CorrectRefs">
+        <dc:Bounds x="1460" y="375" width="160" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_CorrA_Join_di" bpmnElement="Gateway_CorrA_Join" isMarkerVisible="true">
+        <dc:Bounds x="1625" y="665" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UserTask_PrepareRefs_di" bpmnElement="UserTask_PrepareRefs">
+        <dc:Bounds x="1290" y="180" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ParJoin_di" bpmnElement="Gateway_ParJoin">
+        <dc:Bounds x="1695" y="195" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_SubmitFork_di" bpmnElement="Gateway_SubmitFork">
+        <dc:Bounds x="1825" y="195" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UserTask_UploadToSite_di" bpmnElement="UserTask_UploadToSite">
+        <dc:Bounds x="1920" y="110" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UserTask_CreateTPLDelivery_di" bpmnElement="UserTask_CreateTPLDelivery">
+        <dc:Bounds x="1920" y="250" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IntermediateCatch_WeekTimer_di" bpmnElement="IntermediateCatch_WeekTimer">
+        <dc:Bounds x="2162" y="272" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2157" y="315" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UserTask_ReceiveConfirmation_di" bpmnElement="UserTask_ReceiveConfirmation">
+        <dc:Bounds x="2260" y="250" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_CheckConfirmation_di" bpmnElement="ServiceTask_CheckConfirmation">
+        <dc:Bounds x="2260" y="390" width="180" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Reminder_di" bpmnElement="EndEvent_Reminder">
+        <dc:Bounds x="2502" y="407" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2480" y="447" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UserTask_WriteToTT_di" bpmnElement="UserTask_WriteToTT">
+        <dc:Bounds x="2540" y="250" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_SubmitJoin_di" bpmnElement="Gateway_SubmitJoin">
+        <dc:Bounds x="2785" y="195" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Done_di" bpmnElement="EndEvent_Done">
+        <dc:Bounds x="2912" y="202" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2902" y="242" width="61" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryEvent_Reminder_di" bpmnElement="BoundaryEvent_Reminder">
+        <dc:Bounds x="2332" y="312" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2372" y="321" width="62" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_to_FirstWorkday_di" bpmnElement="Flow_Start_to_FirstWorkday">
+        <di:waypoint x="138" y="220" />
+        <di:waypoint x="182" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FirstWorkday_to_LoadSchedule_di" bpmnElement="Flow_FirstWorkday_to_LoadSchedule">
+        <di:waypoint x="218" y="220" />
+        <di:waypoint x="250" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_LoadSchedule_to_FillTable_di" bpmnElement="Flow_LoadSchedule_to_FillTable">
+        <di:waypoint x="430" y="220" />
+        <di:waypoint x="520" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FillTable_to_FetchRRO_di" bpmnElement="Flow_FillTable_to_FetchRRO">
+        <di:waypoint x="610" y="260" />
+        <di:waypoint x="610" y="510" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FetchRRO_to_Webchek_di" bpmnElement="Flow_FetchRRO_to_Webchek">
+        <di:waypoint x="690" y="550" />
+        <di:waypoint x="770" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Webchek_to_Send_di" bpmnElement="Flow_Webchek_to_Send">
+        <di:waypoint x="900" y="510" />
+        <di:waypoint x="900" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FillRRO_to_SendYulia_di" bpmnElement="Flow_FillRRO_to_SendYulia">
+        <di:waypoint x="980" y="220" />
+        <di:waypoint x="1065" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Fork_to_Yulia_di" bpmnElement="Flow_Fork_to_Yulia">
+        <di:waypoint x="1090" y="245" />
+        <di:waypoint x="1090" y="690" />
+        <di:waypoint x="1150" y="690" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Fork_to_PrepRefs_di" bpmnElement="Flow_Fork_to_PrepRefs">
+        <di:waypoint x="1115" y="220" />
+        <di:waypoint x="1290" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Yulia_to_NeedCorr_di" bpmnElement="Flow_Yulia_to_NeedCorr">
+        <di:waypoint x="1330" y="690" />
+        <di:waypoint x="1395" y="690" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_NeedCorr_Yes_di" bpmnElement="Flow_NeedCorr_Yes">
+        <di:waypoint x="1420" y="665" />
+        <di:waypoint x="1420" y="410" />
+        <di:waypoint x="1460" y="410" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1427" y="528" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_NeedCorr_No_di" bpmnElement="Flow_NeedCorr_No">
+        <di:waypoint x="1445" y="690" />
+        <di:waypoint x="1625" y="690" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1530" y="665" width="11" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_CorrectRefs_to_CorrAJoin_di" bpmnElement="Flow_CorrectRefs_to_CorrAJoin">
+        <di:waypoint x="1620" y="410" />
+        <di:waypoint x="1650" y="410" />
+        <di:waypoint x="1650" y="665" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_CorrAJoin_to_ParJoin_di" bpmnElement="Flow_CorrAJoin_to_ParJoin">
+        <di:waypoint x="1675" y="690" />
+        <di:waypoint x="1720" y="690" />
+        <di:waypoint x="1720" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_PrepRefs_to_ParJoin_di" bpmnElement="Flow_PrepRefs_to_ParJoin">
+        <di:waypoint x="1470" y="220" />
+        <di:waypoint x="1695" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ParJoin_to_SubmitFork_di" bpmnElement="Flow_ParJoin_to_SubmitFork">
+        <di:waypoint x="1745" y="220" />
+        <di:waypoint x="1825" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SubmitFork_to_Upload_di" bpmnElement="Flow_SubmitFork_to_Upload">
+        <di:waypoint x="1850" y="195" />
+        <di:waypoint x="1850" y="150" />
+        <di:waypoint x="1920" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SubmitFork_to_CreateTPL_di" bpmnElement="Flow_SubmitFork_to_CreateTPL">
+        <di:waypoint x="1850" y="245" />
+        <di:waypoint x="1850" y="290" />
+        <di:waypoint x="1920" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Upload_to_SubmitJoin_di" bpmnElement="Flow_Upload_to_SubmitJoin">
+        <di:waypoint x="2100" y="150" />
+        <di:waypoint x="2810" y="150" />
+        <di:waypoint x="2810" y="195" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_CreateTPL_to_WeekTimer_di" bpmnElement="Flow_CreateTPL_to_WeekTimer">
+        <di:waypoint x="2100" y="290" />
+        <di:waypoint x="2162" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_WeekTimer_to_Receive_di" bpmnElement="Flow_WeekTimer_to_Receive">
+        <di:waypoint x="2198" y="290" />
+        <di:waypoint x="2260" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Receive_to_WriteTT_di" bpmnElement="Flow_Receive_to_WriteTT">
+        <di:waypoint x="2440" y="290" />
+        <di:waypoint x="2540" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Reminder_to_Check_di" bpmnElement="Flow_Reminder_to_Check">
+        <di:waypoint x="2350" y="348" />
+        <di:waypoint x="2350" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Check_to_EndReminder_di" bpmnElement="Flow_Check_to_EndReminder">
+        <di:waypoint x="2440" y="425" />
+        <di:waypoint x="2502" y="425" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_WriteTT_to_SubmitJoin_di" bpmnElement="Flow_WriteTT_to_SubmitJoin">
+        <di:waypoint x="2720" y="290" />
+        <di:waypoint x="2810" y="290" />
+        <di:waypoint x="2810" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SubmitJoin_to_End_di" bpmnElement="Flow_SubmitJoin_to_End">
+        <di:waypoint x="2835" y="220" />
+        <di:waypoint x="2912" y="220" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -98,7 +98,7 @@
               name="x_studio_camunda_invoice_type"
               typeRef="string">
         <outputValues id="outputValues_type">
-          <text>"оренда","комунальні"</text>
+          <text>"оренда","комунальні","невідомо"</text>
         </outputValues>
       </output>
 
@@ -370,7 +370,7 @@
         <description>Невідома позиція і постачальник — потребує ручної класифікації</description>
         <inputEntry id="ie_default_line"><text></text></inputEntry>
         <inputEntry id="ie_default_partner"><text></text></inputEntry>
-        <outputEntry id="oe_default_type"><text>"оренда"</text></outputEntry>
+        <outputEntry id="oe_default_type"><text>"невідомо"</text></outputEntry>
         <outputEntry id="oe_default_notes"><text>"УВАГА: позиція не розпізнана — класифікуйте вручну"</text></outputEntry>
       </rule>
 

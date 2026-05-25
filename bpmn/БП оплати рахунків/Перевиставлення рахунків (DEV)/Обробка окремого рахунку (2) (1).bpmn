@@ -1,0 +1,462 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="65aa273" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:collaboration id="Collab_1" name="Обробка окремого рахунку">
+    <bpmn:participant id="Pool_1" name="Обробка окремого рахунку" processRef="Process_jfmercl" />
+    <bpmn:textAnnotation id="TextAnnotation_1iyojl6">
+      <bpmn:text>буде сервіс таск</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="TextAnnotation_1thrxhf">
+      <bpmn:text>останній день, навіть вихідний</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_01cga5f" associationDirection="None" sourceRef="Timer_month_end" targetRef="TextAnnotation_1thrxhf" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_jfmercl" name="Обробка окремого рахунку" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="6.0" />
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Buhgalter" name="Бухгалтер">
+        <bpmn:flowNodeRef>Activity_1isenfd</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_buh_real</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_reissue</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_period_start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_month_end</bpmn:flowNodeRef>
+        <bpmn:childLaneSet id="LaneSet_1dtxyrn" />
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Odoo" name="Система">
+        <bpmn:flowNodeRef>Gateway_1h51f9c</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_0szlp8w</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_0pb3hxn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_write_type</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BRT_detail_type</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ST_create_subtask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_0ytub5u</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_main</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_1v2s25n" name="Фінансист">
+        <bpmn:flowNodeRef>UT_verify_invoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>UT_review_and_set</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:sequenceFlow id="Flow_1ff4gtk" sourceRef="Activity_1isenfd" targetRef="Timer_period_start" />
+    <bpmn:sequenceFlow id="Flow_start_to_create" sourceRef="StartEvent_1" targetRef="ST_create_subtask" />
+    <bpmn:sequenceFlow id="Flow_132hruz" sourceRef="BRT_detail_type" targetRef="ST_write_type" />
+    <bpmn:sequenceFlow id="Flow_timer_to_buh" sourceRef="Timer_month_end" targetRef="UT_buh_real" />
+    <bpmn:sequenceFlow id="Flow_1escksh" sourceRef="UT_reissue" targetRef="Timer_month_end" />
+    <bpmn:sequenceFlow id="Flow_0dl2i3l" sourceRef="Timer_period_start" targetRef="UT_reissue" />
+    <bpmn:sequenceFlow id="Flow_01kli45" sourceRef="Gateway_0ytub5u" targetRef="End_main" />
+    <bpmn:sequenceFlow id="Flow_buh_to_merge" sourceRef="UT_buh_real" targetRef="Gateway_0ytub5u" />
+    <bpmn:sequenceFlow id="Flow_0k3j07w" sourceRef="Activity_0pb3hxn" targetRef="Gateway_0ytub5u" />
+    <bpmn:sequenceFlow id="Flow_136grnh" name="ні" sourceRef="Gateway_0szlp8w" targetRef="Gateway_0ytub5u" />
+    <bpmn:sequenceFlow id="Flow_1wwa9rs" name="так" sourceRef="Gateway_0szlp8w" targetRef="Activity_1isenfd">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(x_studio_camunda_fop_name) 
+and x_studio_camunda_fop_name != null  and (contains(lower case(x_studio_camunda_fop_name), "технопростір") or contains(lower case(x_studio_camunda_fop_name), "технопростiр") or contains(lower case(x_studio_camunda_fop_name), "техно простір") or contains(lower case(x_studio_camunda_fop_name), "техно простiр") or contains(lower case(x_studio_camunda_fop_name), "козак василь"))</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_182dhza" sourceRef="Gateway_1h51f9c" targetRef="Gateway_0szlp8w" />
+    <bpmn:sequenceFlow id="Flow_0399ull" sourceRef="Gateway_1h51f9c" targetRef="Activity_0pb3hxn" />
+    <bpmn:sequenceFlow id="Flow_0ykalbh" sourceRef="UT_review_and_set" targetRef="Gateway_1h51f9c" />
+    <bpmn:sequenceFlow id="Flow_1bpv79h" sourceRef="ST_write_type" targetRef="UT_review_and_set" />
+    <bpmn:sequenceFlow id="Flow_verify_to_parallel" sourceRef="UT_verify_invoice" targetRef="BRT_detail_type" />
+    <bpmn:sequenceFlow id="Flow_create_to_verify" sourceRef="ST_create_subtask" targetRef="UT_verify_invoice" />
+    <bpmn:startEvent id="StartEvent_1" name="Старт">
+      <bpmn:outgoing>Flow_start_to_create</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="ST_create_subtask" name="Створити підзадачу в Odoo">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Рахунок від &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; на №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: (if x_studio_camunda_invoice_lines_summary != null then x_studio_camunda_invoice_lines_summary else &#34;&#34;) + (if x_studio_camunda_invoice_date != null then &#34;&#60;br/&#62;(&#34; + x_studio_camunda_invoice_date + &#34;)&#34; else &#34;&#34;), _model: &#34;project.project&#34;, _id: 13946, is_subprocess: true, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_invoice_number: x_studio_camunda_invoice_number, x_studio_camunda_invoice_line_name: if x_studio_camunda_invoice_line_name != null then x_studio_camunda_invoice_line_name else &#34;&#34;, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_invoice_amount_no_vat: if x_studio_camunda_invoice_amount_no_vat != null then x_studio_camunda_invoice_amount_no_vat else 0, x_studio_camunda_vat_amount: if x_studio_camunda_vat_amount != null then x_studio_camunda_vat_amount else 0, x_studio_camunda_partner_code: if x_studio_camunda_partner_code != null then x_studio_camunda_partner_code else &#34;&#34;, x_studio_camunda_contract: if x_studio_camunda_contract != null then x_studio_camunda_contract else &#34;&#34;, x_studio_camunda_fop_name: if x_studio_camunda_fop_name != null then x_studio_camunda_fop_name else &#34;&#34;, x_studio_camunda_partner_name: if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;&#34;, x_studio_camunda_quantity: if x_studio_camunda_quantity != null then x_studio_camunda_quantity else &#34;&#34;, x_studio_camunda_unit: if x_studio_camunda_unit != null then x_studio_camunda_unit else &#34;&#34;, x_studio_camunda_invoice_type: if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type else &#34;&#34;, x_studio_camunda_partner_iban: if x_studio_camunda_partner_iban != null then x_studio_camunda_partner_iban else &#34;&#34;,&#10;x_studio_camunda_partner_bank_name: if x_studio_camunda_partner_bank_name != null then x_studio_camunda_partner_bank_name else &#34;&#34;,&#10;x_studio_camunda_service_period: if x_studio_camunda_service_period != null then x_studio_camunda_service_period else &#34;&#34;,&#10;x_studio_camunda_unit_price: if x_studio_camunda_unit_price != null then x_studio_camunda_unit_price else 0, x_studio_camunda_invoice_date: if x_studio_camunda_invoice_date != null then x_studio_camunda_invoice_date else &#34;&#34;, x_studio_camunda_vat_rate: if x_studio_camunda_vat_rate != null then x_studio_camunda_vat_rate else &#34;&#34;, x_studio_camunda_invoice_lines: if x_studio_camunda_invoice_lines_data != null then x_studio_camunda_invoice_lines_data else []&#10;}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_start_to_create</bpmn:incoming>
+      <bpmn:outgoing>Flow_create_to_verify</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:businessRuleTask id="BRT_detail_type" name="Визначити тип рахунку [DMN]">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="invoice-detail-type" resultVariable="invoice_detail_type" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_verify_to_parallel</bpmn:incoming>
+      <bpmn:outgoing>Flow_132hruz</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:serviceTask id="ST_write_type" name="Записати тип рахунку в Odoo">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/ecbaf8c8-7138-4ae2-add5-a019dc1cd796&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {process_instance_key: process_instance_key, x_studio_camunda_invoice_type: invoice_detail_type.x_studio_camunda_invoice_type}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_132hruz</bpmn:incoming>
+      <bpmn:outgoing>Flow_1bpv79h</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:callActivity id="Activity_0pb3hxn" name="Погодження рахунку">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="Process_invoice_approval" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=process_instance_key" target="parent_process_instance_key" />
+          <zeebe:output source="=x_studio_camunda_approved" target="x_studio_camunda_approved" />
+          <zeebe:output source="=x_studio_camunda_pay" target="x_studio_camunda_pay" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0399ull</bpmn:incoming>
+      <bpmn:outgoing>Flow_0k3j07w</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:exclusiveGateway id="Gateway_0szlp8w" name="Рахунок на ТОВ Технопростір?" default="Flow_136grnh">
+      <bpmn:incoming>Flow_182dhza</bpmn:incoming>
+      <bpmn:outgoing>Flow_1wwa9rs</bpmn:outgoing>
+      <bpmn:outgoing>Flow_136grnh</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:parallelGateway id="Gateway_1h51f9c">
+      <bpmn:incoming>Flow_0ykalbh</bpmn:incoming>
+      <bpmn:outgoing>Flow_0399ull</bpmn:outgoing>
+      <bpmn:outgoing>Flow_182dhza</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="UT_review_and_set" name="Перевірити тип рахунку та вказати підрозділ">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Перевірити тип рахунку та вказати Підрозділ: &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;1. Перевірте тип рахунку (попередньо визначено системою як: &#34; + (if invoice_detail_type.x_studio_camunda_invoice_type != null then invoice_detail_type.x_studio_camunda_invoice_type else &#34;—&#34;) + &#34;). За потреби — змініть.&#60;br/&#62;2. Виберіть Підрозділ.&#60;br/&#62;3. &#60;b&#62;Якщо Підрозділ — магазин ТП (500-ті):&#60;/b&#62; заповніть поле &#60;b&#62;«Готівка на місці»&#60;/b&#62; (Так — адмін магазину сплатить готівкою; Ні — оплата через ТП).&#60;br/&#62;&#60;br/&#62;Постачальник: &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34;&#60;br/&#62;Позиції:&#60;br/&#62;&#34; + (if x_studio_camunda_invoice_lines_summary != null then x_studio_camunda_invoice_lines_summary else &#34;—&#34;), _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key}" target="body" />
+          <zeebe:output source="=x_studio_camunda_invoice_type" target="x_studio_camunda_invoice_type" />
+          <zeebe:output source="=x_studio_camunda_pidrozdil" target="x_studio_camunda_pidrozdil" />
+          <zeebe:output source="=x_studio_camunda_pidrozdil_complete_name" target="x_studio_camunda_pidrozdil_complete_name" />
+          <zeebe:output source="=x_studio_camunda_responsible_user_id" target="x_studio_camunda_responsible_user_id" />
+        </zeebe:ioMapping>
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1bpv79h</bpmn:incoming>
+      <bpmn:outgoing>Flow_0ykalbh</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_verify_invoice" name="Перевірити заповнені дані рахунку">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="= {name: &#34;Перевірте дані: &#34; + &#34;Рахунок від &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; на №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;Система розпізнала рахунок. Перевірте дані перед тим, як процес піде далі.&#60;br/&#62;&#60;br/&#62;&#60;b&#62;КРОКИ:&#60;/b&#62;&#60;br/&#62;&#60;br/&#62;1. Відкрийте батьківську задачу «Рахунок від ...» — через хлібну крихту (три крапки) зліва вгорі або кнопка «Батьківська» зверху задачі.&#60;br/&#62;&#60;br/&#62;2. Звірте з оригіналом (PDF/скан у вкладеннях головної задачі):&#60;br/&#62;• &#60;b&#62;Сторони договору&#60;/b&#62; (Організація, Контрагент)&#60;br/&#62;• &#60;b&#62;Реквізити для оплати&#60;/b&#62; (ЄДРПОУ, IBAN, Банк)&#60;br/&#62;• &#60;b&#62;Дані рахунку&#60;/b&#62; (номер, дата, договір, період)&#60;br/&#62;• &#60;b&#62;Деталізація&#60;/b&#62; — таблиця з послугами, кількістю, цінами і ПДВ&#60;br/&#62;• &#60;b&#62;Сума до сплати&#60;/b&#62; — підсумки мають збігатись з оригіналом&#60;br/&#62;&#60;br/&#62;3. Якщо щось розпізнано з помилкою — виправте прямо на батьківській задачі.&#60;br/&#62;&#60;br/&#62;4. Поверніться сюди і натисніть «Виконано». Після цього система визначить тип рахунку (оренда / комунальні / інше) і передасть процес далі.&#34;&#10;, _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key&#10;}" target="body" />
+          <zeebe:output source="= odoo_task_id" target="odoo_task_id" />
+          <zeebe:output source="=x_studio_camunda_partner_name" target="x_studio_camunda_partner_name" />
+          <zeebe:output source="=x_studio_camunda_fop_name" target="x_studio_camunda_fop_name" />
+          <zeebe:output source="=x_studio_camunda_invoice_number" target="x_studio_camunda_invoice_number" />
+          <zeebe:output source="=x_studio_camunda_invoice_date" target="x_studio_camunda_invoice_date" />
+          <zeebe:output source="=x_studio_camunda_invoice_amount" target="x_studio_camunda_invoice_amount" />
+          <zeebe:output source="=x_studio_camunda_invoice_amount_no_vat" target="x_studio_camunda_invoice_amount_no_vat" />
+          <zeebe:output source="=x_studio_camunda_vat_amount" target="x_studio_camunda_vat_amount" />
+          <zeebe:output source="=x_studio_camunda_vat_rate" target="x_studio_camunda_vat_rate" />
+          <zeebe:output source="=x_studio_camunda_partner_code" target="x_studio_camunda_partner_code" />
+          <zeebe:output source="=x_studio_camunda_partner_iban" target="x_studio_camunda_partner_iban" />
+          <zeebe:output source="=x_studio_camunda_partner_bank_name" target="x_studio_camunda_partner_bank_name" />
+          <zeebe:output source="=x_studio_camunda_contract" target="x_studio_camunda_contract" />
+          <zeebe:output source="=x_studio_camunda_invoice_line_name" target="x_studio_camunda_invoice_line_name" />
+          <zeebe:output source="=x_studio_camunda_quantity" target="x_studio_camunda_quantity" />
+          <zeebe:output source="=x_studio_camunda_unit" target="x_studio_camunda_unit" />
+          <zeebe:output source="=x_studio_camunda_unit_price" target="x_studio_camunda_unit_price" />
+          <zeebe:output source="=x_studio_camunda_service_period" target="x_studio_camunda_service_period" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_create_to_verify</bpmn:incoming>
+      <bpmn:outgoing>Flow_verify_to_parallel</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Activity_1isenfd" name="Завести рахунок в БДУ">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Завести рахунок в БДУ: &#34; + &#34;Рахунок від &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; на №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;1. Відкрийте оригінал рахунку у вкладеннях батьківської задачі&#60;br/&#62;2. Заведіть рахунок в БДУ&#60;br/&#62;3. Перевірте контрагента, договір, період послуг, суму та ПДВ&#60;br/&#62;4. Після заведення рахунку натисніть «Виконано»&#60;br/&#62;&#60;br/&#62;&#60;b&#62;Контрагент:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Номер рахунку:&#60;/b&#62; &#34; + x_studio_camunda_invoice_number + &#34;&#60;br/&#62;&#60;b&#62;Сума:&#60;/b&#62; &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#60;br/&#62;&#60;b&#62;Період:&#60;/b&#62; &#34; + (if x_studio_camunda_service_period != null then x_studio_camunda_service_period else &#34;—&#34;), _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_invoice_number: x_studio_camunda_invoice_number, x_studio_camunda_invoice_line_name: if x_studio_camunda_invoice_line_name != null then x_studio_camunda_invoice_line_name else &#34;&#34;, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_invoice_amount_no_vat: if x_studio_camunda_invoice_amount_no_vat != null then x_studio_camunda_invoice_amount_no_vat else 0, x_studio_camunda_vat_amount: if x_studio_camunda_vat_amount != null then x_studio_camunda_vat_amount else 0, x_studio_camunda_vat_rate: if x_studio_camunda_vat_rate != null then x_studio_camunda_vat_rate else &#34;&#34;, x_studio_camunda_partner_code: if x_studio_camunda_partner_code != null then x_studio_camunda_partner_code else &#34;&#34;, x_studio_camunda_partner_iban: if x_studio_camunda_partner_iban != null then x_studio_camunda_partner_iban else &#34;&#34;, x_studio_camunda_partner_bank_name: if x_studio_camunda_partner_bank_name != null then x_studio_camunda_partner_bank_name else &#34;&#34;, x_studio_camunda_contract: if x_studio_camunda_contract != null then x_studio_camunda_contract else &#34;&#34;, x_studio_camunda_fop_name: if x_studio_camunda_fop_name != null then x_studio_camunda_fop_name else &#34;&#34;, x_studio_camunda_partner_name: if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;&#34;, x_studio_camunda_quantity: if x_studio_camunda_quantity != null then x_studio_camunda_quantity else &#34;&#34;, x_studio_camunda_unit: if x_studio_camunda_unit != null then x_studio_camunda_unit else &#34;&#34;, x_studio_camunda_unit_price: if x_studio_camunda_unit_price != null then x_studio_camunda_unit_price else 0, x_studio_camunda_service_period: if x_studio_camunda_service_period != null then x_studio_camunda_service_period else &#34;&#34;, x_studio_camunda_invoice_date: if x_studio_camunda_invoice_date != null then x_studio_camunda_invoice_date else &#34;&#34;, x_studio_camunda_invoice_type: if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type else &#34;&#34;, x_studio_camunda_pidrozdil: if x_studio_camunda_pidrozdil != null then x_studio_camunda_pidrozdil else null}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1wwa9rs</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ff4gtk</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_buh_real" name="Провести бух реалізацію">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="=string join(&#10;  for line in (if x_studio_camunda_invoice_lines_data != null then x_studio_camunda_invoice_lines_data else []) return&#10;    (if x_studio_camunda_invoice_type = &#34;оренда&#34; then &#34;Орендна плата&#34;&#10;     else if x_studio_camunda_invoice_type = &#34;комунальні&#34; then &#34;Комунальні послуги&#34;&#10;     else if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type&#10;     else &#34;—&#34;) + &#34;|&#34; +&#10;    (if line.x_name != null then line.x_name else &#34;&#34;) + &#34;|&#34; +&#10;    string(if line.x_studio_quantity != null then line.x_studio_quantity else 1) + &#34;|&#34; +&#10;    string(if line.x_studio_amount_no_vat != null then line.x_studio_amount_no_vat else 0) + &#34;|&#34; +&#10;    (if line.x_studio_vat_rate != null then line.x_studio_vat_rate else &#34;20&#34;),&#10;  &#34;;&#34;&#10;)" target="bdu_detail" />
+          <zeebe:input source="={name: &#34;Бух реалізація рахунку №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;Проведіть бухгалтерську реалізацію на основі рахунку.&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Рядок для БДУ:&#60;/b&#62;&#60;br/&#62;&#60;code&#62;&#34; + bdu_detail + &#34;&#60;/code&#62;&#34;, _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_invoice_number: x_studio_camunda_invoice_number, x_studio_camunda_invoice_line_name: if x_studio_camunda_invoice_line_name != null then x_studio_camunda_invoice_line_name else &#34;&#34;, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_pidrozdil: if x_studio_camunda_pidrozdil != null then x_studio_camunda_pidrozdil else null, x_studio_camunda_bdu_detail: bdu_detail}" target="body" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_timer_to_buh</bpmn:incoming>
+      <bpmn:outgoing>Flow_buh_to_merge</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_reissue" name="Перевиставити рахунок в БДУ">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Перевиставити: &#34; + &#34;Рахунок від &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; на №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;1. Заведіть рахунок в БДУ&#60;br/&#62;2. Визначте ФОП за організацією контрагента&#60;br/&#62;3. Оберіть знайденого ФОП у полі «ФОП перевиставлення»&#34;, _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_invoice_number: x_studio_camunda_invoice_number, x_studio_camunda_invoice_line_name: if x_studio_camunda_invoice_line_name != null then x_studio_camunda_invoice_line_name else &#34;&#34;, x_studio_camunda_invoice_amount: x_studio_camunda_invoice_amount, x_studio_camunda_invoice_amount_no_vat: if x_studio_camunda_invoice_amount_no_vat != null then x_studio_camunda_invoice_amount_no_vat else 0, x_studio_camunda_vat_amount: if x_studio_camunda_vat_amount != null then x_studio_camunda_vat_amount else 0, x_studio_camunda_vat_rate: if x_studio_camunda_vat_rate != null then x_studio_camunda_vat_rate else &#34;&#34;, x_studio_camunda_partner_code: if x_studio_camunda_partner_code != null then x_studio_camunda_partner_code else &#34;&#34;, x_studio_camunda_partner_iban: if x_studio_camunda_partner_iban != null then x_studio_camunda_partner_iban else &#34;&#34;, x_studio_camunda_partner_bank_name: if x_studio_camunda_partner_bank_name != null then x_studio_camunda_partner_bank_name else &#34;&#34;, x_studio_camunda_contract: if x_studio_camunda_contract != null then x_studio_camunda_contract else &#34;&#34;, x_studio_camunda_fop_name: if x_studio_camunda_fop_name != null then x_studio_camunda_fop_name else &#34;&#34;, x_studio_camunda_partner_name: if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;&#34;, x_studio_camunda_quantity: if x_studio_camunda_quantity != null then x_studio_camunda_quantity else &#34;&#34;, x_studio_camunda_unit: if x_studio_camunda_unit != null then x_studio_camunda_unit else &#34;&#34;, x_studio_camunda_unit_price: if x_studio_camunda_unit_price != null then x_studio_camunda_unit_price else 0, x_studio_camunda_service_period: if x_studio_camunda_service_period != null then x_studio_camunda_service_period else &#34;&#34;, x_studio_camunda_invoice_date: if x_studio_camunda_invoice_date != null then x_studio_camunda_invoice_date else &#34;&#34;, x_studio_camunda_invoice_type: if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type else &#34;&#34;, x_studio_camunda_pidrozdil: if x_studio_camunda_pidrozdil != null then x_studio_camunda_pidrozdil else null&#10;}" target="body" />
+          <zeebe:output source="= odoo_task_id" target="odoo_task_id" />
+          <zeebe:output source="=x_studio_camunda_reissue_fop_id" target="x_studio_camunda_reissue_fop_id" />
+        </zeebe:ioMapping>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0dl2i3l</bpmn:incoming>
+      <bpmn:outgoing>Flow_1escksh</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:intermediateCatchEvent id="Timer_period_start" name="Початок останнього місяця періоду">
+      <bpmn:incoming>Flow_1ff4gtk</bpmn:incoming>
+      <bpmn:outgoing>Flow_0dl2i3l</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_1cvcsly">
+        <bpmn:timeDate xsi:type="bpmn:tFormalExpression">={
+  first_day: (
+    if x_studio_camunda_service_period != null and matches(x_studio_camunda_service_period, "^\d{2}\.\d{4}-\d{2}\.\d{4}$")
+    then date(number(substring(x_studio_camunda_service_period, 12, 4)), number(substring(x_studio_camunda_service_period, 9, 2)), 1)
+    else if x_studio_camunda_service_period != null and matches(x_studio_camunda_service_period, "^\d{2}\.\d{4}$")
+    then date(number(substring(x_studio_camunda_service_period, 4, 4)), number(substring(x_studio_camunda_service_period, 1, 2)), 1)
+    else null
+  ),
+  result: (
+    if first_day = null then date and time(now())
+    else date and time(
+      if day of week(first_day) = "Saturday" then first_day + duration("P2D")
+      else if day of week(first_day) = "Sunday" then first_day + duration("P1D")
+      else first_day,
+      time("09:00:00")
+    )
+  )
+}.result</bpmn:timeDate>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Timer_month_end" name="Останній день вказаного місяця в рахунку">
+      <bpmn:incoming>Flow_1escksh</bpmn:incoming>
+      <bpmn:outgoing>Flow_timer_to_buh</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_1">
+        <bpmn:timeDate xsi:type="bpmn:tFormalExpression">={
+  last_day: (
+    if x_studio_camunda_service_period != null and matches(x_studio_camunda_service_period, "^\d{2}\.\d{4}$")
+    then date(number(substring(x_studio_camunda_service_period, 4, 4)), number(substring(x_studio_camunda_service_period, 1, 2)), 1) + duration("P1M") - duration("P1D")
+    else (if today().month = 12 then date(today().year + 1, 1, 1) else date(today().year, today().month + 1, 1)) - duration("P1D")
+  ),
+  result: date and time(last_day, time("09:00:00"))
+}.result</bpmn:timeDate>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:inclusiveGateway id="Gateway_0ytub5u">
+      <bpmn:incoming>Flow_0k3j07w</bpmn:incoming>
+      <bpmn:incoming>Flow_buh_to_merge</bpmn:incoming>
+      <bpmn:incoming>Flow_136grnh</bpmn:incoming>
+      <bpmn:outgoing>Flow_01kli45</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:endEvent id="End_main" name="Рахунок оброблено">
+      <bpmn:incoming>Flow_01kli45</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:association id="Association_15xgfhi" associationDirection="None" sourceRef="UT_buh_real" targetRef="TextAnnotation_1iyojl6" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collab_1">
+      <bpmndi:BPMNShape id="Pool_1_di" bpmnElement="Pool_1" isHorizontal="true">
+        <dc:Bounds x="90" y="120" width="1810" height="600" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_1v2s25n_di" bpmnElement="Lane_1v2s25n" isHorizontal="true">
+        <dc:Bounds x="120" y="280" width="1780" height="140" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Odoo_di" bpmnElement="Lane_Odoo" isHorizontal="true">
+        <dc:Bounds x="120" y="420" width="1780" height="300" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Buhgalter_di" bpmnElement="Lane_Buhgalter" isHorizontal="true">
+        <dc:Bounds x="120" y="120" width="1780" height="160" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_verify_invoice_di" bpmnElement="UT_verify_invoice">
+        <dc:Bounds x="410" y="310" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0zvezif_di" bpmnElement="UT_review_and_set">
+        <dc:Bounds x="840" y="310" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1h51f9c_di" bpmnElement="Gateway_1h51f9c">
+        <dc:Bounds x="975" y="495" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0szlp8w_di" bpmnElement="Gateway_0szlp8w" isMarkerVisible="true">
+        <dc:Bounds x="1105" y="495" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1089" y="555" width="82" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0pb3hxn_di" bpmnElement="Activity_0pb3hxn">
+        <dc:Bounds x="950" y="610" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_write_type_di" bpmnElement="ST_write_type">
+        <dc:Bounds x="720" y="500" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BRT_detail_type_di" bpmnElement="BRT_detail_type">
+        <dc:Bounds x="530" y="500" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_create_subtask_di" bpmnElement="ST_create_subtask">
+        <dc:Bounds x="290" y="500" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="172" y="522" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="178" y="565" width="31" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1jdzury_di" bpmnElement="Activity_1isenfd">
+        <dc:Bounds x="1080" y="160" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_buh_real_di" bpmnElement="UT_buh_real">
+        <dc:Bounds x="1580" y="160" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_reissue_di" bpmnElement="UT_reissue">
+        <dc:Bounds x="1330" y="160" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1c0z6u9_di" bpmnElement="Timer_period_start">
+        <dc:Bounds x="1242" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1221" y="220" width="77" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Timer_month_end_di" bpmnElement="Timer_month_end">
+        <dc:Bounds x="1492" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1468" y="220" width="88" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0ytub5u_di" bpmnElement="Gateway_0ytub5u">
+        <dc:Bounds x="1715" y="495" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_main_di" bpmnElement="End_main">
+        <dc:Bounds x="1822" y="502" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1812" y="545" width="56" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_15xgfhi_di" bpmnElement="Association_15xgfhi">
+        <di:waypoint x="1680" y="185" />
+        <di:waypoint x="1720" y="171" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_start_to_create_di" bpmnElement="Flow_start_to_create">
+        <di:waypoint x="208" y="540" />
+        <di:waypoint x="290" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_create_to_verify_di" bpmnElement="Flow_create_to_verify">
+        <di:waypoint x="340" y="500" />
+        <di:waypoint x="340" y="350" />
+        <di:waypoint x="410" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_verify_to_parallel_di" bpmnElement="Flow_verify_to_parallel">
+        <di:waypoint x="510" y="350" />
+        <di:waypoint x="580" y="350" />
+        <di:waypoint x="580" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_132hruz_di" bpmnElement="Flow_132hruz">
+        <di:waypoint x="630" y="540" />
+        <di:waypoint x="720" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1bpv79h_di" bpmnElement="Flow_1bpv79h">
+        <di:waypoint x="770" y="500" />
+        <di:waypoint x="770" y="350" />
+        <di:waypoint x="840" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0399ull_di" bpmnElement="Flow_0399ull">
+        <di:waypoint x="1000" y="545" />
+        <di:waypoint x="1000" y="610" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0ykalbh_di" bpmnElement="Flow_0ykalbh">
+        <di:waypoint x="940" y="350" />
+        <di:waypoint x="1000" y="350" />
+        <di:waypoint x="1000" y="495" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1wwa9rs_di" bpmnElement="Flow_1wwa9rs">
+        <di:waypoint x="1130" y="495" />
+        <di:waypoint x="1130" y="240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1142" y="379" width="16" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_182dhza_di" bpmnElement="Flow_182dhza">
+        <di:waypoint x="1025" y="520" />
+        <di:waypoint x="1105" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_136grnh_di" bpmnElement="Flow_136grnh">
+        <di:waypoint x="1155" y="520" />
+        <di:waypoint x="1715" y="520" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1461" y="502" width="9" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0k3j07w_di" bpmnElement="Flow_0k3j07w">
+        <di:waypoint x="1050" y="650" />
+        <di:waypoint x="1740" y="650" />
+        <di:waypoint x="1740" y="545" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_01kli45_di" bpmnElement="Flow_01kli45">
+        <di:waypoint x="1765" y="520" />
+        <di:waypoint x="1822" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0dl2i3l_di" bpmnElement="Flow_0dl2i3l">
+        <di:waypoint x="1278" y="200" />
+        <di:waypoint x="1330" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_buh_to_merge_di" bpmnElement="Flow_buh_to_merge">
+        <di:waypoint x="1680" y="200" />
+        <di:waypoint x="1740" y="200" />
+        <di:waypoint x="1740" y="495" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_timer_to_buh_di" bpmnElement="Flow_timer_to_buh">
+        <di:waypoint x="1528" y="200" />
+        <di:waypoint x="1580" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ff4gtk_di" bpmnElement="Flow_1ff4gtk">
+        <di:waypoint x="1180" y="200" />
+        <di:waypoint x="1242" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1escksh_di" bpmnElement="Flow_1escksh">
+        <di:waypoint x="1430" y="200" />
+        <di:waypoint x="1492" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_01cga5f_di" bpmnElement="Association_01cga5f">
+        <di:waypoint x="1509" y="182" />
+        <di:waypoint x="1509" y="171" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="TextAnnotation_1iyojl6_di" bpmnElement="TextAnnotation_1iyojl6">
+        <dc:Bounds x="1720" y="140" width="100" height="41" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1thrxhf_di" bpmnElement="TextAnnotation_1thrxhf">
+        <dc:Bounds x="1460" y="130" width="100" height="41" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

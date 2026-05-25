@@ -1,0 +1,553 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_RakhunokTRC" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="65aa273" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:process id="Process_invoice_approval" name="Погодження рахунку" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="3.0" />
+    </bpmn:extensionElements>
+    <bpmn:startEvent id="StartEvent_1" name="Рахунок отримано">
+      <bpmn:outgoing>Flow_start_to_gw_odoo</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="GW_FAMO" name="ФАМО?" default="Flow_famo_no">
+      <bpmn:incoming>Flow_start_to_gw_odoo</bpmn:incoming>
+      <bpmn:outgoing>Flow_famo_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_famo_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="UT_check_sum_tp" name="Перевірити суму та погодити (ТП)">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Перевірити суму та погодити (ТП, &#34; + (if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type else &#34;—&#34;) + &#34;): &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;&#60;b&#62;Постачальник:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Сума:&#60;/b&#62; &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#60;br/&#62;&#60;b&#62;Тип рахунку:&#60;/b&#62; &#34; + (if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Період послуги:&#60;/b&#62; &#34; + (if x_studio_camunda_service_period != null then x_studio_camunda_service_period else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#60;br/&#62;1. Перевірте суму та коректність даних рахунку.&#60;br/&#62;2. У полі «Погоджено» вкажіть «Так» (якщо рахунок коректний) або «Ні» (якщо є зауваження).&#60;br/&#62;3. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_pidrozdil: if x_studio_camunda_pidrozdil != null then x_studio_camunda_pidrozdil else null, user_ids: if x_studio_camunda_responsible_user_id != null then [x_studio_camunda_responsible_user_id] else []}" target="body" />
+          <zeebe:output source="= x_studio_camunda_approved" target="x_studio_camunda_approved" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_famo_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_check_tp_to_appr</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="GW_approved_tp" name="Погоджено?" default="Flow_appr_tp_no">
+      <bpmn:incoming>Flow_check_tp_to_appr</bpmn:incoming>
+      <bpmn:outgoing>Flow_appr_tp_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_appr_tp_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="GW_pay_tp" name="Оплачуємо?" default="Flow_pay_tp_no">
+      <bpmn:incoming>Flow_07q19rg</bpmn:incoming>
+      <bpmn:outgoing>Flow_pay_tp_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_pay_tp_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="UT_decide_pay_tp" name="Оплачуємо?">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Оплачуємо? (ТП, &#34; + (if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type else &#34;—&#34;) + &#34;): &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;&#60;b&#62;Постачальник:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Сума:&#60;/b&#62; &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#60;br/&#62;1. Прийміть рішення щодо оплати рахунку.&#60;br/&#62;2. У полі «Оплачуємо» вкажіть «Так» якщо оплачуємо, «Ні» якщо відхиляємо.&#60;br/&#62;3. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_pidrozdil: if x_studio_camunda_pidrozdil != null then x_studio_camunda_pidrozdil else null}" target="body" />
+          <zeebe:output source="= x_studio_camunda_pay" target="x_studio_camunda_pay" />
+          <zeebe:output source="= x_studio_camunda_cash_on_site" target="x_studio_camunda_cash_on_site" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_appr_tp_yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_07q19rg</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="GW_cash_on_site" name="Сплачуємо готівкою на місці?" default="Flow_cash_no">
+      <bpmn:incoming>Flow_pay_tp_yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_cash_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_cash_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="UT_pay_cash" name="Сплатити готівкою">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Сплатити готівкою (&#34; + (if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type else &#34;—&#34;) + &#34;): &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;&#60;b&#62;Постачальник:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Сума до оплати:&#60;/b&#62; &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#60;br/&#62;1. Здійсніть оплату рахунку готівкою на магазині.&#60;br/&#62;2. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;.&#10;&#34;, _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_pidrozdil: if x_studio_camunda_pidrozdil != null then x_studio_camunda_pidrozdil else null}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_cash_yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_pay_cash_to_mark</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UT_pay_tp" name="ТП сплатити">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;ТП сплатити (&#34; + (if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type else &#34;—&#34;) + &#34;): &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;&#60;b&#62;Постачальник:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Сума до оплати:&#60;/b&#62; &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#60;br/&#62;&#60;b&#62;IBAN:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_iban != null then x_studio_camunda_partner_iban else &#34;—&#34;) + &#34;&#60;b&#62;Банк:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_bank_name != null then x_studio_camunda_partner_bank_name else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#60;br/&#62;1. Здійсніть оплату рахунку за реквізитами.&#60;br/&#62;2. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;.&#34;, _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_pidrozdil: if x_studio_camunda_pidrozdil != null then x_studio_camunda_pidrozdil else null}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_cash_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_pay_tp_to_mark</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_tp" name="Оплачено через ТП/готівку">
+      <bpmn:incoming>Flow_pay_cash_to_mark</bpmn:incoming>
+      <bpmn:incoming>Flow_pay_tp_to_mark</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="ST_not_approved_tp_end" name="Рахунок не погоджено">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;❌ Рахунок не погоджено (ТП, &#34; + (if x_studio_camunda_approved = &#34;no&#34; then &#34;перевірка суми не пройшла&#34; else if x_studio_camunda_pay = &#34;no&#34; then &#34;відмова в оплаті&#34; else &#34;відхилено&#34;) + &#34;): &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;,&#10;description: &#34;&#60;b&#62;Постачальник:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Сума:&#60;/b&#62; &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#60;br/&#62;&#60;b&#62;Причина:&#60;/b&#62; &#34; + (if x_studio_camunda_approved = &#34;no&#34; then &#34;рахунок ТП відхилено на етапі перевірки суми (не погоджено).&#34; else if x_studio_camunda_pay = &#34;no&#34; then &#34;рахунок ТП погоджено, але вирішено НЕ оплачувати.&#34; else &#34;рахунок ТП відхилено.&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;Це задача-сповіщення, дій не потребує.&#34;,&#10;_model: &#34;project.project&#34;, _id: 13946,&#10;process_instance_key: process_instance_key,&#10;parent_process_instance_key: parent_process_instance_key,&#10;x_studio_camunda_approved: &#34;no&#34;,&#10;x_studio_camunda_pidrozdil: if x_studio_camunda_pidrozdil != null then x_studio_camunda_pidrozdil else null}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_appr_tp_no</bpmn:incoming>
+      <bpmn:incoming>Flow_pay_tp_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_not_appr_tp_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_not_approved_tp" name="Не погоджено">
+      <bpmn:incoming>Flow_not_appr_tp_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="GW_rent" name="Оренда?" default="Flow_rent_no">
+      <bpmn:incoming>Flow_famo_yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_rent_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_rent_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="GW_pay_rent" name="Оплачуємо?" default="Flow_pay_rent_no">
+      <bpmn:incoming>Flow_04l3x2y</bpmn:incoming>
+      <bpmn:outgoing>Flow_pay_rent_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_pay_rent_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="UT_check_sum_famo" name="Перевірити суму та погодити (ФАМО)">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Перевірити суму та погодити (ФАМО, &#34; + (if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type else &#34;—&#34;) + &#34;): &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;&#60;b&#62;Постачальник:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Сума:&#60;/b&#62; &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#60;br/&#62;&#60;b&#62;Тип рахунку:&#60;/b&#62; &#34; + (if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Період послуги:&#60;/b&#62; &#34; + (if x_studio_camunda_service_period != null then x_studio_camunda_service_period else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#60;br/&#62;1. Перевірте суму та коректність даних рахунку.&#60;br/&#62;2. У полі «Погоджено» вкажіть «Так» (якщо рахунок коректний) або «Ні» (якщо є зауваження).&#60;br/&#62;3. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_pidrozdil: if x_studio_camunda_pidrozdil != null then x_studio_camunda_pidrozdil else null, user_ids: if x_studio_camunda_responsible_user_id != null then [x_studio_camunda_responsible_user_id] else []}" target="body" />
+          <zeebe:output source="= x_studio_camunda_approved" target="x_studio_camunda_approved" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rent_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_check_famo_to_appr</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="GW_approved_famo" name="Погоджено?" default="Flow_appr_famo_no">
+      <bpmn:incoming>Flow_check_famo_to_appr</bpmn:incoming>
+      <bpmn:outgoing>Flow_appr_famo_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_appr_famo_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="ST_not_approved_famo_end" name="Рахунок не погоджено">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;❌ Рахунок не погоджено (ФАМО, &#34; + (if x_studio_camunda_approved = &#34;no&#34; then &#34;перевірка суми не пройшла&#34; else if x_studio_camunda_pay = &#34;no&#34; then &#34;відмова в оплаті&#34; else &#34;відхилено&#34;) + &#34;): &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;,&#10;description: &#34;&#60;b&#62;Постачальник:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Сума:&#60;/b&#62; &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#60;br/&#62;&#60;b&#62;Тип:&#60;/b&#62; &#34; + (if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Причина:&#60;/b&#62; &#34; + (if x_studio_camunda_approved = &#34;no&#34; then &#34;рахунок ФАМО відхилено на етапі перевірки суми (не погоджено).&#34; else if x_studio_camunda_pay = &#34;no&#34; then &#34;після розгляду було вирішено НЕ оплачувати цей рахунок.&#34; else &#34;рахунок ФАМО відхилено.&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;Це задача-сповіщення, дій не потребує.&#34;,&#10;_model: &#34;project.project&#34;, _id: 13946,&#10;process_instance_key: process_instance_key,&#10;parent_process_instance_key: parent_process_instance_key,&#10;x_studio_camunda_approved: &#34;no&#34;,&#10;x_studio_camunda_pidrozdil: if x_studio_camunda_pidrozdil != null then x_studio_camunda_pidrozdil else null}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_pay_rent_no</bpmn:incoming>
+      <bpmn:incoming>Flow_appr_famo_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_not_appr_famo_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_not_approved_famo" name="Не погоджено">
+      <bpmn:incoming>Flow_not_appr_famo_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="GW_join_to_pay_famo">
+      <bpmn:incoming>Flow_pay_rent_yes</bpmn:incoming>
+      <bpmn:incoming>Flow_appr_famo_yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_join_to_pay_famo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="UT_pay_invoice" name="Сплатити рахунок">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Сплатити рахунок (ФАМО, &#34; + (if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type else &#34;—&#34;) + &#34;): &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;&#60;b&#62;Постачальник:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Сума до оплати:&#60;/b&#62; &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#60;br/&#62;&#60;b&#62;IBAN:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_iban != null then x_studio_camunda_partner_iban else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Банк:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_bank_name != null then x_studio_camunda_partner_bank_name else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#60;br/&#62;1. Здійсніть оплату рахунку за реквізитами.&#60;br/&#62;2. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_pidrozdil: if x_studio_camunda_pidrozdil != null then x_studio_camunda_pidrozdil else null}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_join_to_pay_famo</bpmn:incoming>
+      <bpmn:outgoing>Flow_pay_to_mark_main</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:businessRuleTask id="BRT_expense_category" name="Визначити статтю витрат">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="utility-expense-classification" resultVariable="dmn_expense_result" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=if x_studio_camunda_invoice_line_name != null then x_studio_camunda_invoice_line_name else &#34;&#34;" target="x_studio_camunda_service_name" />
+          <zeebe:output source="=dmn_expense_result.x_studio_camunda_expense_category" target="x_studio_camunda_expense_category" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_pay_to_mark_main</bpmn:incoming>
+      <bpmn:outgoing>Flow_brt_to_receipt</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:userTask id="UT_add_receipt" name="Внести поступлення">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Внести поступлення (&#34; + (if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type else &#34;—&#34;) + &#34;): &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;&#60;b&#62;Постачальник:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Сума:&#60;/b&#62; &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#60;br/&#62;&#60;b&#62;Тип рахунку:&#60;/b&#62; &#34; + (if x_studio_camunda_invoice_type != null then x_studio_camunda_invoice_type else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Договір:&#60;/b&#62; &#34; + (if x_studio_camunda_contract != null then x_studio_camunda_contract else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Стаття витрат:&#60;/b&#62; &#34; + (if x_studio_camunda_expense_category != null then x_studio_camunda_expense_category else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#60;br/&#62;1. Внесіть поступлення товарів/послуг до 1С відповідно до даних рахунку.&#60;br/&#62;2. Перевірте, що стаття витрат визначена коректно. За потреби — скоригуйте.&#60;br/&#62;3. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб завершити процес.&#34;, _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_pidrozdil: if x_studio_camunda_pidrozdil != null then x_studio_camunda_pidrozdil else null, x_studio_camunda_expense_category: if x_studio_camunda_expense_category != null then x_studio_camunda_expense_category else &#34;&#34;}" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_brt_to_receipt</bpmn:incoming>
+      <bpmn:outgoing>Flow_receipt_to_end</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_main" name="Поступлення внесено">
+      <bpmn:incoming>Flow_receipt_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="ST_register_famo" name="Оплачуємо?">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="3" type="http-request-smart" />
+        </zeebe:taskListeners>
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;POST&#34;" target="method" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: &#34;Оплачуємо? (ФАМО, оренда): &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34; №&#34; + x_studio_camunda_invoice_number + &#34; — &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#34;, description: &#34;&#60;b&#62;Постачальник:&#60;/b&#62; &#34; + (if x_studio_camunda_partner_name != null then x_studio_camunda_partner_name else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;b&#62;Сума:&#60;/b&#62; &#34; + string(x_studio_camunda_invoice_amount) + &#34; грн&#60;br/&#62;&#60;b&#62;Тип рахунку:&#60;/b&#62; оренда&#60;br/&#62;&#60;b&#62;Період послуги:&#60;/b&#62; &#34; + (if x_studio_camunda_service_period != null then x_studio_camunda_service_period else &#34;—&#34;) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#60;br/&#62;1. Перевірте дані рахунку оренди.&#60;br/&#62;2. У полі «Оплачуємо» вкажіть «Так» (підтверджуємо оплату) або «Ні» (відхиляємо).&#60;br/&#62;3. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, _model: &#34;project.project&#34;, _id: 13946, process_instance_key: process_instance_key, parent_process_instance_key: parent_process_instance_key, x_studio_camunda_pidrozdil: if x_studio_camunda_pidrozdil != null then x_studio_camunda_pidrozdil else null}" target="body" />
+          <zeebe:output source="= x_studio_camunda_pay" target="x_studio_camunda_pay" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_rent_yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_04l3x2y</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_start_to_gw_odoo" sourceRef="StartEvent_1" targetRef="GW_FAMO" />
+    <bpmn:sequenceFlow id="Flow_famo_yes" name="Так" sourceRef="GW_FAMO" targetRef="GW_rent">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(x_studio_camunda_pidrozdil_complete_name) and x_studio_camunda_pidrozdil_complete_name != null and (contains(x_studio_camunda_pidrozdil_complete_name, "[Фамо]") or contains(x_studio_camunda_pidrozdil_complete_name, "[Пінкі]") or matches(x_studio_camunda_pidrozdil_complete_name, "/ 4[0-9][0-9]"))</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_famo_no" name="Ні" sourceRef="GW_FAMO" targetRef="UT_check_sum_tp" />
+    <bpmn:sequenceFlow id="Flow_check_tp_to_appr" sourceRef="UT_check_sum_tp" targetRef="GW_approved_tp" />
+    <bpmn:sequenceFlow id="Flow_appr_tp_yes" name="Так" sourceRef="GW_approved_tp" targetRef="UT_decide_pay_tp">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_approved = "yes"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_appr_tp_no" name="Ні" sourceRef="GW_approved_tp" targetRef="ST_not_approved_tp_end" />
+    <bpmn:sequenceFlow id="Flow_not_appr_tp_end" sourceRef="ST_not_approved_tp_end" targetRef="End_not_approved_tp" />
+    <bpmn:sequenceFlow id="Flow_pay_tp_yes" name="Так" sourceRef="GW_pay_tp" targetRef="GW_cash_on_site">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_pay = "yes"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_pay_tp_no" name="Ні" sourceRef="GW_pay_tp" targetRef="ST_not_approved_tp_end" />
+    <bpmn:sequenceFlow id="Flow_cash_yes" name="Так" sourceRef="GW_cash_on_site" targetRef="UT_pay_cash">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_cash_on_site = "yes"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_cash_no" name="Ні" sourceRef="GW_cash_on_site" targetRef="UT_pay_tp" />
+    <bpmn:sequenceFlow id="Flow_pay_cash_to_mark" sourceRef="UT_pay_cash" targetRef="End_tp" />
+    <bpmn:sequenceFlow id="Flow_pay_tp_to_mark" sourceRef="UT_pay_tp" targetRef="End_tp" />
+    <bpmn:sequenceFlow id="Flow_rent_yes" name="Так" sourceRef="GW_rent" targetRef="ST_register_famo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_invoice_type = "оренда"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_rent_no" name="Ні" sourceRef="GW_rent" targetRef="UT_check_sum_famo" />
+    <bpmn:sequenceFlow id="Flow_pay_rent_yes" name="Так" sourceRef="GW_pay_rent" targetRef="GW_join_to_pay_famo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_pay = "yes"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_pay_rent_no" name="Ні" sourceRef="GW_pay_rent" targetRef="ST_not_approved_famo_end" />
+    <bpmn:sequenceFlow id="Flow_check_famo_to_appr" sourceRef="UT_check_sum_famo" targetRef="GW_approved_famo" />
+    <bpmn:sequenceFlow id="Flow_appr_famo_yes" name="Так" sourceRef="GW_approved_famo" targetRef="GW_join_to_pay_famo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= x_studio_camunda_approved = "yes"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_appr_famo_no" name="Ні" sourceRef="GW_approved_famo" targetRef="ST_not_approved_famo_end" />
+    <bpmn:sequenceFlow id="Flow_not_appr_famo_end" sourceRef="ST_not_approved_famo_end" targetRef="End_not_approved_famo" />
+    <bpmn:sequenceFlow id="Flow_join_to_pay_famo" sourceRef="GW_join_to_pay_famo" targetRef="UT_pay_invoice" />
+    <bpmn:sequenceFlow id="Flow_pay_to_mark_main" sourceRef="UT_pay_invoice" targetRef="BRT_expense_category" />
+    <bpmn:sequenceFlow id="Flow_brt_to_receipt" sourceRef="BRT_expense_category" targetRef="UT_add_receipt" />
+    <bpmn:sequenceFlow id="Flow_receipt_to_end" sourceRef="UT_add_receipt" targetRef="End_main" />
+    <bpmn:sequenceFlow id="Flow_07q19rg" sourceRef="UT_decide_pay_tp" targetRef="GW_pay_tp" />
+    <bpmn:sequenceFlow id="Flow_04l3x2y" sourceRef="ST_register_famo" targetRef="GW_pay_rent" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_invoice_approval">
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="472" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="465" y="295" width="50" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_FAMO_di" bpmnElement="GW_FAMO" isMarkerVisible="true">
+        <dc:Bounds x="585" y="245" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="553" y="223" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_rent_di" bpmnElement="GW_rent" isMarkerVisible="true">
+        <dc:Bounds x="585" y="385" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="527" y="392" width="46" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_check_sum_famo_di" bpmnElement="UT_check_sum_famo">
+        <dc:Bounds x="540" y="490" width="140" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_register_famo_di" bpmnElement="ST_register_famo">
+        <dc:Bounds x="690" y="370" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_check_sum_tp_di" bpmnElement="UT_check_sum_tp">
+        <dc:Bounds x="680" y="80" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_not_approved_tp_end_di" bpmnElement="ST_not_approved_tp_end">
+        <dc:Bounds x="970" y="210" width="120" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_not_approved_tp_di" bpmnElement="End_not_approved_tp">
+        <dc:Bounds x="1012" y="312" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="997" y="355" width="72" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_pay_tp_di" bpmnElement="GW_pay_tp" isMarkerVisible="true">
+        <dc:Bounds x="1165" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1158" y="65" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_cash_on_site_di" bpmnElement="GW_cash_on_site" isMarkerVisible="true">
+        <dc:Bounds x="1285" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1246" y="30" width="59" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_pay_tp_di" bpmnElement="UT_pay_tp">
+        <dc:Bounds x="1360" y="150" width="120" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_pay_cash_di" bpmnElement="UT_pay_cash">
+        <dc:Bounds x="1360" y="20" width="120" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_tp_di" bpmnElement="End_tp">
+        <dc:Bounds x="1502" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1548" y="106" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_pay_rent_di" bpmnElement="GW_pay_rent" isMarkerVisible="true">
+        <dc:Bounds x="855" y="385" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="848" y="363" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_approved_tp_di" bpmnElement="GW_approved_tp" isMarkerVisible="true">
+        <dc:Bounds x="855" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="851" y="65" width="63" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_decide_pay_tp_di" bpmnElement="UT_decide_pay_tp">
+        <dc:Bounds x="970" y="80" width="120" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ST_not_approved_famo_end_di" bpmnElement="ST_not_approved_famo_end">
+        <dc:Bounds x="810" y="480" width="140" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_approved_famo_di" bpmnElement="GW_approved_famo" isMarkerVisible="true">
+        <dc:Bounds x="855" y="585" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="849" y="645" width="63" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_not_approved_famo_di" bpmnElement="End_not_approved_famo">
+        <dc:Bounds x="1002" y="492" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="985" y="535" width="72" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="GW_join_to_pay_famo_di" bpmnElement="GW_join_to_pay_famo" isMarkerVisible="true">
+        <dc:Bounds x="1085" y="485" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_pay_invoice_di" bpmnElement="UT_pay_invoice">
+        <dc:Bounds x="1190" y="480" width="140" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BRT_expense_category_di" bpmnElement="BRT_expense_category">
+        <dc:Bounds x="1380" y="480" width="130" height="60" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UT_add_receipt_di" bpmnElement="UT_add_receipt">
+        <dc:Bounds x="1560" y="480" width="140" height="60" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_main_di" bpmnElement="End_main">
+        <dc:Bounds x="1742" y="492" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1729" y="535" width="68" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_start_to_gw_odoo_di" bpmnElement="Flow_start_to_gw_odoo">
+        <di:waypoint x="508" y="270" />
+        <di:waypoint x="585" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_famo_yes_di" bpmnElement="Flow_famo_yes">
+        <di:waypoint x="610" y="295" />
+        <di:waypoint x="610" y="385" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="616" y="330" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_famo_no_di" bpmnElement="Flow_famo_no">
+        <di:waypoint x="610" y="245" />
+        <di:waypoint x="610" y="120" />
+        <di:waypoint x="680" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="623" y="152" width="11" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_check_tp_to_appr_di" bpmnElement="Flow_check_tp_to_appr">
+        <di:waypoint x="800" y="120" />
+        <di:waypoint x="855" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_appr_tp_yes_di" bpmnElement="Flow_appr_tp_yes">
+        <di:waypoint x="905" y="120" />
+        <di:waypoint x="970" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="923" y="100" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_appr_tp_no_di" bpmnElement="Flow_appr_tp_no">
+        <di:waypoint x="880" y="145" />
+        <di:waypoint x="880" y="240" />
+        <di:waypoint x="970" y="240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="887" y="183" width="11" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_not_appr_tp_end_di" bpmnElement="Flow_not_appr_tp_end">
+        <di:waypoint x="1030" y="270" />
+        <di:waypoint x="1030" y="312" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_pay_tp_yes_di" bpmnElement="Flow_pay_tp_yes">
+        <di:waypoint x="1215" y="120" />
+        <di:waypoint x="1285" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1235" y="99" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_pay_tp_no_di" bpmnElement="Flow_pay_tp_no">
+        <di:waypoint x="1190" y="145" />
+        <di:waypoint x="1190" y="240" />
+        <di:waypoint x="1090" y="240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1194" y="183" width="11" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_cash_yes_di" bpmnElement="Flow_cash_yes">
+        <di:waypoint x="1310" y="95" />
+        <di:waypoint x="1310" y="50" />
+        <di:waypoint x="1360" y="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1322" y="65" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_cash_no_di" bpmnElement="Flow_cash_no">
+        <di:waypoint x="1310" y="145" />
+        <di:waypoint x="1310" y="190" />
+        <di:waypoint x="1360" y="190" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1317" y="160" width="11" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_pay_cash_to_mark_di" bpmnElement="Flow_pay_cash_to_mark">
+        <di:waypoint x="1480" y="50" />
+        <di:waypoint x="1520" y="50" />
+        <di:waypoint x="1520" y="102" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_pay_tp_to_mark_di" bpmnElement="Flow_pay_tp_to_mark">
+        <di:waypoint x="1480" y="190" />
+        <di:waypoint x="1520" y="190" />
+        <di:waypoint x="1520" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_rent_yes_di" bpmnElement="Flow_rent_yes">
+        <di:waypoint x="635" y="410" />
+        <di:waypoint x="690" y="410" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="650" y="392" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_rent_no_di" bpmnElement="Flow_rent_no">
+        <di:waypoint x="610" y="435" />
+        <di:waypoint x="610" y="490" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="614" y="451" width="11" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_pay_rent_yes_di" bpmnElement="Flow_pay_rent_yes">
+        <di:waypoint x="905" y="410" />
+        <di:waypoint x="1110" y="410" />
+        <di:waypoint x="1110" y="485" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="985" y="388" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_pay_rent_no_di" bpmnElement="Flow_pay_rent_no">
+        <di:waypoint x="880" y="435" />
+        <di:waypoint x="880" y="480" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="885" y="445" width="11" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_check_famo_to_appr_di" bpmnElement="Flow_check_famo_to_appr">
+        <di:waypoint x="610" y="550" />
+        <di:waypoint x="610" y="610" />
+        <di:waypoint x="855" y="610" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_appr_famo_yes_di" bpmnElement="Flow_appr_famo_yes">
+        <di:waypoint x="905" y="610" />
+        <di:waypoint x="1110" y="610" />
+        <di:waypoint x="1110" y="535" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="986" y="584" width="17" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_appr_famo_no_di" bpmnElement="Flow_appr_famo_no">
+        <di:waypoint x="880" y="585" />
+        <di:waypoint x="880" y="540" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="865" y="553" width="11" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_not_appr_famo_end_di" bpmnElement="Flow_not_appr_famo_end">
+        <di:waypoint x="950" y="510" />
+        <di:waypoint x="1002" y="510" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_join_to_pay_famo_di" bpmnElement="Flow_join_to_pay_famo">
+        <di:waypoint x="1135" y="510" />
+        <di:waypoint x="1190" y="510" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_pay_to_mark_main_di" bpmnElement="Flow_pay_to_mark_main">
+        <di:waypoint x="1330" y="510" />
+        <di:waypoint x="1380" y="510" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_brt_to_receipt_di" bpmnElement="Flow_brt_to_receipt">
+        <di:waypoint x="1510" y="510" />
+        <di:waypoint x="1560" y="510" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_receipt_to_end_di" bpmnElement="Flow_receipt_to_end">
+        <di:waypoint x="1700" y="510" />
+        <di:waypoint x="1742" y="510" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_07q19rg_di" bpmnElement="Flow_07q19rg">
+        <di:waypoint x="1090" y="120" />
+        <di:waypoint x="1165" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_04l3x2y_di" bpmnElement="Flow_04l3x2y">
+        <di:waypoint x="790" y="410" />
+        <di:waypoint x="855" y="410" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
