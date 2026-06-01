@@ -73,8 +73,8 @@
     <bpmn:sequenceFlow id="Flow_14egqul" sourceRef="Activity_1glu1uv" targetRef="Activity_0rhyd10" />
     <bpmn:sequenceFlow id="Flow_15htyy8" sourceRef="Activity_0bkeomf" targetRef="Activity_1glu1uv" />
     <bpmn:sequenceFlow id="Flow_1ls5iho" sourceRef="Activity_1v9eoaf" targetRef="Gateway_skip_trc" />
-    <bpmn:sequenceFlow id="Flow_gw_to_notify" sourceRef="Gateway_skip_trc" targetRef="Activity_113c8jv" />
-    <bpmn:sequenceFlow id="Flow_gw_skip_to_switch" name="ТП/Гурт" sourceRef="Gateway_skip_trc" targetRef="Activity_1gouaw1">
+    <bpmn:sequenceFlow id="Flow_gw_to_notify" name="так (ФАМО з ТРЦ)" sourceRef="Gateway_skip_trc" targetRef="Activity_113c8jv" />
+    <bpmn:sequenceFlow id="Flow_gw_skip_to_switch" name="ні (ТП/Гурт)" sourceRef="Gateway_skip_trc" targetRef="Activity_1gouaw1">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=skip_trc_approval = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_0oe344b" sourceRef="Activity_113c8jv" targetRef="Event_03mw4xn" />
