@@ -32,7 +32,6 @@
       <bpmn:lane id="Lane_0agj42w" name="Бухгалтер">
         <bpmn:flowNodeRef>Event_1wwming</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Activity_0bkeomf</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Activity_1m5lz1c</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Activity_0rhyd10</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Activity_1v9eoaf</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Gateway_1hmgpmz</bpmn:flowNodeRef>
@@ -60,7 +59,6 @@
     <bpmn:sequenceFlow id="Flow_1mejo49" sourceRef="Gateway_1hmgpmz" targetRef="Activity_1gouaw1" />
     <bpmn:sequenceFlow id="Flow_1hxkjgf" name="ні" sourceRef="Gateway_0buteek" targetRef="Activity_1gouaw1" />
     <bpmn:sequenceFlow id="Flow_1spb1a2" sourceRef="Activity_0rhyd10" targetRef="Activity_1v9eoaf" />
-    <bpmn:sequenceFlow id="Flow_0c40yaa" sourceRef="Activity_0bkeomf" targetRef="Activity_1m5lz1c" />
     <bpmn:sequenceFlow id="Flow_08c6ueu" sourceRef="StartEvent_1" targetRef="ST_normalize_vars" />
     <bpmn:sequenceFlow id="Flow_1hjjtgs" sourceRef="Gateway_0aog6hp" targetRef="Activity_0bkeomf">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= is defined(odoo_task_id) and odoo_task_id != null</bpmn:conditionExpression>
@@ -72,7 +70,7 @@
     <bpmn:sequenceFlow id="Flow_0zrpjt4" sourceRef="Event_1p8nj9s" targetRef="Activity_1sbkk55" />
     <bpmn:sequenceFlow id="Flow_0x7bnbc" sourceRef="Activity_1sbkk55" targetRef="Event_1hzl12v" />
     <bpmn:sequenceFlow id="Flow_14egqul" sourceRef="Activity_1glu1uv" targetRef="Activity_0rhyd10" />
-    <bpmn:sequenceFlow id="Flow_15htyy8" sourceRef="Activity_1m5lz1c" targetRef="Activity_1glu1uv" />
+    <bpmn:sequenceFlow id="Flow_15htyy8" sourceRef="Activity_0bkeomf" targetRef="Activity_1glu1uv" />
     <bpmn:sequenceFlow id="Flow_1ls5iho" sourceRef="Activity_1v9eoaf" targetRef="Activity_113c8jv" />
     <bpmn:sequenceFlow id="Flow_0oe344b" sourceRef="Activity_113c8jv" targetRef="Event_03mw4xn" />
     <bpmn:sequenceFlow id="Flow_0ikdczh" sourceRef="Activity_1ym16t1" targetRef="Gateway_1guh0i3" />
@@ -135,30 +133,14 @@
       <bpmn:incoming>Flow_14egqul</bpmn:incoming>
       <bpmn:outgoing>Flow_1spb1a2</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:userTask id="Activity_1m5lz1c" name="Вибрати магазин, який преключаємо">
+    <bpmn:userTask id="Activity_0bkeomf" name="Перевірити магазини та обрати магазин для переключення">
       <bpmn:extensionElements>
         <zeebe:ioMapping>
           <zeebe:input source="= &#34;POST&#34;" target="method" />
           <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Вибрати магазин для переключення ФОП &#34; + fop_name, description: &#34;&#60;b&#62;ФОП:&#60;/b&#62; &#34; + fop_name + &#34; (&#34; + string(income_percent) + &#34;% ліміту, &#34; + string(days_to_limit) + &#34; днів до ліміту)&#34; + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;Магазини:&#60;/b&#62;&#60;br/&#62;&#34; + stores + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. Проаналізуйте список магазинів та оберіть один, який будемо переключати на інший ФОП.&#34; + &#34;&#60;br/&#62;2. Оберіть магазин з найбільшим доходом, щоб максимально знизити навантаження на ФОП.&#34; + &#34;&#60;br/&#62;3. Впишіть назву обраного магазину у поле «Обраний магазин».&#34; + &#34;&#60;br/&#62;4. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_total_income: total_income, x_studio_camunda_days_to_limit: days_to_limit, parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;accountant&#34;, x_studio_camunda_task_code: &#34;select_store&#34;}" target="body" />
+          <zeebe:input source="={name: &#34;Перевірити магазини та обрати для переключення ФОП &#34; + fop_name, description: &#34;&#60;b&#62;ФОП:&#60;/b&#62; &#34; + fop_name + &#34; (ЄДРПОУ: &#34; + fop_edrpou + &#34;)&#34; + &#34;&#60;br/&#62;&#60;b&#62;Група ЄП:&#60;/b&#62; &#34; + string(ep_group) + &#34;&#60;br/&#62;&#60;b&#62;Дохід за рік:&#60;/b&#62; &#34; + string(total_income) + &#34; грн (&#34; + string(income_percent) + &#34;% від ліміту &#34; + string(limit_amount) + &#34; грн)&#34; + &#34;&#60;br/&#62;&#60;b&#62;Днів до ліміту:&#60;/b&#62; &#34; + string(days_to_limit) + &#34;&#60;br/&#62;&#60;b&#62;Прогнозна дата:&#60;/b&#62; &#34; + projected_date + &#34;&#60;br/&#62;&#60;b&#62;К-сть працівників на ФОП:&#60;/b&#62; &#34; + string(employee_count) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;Магазини:&#60;/b&#62;&#60;br/&#62;&#34; + stores + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. Перевірте список магазинів, на яких працює цей ФОП.&#34; + &#34;&#60;br/&#62;2. Звірте к-сть магазинів та працівників з даними у звіті.&#34; + &#34;&#60;br/&#62;3. Оберіть магазин для переключення на інший ФОП (бажано з найбільшим доходом, щоб максимально знизити навантаження).&#34; + &#34;&#60;br/&#62;4. Впишіть назву обраного магазину у поле &#60;b&#62;«Обраний магазин»&#60;/b&#62;.&#34; + &#34;&#60;br/&#62;5. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_total_income: total_income, x_studio_camunda_days_to_limit: days_to_limit, parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;accountant&#34;, x_studio_camunda_task_code: &#34;check_and_select_store&#34;}" target="body" />
           <zeebe:output source="= if is defined(x_studio_camunda_selected_store) and x_studio_camunda_selected_store != null then x_studio_camunda_selected_store else &#34;(не обрано)&#34;" target="selected_store" />
-        </zeebe:ioMapping>
-        <zeebe:userTask />
-        <zeebe:taskListeners>
-          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
-        </zeebe:taskListeners>
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_0c40yaa</bpmn:incoming>
-      <bpmn:outgoing>Flow_15htyy8</bpmn:outgoing>
-    </bpmn:userTask>
-    <bpmn:userTask id="Activity_0bkeomf" name="Перевірити кількість магазинів на ФОП">
-      <bpmn:extensionElements>
-        <zeebe:ioMapping>
-          <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
-          <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
-          <zeebe:input source="={name: &#34;Перевірити магазини ФОП &#34; + fop_name, description: &#34;&#60;b&#62;ФОП:&#60;/b&#62; &#34; + fop_name + &#34; (ЄДРПОУ: &#34; + fop_edrpou + &#34;)&#34; + &#34;&#60;br/&#62;&#60;b&#62;Група ЄП:&#60;/b&#62; &#34; + string(ep_group) + &#34;&#60;br/&#62;&#60;b&#62;Дохід за рік:&#60;/b&#62; &#34; + string(total_income) + &#34; грн (&#34; + string(income_percent) + &#34;% від ліміту &#34; + string(limit_amount) + &#34; грн)&#34; + &#34;&#60;br/&#62;&#60;b&#62;Днів до ліміту:&#60;/b&#62; &#34; + string(days_to_limit) + &#34;&#60;br/&#62;&#60;b&#62;Прогнозна дата:&#60;/b&#62; &#34; + projected_date + &#34;&#60;br/&#62;&#60;b&#62;К-сть працівників на ФОП:&#60;/b&#62; &#34; + string(employee_count) + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;Магазини:&#60;/b&#62;&#60;br/&#62;&#34; + stores + &#34;&#60;br/&#62;&#60;br/&#62;&#60;b&#62;📋 Що потрібно зробити:&#60;/b&#62;&#34; + &#34;&#60;br/&#62;1. Перевірте список магазинів, на яких працює цей ФОП.&#34; + &#34;&#60;br/&#62;2. Звірте к-сть магазинів та працівників з даними у звіті.&#34; + &#34;&#60;br/&#62;3. Якщо дані коректні — підтвердіть інформацію.&#34; + &#34;&#60;br/&#62;4. Змініть стадію задачі на &#60;b&#62;«Виконано»&#60;/b&#62;, щоб процес пішов далі.&#34;, x_studio_camunda_fop_name: fop_name, x_studio_camunda_total_income: total_income, x_studio_camunda_days_to_limit: days_to_limit, parent_id: odoo_task_id, _model: &#34;project.project&#34;, _id: 524, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;accountant&#34;, x_studio_camunda_task_code: &#34;check_stores&#34;}" target="body" />
         </zeebe:ioMapping>
         <zeebe:userTask />
         <zeebe:taskListeners>
@@ -167,7 +149,7 @@
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1hjjtgs</bpmn:incoming>
       <bpmn:incoming>Flow_08sqmwa</bpmn:incoming>
-      <bpmn:outgoing>Flow_0c40yaa</bpmn:outgoing>
+      <bpmn:outgoing>Flow_15htyy8</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:startEvent id="StartEvent_1" name="Перевіряємо ліміти">
       <bpmn:outgoing>Flow_08c6ueu</bpmn:outgoing>
@@ -422,10 +404,6 @@
         <dc:Bounds x="20" y="-180" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_0217r2j_di" bpmnElement="Activity_1m5lz1c">
-        <dc:Bounds x="-250" y="-180" width="100" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_0fg1ped_di" bpmnElement="Activity_0bkeomf">
         <dc:Bounds x="-420" y="-180" width="100" height="80" />
         <bpmndi:BPMNLabel />
@@ -571,10 +549,6 @@
       <bpmndi:BPMNEdge id="Flow_1spb1a2_di" bpmnElement="Flow_1spb1a2">
         <di:waypoint x="120" y="-140" />
         <di:waypoint x="190" y="-140" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0c40yaa_di" bpmnElement="Flow_0c40yaa">
-        <di:waypoint x="-320" y="-140" />
-        <di:waypoint x="-250" y="-140" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_08c6ueu_di" bpmnElement="Flow_08c6ueu">
         <di:waypoint x="-752" y="-330" />
