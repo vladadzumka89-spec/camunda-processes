@@ -19,6 +19,7 @@
         <bpmn:flowNodeRef>Gateway_1guh0i3</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Activity_11ydaqo</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Event_1uh6oap</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_skip_trc</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_0h2pqu7" name="Менеджер з оренди">
         <bpmn:flowNodeRef>Activity_1ym16t1</bpmn:flowNodeRef>
@@ -71,7 +72,11 @@
     <bpmn:sequenceFlow id="Flow_0x7bnbc" sourceRef="Activity_1sbkk55" targetRef="Event_1hzl12v" />
     <bpmn:sequenceFlow id="Flow_14egqul" sourceRef="Activity_1glu1uv" targetRef="Activity_0rhyd10" />
     <bpmn:sequenceFlow id="Flow_15htyy8" sourceRef="Activity_0bkeomf" targetRef="Activity_1glu1uv" />
-    <bpmn:sequenceFlow id="Flow_1ls5iho" sourceRef="Activity_1v9eoaf" targetRef="Activity_113c8jv" />
+    <bpmn:sequenceFlow id="Flow_1ls5iho" sourceRef="Activity_1v9eoaf" targetRef="Gateway_skip_trc" />
+    <bpmn:sequenceFlow id="Flow_gw_to_notify" sourceRef="Gateway_skip_trc" targetRef="Activity_113c8jv" />
+    <bpmn:sequenceFlow id="Flow_gw_skip_to_switch" name="ТП/Гурт" sourceRef="Gateway_skip_trc" targetRef="Activity_1gouaw1">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=skip_trc_approval = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_0oe344b" sourceRef="Activity_113c8jv" targetRef="Event_03mw4xn" />
     <bpmn:sequenceFlow id="Flow_0ikdczh" sourceRef="Activity_1ym16t1" targetRef="Gateway_1guh0i3" />
     <bpmn:sequenceFlow id="Flow_1uy59j7" sourceRef="Event_03mw4xn" targetRef="Activity_1ym16t1" />
@@ -171,11 +176,19 @@
           <zeebe:output source="= if is defined(trend_ratio) then trend_ratio else 0" target="trend_ratio" />
           <zeebe:output source="= if is defined(process_instance_key) and process_instance_key != null and process_instance_key != &#34;&#34; then process_instance_key else if is defined(parent_process_instance_key) and parent_process_instance_key != null then parent_process_instance_key else string(odoo_task_id)" target="process_instance_key" />
           <zeebe:output source="=if is defined(employee_count) then employee_count else 0" target="employee_count" />
+          <zeebe:output source="= if is defined(company) then company else if is defined(x_studio_camunda_company) then x_studio_camunda_company else &#34;&#34;" target="company" />
+          <zeebe:output source="= if is defined(current_terminal_stores) then current_terminal_stores else if is defined(x_studio_camunda_current_terminal_stores) then x_studio_camunda_current_terminal_stores else &#34;&#34;" target="current_terminal_stores" />
+          <zeebe:output source="= (if is defined(company) and company = &#34;Технопростір&#34; then true else if is defined(x_studio_camunda_company) and x_studio_camunda_company = &#34;Технопростір&#34; then true else false) or (if is defined(current_terminal_stores) and contains(current_terminal_stores, &#34;800 Гурт&#34;) then true else if is defined(x_studio_camunda_current_terminal_stores) and contains(x_studio_camunda_current_terminal_stores, &#34;800 Гурт&#34;) then true else false)" target="skip_trc_approval" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_08c6ueu</bpmn:incoming>
       <bpmn:outgoing>Flow_normalize_to_gw</bpmn:outgoing>
     </bpmn:scriptTask>
+    <bpmn:exclusiveGateway id="Gateway_skip_trc" name="Чи потрібне узгодження з ТРЦ?" default="Flow_gw_to_notify">
+      <bpmn:incoming>Flow_1ls5iho</bpmn:incoming>
+      <bpmn:outgoing>Flow_gw_skip_to_switch</bpmn:outgoing>
+      <bpmn:outgoing>Flow_gw_to_notify</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
     <bpmn:exclusiveGateway id="Gateway_0aog6hp" name="Задача існує в Odoo?" default="Flow_0j0ehf2">
       <bpmn:incoming>Flow_normalize_to_gw</bpmn:incoming>
       <bpmn:outgoing>Flow_1hjjtgs</bpmn:outgoing>
@@ -246,7 +259,7 @@
           <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
         </zeebe:taskListeners>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_1ls5iho</bpmn:incoming>
+      <bpmn:incoming>Flow_gw_to_notify</bpmn:incoming>
       <bpmn:outgoing>Flow_0oe344b</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:intermediateCatchEvent id="Event_03mw4xn" name="Чекаємо 3 дні відповідь ТРЦ">
@@ -335,6 +348,7 @@
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1hxkjgf</bpmn:incoming>
       <bpmn:incoming>Flow_1mejo49</bpmn:incoming>
+      <bpmn:incoming>Flow_gw_skip_to_switch</bpmn:incoming>
       <bpmn:outgoing>Flow_1k7dg8u</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:serviceTask id="Activity_11ydaqo" name="Сповістити бухгалтера про непогодження">
@@ -594,10 +608,29 @@
         <di:waypoint x="-90" y="-140" />
         <di:waypoint x="-90" y="-20" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Gateway_skip_trc_di" bpmnElement="Gateway_skip_trc" isMarkerVisible="true">
+        <dc:Bounds x="315" y="-165" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="290" y="-195" width="100" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_1ls5iho_di" bpmnElement="Flow_1ls5iho">
         <di:waypoint x="290" y="-140" />
-        <di:waypoint x="360" y="-140" />
-        <di:waypoint x="360" y="-20" />
+        <di:waypoint x="315" y="-140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_gw_to_notify_di" bpmnElement="Flow_gw_to_notify">
+        <di:waypoint x="365" y="-140" />
+        <di:waypoint x="390" y="-140" />
+        <di:waypoint x="390" y="-20" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_gw_skip_to_switch_di" bpmnElement="Flow_gw_skip_to_switch">
+        <di:waypoint x="340" y="-165" />
+        <di:waypoint x="340" y="-260" />
+        <di:waypoint x="1280" y="-260" />
+        <di:waypoint x="1280" y="-180" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="780" y="-280" width="60" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_0oe344b_di" bpmnElement="Flow_0oe344b">
         <di:waypoint x="440" y="20" />
