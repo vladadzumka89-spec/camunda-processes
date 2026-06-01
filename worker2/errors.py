@@ -51,6 +51,12 @@ class GitHubError(BpmnError):
     error_code = "GITHUB_ERROR"
 
 
+class ReviewUnavailableError(BpmnError):
+    """Automated PR review could not be completed due to infra/API failure."""
+
+    error_code = "REVIEW_UNAVAILABLE"
+
+
 class SyncError(BpmnError):
     """Upstream sync operation failed."""
 

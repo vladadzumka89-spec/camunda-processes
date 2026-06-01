@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import Any
 
 import asyncssh
-from pyzeebe import ZeebeClient, ZeebeWorker
+from pyzeebe import ZeebeWorker
 
-from ..auth import ZeebeAuthConfig, create_channel
+from ..auth import ZeebeAuthConfig, zeebe_client
 from ..config import AppConfig
 from ..errors import (
     BpmnError,
@@ -689,26 +689,26 @@ def register_staging_sync_handlers(
                 audience=config.zeebe.audience,
                 use_tls=config.zeebe.use_tls,
             )
-            zeebe = ZeebeClient(create_channel(auth))
-            await asyncio.wait_for(
-                zeebe.publish_message(
-                    name="msg_deploy_trigger",
-                    correlation_key="staging",
-                    variables={
-                        "server_host": "staging",
-                        "ssh_user": staging.ssh_user,
-                        "repo_dir": staging.repo_dir,
-                        "db_name": staging.db_name,
-                        "container": staging.container,
-                        "branch": "staging",
-                        "force_rebuild": True,
-                        "force_update_all": True,
-                        "staging_sync_deploy": True,
-                    },
-                    time_to_live_in_milliseconds=300_000,
-                ),
-                timeout=30,
-            )
+            async with zeebe_client(auth) as zeebe:
+                await asyncio.wait_for(
+                    zeebe.publish_message(
+                        name="msg_deploy_trigger",
+                        correlation_key="staging",
+                        variables={
+                            "server_host": "staging",
+                            "ssh_user": staging.ssh_user,
+                            "repo_dir": staging.repo_dir,
+                            "db_name": staging.db_name,
+                            "container": staging.container,
+                            "branch": "staging",
+                            "force_rebuild": True,
+                            "force_update_all": True,
+                            "staging_sync_deploy": True,
+                        },
+                        time_to_live_in_milliseconds=300_000,
+                    ),
+                    timeout=30,
+                )
             lock_released = True  # ownership transferred to the post-sync deploy
             logger.info("staging-export: published msg_deploy_trigger for staging deploy pipeline")
             logger.info("staging-export: lock retained until post-sync deploy finishes")

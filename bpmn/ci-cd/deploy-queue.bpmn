@@ -11,7 +11,7 @@
 
   <bpmn:process id="deploy-scheduler" name="deploy-queue.bpmn" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="8.3" />
+      <zeebe:versionTag value="8.4" />
     </bpmn:extensionElements>
 
     <!-- ═══ START ═══ -->
@@ -95,6 +95,7 @@
           <zeebe:input source="=&quot;msg_deploy_done&quot;" target="message_name" />
           <zeebe:input source="=string(pr_num)" target="correlation_key" />
           <zeebe:input source="=0" target="ttl_ms" />
+          <zeebe:input source="={deploy_failed: false}" target="message_variables" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_extract_to_publish</bpmn:incoming>
@@ -119,6 +120,7 @@
           <zeebe:input source="=if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Unknown error&quot;" target="error_message" />
           <zeebe:input source="=if is defined(error_type) and error_type != null then error_type else &quot;code&quot;" target="error_type" />
           <zeebe:input source="=if is defined(error_traceback) and error_traceback != null then error_traceback else &quot;&quot;" target="error_traceback" />
+          <zeebe:input source="={deploy_failed: true, error_message: if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Unknown error&quot;, error_type: if is defined(error_type) and error_type != null then error_type else &quot;code&quot;, error_traceback: if is defined(error_traceback) and error_traceback != null then error_traceback else &quot;&quot;}" target="message_variables" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_error_to_publish</bpmn:incoming>

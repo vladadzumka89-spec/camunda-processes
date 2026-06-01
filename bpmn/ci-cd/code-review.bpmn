@@ -18,7 +18,7 @@
 
   <bpmn:process id="pr-review" name="code-review.bpmn" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="13.0" />
+      <zeebe:versionTag value="13.1" />
     </bpmn:extensionElements>
 
     <bpmn:startEvent id="evt_start" name="PR відкрито">
@@ -99,6 +99,7 @@ Output: review_score, has_critical_issues</bpmn:documentation>
         <zeebe:taskDefinition type="github-comment" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;❌ **Ревʼю не пройдено** — Score &quot; + string(review_score) + &quot;/10. PR не буде змерджено автоматично. Перегляньте зауваження вище.&quot;" target="comment_text" />
+          <zeebe:input source="=&quot;Ревʼю не пройдено&quot;" target="comment_marker" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_score_low</bpmn:incoming>

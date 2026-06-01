@@ -13,12 +13,13 @@ import hmac
 import json
 import logging
 import re
+from contextlib import asynccontextmanager
 from typing import Any
 
 from aiohttp import web
 from pyzeebe import ZeebeClient
 
-from .auth import ZeebeAuthConfig, create_channel
+from .auth import ZeebeAuthConfig, close_channel, create_channel
 from .config import AppConfig
 
 logger = logging.getLogger(__name__)
@@ -92,10 +93,10 @@ class WebhookServer:
             self._runner = None
             logger.info("Webhook server stopped")
 
-    # -- Zeebe client (lazy, per-request) --------------------------
+    # -- Zeebe client (temporary publisher) ------------------------
 
-    def _create_zeebe_client(self) -> ZeebeClient:
-        auth_config = ZeebeAuthConfig(
+    def _zeebe_auth_config(self) -> ZeebeAuthConfig:
+        return ZeebeAuthConfig(
             gateway_address=self._config.zeebe.gateway_address,
             client_id=self._config.zeebe.client_id,
             client_secret=self._config.zeebe.client_secret,
@@ -103,8 +104,24 @@ class WebhookServer:
             audience=self._config.zeebe.audience,
             use_tls=self._config.zeebe.use_tls,
         )
-        channel = create_channel(auth_config)
-        return ZeebeClient(channel)
+
+    def _create_zeebe_client(self):
+        channel = create_channel(self._zeebe_auth_config())
+        return ZeebeClient(channel), channel
+
+    @asynccontextmanager
+    async def _zeebe_client(self):
+        created = self._create_zeebe_client()
+        channel = None
+        if isinstance(created, tuple):
+            client, channel = created
+        else:
+            # Tests patch _create_zeebe_client with a mock client.
+            client = created
+        try:
+            yield client
+        finally:
+            await close_channel(channel)
 
     # -- E2E test gate --------------------------------------------
 
@@ -138,13 +155,13 @@ class WebhookServer:
         }
 
         try:
-            client = self._create_zeebe_client()
-            await client.publish_message(
-                name="msg_e2e_passed",
-                correlation_key=head_branch,
-                variables=variables,
-                time_to_live_in_milliseconds=3_600_000,
-            )
+            async with self._zeebe_client() as client:
+                await client.publish_message(
+                    name="msg_e2e_passed",
+                    correlation_key=head_branch,
+                    variables=variables,
+                    time_to_live_in_milliseconds=3_600_000,
+                )
             logger.info(
                 "Published msg_e2e_passed for branch %s (pr_title=%r)",
                 head_branch, pr_title,
@@ -203,9 +220,11 @@ class WebhookServer:
         logger.info("PR #%d action=%s, base=%s", pr_number, action, base_branch)
 
         if action in ('opened', 'reopened', 'synchronize'):
-            if action in ('opened', 'reopened'):
-                await self._cancel_active_ftp(pr.get('head', {}).get('ref', ''))
-            result = await self._publish_pr_event(pr, payload, include_ftp_event=(action in ('opened', 'reopened')))
+            # A push can arrive while the previous feature pipeline is waiting
+            # at the staging verification gate. Restart from the current head
+            # so stale pipelines cannot keep a PR marked as deployed.
+            await self._cancel_active_ftp(pr.get('head', {}).get('ref', ''))
+            result = await self._publish_pr_event(pr, payload, include_ftp_event=True)
             if action == 'synchronize':
                 await self._publish_pr_updated(pr)
             return result
@@ -277,13 +296,13 @@ class WebhookServer:
             logger.info("Install modules from commit: %s", install_modules)
 
         try:
-            client = self._create_zeebe_client()
-            await client.publish_message(
-                name="msg_deploy_trigger",
-                correlation_key=variables.get("branch", "staging"),
-                variables=variables,
-                time_to_live_in_milliseconds=3_600_000,
-            )
+            async with self._zeebe_client() as client:
+                await client.publish_message(
+                    name="msg_deploy_trigger",
+                    correlation_key=variables.get("branch", "staging"),
+                    variables=variables,
+                    time_to_live_in_milliseconds=3_600_000,
+                )
             logger.info(
                 "Published msg_deploy_trigger for push to staging (sha=%s)",
                 after_sha[:12],
@@ -340,26 +359,26 @@ class WebhookServer:
         is_sync_pr = head_branch.startswith("sync/") and base_branch == "staging"
 
         try:
-            client = self._create_zeebe_client()
             messages = []
-            if not is_sync_pr:
-                await client.publish_message(
-                    name="msg_pr_review",
-                    correlation_key=str(pr_number),
-                    variables=variables,
-                    time_to_live_in_milliseconds=3_600_000,
-                )
-                messages.append("msg_pr_review")
-            else:
-                logger.info("Skipping msg_pr_review for sync PR #%d (%s → %s)", pr_number, head_branch, base_branch)
-            if include_ftp_event:
-                await client.publish_message(
-                    name="msg_pr_event",
-                    correlation_key=variables.get("head_branch", ""),
-                    variables=variables,
-                    time_to_live_in_milliseconds=3_600_000,
-                )
-                messages.append("msg_pr_event")
+            async with self._zeebe_client() as client:
+                if not is_sync_pr:
+                    await client.publish_message(
+                        name="msg_pr_review",
+                        correlation_key=str(pr_number),
+                        variables=variables,
+                        time_to_live_in_milliseconds=3_600_000,
+                    )
+                    messages.append("msg_pr_review")
+                else:
+                    logger.info("Skipping msg_pr_review for sync PR #%d (%s → %s)", pr_number, head_branch, base_branch)
+                if include_ftp_event:
+                    await client.publish_message(
+                        name="msg_pr_event",
+                        correlation_key=variables.get("head_branch", ""),
+                        variables=variables,
+                        time_to_live_in_milliseconds=3_600_000,
+                    )
+                    messages.append("msg_pr_event")
             logger.info(
                 "Published %s for PR #%d (%s)",
                 " + ".join(messages), pr_number, pr.get('title', ''),
@@ -377,20 +396,20 @@ class WebhookServer:
         pr_number = pr.get('number', 0)
 
         try:
-            client = self._create_zeebe_client()
-            await client.publish_message(
-                name="msg_pr_updated",
-                correlation_key=str(pr_number),
-                variables={
-                    "pr_number": pr_number,
-                    "pr_url": pr.get('html_url', ''),
-                    "pr_title": pr.get('title', ''),
-                    "head_branch": pr.get('head', {}).get('ref', ''),
-                    "pr_updated": True,
-                    "head_sha": pr.get('head', {}).get('sha', ''),
-                },
-                time_to_live_in_milliseconds=3_600_000,
-            )
+            async with self._zeebe_client() as client:
+                await client.publish_message(
+                    name="msg_pr_updated",
+                    correlation_key=str(pr_number),
+                    variables={
+                        "pr_number": pr_number,
+                        "pr_url": pr.get('html_url', ''),
+                        "pr_title": pr.get('title', ''),
+                        "head_branch": pr.get('head', {}).get('ref', ''),
+                        "pr_updated": True,
+                        "head_sha": pr.get('head', {}).get('sha', ''),
+                    },
+                    time_to_live_in_milliseconds=3_600_000,
+                )
             logger.info("Published msg_pr_updated for PR #%d", pr_number)
             return web.json_response({
                 "status": "published",
@@ -406,19 +425,19 @@ class WebhookServer:
         pr_number = pr.get('number', 0)
 
         try:
-            client = self._create_zeebe_client()
-            await client.publish_message(
-                name="msg_pr_ready",
-                correlation_key=str(pr_number),
-                variables={
-                    "pr_number": pr_number,
-                    "pr_url": pr.get('html_url', ''),
-                    "pr_title": pr.get('title', ''),
-                    "head_branch": pr.get('head', {}).get('ref', ''),
-                    "pr_ready": True,
-                },
-                time_to_live_in_milliseconds=3_600_000,
-            )
+            async with self._zeebe_client() as client:
+                await client.publish_message(
+                    name="msg_pr_ready",
+                    correlation_key=str(pr_number),
+                    variables={
+                        "pr_number": pr_number,
+                        "pr_url": pr.get('html_url', ''),
+                        "pr_title": pr.get('title', ''),
+                        "head_branch": pr.get('head', {}).get('ref', ''),
+                        "pr_ready": True,
+                    },
+                    time_to_live_in_milliseconds=3_600_000,
+                )
             logger.info("Published msg_pr_ready for PR #%d", pr_number)
             return web.json_response({
                 "status": "published",
@@ -482,21 +501,21 @@ class WebhookServer:
         repo_full = payload.get('repository', {}).get('full_name', self._config.github.repository)
 
         try:
-            client = self._create_zeebe_client()
-            await client.publish_message(
-                name="msg_pr_merged",
-                correlation_key=str(pr_number),
-                variables={
-                    "pr_number": pr_number,
-                    "pr_url": pr.get('html_url', ''),
-                    "pr_title": pr.get('title', ''),
-                    "merge_commit_sha": pr.get('merge_commit_sha', ''),
-                    "repository": repo_full,
-                    "base_branch": pr.get('base', {}).get('ref', ''),
-                    "head_branch": pr.get('head', {}).get('ref', ''),
-                },
-                time_to_live_in_milliseconds=3_600_000,
-            )
+            async with self._zeebe_client() as client:
+                await client.publish_message(
+                    name="msg_pr_merged",
+                    correlation_key=str(pr_number),
+                    variables={
+                        "pr_number": pr_number,
+                        "pr_url": pr.get('html_url', ''),
+                        "pr_title": pr.get('title', ''),
+                        "merge_commit_sha": pr.get('merge_commit_sha', ''),
+                        "repository": repo_full,
+                        "base_branch": pr.get('base', {}).get('ref', ''),
+                        "head_branch": pr.get('head', {}).get('ref', ''),
+                    },
+                    time_to_live_in_milliseconds=3_600_000,
+                )
             logger.info("Published msg_pr_merged for PR #%d", pr_number)
             return web.json_response({
                 "status": "published",
@@ -562,12 +581,12 @@ class WebhookServer:
                 if key in payload:
                     msg_variables[key] = payload[key]
 
-            client = self._create_zeebe_client()
-            await client.publish_message(
-                name="msg_odoo_task_done",
-                correlation_key=correlation_key,
-                variables=msg_variables,
-            )
+            async with self._zeebe_client() as client:
+                await client.publish_message(
+                    name="msg_odoo_task_done",
+                    correlation_key=correlation_key,
+                    variables=msg_variables,
+                )
             logger.info(
                 "Published msg_odoo_task_done correlation_key=%s (task_id=%s, pik=%s)",
                 correlation_key, task_id, pik,

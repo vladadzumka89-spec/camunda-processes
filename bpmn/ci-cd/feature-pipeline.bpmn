@@ -37,7 +37,7 @@
   </bpmn:message>
   <bpmn:process id="feature-to-production" name="feature-pipeline.bpmn" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="19.2" />
+      <zeebe:versionTag value="19.3" />
     </bpmn:extensionElements>
 
     <!-- ═══ START EVENTS ═══ -->
@@ -97,6 +97,7 @@
         <zeebe:taskDefinition type="github-comment" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;🔄 Оцінка ревʼю: &#34; + string(review_score) + &#34;/10. Потрібне виправлення. Пушніть зміни в гілку `&#34; + head_branch + &#34;` для повторного ревʼю.&#10;&#10;[Процес в Operate](http://camunda-demo.a.local:8088/operate/processes/&#34; + string(process_instance_key) + &#34;)&#34;" target="comment_text" />
+          <zeebe:input source="=&#34;🔄 Оцінка ревʼю&#34;" target="comment_marker" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_score_low</bpmn:incoming>

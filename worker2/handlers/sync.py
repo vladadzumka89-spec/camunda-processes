@@ -39,6 +39,37 @@ def _redact_pat(text: str, pat: str) -> str:
     return text.replace(pat, "***") if pat else text
 
 
+def _sync_state_read_command(repo_dir: str) -> str:
+    """Read upstream sync state from a path that survives git clean."""
+    repo = shlex.quote(repo_dir)
+    return (
+        f"repo={repo}; "
+        'git_dir=$(cd "$repo" && git rev-parse --git-dir 2>/dev/null || true); '
+        'if [ -n "$git_dir" ]; then '
+        'case "$git_dir" in /*) durable="$git_dir/camunda/upstream_shas.json";; '
+        '*) durable="$repo/$git_dir/camunda/upstream_shas.json";; esac; '
+        'else durable=""; fi; '
+        'legacy="$repo/.sync-state/upstream_shas.json"; '
+        'if [ -n "$durable" ] && [ -s "$durable" ]; then cat "$durable"; '
+        'elif [ -s "$legacy" ]; then cat "$legacy"; '
+        "else echo '{}'; fi"
+    )
+
+
+def _sync_state_write_command(repo_dir: str, state_json: str) -> str:
+    """Write upstream sync state under .git so deploy git clean cannot delete it."""
+    repo = shlex.quote(repo_dir)
+    state = shlex.quote(state_json)
+    return (
+        f"repo={repo}; state={state}; "
+        'git_dir=$(cd "$repo" && git rev-parse --git-dir); '
+        'case "$git_dir" in /*) state_dir="$git_dir/camunda";; '
+        '*) state_dir="$repo/$git_dir/camunda";; esac; '
+        'mkdir -p "$state_dir" && '
+        'printf "%s\\n" "$state" > "$state_dir/upstream_shas.json"'
+    )
+
+
 def register_sync_handlers(
     worker: ZeebeWorker,
     config: AppConfig,
@@ -80,7 +111,7 @@ def register_sync_handlers(
         # Read upstream SHAs from state file (saved after each successful sync)
         state_result = await ssh.run(
             server,
-            f"cat {repo_dir}/.sync-state/upstream_shas.json 2>/dev/null || echo '{{}}'",
+            _sync_state_read_command(repo_dir),
         )
         community_sha = ""
         enterprise_sha = ""
@@ -587,11 +618,7 @@ def register_sync_handlers(
                     "synced_at": timestamp, "upstream_branch": upstream_branch,
                 })
                 repo_dir = server.repo_dir
-                await ssh.run(
-                    server,
-                    f"mkdir -p {repo_dir}/.sync-state && "
-                    f"echo '{state_json}' > {repo_dir}/.sync-state/upstream_shas.json",
-                )
+                await ssh.run(server, _sync_state_write_command(repo_dir, state_json))
                 return {
                     "sync_branch": branch_name, "head_branch": branch_name,
                     "base_branch": "staging", "pr_title": pr_title,
@@ -657,11 +684,7 @@ def register_sync_handlers(
             "upstream_branch": upstream_branch,
         })
         repo_dir = server.repo_dir
-        await ssh.run(
-            server,
-            f"mkdir -p {repo_dir}/.sync-state && "
-            f"echo '{state_json}' > {repo_dir}/.sync-state/upstream_shas.json",
-        )
+        await ssh.run(server, _sync_state_write_command(repo_dir, state_json))
 
         # Build PR title and body for github-create-pr
         pr_title = f"[sync] Upstream {upstream_branch} ({com_short}/{ent_short})"

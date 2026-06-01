@@ -65,6 +65,57 @@ class GitHubClient:
             resp.raise_for_status()
             return resp.text
 
+    async def get_pr_files(self, repo: str, pr_number: int) -> list[dict[str, Any]]:
+        """Get all files changed in a PR via the paginated files API."""
+        url = f"{API_BASE}/repos/{repo}/pulls/{pr_number}/files"
+        files: list[dict[str, Any]] = []
+        page = 1
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            while True:
+                resp = await client.get(
+                    url,
+                    headers=self._headers(),
+                    params={"per_page": 100, "page": page},
+                )
+                resp.raise_for_status()
+                batch = resp.json()
+                files.extend(batch)
+                if len(batch) < 100:
+                    break
+                page += 1
+        return files
+
+    async def get_pr_diff_from_files(self, repo: str, pr_number: int) -> str:
+        """Build a reviewable diff from the PR files API.
+
+        GitHub sometimes returns 500 for the native .diff representation while
+        the files API still works. The `patch` fields contain hunks without the
+        full file headers, so add enough context for Codex to review them.
+        """
+        files = await self.get_pr_files(repo, pr_number)
+        chunks: list[str] = []
+        for item in files:
+            filename = str(item.get("filename") or "")
+            previous = str(item.get("previous_filename") or filename)
+            status = str(item.get("status") or "")
+            additions = int(item.get("additions") or 0)
+            deletions = int(item.get("deletions") or 0)
+            changes = int(item.get("changes") or 0)
+            patch = str(item.get("patch") or "")
+
+            chunks.append(f"diff --git a/{previous} b/{filename}")
+            chunks.append(
+                f"# status: {status}; additions: {additions}; "
+                f"deletions: {deletions}; changes: {changes}"
+            )
+            if patch:
+                chunks.append(patch)
+            else:
+                chunks.append("# Patch unavailable via GitHub files API for this file.")
+            chunks.append("")
+
+        return "\n".join(chunks).strip()
+
     async def merge_pr(
         self,
         repo: str,
@@ -147,6 +198,31 @@ class GitHubClient:
             },
             use_deploy_pat=True,
         )
+
+    async def find_open_pr(self, repo: str, head: str, base: str) -> dict:
+        """Find an existing open pull request for a head/base pair."""
+        owner = repo.split("/", 1)[0]
+        head_candidates = [f"{owner}:{head}"]
+        if ":" in head:
+            head_candidates.insert(0, head)
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for head_query in dict.fromkeys(head_candidates):
+                resp = await client.get(
+                    f"{API_BASE}/repos/{repo}/pulls",
+                    headers=self._headers(use_deploy_pat=True),
+                    params={
+                        "state": "open",
+                        "head": head_query,
+                        "base": base,
+                        "per_page": 1,
+                    },
+                )
+                resp.raise_for_status()
+                items = resp.json()
+                if items:
+                    return items[0]
+        return {}
 
     async def mark_pr_ready(self, repo: str, pr_number: int) -> dict:
         """Mark a draft PR as ready for review (using GraphQL)."""

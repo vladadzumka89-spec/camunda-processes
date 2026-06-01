@@ -482,7 +482,7 @@ def register_deploy_handlers(
 
     # ── module-update ──────────────────────────────────────────
 
-    @worker.task(task_type="module-update", timeout_ms=1_200_000)
+    @worker.task(task_type="module-update", timeout_ms=4_200_000)
     async def module_update(
         server_host: str,
         changed_modules: str = "",
@@ -573,6 +573,22 @@ def register_deploy_handlers(
                 update_flag = " ".join(flags)
                 modules_updated = ",".join(modules_to_report)
 
+            new_commit = str(kwargs.get("new_commit") or "").strip()
+            stamp_path = ""
+            if new_commit:
+                safe_commit = re.sub(r"[^A-Za-z0-9_.-]", "_", new_commit)[:64]
+                stamp_path = f"{repo}/.deploy-state/module_update_{safe_commit}"
+                stamp = await ssh.run(server, f"test -f {shlex.quote(stamp_path)}", check=False)
+                if stamp.success:
+                    await ssh.run_in_repo(server, "docker compose up -d web", check=False, timeout=60)
+                    logger.info(
+                        "module-update on %s: %s already applied for %s",
+                        server.host,
+                        update_flag,
+                        new_commit[:12],
+                    )
+                    return {"modules_updated": modules_updated, "module_update_skipped": True}
+
             # Stop web and rebuild image with new code BEFORE migration
             await ssh.run_in_repo(server, "docker compose stop web", check=True, timeout=60)
             await ssh.run_in_repo(server, "docker compose build web", check=True, timeout=1200)
@@ -597,6 +613,17 @@ def register_deploy_handlers(
 
             # Start web with new image
             await ssh.run_in_repo(server, "docker compose up -d web", check=True, timeout=60)
+
+            if stamp_path:
+                deploy_state = f"{repo}/.deploy-state"
+                stamp_content = f"{new_commit} {update_flag}"
+                await ssh.run(
+                    server,
+                    f"mkdir -p {shlex.quote(deploy_state)} && "
+                    f"printf '%s\\n' {shlex.quote(stamp_content)} > {shlex.quote(stamp_path)}",
+                    check=False,
+                    timeout=15,
+                )
 
             logger.info("module-update on %s: %s", server.host, update_flag)
             return {"modules_updated": modules_updated}

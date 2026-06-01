@@ -3,7 +3,7 @@
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
   <bpmn:process id="deploy-process" name="server-deploy.bpmn" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="15.2" />
+      <zeebe:versionTag value="15.3" />
     </bpmn:extensionElements>
     <bpmn:startEvent id="evt_start" name="Початок деплою">
       <bpmn:outgoing>f_start_to_db_remove</bpmn:outgoing>
@@ -83,6 +83,7 @@ Output: changed_modules (CSV або порожній)</bpmn:documentation>
           <zeebe:input source="=&quot;msg_deploy_done&quot;" target="message_name" />
           <zeebe:input source="=if is defined(pr_number) and pr_number != null then string(pr_number) else &quot;none&quot;" target="correlation_key" />
           <zeebe:input source="=true" target="no_changes" />
+          <zeebe:input source="={deploy_failed: false, no_changes: true}" target="message_variables" />
         </zeebe:ioMapping>
         <zeebe:executionListeners>
           <zeebe:executionListener eventType="end" type="progress" retries="3" />
@@ -191,6 +192,7 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;msg_deploy_done&quot;" target="message_name" />
           <zeebe:input source="=if is defined(pr_number) and pr_number != null then string(pr_number) else &quot;none&quot;" target="correlation_key" />
+          <zeebe:input source="={deploy_failed: false}" target="message_variables" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f18</bpmn:incoming>
@@ -227,6 +229,7 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
             <zeebe:input source="=if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Unknown error&quot;" target="error_message" />
             <zeebe:input source="=if is defined(error_traceback) and error_traceback != null then error_traceback else &quot;&quot;" target="error_traceback" />
             <zeebe:input source="=if is defined(error_type) and error_type != null then error_type else &quot;code&quot;" target="error_type" />
+            <zeebe:input source="={deploy_failed: true, error_message: if is defined(caught_error_message) and caught_error_message != null then caught_error_message else &quot;Unknown error&quot;, error_traceback: if is defined(error_traceback) and error_traceback != null then error_traceback else &quot;&quot;, error_type: if is defined(error_type) and error_type != null then error_type else &quot;code&quot;}" target="message_variables" />
           </zeebe:ioMapping>
         </bpmn:extensionElements>
         <bpmn:incoming>f_err2</bpmn:incoming>

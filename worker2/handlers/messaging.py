@@ -1,8 +1,11 @@
 """Message publishing handler — publishes Zeebe messages from BPMN processes."""
 
 import logging
-from pyzeebe import Job, ZeebeWorker, ZeebeClient
-from ..auth import ZeebeAuthConfig, create_channel
+from collections.abc import Mapping
+from typing import Any
+
+from pyzeebe import Job, ZeebeWorker
+from ..auth import ZeebeAuthConfig, zeebe_client
 from ..config import AppConfig
 from ..errors import ConfigError
 
@@ -12,7 +15,7 @@ logger = logging.getLogger(__name__)
 def register_messaging_handlers(worker: ZeebeWorker, config: AppConfig) -> None:
     """Register message publishing task handlers."""
 
-    def _create_client() -> ZeebeClient:
+    def _auth_config() -> ZeebeAuthConfig:
         auth_config = ZeebeAuthConfig(
             gateway_address=config.zeebe.gateway_address,
             client_id=config.zeebe.client_id,
@@ -21,7 +24,7 @@ def register_messaging_handlers(worker: ZeebeWorker, config: AppConfig) -> None:
             audience=config.zeebe.audience,
             use_tls=config.zeebe.use_tls,
         )
-        return ZeebeClient(create_channel(auth_config))
+        return auth_config
 
     @worker.task(task_type="publish-message", timeout_ms=30_000, max_jobs_to_activate=4)
     async def publish_message(
@@ -29,21 +32,28 @@ def register_messaging_handlers(worker: ZeebeWorker, config: AppConfig) -> None:
         message_name: str = "",
         correlation_key: str = "",
         ttl_ms: int = 300_000,
-        **kwargs,
+        message_variables: dict[str, Any] | None = None,
+        **kwargs: Any,
     ) -> dict:
-        """Publish a Zeebe message with process variables as payload."""
+        """Publish a Zeebe message with full or explicitly scoped variables."""
         if not message_name:
             raise ConfigError("message_name is required")
         if not correlation_key:
             raise ConfigError("correlation_key is required")
 
-        client = _create_client()
-        await client.publish_message(
-            name=message_name,
-            correlation_key=str(correlation_key),
-            variables=dict(job.variables),
-            time_to_live_in_milliseconds=ttl_ms,
+        variables = (
+            dict(message_variables)
+            if isinstance(message_variables, Mapping)
+            else dict(job.variables)
         )
+
+        async with zeebe_client(_auth_config()) as client:
+            await client.publish_message(
+                name=message_name,
+                correlation_key=str(correlation_key),
+                variables=variables,
+                time_to_live_in_milliseconds=ttl_ms,
+            )
         logger.info(
             "Published message %s (correlation=%s)",
             message_name, correlation_key,

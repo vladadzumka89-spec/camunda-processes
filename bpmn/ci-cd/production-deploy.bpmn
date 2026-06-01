@@ -14,7 +14,7 @@
   <!-- ── Process ───────────────────────────────────────── -->
   <bpmn:process id="production-nightly-deploy" name="production-deploy.bpmn" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="1.2" />
+      <zeebe:versionTag value="1.5" />
     </bpmn:extensionElements>
 
     <!-- ── 1. Timer Start ────────────────────────────── -->
@@ -35,10 +35,11 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
           <zeebe:input source="=&quot;https://zabbix.dobrom.com/api_jsonrpc.php&quot;" target="url" />
-          <zeebe:input source="={&quot;Authorization&quot;: &quot;Bearer &quot; + secrets.ZABBIX_API_TOKEN, &quot;Content-Type&quot;: &quot;application/json-rpc&quot;}" target="headers" />
+          <zeebe:input source="={&quot;Authorization&quot;: &quot;Bearer {{secrets.ZABBIX_API_TOKEN}}&quot;, &quot;Content-Type&quot;: &quot;application/json-rpc&quot;, &quot;User-Agent&quot;: &quot;Camunda Connectors Runtime&quot;}" target="headers" />
           <zeebe:input source="={jsonrpc: &quot;2.0&quot;, method: &quot;maintenance.create&quot;, params: {name: &quot;deploy-&quot; + string((now() - date and time(&quot;1970-01-01T00:00:00Z&quot;)) / duration(&quot;PT1S&quot;)), active_since: (now() - date and time(&quot;1970-01-01T00:00:00Z&quot;)) / duration(&quot;PT1S&quot;), active_till: (now() - date and time(&quot;1970-01-01T00:00:00Z&quot;)) / duration(&quot;PT1S&quot;) + 1500, maintenance_type: 0, tags_evaltype: 0, hosts: [{hostid: &quot;10966&quot;}, {hostid: &quot;10967&quot;}, {hostid: &quot;10968&quot;}], timeperiods: [{timeperiod_type: 0, start_date: (now() - date and time(&quot;1970-01-01T00:00:00Z&quot;)) / duration(&quot;PT1S&quot;), period: 1500}]}, id: 1}" target="body" />
           <zeebe:input source="=&quot;zabbixCreateResponse&quot;" target="resultVariable" />
           <zeebe:input source="={maintenanceId: response.body.result.maintenanceids[1]}" target="resultExpression" />
+          <zeebe:input source="=if response.body.error != null then jobError(&quot;Zabbix maintenance.create failed: &quot; + string(response.body.error), {zabbix_error: response.body.error}, job.retries - 1, @&quot;PT30S&quot;) else if response.body.result = null or response.body.result.maintenanceids = null then jobError(&quot;Zabbix maintenance.create returned no maintenanceId&quot;, {zabbix_response: response.body}, job.retries - 1, @&quot;PT30S&quot;) else null" target="errorExpression" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_start_to_zabbix</bpmn:incoming>
@@ -80,8 +81,9 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
           <zeebe:input source="=&quot;https://zabbix.dobrom.com/api_jsonrpc.php&quot;" target="url" />
-          <zeebe:input source="={&quot;Authorization&quot;: &quot;Bearer &quot; + secrets.ZABBIX_API_TOKEN, &quot;Content-Type&quot;: &quot;application/json-rpc&quot;}" target="headers" />
+          <zeebe:input source="={&quot;Authorization&quot;: &quot;Bearer {{secrets.ZABBIX_API_TOKEN}}&quot;, &quot;Content-Type&quot;: &quot;application/json-rpc&quot;, &quot;User-Agent&quot;: &quot;Camunda Connectors Runtime&quot;}" target="headers" />
           <zeebe:input source="={jsonrpc: &quot;2.0&quot;, method: &quot;maintenance.delete&quot;, params: [maintenanceId], id: 1}" target="body" />
+          <zeebe:input source="=if response.body.error != null then jobError(&quot;Zabbix maintenance.delete failed: &quot; + string(response.body.error), {zabbix_error: response.body.error}, job.retries - 1, @&quot;PT30S&quot;) else null" target="errorExpression" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_error_to_delete_err</bpmn:incoming>
@@ -100,8 +102,9 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;POST&quot;" target="method" />
           <zeebe:input source="=&quot;https://zabbix.dobrom.com/api_jsonrpc.php&quot;" target="url" />
-          <zeebe:input source="={&quot;Authorization&quot;: &quot;Bearer &quot; + secrets.ZABBIX_API_TOKEN, &quot;Content-Type&quot;: &quot;application/json-rpc&quot;}" target="headers" />
+          <zeebe:input source="={&quot;Authorization&quot;: &quot;Bearer {{secrets.ZABBIX_API_TOKEN}}&quot;, &quot;Content-Type&quot;: &quot;application/json-rpc&quot;, &quot;User-Agent&quot;: &quot;Camunda Connectors Runtime&quot;}" target="headers" />
           <zeebe:input source="={jsonrpc: &quot;2.0&quot;, method: &quot;maintenance.delete&quot;, params: [maintenanceId], id: 1}" target="body" />
+          <zeebe:input source="=if response.body.error != null then jobError(&quot;Zabbix maintenance.delete failed: &quot; + string(response.body.error), {zabbix_error: response.body.error}, job.retries - 1, @&quot;PT30S&quot;) else null" target="errorExpression" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_deploy_to_delete</bpmn:incoming>
@@ -144,6 +147,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;msg_prod_deployed&quot;" target="message_name" />
           <zeebe:input source="=string(pr_num)" target="correlation_key" />
+          <zeebe:input source="={prod_deployed: true}" target="message_variables" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>f_extract_to_publish</bpmn:incoming>

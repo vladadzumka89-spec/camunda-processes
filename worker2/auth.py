@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from typing import AsyncIterator
 
 import grpc
+from pyzeebe import ZeebeClient
 
 logger = logging.getLogger(__name__)
 
 # Global token manager reference for refresh on reconnect
 _token_manager = None
+_token_manager_key: tuple[str, str, str, str] | None = None
 
 
 @dataclass
@@ -119,23 +123,23 @@ class _UnaryStreamTokenInterceptor(_TokenInjectorMixin, grpc.aio.UnaryStreamClie
 def _keepalive_options() -> list[tuple]:
     """gRPC keepalive options to prevent channel closure during long tasks.
 
-    Zeebe server has minKeepAliveInterval=10s, but too-frequent pings
-    can trigger GOAWAY "too_many_pings" under load. Use 60s intervals
-    as a safe balance between liveness and server tolerance.
+    Do not ping idle channels. The worker has multiple short-lived publisher
+    clients, and idle keepalive pings can make Zeebe close the connection with
+    GOAWAY "too_many_pings".
     """
     return [
-        ('grpc.keepalive_time_ms', 60_000),
+        ('grpc.keepalive_time_ms', 300_000),
         ('grpc.keepalive_timeout_ms', 20_000),
-        ('grpc.keepalive_permit_without_calls', 1),
-        ('grpc.http2.max_pings_without_data', 0),
-        ('grpc.http2.min_time_between_pings_ms', 60_000),
-        ('grpc.http2.min_ping_interval_without_data_ms', 60_000),
+        ('grpc.keepalive_permit_without_calls', 0),
+        ('grpc.http2.max_pings_without_data', 2),
+        ('grpc.http2.min_time_between_pings_ms', 300_000),
+        ('grpc.http2.min_ping_interval_without_data_ms', 300_000),
     ]
 
 
 def create_channel(config: ZeebeAuthConfig) -> grpc.aio.Channel:
     """Create a gRPC channel for Zeebe — insecure or OAuth2-authenticated."""
-    global _token_manager
+    global _token_manager, _token_manager_key
 
     options = _keepalive_options()
 
@@ -143,14 +147,22 @@ def create_channel(config: ZeebeAuthConfig) -> grpc.aio.Channel:
         logger.info('Using insecure Zeebe channel to %s', config.gateway_address)
         return grpc.aio.insecure_channel(config.gateway_address, options=options)
 
-    # OAuth2 — initialise token manager
-    _token_manager = TokenManager(
-        client_id=config.client_id,
-        client_secret=config.client_secret,
-        token_url=config.token_url,
-        audience=config.audience,
+    # OAuth2 — initialise/reuse token manager.
+    manager_key = (
+        config.client_id,
+        config.client_secret,
+        config.token_url,
+        config.audience,
     )
-    _token_manager.refresh_token()
+    if _token_manager is None or _token_manager_key != manager_key:
+        _token_manager = TokenManager(
+            client_id=config.client_id,
+            client_secret=config.client_secret,
+            token_url=config.token_url,
+            audience=config.audience,
+        )
+        _token_manager_key = manager_key
+    _token_manager.token
 
     if not config.use_tls:
         # Insecure channel + Bearer token interceptor (Docker internal network)
@@ -177,3 +189,23 @@ def create_channel(config: ZeebeAuthConfig) -> grpc.aio.Channel:
 def get_token_manager() -> TokenManager | None:
     """Return the global token manager (for refresh on reconnect)."""
     return _token_manager
+
+
+async def close_channel(channel: grpc.aio.Channel | None, grace: float = 1.0) -> None:
+    """Close a grpc.aio channel without leaking shutdown errors."""
+    if channel is None:
+        return
+    try:
+        await channel.close(grace=grace)
+    except Exception as exc:
+        logger.debug("Failed to close Zeebe channel cleanly: %s", exc)
+
+
+@asynccontextmanager
+async def zeebe_client(config: ZeebeAuthConfig) -> AsyncIterator[ZeebeClient]:
+    """Create a temporary ZeebeClient and always close its channel."""
+    channel = create_channel(config)
+    try:
+        yield ZeebeClient(channel)
+    finally:
+        await close_channel(channel)
