@@ -275,6 +275,10 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
     # Build summary for ALL analyzed FOPs with status
     all_fops_report = []
     critical_fops = []
+    # Гурт/Технопростір отримують задачі лише коли дохід наблизився до законного
+    # ліміту (6.9 млн), а не за 18 днів — бо їм не потрібно узгоджувати з ТРЦ.
+    WHOLESALE_TP_INCOME_THRESHOLD = 6_900_000.0
+    _fop_wholesale: set[str] = set()
 
     for fop in fops:
         fop_id = bytes(fop["id"])
@@ -297,7 +301,36 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
             projected_date = None
 
         edrpou = (fop.get("edrpou") or "").strip()
-        is_critical = days_to_limit <= days_ahead
+
+        # Виявлення гурту (>50% доходу на 80x підрозділах) — раніше робилось
+        # після основного циклу; тепер тут, бо потрібне для рішення про критичність.
+        _stores_raw = fop_stores.get(fop_id, [])
+        _wholesale_income = sum(
+            s.get("total", 0) for s in _stores_raw
+            if re.match(r'^80\d\s', s["name"])
+        )
+        _total_income_val = analysis["total_income"]
+        is_wholesale = (
+            _total_income_val > 0
+            and _wholesale_income > _total_income_val * 0.5
+            and _wholesale_income > 100_000
+        )
+        if is_wholesale:
+            _fop_wholesale.add(edrpou)
+
+        # Компанія ФОПа з BAS — потрібна для рішення про критичність
+        _organization_early = _determine_organization(fop["name"])
+        _is_technoprostir = _organization_early == "Технопростір"
+
+        # Критичність:
+        # - Гурт або Технопростір → за абсолютним порогом 6.9M
+        #   (їм не треба узгоджувати з ТРЦ — чекають дня переключення)
+        # - Інші (ФАМО з реальним терміналом у ТРЦ) → за днями до ліміту (18)
+        if is_wholesale or _is_technoprostir:
+            is_critical = _total_income_val >= WHOLESALE_TP_INCOME_THRESHOLD
+        else:
+            is_critical = days_to_limit <= days_ahead
+
         has_active_process = edrpou in active_edrpous
 
         if is_critical and has_active_process:
@@ -662,17 +695,8 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
         if edrpou and has_binding:
             fop_terminal_stores[edrpou].append(store["subdivision"])
 
-    # Detect wholesale FOPs: >50% income on 80x subdivisions (800 Гурт ТП, 801-809)
-    _fop_wholesale: set[str] = set()
-    for fop_entry in all_fops_report:
-        edrpou = fop_entry.get("fop_edrpou", "")
-        wholesale_income = sum(
-            s.get("total", 0) for s in fop_entry.get("stores", [])
-            if re.match(r'^80\d\s', s["name"])
-        )
-        total = fop_entry.get("total_income", 0)
-        if total > 0 and wholesale_income > total * 0.5 and wholesale_income > 100_000:
-            _fop_wholesale.add(edrpou)
+    # _fop_wholesale set is now built incrementally in main loop above
+    # (потрібен раніше — для рішення is_critical для Гурту/Технопростір)
 
     for fop_entry in all_fops_report:
         edrpou = fop_entry.get("fop_edrpou", "")
