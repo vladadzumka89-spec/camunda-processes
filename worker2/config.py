@@ -11,6 +11,10 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / '.env.camunda')
 
 
+def _split_env_list(value: str) -> tuple[str, ...]:
+    return tuple(item.strip() for item in value.replace("\n", ",").split(",") if item.strip())
+
+
 @dataclass(frozen=True)
 class ServerConfig:
     """Configuration for a target server accessed via SSH."""
@@ -78,6 +82,7 @@ class AppConfig:
     openrouter_api_key: str = ''
     db_checkpoint_base_url: str = ''
     db_checkpoint_token: str = ''
+    staging_admin_logins: tuple[str, ...] = ()
     servers: dict[str, ServerConfig] = field(default_factory=dict)
 
     @classmethod
@@ -129,6 +134,7 @@ class AppConfig:
             openrouter_api_key=os.getenv('OPENROUTER_API_KEY', ''),
             db_checkpoint_base_url=os.getenv('DB_CHECKPOINT_BASE_URL', ''),
             db_checkpoint_token=os.getenv('DB_CHECKPOINT_TOKEN', ''),
+            staging_admin_logins=_split_env_list(os.getenv('STAGING_ADMIN_LOGINS', '')),
             servers=servers,
         )
 

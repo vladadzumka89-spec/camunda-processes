@@ -3,7 +3,7 @@
   <bpmn:error id="Error_deploy_failed" name="Deploy Failed" errorCode="DEPLOY_FAILED" />
   <bpmn:process id="deploy-process" name="server-deploy.bpmn" isExecutable="true">
     <bpmn:extensionElements>
-      <zeebe:versionTag value="15.3" />
+      <zeebe:versionTag value="15.4" />
     </bpmn:extensionElements>
     <bpmn:startEvent id="evt_start" name="Початок деплою">
       <bpmn:outgoing>f_start_to_db_remove</bpmn:outgoing>
@@ -109,6 +109,24 @@ Output: modules_updated</bpmn:documentation>
       <bpmn:incoming>f_has_changes</bpmn:incoming>
       <bpmn:outgoing>f10</bpmn:outgoing>
     </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="gw_staging_admin_grants" name="Staging admins?" default="f_skip_staging_admin_grants">
+      <bpmn:incoming>f10</bpmn:incoming>
+      <bpmn:outgoing>f_run_staging_admin_grants</bpmn:outgoing>
+      <bpmn:outgoing>f_skip_staging_admin_grants</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="task_staging_grant_admins" name="Видати staging admin-и">
+      <bpmn:documentation>Post-sync крок: після nightly staging DB restore + module-update видає base.group_system користувачам зі STAGING_ADMIN_LOGINS. Handler додатково перевіряє server_host=staging і staging_sync_deploy=true.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="staging-grant-admins" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>f_run_staging_admin_grants</bpmn:incoming>
+      <bpmn:outgoing>f_staging_admin_grants_to_merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="gw_merge_staging_admin_grants">
+      <bpmn:incoming>f_skip_staging_admin_grants</bpmn:incoming>
+      <bpmn:incoming>f_staging_admin_grants_to_merge</bpmn:incoming>
+      <bpmn:outgoing>f_after_staging_admin_grants_to_smoke</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="task_smoke_test" name="Перевірка запуску Odoo">
       <bpmn:documentation>Окремий контейнер: odoo-bin --stop-after-init --no-http (120s timeout).
 Аналіз логів на CRITICAL/ERROR/ImportError/SyntaxError.
@@ -119,7 +137,7 @@ Output: smoke_passed</bpmn:documentation>
           <zeebe:executionListener eventType="end" type="progress" retries="3" />
         </zeebe:executionListeners>
       </bpmn:extensionElements>
-      <bpmn:incoming>f10</bpmn:incoming>
+      <bpmn:incoming>f_after_staging_admin_grants_to_smoke</bpmn:incoming>
       <bpmn:outgoing>f_smoke_to_gw_clickbot</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:exclusiveGateway id="gw_clickbot" name="Clickbot?" default="f_run_clickbot">
@@ -255,7 +273,13 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
     <bpmn:sequenceFlow id="f_release_no_changes_to_publish" sourceRef="ST_release_lock_no_changes" targetRef="ST_publish_no_changes" />
     <bpmn:sequenceFlow id="f_no_changes_end" sourceRef="ST_publish_no_changes" targetRef="evt_end_no_changes" />
     <bpmn:sequenceFlow id="f_has_changes" name="Так" sourceRef="gw_changes" targetRef="task_module_update" />
-    <bpmn:sequenceFlow id="f10" sourceRef="task_module_update" targetRef="task_smoke_test" />
+    <bpmn:sequenceFlow id="f10" sourceRef="task_module_update" targetRef="gw_staging_admin_grants" />
+    <bpmn:sequenceFlow id="f_run_staging_admin_grants" name="Так" sourceRef="gw_staging_admin_grants" targetRef="task_staging_grant_admins">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=is defined(staging_sync_deploy) and staging_sync_deploy = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_skip_staging_admin_grants" name="Ні" sourceRef="gw_staging_admin_grants" targetRef="gw_merge_staging_admin_grants" />
+    <bpmn:sequenceFlow id="f_staging_admin_grants_to_merge" sourceRef="task_staging_grant_admins" targetRef="gw_merge_staging_admin_grants" />
+    <bpmn:sequenceFlow id="f_after_staging_admin_grants_to_smoke" sourceRef="gw_merge_staging_admin_grants" targetRef="task_smoke_test" />
     <bpmn:sequenceFlow id="f_smoke_to_gw_clickbot" sourceRef="task_smoke_test" targetRef="gw_clickbot" />
     <bpmn:sequenceFlow id="f_run_clickbot" sourceRef="gw_clickbot" targetRef="task_clickbot" />
     <bpmn:sequenceFlow id="f_skip_clickbot" name="Скіп" sourceRef="gw_clickbot" targetRef="gw_merge_clickbot">
@@ -320,32 +344,41 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
       <bpmndi:BPMNShape id="task_module_update_di" bpmnElement="task_module_update">
         <dc:Bounds x="1130" y="370" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_staging_admin_grants_di" bpmnElement="gw_staging_admin_grants" isMarkerVisible="true">
+        <dc:Bounds x="1310" y="385" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_staging_grant_admins_di" bpmnElement="task_staging_grant_admins">
+        <dc:Bounds x="1425" y="460" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_merge_staging_admin_grants_di" bpmnElement="gw_merge_staging_admin_grants" isMarkerVisible="true">
+        <dc:Bounds x="1535" y="385" width="50" height="50" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_smoke_test_di" bpmnElement="task_smoke_test">
-        <dc:Bounds x="1310" y="348" width="100" height="80" />
+        <dc:Bounds x="1645" y="348" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_clickbot_di" bpmnElement="gw_clickbot" isMarkerVisible="true">
-        <dc:Bounds x="1515" y="335" width="50" height="50" />
+        <dc:Bounds x="1830" y="335" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_clickbot_di" bpmnElement="task_clickbot">
-        <dc:Bounds x="1620" y="320" width="100" height="80" />
+        <dc:Bounds x="1935" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_merge_clickbot_di" bpmnElement="gw_merge_clickbot" isMarkerVisible="true">
-        <dc:Bounds x="1825" y="335" width="50" height="50" />
+        <dc:Bounds x="2140" y="335" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_cache_clear_di" bpmnElement="task_cache_clear">
-        <dc:Bounds x="2110" y="320" width="100" height="80" />
+        <dc:Bounds x="2425" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_http_verify_di" bpmnElement="task_http_verify">
-        <dc:Bounds x="2290" y="320" width="100" height="80" />
+        <dc:Bounds x="2605" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_save_state_di" bpmnElement="task_save_state">
-        <dc:Bounds x="2470" y="320" width="100" height="80" />
+        <dc:Bounds x="2785" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ST_publish_deploy_done_di" bpmnElement="ST_publish_deploy_done">
-        <dc:Bounds x="2650" y="320" width="100" height="80" />
+        <dc:Bounds x="2965" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="evt_end_success_di" bpmnElement="evt_end_success">
-        <dc:Bounds x="2862" y="342" width="36" height="36" />
+        <dc:Bounds x="3177" y="342" width="36" height="36" />
       </bpmndi:BPMNShape>
       <!-- Error subprocess edges -->
       <bpmndi:BPMNEdge id="f_err_to_rollback_di" bpmnElement="f_err_to_rollback">
@@ -405,45 +438,63 @@ Output: clickbot_passed, clickbot_report, clickbot_failed_apps</bpmn:documentati
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f10_di" bpmnElement="f10">
         <di:waypoint x="1230" y="410" />
-        <di:waypoint x="1310" y="388" />
+        <di:waypoint x="1310" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_run_staging_admin_grants_di" bpmnElement="f_run_staging_admin_grants">
+        <di:waypoint x="1335" y="435" />
+        <di:waypoint x="1335" y="500" />
+        <di:waypoint x="1425" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_skip_staging_admin_grants_di" bpmnElement="f_skip_staging_admin_grants">
+        <di:waypoint x="1360" y="410" />
+        <di:waypoint x="1535" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_staging_admin_grants_to_merge_di" bpmnElement="f_staging_admin_grants_to_merge">
+        <di:waypoint x="1525" y="500" />
+        <di:waypoint x="1560" y="500" />
+        <di:waypoint x="1560" y="435" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_after_staging_admin_grants_to_smoke_di" bpmnElement="f_after_staging_admin_grants_to_smoke">
+        <di:waypoint x="1585" y="410" />
+        <di:waypoint x="1645" y="388" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_smoke_to_gw_clickbot_di" bpmnElement="f_smoke_to_gw_clickbot">
-        <di:waypoint x="1410" y="388" />
-        <di:waypoint x="1515" y="360" />
+        <di:waypoint x="1745" y="388" />
+        <di:waypoint x="1830" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_run_clickbot_di" bpmnElement="f_run_clickbot">
-        <di:waypoint x="1565" y="360" />
-        <di:waypoint x="1620" y="360" />
+        <di:waypoint x="1880" y="360" />
+        <di:waypoint x="1935" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_skip_clickbot_di" bpmnElement="f_skip_clickbot">
-        <di:waypoint x="1540" y="335" />
-        <di:waypoint x="1540" y="300" />
-        <di:waypoint x="1850" y="300" />
-        <di:waypoint x="1850" y="335" />
+        <di:waypoint x="1855" y="335" />
+        <di:waypoint x="1855" y="300" />
+        <di:waypoint x="2165" y="300" />
+        <di:waypoint x="2165" y="335" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_clickbot_to_merge_di" bpmnElement="f_clickbot_to_merge">
-        <di:waypoint x="1720" y="360" />
-        <di:waypoint x="1825" y="360" />
+        <di:waypoint x="2035" y="360" />
+        <di:waypoint x="2140" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_merge_clickbot_to_cache_di" bpmnElement="f_merge_clickbot_to_cache">
-        <di:waypoint x="1875" y="360" />
-        <di:waypoint x="2110" y="360" />
+        <di:waypoint x="2190" y="360" />
+        <di:waypoint x="2425" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f12_di" bpmnElement="f12">
-        <di:waypoint x="2210" y="360" />
-        <di:waypoint x="2290" y="360" />
+        <di:waypoint x="2525" y="360" />
+        <di:waypoint x="2605" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_http_to_save_di" bpmnElement="f_http_to_save">
-        <di:waypoint x="2390" y="360" />
-        <di:waypoint x="2470" y="360" />
+        <di:waypoint x="2705" y="360" />
+        <di:waypoint x="2785" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f18_di" bpmnElement="f18">
-        <di:waypoint x="2570" y="360" />
-        <di:waypoint x="2650" y="360" />
+        <di:waypoint x="2885" y="360" />
+        <di:waypoint x="2965" y="360" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="f_publish_to_end_di" bpmnElement="f_publish_to_end">
-        <di:waypoint x="2750" y="360" />
-        <di:waypoint x="2862" y="360" />
+        <di:waypoint x="3065" y="360" />
+        <di:waypoint x="3177" y="360" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

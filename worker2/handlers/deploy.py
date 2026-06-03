@@ -7,6 +7,7 @@ All operations execute via SSH on target servers.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 import shlex
@@ -56,6 +57,114 @@ def _release_staging_sync_lock_if_needed(server_name: str, staging_sync_deploy: 
 
     staging_lock.release()
     logger.info("staging sync lock released after post-sync deploy (%s)", reason)
+
+
+def _normalize_login_list(value: Any) -> list[str]:
+    """Normalize comma-separated or sequence login config while preserving order."""
+    if not value:
+        return []
+    if isinstance(value, str):
+        raw_values = value.replace("\n", ",").split(",")
+    elif isinstance(value, (list, tuple, set)):
+        raw_values = [str(item) for item in value]
+    else:
+        raw_values = [str(value)]
+
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in raw_values:
+        login = item.strip()
+        if login and login not in seen:
+            result.append(login)
+            seen.add(login)
+    return result
+
+
+def _build_staging_admin_grant_sql(logins: list[str]) -> str:
+    """Build idempotent SQL granting base.group_system to the requested logins."""
+    payload = json.dumps(logins)
+    tag = "$staging_admin_logins$"
+    if tag in payload:
+        raise DeployError(
+            "STAGING_ADMIN_LOGINS contains an unsupported dollar-quote marker",
+            variables={"error_type": "infra"},
+        )
+
+    return f"""
+DO $do$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM ir_model_data
+        WHERE module = 'base' AND name = 'group_system'
+    ) THEN
+        RAISE EXCEPTION 'base.group_system external id not found';
+    END IF;
+END
+$do$;
+
+WITH requested(login) AS (
+    SELECT DISTINCT btrim(value)
+    FROM jsonb_array_elements_text({tag}{payload}{tag}::jsonb) AS payload(value)
+    WHERE btrim(value) <> ''
+),
+group_system AS (
+    SELECT res_id AS gid
+    FROM ir_model_data
+    WHERE module = 'base' AND name = 'group_system'
+),
+target_users AS (
+    SELECT u.id AS uid, u.login
+    FROM res_users u
+    JOIN requested r ON r.login = u.login
+)
+INSERT INTO res_groups_users_rel (gid, uid)
+SELECT g.gid, u.uid
+FROM target_users u
+CROSS JOIN group_system g
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM res_groups_users_rel rel
+    WHERE rel.gid = g.gid AND rel.uid = u.uid
+);
+
+WITH requested(login) AS (
+    SELECT DISTINCT btrim(value)
+    FROM jsonb_array_elements_text({tag}{payload}{tag}::jsonb) AS payload(value)
+    WHERE btrim(value) <> ''
+),
+target_users AS (
+    SELECT u.login
+    FROM res_users u
+    JOIN requested r ON r.login = u.login
+)
+SELECT 'GRANTED=' || COALESCE(string_agg(login, ',' ORDER BY login), '')
+FROM target_users;
+
+WITH requested(login) AS (
+    SELECT DISTINCT btrim(value)
+    FROM jsonb_array_elements_text({tag}{payload}{tag}::jsonb) AS payload(value)
+    WHERE btrim(value) <> ''
+),
+target_users AS (
+    SELECT u.login
+    FROM res_users u
+    JOIN requested r ON r.login = u.login
+)
+SELECT 'MISSING=' || COALESCE(string_agg(r.login, ',' ORDER BY r.login), '')
+FROM requested r
+LEFT JOIN target_users u ON u.login = r.login
+WHERE u.login IS NULL;
+""".strip()
+
+
+def _extract_psql_marker(stdout: str, marker: str) -> str:
+    prefix = f"{marker}="
+    for line in stdout.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(prefix):
+            return stripped[len(prefix):]
+    return ""
 
 
 def register_deploy_handlers(
@@ -627,6 +736,67 @@ def register_deploy_handlers(
 
             logger.info("module-update on %s: %s", server.host, update_flag)
             return {"modules_updated": modules_updated}
+
+    # ── staging-grant-admins ──────────────────────────────────
+
+    @worker.task(task_type="staging-grant-admins", timeout_ms=120_000)
+    async def staging_grant_admins(
+        server_host: str,
+        db_name: str = "",
+        container: str = "",
+        staging_admin_logins: str | list[str] | tuple[str, ...] = "",
+        **kwargs: Any,
+    ) -> dict:
+        """Grant Odoo Settings/Administrator rights after nightly staging sync only."""
+        if not bool(kwargs.get("staging_sync_deploy")):
+            logger.info("staging-grant-admins: skipped — not a staging sync deploy")
+            return {"staging_admins_granted": False, "skip_reason": "not_staging_sync_deploy"}
+
+        server_name = config.resolve_server_name(server_host)
+        if server_name != "staging":
+            logger.info("staging-grant-admins: skipped — server %s is not staging", server_name)
+            return {"staging_admins_granted": False, "skip_reason": "not_staging"}
+
+        configured_logins = (
+            staging_admin_logins
+            if staging_admin_logins
+            else getattr(config, "staging_admin_logins", ())
+        )
+        logins = _normalize_login_list(configured_logins)
+        if not logins:
+            logger.info("staging-grant-admins: skipped — STAGING_ADMIN_LOGINS is empty")
+            return {"staging_admins_granted": False, "skip_reason": "no_logins_configured"}
+
+        server = config.resolve_server(server_host)
+        db = db_name or server.db_name
+        ctr = container or server.container
+        db_container = f"{ctr}-db"
+        sql = _build_staging_admin_grant_sql(logins)
+        command = (
+            f"docker exec {shlex.quote(db_container)} "
+            f"psql -U odoo -d {shlex.quote(db)} -t -A -v ON_ERROR_STOP=1 <<'SQL'\n"
+            f"{sql}\n"
+            "SQL"
+        )
+        result = await ssh.run(server, command, check=True, timeout=120)
+
+        missing = _extract_psql_marker(result.stdout, "MISSING")
+        if missing:
+            raise DeployError(
+                f"Configured staging admin login(s) not found in {db}: {missing}",
+                variables={"error_type": "infra"},
+            )
+
+        granted = _extract_psql_marker(result.stdout, "GRANTED")
+        logger.info(
+            "staging-grant-admins on %s: granted base.group_system to %s",
+            server.host,
+            granted or ",".join(logins),
+        )
+        return {
+            "staging_admins_granted": True,
+            "staging_admin_logins": granted or ",".join(logins),
+        }
 
     # ── cache-clear ────────────────────────────────────────────
 
