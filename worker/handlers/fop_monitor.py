@@ -322,11 +322,20 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
         _organization_early = _determine_organization(fop["name"])
         _is_technoprostir = _organization_early == "Технопростір"
 
+        # Виняток: магазини 507/515 — у ТРЦ, тому навіть для Технопростір/Гурту
+        # на них застосовуємо FAMO-логіку (days_to_limit), бо узгодження з ТРЦ
+        # потребує часу і чекати 6.9M не можна.
+        _has_trc_store = any(
+            s.startswith("507 ") or s.startswith("515 ")
+            for s in active_terminal_stores_per_fop.get(fop["name"].strip(), [])
+        )
+
         # Критичність:
-        # - Гурт або Технопростір → за абсолютним порогом 6.9M
+        # - Гурт або Технопростір (без 507/515) → за абсолютним порогом 6.9M
         #   (їм не треба узгоджувати з ТРЦ — чекають дня переключення)
-        # - Інші (ФАМО з реальним терміналом у ТРЦ) → за днями до ліміту (18)
-        if is_wholesale or _is_technoprostir:
+        # - Інші (ФАМО з реальним терміналом у ТРЦ, або ТП на 507/515)
+        #   → за днями до ліміту (18)
+        if (is_wholesale or _is_technoprostir) and not _has_trc_store:
             is_critical = _total_income_val >= WHOLESALE_TP_INCOME_THRESHOLD
         else:
             is_critical = days_to_limit <= days_ahead
@@ -477,20 +486,33 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
         # critical_fops for Camunda multi-instance: only NEW (no active process)
         # та тільки ВІДКРИТІ ФОПи (закриті у BAS не потребують зміни терміналу)
         if is_critical and not has_active_process and org_status != "Закрита":
-            # Build stores text with employee count per store
+            # Build stores text: тільки активно підключені магазини (з binding),
+            # бо саме між ними бухгалтер буде обирати для переключення.
+            # Історичний дохід (з магазинів де ФОП уже зняли) у задачі не потрібен.
+            active_stores = set(active_terminal_stores_per_fop.get(fop["name"].strip(), []))
             _stores_parts = []
-            for s in stores_list[:5]:
-                sname = s["name"]
-                income_str = f"{s['total']:,.0f}".replace(",", " ")
-                # Count employees registered on this FOP at this store
-                emp_at_store = store_employees.get(sname, [])
-                emp_on_fop = [e for e in emp_at_store if e["employer_edrpou"] == edrpou]
-                if emp_on_fop:
-                    _stores_parts.append(f"{sname}: {income_str} (зареєстровано {len(emp_on_fop)} працівників на ФОП)")
-                else:
-                    _stores_parts.append(f"{sname}: {income_str}")
+            if is_wholesale:
+                _stores_parts.append("800 Гурт ТП (підрозділи 80x)")
+            else:
+                for s in stores_list:
+                    sname = s["name"]
+                    if sname not in active_stores:
+                        continue
+                    income_str = f"{s['total']:,.0f}".replace(",", " ")
+                    # Count employees registered on this FOP at this store
+                    emp_at_store = store_employees.get(sname, [])
+                    emp_on_fop = [e for e in emp_at_store if e["employer_edrpou"] == edrpou]
+                    if emp_on_fop:
+                        _stores_parts.append(f"{sname}: {income_str} (зареєстровано {len(emp_on_fop)} працівників на ФОП)")
+                    else:
+                        _stores_parts.append(f"{sname}: {income_str}")
+                if not _stores_parts:
+                    _stores_parts.append("(немає активних терміналів)")
+            # Скорочене ПІБ без по-батькові — «Прізвище Ім'я» — для задач Camunda.
+            # Бухгалтер просила без third name. ЄДРПОУ і дашборд показують повний.
+            _fop_name_short = " ".join(fop_entry["fop_name"].split()[:2])
             critical_fops.append({
-                "fop_name": fop_entry["fop_name"],
+                "fop_name": _fop_name_short,
                 "fop_edrpou": fop_entry["fop_edrpou"],
                 "ep_group": group,
                 "total_income": fop_entry["total_income"],
@@ -662,6 +684,20 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
                 if period_entry.get("date_to") is None:
                     period_entry["date_to"] = "розформовано"
 
+        # Текстове поле історії: хронологічно (старі зверху), формат однаковий
+        # зі звітом по ФОП (date_from - date_to – fop_name).
+        history_periods = sorted(
+            data["binding_history"],
+            key=lambda p: _parse_binding_date(p["date_from"]) or date.min,
+        )
+        history_lines = []
+        for p in history_periods:
+            dt_to = p.get("date_to") or "зараз"
+            history_lines.append(
+                f"{p['date_from']} - {dt_to} – {p.get('fop_name', '')}"
+            )
+        data["binding_history_text"] = "\n".join(history_lines)
+
         # ── FOP income text: only FOPs with income in current year, sorted by amount ──
         fops_lines = []
         for f in sorted(data["fops"], key=lambda x: -x["income_from_store"]):
@@ -686,6 +722,15 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
 
     logger.info("Звіт по магазинах: %d магазинів", len(stores_report))
 
+    # Sort stores by subdivision code (101, 108, 605, ...) and assign sort_key
+    # for Odoo ORDER BY. Same approach as FOP report.
+    def _store_code(s: dict) -> tuple[int, str]:
+        m = re.match(r'^(\d{3})\s', s.get("subdivision", ""))
+        return (int(m.group(1)), s["subdivision"]) if m else (9999, s.get("subdivision", ""))
+    stores_report.sort(key=_store_code)
+    for idx, store in enumerate(stores_report, start=1):
+        store["sort_key"] = idx
+
     # ── Reverse lookup: FOP EDRPOU → currently connected stores ──
     # Only include stores where FOP has an ACTIVE binding (not fallback by income)
     fop_terminal_stores: dict[str, list[str]] = defaultdict(list)
@@ -694,6 +739,19 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
         has_binding = store.get("current_fop_has_binding", False)
         if edrpou and has_binding:
             fop_terminal_stores[edrpou].append(store["subdivision"])
+
+    # ── FOP binding history: усі періоди прив'язки ФОПа до магазинів за рік ──
+    # Збір по ВСІХ магазинах: для кожного будуємо періоди тим самим
+    # _group_binding_periods (фільтр "поточний рік" вже зашитий у нього).
+    fop_binding_periods: dict[str, list[dict]] = defaultdict(list)
+    for tb_name, tb_bindings in terminal_bindings.items():
+        for p in _group_binding_periods(tb_bindings):
+            if p.get("fop_name"):
+                fop_binding_periods[p["fop_name"]].append({
+                    "store": tb_name,
+                    "date_from": p["date_from"],
+                    "date_to": p["date_to"],
+                })
 
     # _fop_wholesale set is now built incrementally in main loop above
     # (потрібен раніше — для рішення is_critical для Гурту/Технопростір)
@@ -711,6 +769,17 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
             fop_entry["current_terminal_stores"] = ""
             has_actionable = False
 
+        # Історія підключень ФОПа: хронологічно (старі зверху)
+        periods = sorted(
+            fop_binding_periods.get(fop_entry.get("fop_name", ""), []),
+            key=lambda p: _parse_binding_date(p["date_from"]) or date.min,
+        )
+        lines = []
+        for p in periods:
+            dt_to = p["date_to"] or "зараз"
+            lines.append(f"{p['date_from']} - {dt_to} – {p['store']}")
+        fop_entry["binding_history_text"] = "\n".join(lines)
+
         # Refine "status" з урахуванням org_status (BAS) та наявності
         # терміналу/гурту. Без цього дашборд показував "Критично" і для
         # закритих ФОПів (Ткачук), і для тих хто історично перевищив ліміт
@@ -727,15 +796,25 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
         elif fop_entry["status"] == "Критично" and not has_actionable:
             fop_entry["status"] = "Історично перевищено"
 
-    # Re-sort report: active FOPs (with terminal) on top, by income% desc.
+    # Re-sort report: active FOPs (with terminal) on top, by days_to_limit asc.
     # Why: ФОПи без активного терміналу часто вже перевищили ліміт історично
     # і не потребують уваги — їх показуємо внизу, щоб не спамити дашборд.
+    # Закриті ФОПи (org_status="Закрита") — у самому низу, бо ними не можна
+    # переключатись навіть якщо у них формально є активний термінал.
     all_fops_report.sort(
         key=lambda f: (
-            not bool(f.get("current_terminal_stores")),  # активні зверху
-            -f.get("income_percent", 0),                  # серед них — за %
+            f.get("org_status") == "Закрита",            # закриті в самому низу
+            not bool(f.get("current_terminal_stores")),  # без терміналу — нижче
+            f.get("days_to_limit", 999),                  # менше днів = вище
         )
     )
+
+    # Assign sort_key so Odoo dashboard can ORDER BY it (Odoo ignores our list
+    # order; without an explicit sort field it falls back to id/write_date).
+    # Дешевше і чистіше за окремі has_terminal + days_to_limit поля: одне число,
+    # будь-яка зміна логіки сортування — тут у воркері, без правок Studio.
+    for idx, fop_entry in enumerate(all_fops_report, start=1):
+        fop_entry["sort_key"] = idx
 
     # Filter critical_fops: keep FOPs with terminal stores OR wholesale
     before_filter = len(critical_fops)

@@ -69,6 +69,50 @@ def _get_connection(max_retries: int = 3, initial_delay: int = 5):
             )
             time.sleep(delay)
 
+
+# ── famo (1C) connection — для БП "Подача звітів ТО для ТРЦ" ──────────
+
+
+def _get_famo_db_config() -> dict:
+    """SQL config for famo 1C database (реєстр ПРРО ФОП магазинів ТРЦ).
+
+    Використовує readonly-логін AI_reader: AI_buh не має прав на базу famo,
+    тільки на bas_bdu (BDU). Env vars з суфіксом `_R` = read-only access.
+    """
+    return {
+        "server": os.environ.get("FAMO_DB_HOST", "deneb"),
+        "port": int(os.environ.get("FAMO_DB_PORT", "1433")),
+        "user": os.environ.get("FAMO_DB_USER_R") or os.environ.get("FAMO_DB_USER", ""),
+        "password": os.environ.get("FAMO_DB_PASSWORD_R") or os.environ.get("FAMO_DB_PASSWORD", ""),
+        "database": os.environ.get("FAMO_DB_NAME", "famo"),
+        "login_timeout": 30,
+        "timeout": 300,
+        "charset": "UTF-8",
+    }
+
+
+def _get_famo_connection(max_retries: int = 3, initial_delay: int = 5):
+    """pymssql connection до famo. Retries з експоненційним backoff."""
+    import pymssql
+
+    db_config = _get_famo_db_config()
+    if not db_config["password"]:
+        raise RuntimeError("FAMO_DB_PASSWORD_R env variable is required for fetch-rro-fop")
+
+    for attempt in range(max_retries):
+        try:
+            return pymssql.connect(**db_config)
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            delay = initial_delay * (2 ** attempt)
+            logger.warning(
+                "famo БД недоступна (спроба %d/%d), повтор через %dс: %s",
+                attempt + 1, max_retries, delay, e,
+            )
+            time.sleep(delay)
+
+
 # ── Data fetch functions ───────────────────────────────────────────────
 
 
@@ -1582,9 +1626,12 @@ def _enrich_store_with_employees(
     for e in emps:
         fop_groups[e["employer_fop"]].append(e["name"])
 
+    # Юридичні особи (ТОВ), а не ФОП — для них префікс має бути "ТОВ".
+    _LEGAL_ENTITIES = {"Плюс Технопростір", "Техно Простір", "Технопростір"}
     lines = []
     for fop_name, emp_names in fop_groups.items():
-        lines.append(f"ФОП {fop_name}:")
+        prefix = "ТОВ" if fop_name in _LEGAL_ENTITIES else "ФОП"
+        lines.append(f"{prefix} {fop_name}:")
         for n in emp_names:
             lines.append(f"  {n}")
     store_data["employees"] = "\n".join(lines)
@@ -1703,8 +1750,8 @@ def _group_binding_periods(
                         periods[i]["date_to"] = periods[j]["date_from"]
                     break
 
-    # Filter: keep periods from prev year onwards, skip same-day
-    prev_year_start = date(year - 1, 1, 1)
+    # Filter: keep only periods active in the target year, skip same-day
+    year_start = date(year, 1, 1)
     filtered = []
     for p in periods:
         dt_from = _parse_binding_date(p["date_from"])
@@ -1712,7 +1759,7 @@ def _group_binding_periods(
         if dt_to:
             if dt_from and dt_from == dt_to:
                 continue
-            if dt_from and dt_from >= prev_year_start:
+            if dt_to >= year_start:
                 filtered.append(p)
         else:
             filtered.append(p)

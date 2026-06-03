@@ -66,10 +66,10 @@ KNOWN_SERVICES = [
 # ---------------------------------------------------------------------------
 # Отримання файлу (base64 або URL)
 # ---------------------------------------------------------------------------
-ODOO_URL = os.getenv("OCR_ODOO_URL") or os.getenv("ODOO_URL", "https://odoo.dev.dobrom.com:2689/odoo")
-ODOO_DB = os.getenv("OCR_ODOO_DB") or os.getenv("ODOO_DB", "odoo19")
-ODOO_USER = os.getenv("OCR_ODOO_USER") or os.getenv("ODOO_USER", "")
-ODOO_PASSWORD = os.getenv("OCR_ODOO_PASSWORD") or os.getenv("ODOO_PASSWORD", "")
+ODOO_URL = os.getenv("OCR_ODOO_URL") or os.getenv("ODOO_URL") or os.getenv("DEV_ODOO_URL", "http://karavaieva.dev-odoo.a.local")
+ODOO_DB = os.getenv("OCR_ODOO_DB") or os.getenv("ODOO_DB") or os.getenv("DEV_ODOO_DB", "odoo19")
+ODOO_USER = os.getenv("OCR_ODOO_USER") or os.getenv("ODOO_USER") or os.getenv("DEV_ODOO_USER", "")
+ODOO_PASSWORD = os.getenv("OCR_ODOO_PASSWORD") or os.getenv("ODOO_PASSWORD") or os.getenv("DEV_ODOO_PASSWORD", "")
 
 
 async def _odoo_jsonrpc(url: str, service: str, method: str, args: list) -> Any:
@@ -1634,9 +1634,18 @@ def register_ocr_handlers(
                     try:
                         file_bytes, fname, ext = await _fetch_file_by_reference(ref)
                         file_items = await _process_single_file(file_bytes, ext.lower().strip("."))
+                        odoo_ref = ref.get("odoo") or {}
+                        src_attachment_id = (
+                            int(odoo_ref.get("key"))
+                            if odoo_ref.get("model") == "ir.attachment" and odoo_ref.get("key")
+                            else None
+                        )
+                        for it in file_items:
+                            it["source_attachment_id"] = src_attachment_id
+                            it["source_file_name"] = fname or ref.get("Name") or ""
                         items.extend(file_items)
-                        logger.info("File %d/%d '%s': %d invoice(s)",
-                                    idx, len(attached_file), fname, len(file_items))
+                        logger.info("File %d/%d '%s' (att_id=%s): %d invoice(s)",
+                                    idx, len(attached_file), fname, src_attachment_id, len(file_items))
                     except Exception as e:
                         logger.warning("Failed to process file %d (%s): %s",
                                        idx, ref.get("Name", "?"), e)

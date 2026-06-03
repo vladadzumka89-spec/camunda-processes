@@ -495,7 +495,7 @@ def register_deploy_handlers(
         pr_modules: str = "",
         **kwargs: Any,
     ) -> dict:
-        """Detect changed modules by comparing manifest version on disk vs latest_version in DB.
+        """Detect changed custom modules by comparing repo, running container, and DB.
 
         When pr_modules is provided (comma-separated list from validate-branch), only modules
         that belong to the current PR are considered — prevents cross-PR contamination where
@@ -519,7 +519,7 @@ def register_deploy_handlers(
             return {"changed_modules": "all"}
 
         if not result.success:
-            logger.warning("detect-modules: version scan failed (%s), falling back to 'all'", result.stderr[:200])
+            logger.warning("detect-modules: src/custom scan failed (%s), falling back to 'all'", result.stderr[:200])
             return {"changed_modules": "all"}
 
         changed = {m.strip() for m in result.stdout.strip().split("\n") if m.strip()}
@@ -533,14 +533,14 @@ def register_deploy_handlers(
             filtered = changed & pr_set
             if changed - pr_set:
                 logger.info(
-                    "detect-modules: skipping %d out-of-PR modules with version mismatch: %s",
+                    "detect-modules: skipping %d out-of-PR modules with repo/container/db mismatch: %s",
                     len(changed - pr_set),
                     ", ".join(sorted(changed - pr_set)),
                 )
             changed = filtered
 
         changed_modules = ",".join(sorted(changed)) if changed else ""
-        logger.info("detect-modules (manifest version): %s", changed_modules or "none")
+        logger.info("detect-modules (src/custom repo/container/db): %s", changed_modules or "none")
         return {"changed_modules": changed_modules}
 
     # ── docker-up ──────────────────────────────────────────────
@@ -1265,48 +1265,219 @@ def register_deploy_handlers(
 
 
 def _build_version_compare_script(container: str, db_name: str) -> str:
-    """Build a shell script that compares manifest version on disk vs latest_version in DB.
+    """Build a shell script comparing src/custom in repo, container, and DB.
 
     Uses Odoo's adapt_version logic: if version has 2-3 parts and doesn't
     start with 'MAJOR.0.', prepend 'MAJOR.0.' (e.g. '1.0' -> '19.0.1.0').
     """
-    return (
-        f'# Get installed versions from DB\n'
-        f'INSTALLED=$(docker exec {container}-db psql -U odoo -d {db_name} -t -A -c '
-        f'"SELECT name || \'=\' || COALESCE(latest_version, \'\') FROM ir_module_module '
-        f'WHERE state = \'installed\';" 2>/dev/null)\n'
-        f'\n'
-        f'for manifest in $(find src/custom src/enterprise src/third-party src/community '
-        f'-maxdepth 3 -name "__manifest__.py" 2>/dev/null); do\n'
-        f'    mod_dir=$(dirname "$manifest")\n'
-        f'    mod_name=$(basename "$mod_dir")\n'
-        f'    # Extract and normalize version (Odoo adapt_version logic)\n'
-        f'    disk_version=$(python3 -c "\n'
-        f'import ast, sys\n'
-        f'try:\n'
-        f'    m = ast.literal_eval(open(sys.argv[1]).read())\n'
-        f'    v = m.get(\'version\', \'\')\n'
-        f'    if not v or v == \'False\':\n'
-        f'        print(\'\')\n'
-        f'    else:\n'
-        f'        parts = v.split(\'.\')\n'
-        f'        if len(parts) <= 3 and not v.startswith(\'19.0\'):\n'
-        f'            v = \'19.0.\' + v\n'
-        f'        print(v)\n'
-        f'except: print(\'\')\n'
-        f'" "$manifest" 2>/dev/null)\n'
-        f'    # Skip modules without explicit version in manifest\n'
-        f'    [ -z "$disk_version" ] && continue\n'
-        f'    # Find installed version from DB output\n'
-        f'    db_version=$(echo "$INSTALLED" | grep "^$mod_name=" | cut -d= -f2)\n'
-        f'    # If module not in DB or not installed — skip\n'
-        f'    [ -z "$db_version" ] && continue\n'
-        f'    # Compare normalized versions\n'
-        f'    if [ "$disk_version" != "$db_version" ]; then\n'
-        f'        echo "$mod_name"\n'
-        f'    fi\n'
-        f'done'
+    db_container = f"{container}-db"
+    return f"""python3 <<'PYEOF'
+import ast
+import hashlib
+import os
+import subprocess
+import sys
+
+CONTAINER = {container!r}
+DB_CONTAINER = {db_container!r}
+DB_NAME = {db_name!r}
+CUSTOM_BASE = "src/custom"
+CONTAINER_CUSTOM_CANDIDATES = (
+    "/opt/odoo/custom",
+    "/mnt/extra-addons",
+    "/opt/odoo-enterprise/src/custom",
+    "/opt/odoo/src/custom",
+    "/app/src/custom",
+)
+IGNORED_DIRS = {{
+    "__pycache__",
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+}}
+IGNORED_SUFFIXES = (".pyc", ".pyo", ".swp", "~")
+
+
+def run(args):
+    return subprocess.run(args, capture_output=True, text=True)
+
+
+def normalize_version(value):
+    if not value or value == "False":
+        return ""
+    value = str(value)
+    parts = value.split(".")
+    if len(parts) <= 3 and not value.startswith("19.0"):
+        value = "19.0." + value
+    return value
+
+
+def manifest_version(path):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            manifest = ast.literal_eval(handle.read())
+    except Exception:
+        return ""
+    return normalize_version(manifest.get("version", ""))
+
+
+def installed_versions():
+    query = (
+        "SELECT name || '=' || COALESCE(latest_version, '') "
+        "FROM ir_module_module WHERE state = 'installed';"
     )
+    result = run([
+        "docker",
+        "exec",
+        DB_CONTAINER,
+        "psql",
+        "-U",
+        "odoo",
+        "-d",
+        DB_NAME,
+        "-t",
+        "-A",
+        "-c",
+        query,
+    ])
+    if result.returncode != 0:
+        sys.stderr.write(result.stderr[:500])
+        sys.exit(result.returncode or 1)
+    versions = {{}}
+    for line in result.stdout.splitlines():
+        if "=" not in line:
+            continue
+        name, version = line.split("=", 1)
+        versions[name] = version
+    return versions
+
+
+def hash_tree(path):
+    digest = hashlib.sha256()
+    for root, dirs, files in os.walk(path):
+        dirs[:] = sorted(d for d in dirs if d not in IGNORED_DIRS)
+        for filename in sorted(files):
+            if filename.endswith(IGNORED_SUFFIXES):
+                continue
+            full_path = os.path.join(root, filename)
+            rel_path = os.path.relpath(full_path, path).replace(os.sep, "/")
+            digest.update(rel_path.encode("utf-8"))
+            digest.update(b"\\0")
+            with open(full_path, "rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            digest.update(b"\\0")
+    return digest.hexdigest()
+
+
+CONTAINER_HASH_CODE = r'''
+import hashlib
+import os
+import sys
+
+IGNORED_DIRS = {{
+    "__pycache__",
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+}}
+IGNORED_SUFFIXES = (".pyc", ".pyo", ".swp", "~")
+
+
+def hash_tree(path):
+    digest = hashlib.sha256()
+    for root, dirs, files in os.walk(path):
+        dirs[:] = sorted(d for d in dirs if d not in IGNORED_DIRS)
+        for filename in sorted(files):
+            if filename.endswith(IGNORED_SUFFIXES):
+                continue
+            full_path = os.path.join(root, filename)
+            rel_path = os.path.relpath(full_path, path).replace(os.sep, "/")
+            digest.update(rel_path.encode("utf-8"))
+            digest.update(b"\\0")
+            with open(full_path, "rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            digest.update(b"\\0")
+    print(digest.hexdigest())
+
+
+if not os.path.isdir(sys.argv[1]):
+    sys.exit(2)
+hash_tree(sys.argv[1])
+'''
+
+
+def container_custom_root():
+    for candidate in CONTAINER_CUSTOM_CANDIDATES:
+        result = run(["docker", "exec", CONTAINER, "test", "-d", candidate])
+        if result.returncode == 0:
+            return candidate
+
+    result = run([
+        "docker",
+        "exec",
+        CONTAINER,
+        "sh",
+        "-lc",
+        "find /opt /mnt /app -maxdepth 4 -type d "
+        "\\\\( -path '*/src/custom' -o -name custom \\\\) 2>/dev/null | head -n 1",
+    ])
+    if result.returncode == 0 and result.stdout.strip():
+        return result.stdout.strip().splitlines()[0]
+    return ""
+
+
+def container_module_hash(custom_root, module_name):
+    module_path = custom_root.rstrip("/") + "/" + module_name
+    result = run(["docker", "exec", CONTAINER, "python3", "-c", CONTAINER_HASH_CODE, module_path])
+    if result.returncode == 2:
+        return None
+    if result.returncode != 0:
+        sys.stderr.write(result.stderr[:500])
+        sys.exit(result.returncode or 1)
+    return result.stdout.strip()
+
+
+def main():
+    if not os.path.isdir(CUSTOM_BASE):
+        return
+
+    installed = installed_versions()
+    custom_root = container_custom_root()
+    if not custom_root:
+        sys.stderr.write("Could not locate src/custom equivalent in container\\n")
+        sys.exit(1)
+
+    changed = set()
+    for module_name in sorted(os.listdir(CUSTOM_BASE)):
+        module_dir = os.path.join(CUSTOM_BASE, module_name)
+        manifest = os.path.join(module_dir, "__manifest__.py")
+        if not os.path.isfile(manifest):
+            continue
+        db_version = installed.get(module_name)
+        if db_version is None:
+            continue
+
+        repo_version = manifest_version(manifest)
+        if repo_version and repo_version != db_version:
+            changed.add(module_name)
+            continue
+
+        repo_hash = hash_tree(module_dir)
+        image_hash = container_module_hash(custom_root, module_name)
+        if image_hash != repo_hash:
+            changed.add(module_name)
+
+    for module_name in sorted(changed):
+        print(module_name)
+
+
+if __name__ == "__main__":
+    main()
+PYEOF"""
 
 
 import asyncio as _asyncio
