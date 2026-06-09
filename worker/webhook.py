@@ -1,14 +1,18 @@
-"""Webhook server for business worker — health check and FOP reports.
+"""Webhook server for business worker — health check and report files.
 
 Endpoints:
-    GET  /health              — Liveness probe
-    GET  /reports/fop/latest  — Latest FOP limit monitoring JSON report
+    GET  /health                                       — Liveness probe
+    GET  /reports/fop/latest                           — Latest FOP limit JSON
+    GET  /reports/webchek/{year_month}/{fn_fop}.pdf    — Periodic Z-report PDF
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
+import re
+from pathlib import Path
 
 from aiohttp import web
 
@@ -25,6 +29,10 @@ class WebhookServer:
         self._app = web.Application()
         self._app.router.add_get('/health', self._handle_health)
         self._app.router.add_get('/reports/fop/latest', self._handle_fop_report)
+        self._app.router.add_get(
+            '/reports/webchek/{year_month}/{fn_fop}.pdf',
+            self._handle_webchek_pdf,
+        )
         self._runner: web.AppRunner | None = None
 
     # -- Lifecycle -------------------------------------------------
@@ -80,3 +88,44 @@ class WebhookServer:
         except Exception as exc:
             logger.error("Failed to read FOP report: %s", exc)
             return web.Response(status=500, text=f"Failed to read report: {exc}")
+
+    # -- WebCheck periodic Z-report PDF -----------------------------
+
+    _WEBCHEK_YEAR_MONTH_RE = re.compile(r'^\d{4}-\d{2}$')
+    _WEBCHEK_FN_RE = re.compile(r'^\d+$')
+
+    async def _handle_webchek_pdf(self, request: web.Request) -> web.StreamResponse:
+        """Serve a generated webchek periodic Z-report PDF.
+
+        URL: GET /reports/webchek/{year_month}/{fn_fop}.pdf
+        Source: WEBCHEK_OUTPUT_DIR/{year_month}/{fn_fop}.pdf
+        Validates `year_month` is YYYY-MM and `fn_fop` is digits-only
+        to prevent path traversal.
+        """
+        year_month = request.match_info['year_month']
+        fn_fop = request.match_info['fn_fop']
+
+        if not self._WEBCHEK_YEAR_MONTH_RE.match(year_month):
+            return web.Response(status=400, text='Bad year_month, expected YYYY-MM')
+        if not self._WEBCHEK_FN_RE.match(fn_fop):
+            return web.Response(status=400, text='Bad fn_fop, expected digits-only')
+
+        base = Path(os.environ.get('WEBCHEK_OUTPUT_DIR', '/tmp/webchek-reports')).resolve()
+        pdf = (base / year_month / f'{fn_fop}.pdf').resolve()
+
+        # Hard guard: resolved path must stay under base
+        try:
+            pdf.relative_to(base)
+        except ValueError:
+            return web.Response(status=400, text='Path escapes base directory')
+
+        if not pdf.is_file():
+            return web.Response(status=404, text='Report not found')
+
+        return web.FileResponse(
+            pdf,
+            headers={
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': f'inline; filename="{fn_fop}.pdf"',
+            },
+        )

@@ -12,12 +12,14 @@ r"""Zeebe handler для топіка `generate-webchek-reports` (БП "Пода
     reportlab, smbprotocol
 
 Env vars (.env.camunda):
-    WEBCHEK_SMB_HOST       — сервер шари (default ralf.a.local)
-    WEBCHEK_SMB_SHARE      — назва шари (default WebCheck)
-    WEBCHEK_SMB_USER       — користувач
-    WEBCHEK_SMB_PASSWORD   — пароль
-    WEBCHEK_DB_SUBDIR      — підпапка з .db файлами (default DB)
-    WEBCHEK_OUTPUT_DIR     — куди класти згенеровані PDF (default /tmp/webchek-reports)
+    WEBCHEK_SMB_HOST          — сервер шари (default ralf.a.local)
+    WEBCHEK_SMB_SHARE         — назва шари (default WebCheck)
+    WEBCHEK_SMB_USER          — користувач
+    WEBCHEK_SMB_PASSWORD      — пароль
+    WEBCHEK_DB_SUBDIR         — підпапка з .db файлами (default DB)
+    WEBCHEK_OUTPUT_DIR        — куди класти PDF (default /tmp/webchek-reports)
+    WEBCHEK_PUBLIC_BASE_URL   — як Odoo тягтиме PDF
+                                (default http://camunda-demo.a.local:9001)
 """
 from __future__ import annotations
 
@@ -89,6 +91,8 @@ def _generate_one_report(
     date_from: str,
     date_to: str,
     output_dir: str,
+    year_month: str,
+    public_base_url: str,
 ) -> dict | None:
     """Завантажує .db, генерує PDF, повертає метадані. None при невдачі."""
     tmpfile = tempfile.NamedTemporaryFile(
@@ -110,6 +114,8 @@ def _generate_one_report(
             'store_prefix': store_prefix,
             'store_label':  store_label,
             'pdf_path':     pdf_path,
+            'pdf_url':      f'{public_base_url}/reports/webchek/{year_month}/{fn_fop}.pdf',
+            'pdf_filename': f'{fn_fop}.pdf',
             'pdf_size':     os.path.getsize(pdf_path),
         }
     except FileNotFoundError as e:
@@ -166,10 +172,14 @@ def register_webchek_handlers(
             year, month = previous_month()
         date_from, date_to = _month_period(year, month)
 
-        # Папка для виходу
+        # Папка для виходу + URL для Odoo
         cfg_dir = os.environ.get('WEBCHEK_OUTPUT_DIR', '/tmp/webchek-reports')
-        output_dir = os.path.join(cfg_dir, f'{year:04d}-{month:02d}')
+        year_month = f'{year:04d}-{month:02d}'
+        output_dir = os.path.join(cfg_dir, year_month)
         os.makedirs(output_dir, exist_ok=True)
+        public_base_url = os.environ.get(
+            'WEBCHEK_PUBLIC_BASE_URL', 'http://camunda-demo.a.local:9001',
+        ).rstrip('/')
 
         # Унікальні ФН (один .db = один ФН; кілька рядків rroData для одного ФН зайві)
         seen: set[str] = set()
@@ -194,7 +204,7 @@ def register_webchek_handlers(
             result = await asyncio.to_thread(
                 _generate_one_report,
                 r['fn_fop'], r.get('store_prefix', ''), store_name,
-                date_from, date_to, output_dir,
+                date_from, date_to, output_dir, year_month, public_base_url,
             )
             if result is None:
                 failed.append(r['fn_fop'])
