@@ -30,6 +30,7 @@ from .fop_common import (
     LIMITS,
     REPORT_DIR,
     REPORT_FILE,
+    fetch_store_addresses_from_confluence,
     _get_db_config,
     _get_connection,
     _fetch_active_fops,
@@ -260,6 +261,10 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
 
     # Get active EDRPOU set for dedup BEFORE building summary
     active_edrpous = _get_active_fop_edrpous()
+
+    # Confluence: адреси ТРЦ за кодом магазину (3 цифри). Кожен запуск
+    # тягне свіжі дані. У разі помилки — порожній dict, не валимо процес.
+    store_addresses = fetch_store_addresses_from_confluence()
 
     # Build reverse map: FOP name → list of subdivision names with ACTIVE
     # terminal binding (open period, date_to is None).
@@ -498,14 +503,13 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
                     sname = s["name"]
                     if sname not in active_stores:
                         continue
-                    income_str = f"{s['total']:,.0f}".replace(",", " ")
                     # Count employees registered on this FOP at this store
                     emp_at_store = store_employees.get(sname, [])
                     emp_on_fop = [e for e in emp_at_store if e["employer_edrpou"] == edrpou]
                     if emp_on_fop:
-                        _stores_parts.append(f"{sname}: {income_str} (зареєстровано {len(emp_on_fop)} працівників на ФОП)")
+                        _stores_parts.append(f"{sname} (зареєстровано {len(emp_on_fop)} працівників на ФОП)")
                     else:
-                        _stores_parts.append(f"{sname}: {income_str}")
+                        _stores_parts.append(sname)
                 if not _stores_parts:
                     _stores_parts.append("(немає активних терміналів)")
             # Скорочене ПІБ без по-батькові — «Прізвище Ім'я» — для задач Camunda.
@@ -526,6 +530,9 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
                 "trend_ratio": fop_entry["trend_ratio"],
                 "terminal_change": fop_entry["terminal_change"],
                 "terminal_change_percent": fop_entry["terminal_change_percent"],
+                # Адреси ТРЦ за кодом магазину — BPMN робить lookup за
+                # selected_store, який вибере бухгалтер у першій задачі.
+                "store_addresses": store_addresses,
             })
 
     critical_all = sum(1 for f in all_fops_report if f["status"] != "Норма")

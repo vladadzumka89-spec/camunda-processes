@@ -26,8 +26,8 @@ EP_GROUP_ENUM = {
 }
 
 LIMITS = {
-    2: float(os.environ.get("FOP_LIMIT_GROUP_2", "6600000")),
-    3: float(os.environ.get("FOP_LIMIT_GROUP_3", "6600000")),
+    2: float(os.environ.get("FOP_LIMIT_GROUP_2", "6900000")),
+    3: float(os.environ.get("FOP_LIMIT_GROUP_3", "6900000")),
 }
 
 REPORT_DIR = Path(os.environ.get("FOP_REPORT_DIR", "reports/fop"))
@@ -111,6 +111,56 @@ def _get_famo_connection(max_retries: int = 3, initial_delay: int = 5):
                 attempt + 1, max_retries, delay, e,
             )
             time.sleep(delay)
+
+
+# ── Confluence: довідник адрес ТРЦ ─────────────────────────────────────
+
+
+def fetch_store_addresses_from_confluence() -> dict[str, str]:
+    """Тягне таблицю «Контакти ТРЦ/Орендодавців FAMO» з Confluence
+    і повертає мапу {3-digit-code: address}.
+
+    Reads env: CONFLUENCE_TOKEN, CONFLUENCE_PAGE_ID (опціонально, дефолт 273485144).
+    Falls back to empty dict on будь-якій помилці — щоб не зламати моніторинг.
+    """
+    import re as _re
+    import html as _html
+    import httpx
+
+    token = os.environ.get("CONFLUENCE_TOKEN", "").strip()
+    page_id = os.environ.get("CONFLUENCE_PAGE_ID", "273485144").strip()
+    if not token:
+        logger.warning("CONFLUENCE_TOKEN не заданий — store_addresses буде порожнім")
+        return {}
+
+    url = f"https://doc.dobrom.com/rest/api/content/{page_id}?expand=body.storage"
+    try:
+        r = httpx.get(url, headers={"Authorization": f"Bearer {token}",
+                                     "Accept": "application/json"}, timeout=15)
+        r.raise_for_status()
+        body = r.json().get("body", {}).get("storage", {}).get("value", "")
+    except Exception as e:
+        logger.warning("Не вдалося отримати адреси з Confluence: %s", e)
+        return {}
+
+    def _strip(s: str) -> str:
+        s = _re.sub(r"<br\s*/?>", " | ", s)
+        s = _re.sub(r"<[^>]+>", "", s)
+        return _re.sub(r"\s+", " ", _html.unescape(s)).strip()
+
+    addresses: dict[str, str] = {}
+    for row in _re.findall(r"<tr[^>]*>(.*?)</tr>", body, _re.DOTALL)[1:]:
+        cells = _re.findall(r"<t[hd][^>]*>(.*?)</t[hd]>", row, _re.DOTALL)
+        if len(cells) < 4:
+            continue
+        magaz = _strip(cells[0])
+        address = _strip(cells[3])
+        m = _re.match(r"^(\d{3})", magaz)
+        if m and address and address != "-":
+            addresses[m.group(1)] = address
+
+    logger.info("Confluence: завантажено адрес магазинів: %d", len(addresses))
+    return addresses
 
 
 # ── Data fetch functions ───────────────────────────────────────────────
