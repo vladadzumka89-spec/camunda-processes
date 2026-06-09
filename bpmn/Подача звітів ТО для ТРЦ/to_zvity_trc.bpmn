@@ -26,7 +26,7 @@
       </bpmn:lane>
       <bpmn:lane id="Lane_Analyst" name="Аналітик">
         <bpmn:flowNodeRef>ServiceTask_FetchRRO</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>UserTask_WebchekReports</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ServiceTask_GenerateWebchekReports</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_Yulia" name="Юля Томусяк (затверджувач)">
         <bpmn:flowNodeRef>UserTask_YuliaApprove</bpmn:flowNodeRef>
@@ -73,15 +73,14 @@
       <bpmn:incoming>Flow_FillTable_to_FetchRRO</bpmn:incoming>
       <bpmn:outgoing>Flow_FetchRRO_to_Webchek</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:userTask id="UserTask_WebchekReports" name="Сформувати звіти у вебчеку для кожного ФН та надіслати фінансисту">
-      <bpmn:documentation>Поки руками. Після автоматизації — service task з zeebe:taskDefinition type="generate-webchek-reports".</bpmn:documentation>
+    <bpmn:serviceTask id="ServiceTask_GenerateWebchekReports" name="Згенерувати PDF періодичних Z-звітів для кожного ФН">
+      <bpmn:documentation>Автоматизує колишню задачу аналітика. Тягне .db бази ПРРО з SMB-шари \\ralf\WebCheck\DB і генерує PDF періодичного Z-звіту для кожного ФН з rroData. Виходи: webchekReports (список з шляхами до PDF), webchekReportsCount, webchekReportsFailed, webchekReportsDir.</bpmn:documentation>
       <bpmn:extensionElements>
-        <zeebe:userTask />
-        <zeebe:assignmentDefinition candidateGroups="analyst" />
+        <zeebe:taskDefinition type="generate-webchek-reports" />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_FetchRRO_to_Webchek</bpmn:incoming>
       <bpmn:outgoing>Flow_Webchek_to_Send</bpmn:outgoing>
-    </bpmn:userTask>
+    </bpmn:serviceTask>
     <bpmn:userTask id="UserTask_FillRROinTable" name="Внести дані з РРО звітів у таблицю та надіслати Юлі на затвердження">
       <bpmn:extensionElements>
         <zeebe:userTask />
@@ -223,8 +222,8 @@ NB: назва "Підготувати довідки" вужча за реал�
     <bpmn:sequenceFlow id="Flow_FirstWorkday_to_LoadSchedule" sourceRef="IntermediateCatch_FirstWorkday" targetRef="ServiceTask_LoadSchedule" />
     <bpmn:sequenceFlow id="Flow_LoadSchedule_to_FillTable" sourceRef="ServiceTask_LoadSchedule" targetRef="UserTask_FillTable" />
     <bpmn:sequenceFlow id="Flow_FillTable_to_FetchRRO" sourceRef="UserTask_FillTable" targetRef="ServiceTask_FetchRRO" />
-    <bpmn:sequenceFlow id="Flow_FetchRRO_to_Webchek" sourceRef="ServiceTask_FetchRRO" targetRef="UserTask_WebchekReports" />
-    <bpmn:sequenceFlow id="Flow_Webchek_to_Send" sourceRef="UserTask_WebchekReports" targetRef="UserTask_FillRROinTable" />
+    <bpmn:sequenceFlow id="Flow_FetchRRO_to_Webchek" sourceRef="ServiceTask_FetchRRO" targetRef="ServiceTask_GenerateWebchekReports" />
+    <bpmn:sequenceFlow id="Flow_Webchek_to_Send" sourceRef="ServiceTask_GenerateWebchekReports" targetRef="UserTask_FillRROinTable" />
     <bpmn:sequenceFlow id="Flow_FillRRO_to_SendYulia" sourceRef="UserTask_FillRROinTable" targetRef="Gateway_ParFork" />
     <bpmn:sequenceFlow id="Flow_Fork_to_Yulia" sourceRef="Gateway_ParFork" targetRef="UserTask_YuliaApprove" />
     <bpmn:sequenceFlow id="Flow_Fork_to_PrepRefs" sourceRef="Gateway_ParFork" targetRef="UserTask_PrepareRefs" />
@@ -282,7 +281,7 @@ NB: назва "Підготувати довідки" вужча за реал�
       <bpmndi:BPMNShape id="ServiceTask_FetchRRO_di" bpmnElement="ServiceTask_FetchRRO">
         <dc:Bounds x="530" y="510" width="160" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="UserTask_WebchekReports_di" bpmnElement="UserTask_WebchekReports">
+      <bpmndi:BPMNShape id="ServiceTask_GenerateWebchekReports_di" bpmnElement="ServiceTask_GenerateWebchekReports">
         <dc:Bounds x="770" y="510" width="220" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="UserTask_FillRROinTable_di" bpmnElement="UserTask_FillRROinTable">

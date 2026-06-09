@@ -21,6 +21,7 @@ from .fop_monitor import register_fop_monitor_handlers
 from .fop_planner import register_fop_planner_handlers
 from .ocr import register_ocr_handlers
 from .to_zvity_trc import register_to_zvity_trc_handlers
+from .webchek_report import register_webchek_handlers
 
 
 def register_all_handlers(
@@ -36,7 +37,8 @@ def register_all_handlers(
         FOP Planner (1): fop-opening-plan
         ТО ТРЦ (3):      load-store-schedule, fetch-rro-fop,
                          check-delivery-confirmation
-    Total: 7 task types
+        WebCheck (1):    generate-webchek-reports
+    Total: 8 task types
 
     CI/CD tasks (deploy, github, sync, audit, clickbot, notify)
     are handled by worker2 — do NOT register them here.
@@ -46,3 +48,4 @@ def register_all_handlers(
     register_fop_monitor_handlers(worker, config)
     register_fop_planner_handlers(worker, config)
     register_to_zvity_trc_handlers(worker, config)
+    register_webchek_handlers(worker, config)
