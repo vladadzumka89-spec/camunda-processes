@@ -97,7 +97,7 @@
       <bpmn:extensionElements>
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/698cc274-ce28-42b3-bc18-ba3d6222f64f&#34;" target="url" />
           <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
           <zeebe:input source="={action: &#34;update_parent_stage&#34;, _model: &#34;project.task&#34;, _id: (if is defined(odoo_task_id) and odoo_task_id != null then odoo_task_id else null), stage_target: &#34;cancelled&#34;, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
@@ -388,7 +388,7 @@
       <bpmn:extensionElements>
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;POST&#34;" target="method" />
-          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="=&#34;https://o.tut.ua/web/hook/698cc274-ce28-42b3-bc18-ba3d6222f64f&#34;" target="url" />
           <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
           <zeebe:input source="={action: &#34;update_parent_stage&#34;, _model: &#34;project.task&#34;, _id: (if is defined(odoo_task_id) and odoo_task_id != null then odoo_task_id else null), stage_target: &#34;done&#34;, process_instance_key: process_instance_key}" target="body" />
         </zeebe:ioMapping>
