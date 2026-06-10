@@ -504,7 +504,7 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
                     if sname not in active_stores:
                         continue
                     addr = store_addresses.get(sname[:3], "") if len(sname) >= 3 else ""
-                    addr_line = f"<br/><i>Адреса по договору: {addr}</i>" if addr else ""
+                    addr_line = f"<br/><i>📍 {addr}</i>" if addr else ""
                     emp_at_store = store_employees.get(sname, [])
                     emp_on_fop = [e for e in emp_at_store if e["employer_edrpou"] == edrpou]
                     if emp_on_fop:
