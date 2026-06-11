@@ -156,7 +156,7 @@ def fetch_store_addresses_from_confluence() -> dict[str, str]:
         magaz = _strip(cells[0])
         address = _strip(cells[3])
         m = _re.match(r"^(\d{3})", magaz)
-        if m and address and address != "-":
+        if m and _re.search(r"\w", address) and address != "-":
             addresses[m.group(1)] = address
 
     logger.info("Confluence: завантажено адрес магазинів: %d", len(addresses))
