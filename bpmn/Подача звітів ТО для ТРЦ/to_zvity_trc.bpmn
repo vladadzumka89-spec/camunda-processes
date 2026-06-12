@@ -20,6 +20,7 @@
         <bpmn:flowNodeRef>Gateway_SubmitJoin</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>BoundaryEvent_Reminder</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>StartEvent_Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>StartEvent_Manual</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>IntermediateCatch_FirstWorkday</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>EndEvent_Done</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>UserTask_CorrectRefs</bpmn:flowNodeRef>
@@ -34,6 +35,10 @@
         <bpmn:flowNodeRef>Gateway_NeedCorrections</bpmn:flowNodeRef>
       </bpmn:lane>
     </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_Manual" name="Ручний запуск (тест)">
+      <bpmn:documentation>None start event для ручного запуску через REST/Modeler/Operate (минаючи cron-таймер). Йде напряму на ServiceTask_LoadSchedule.</bpmn:documentation>
+      <bpmn:outgoing>Flow_Manual_to_LoadSchedule</bpmn:outgoing>
+    </bpmn:startEvent>
     <bpmn:startEvent id="StartEvent_Start" name="1 числа місяця, 09:00">
       <bpmn:documentation>Timer start event — інстанція створюється 1 числа кожного місяця о 09:00 (cron). Якщо 1-ше припадає на вихідний, наступний крок-таймер зсуває процес до першого буднього дня.</bpmn:documentation>
       <bpmn:outgoing>Flow_Start_to_FirstWorkday</bpmn:outgoing>
@@ -54,15 +59,42 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="load-store-schedule" />
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_Start_to_LoadSchedule</bpmn:incoming>
-      <bpmn:outgoing>Flow_LoadSchedule_to_FillTable</bpmn:outgoing>
+      <bpmn:incoming>Flow_FirstWorkday_to_LoadSchedule</bpmn:incoming>
+      <bpmn:incoming>Flow_Manual_to_LoadSchedule</bpmn:incoming>
+      <bpmn:outgoing>Flow_LoadSchedule_to_CreateMain</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="ServiceTask_CreateMainOdooTask" name="Створити головну задачу в Odoo">
+      <bpmn:documentation>Створює project.task "Подача звітів ТО — {місяць}.{рік}" з create_process=true. Webhook повертає id новоствореної задачі в odoo_response, який зберігається у Camunda variable odoo_task_id. Усі наступні userTask використовують його як parent_id.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="http-request-smart" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input source="={name: string(month) + &#34;.&#34; + string(year) + &#34; — Подача звітів ТО для ТРЦ&#34;, description_format: &#34;html&#34;, description: &#34;&lt;b&gt;Період:&lt;/b&gt; &#34; + string(month) + &#34;.&#34; + string(year) + &#34;&lt;br/&gt;&lt;b&gt;Магазинів:&lt;/b&gt; &#34; + string(total_stores), create_process: true, _model: &#34;project.project&#34;, _id: project_id, bpmn_process_id: &#34;to-zvity-trc&#34;, process_instance_key: process_instance_key, x_studio_camunda_year: year, x_studio_camunda_month: month}" target="body" />
+          <zeebe:input source="=&#34;odoo_response&#34;" target="result_variable_name" />
+          <zeebe:output source="= string(odoo_response.id)" target="odoo_task_id" />
+          <zeebe:output source="= string(odoo_response.id)" target="odooTaskId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_LoadSchedule_to_CreateMain</bpmn:incoming>
+      <bpmn:outgoing>Flow_CreateMain_to_FillTable</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:userTask id="UserTask_FillTable" name="Заповнити таблицю: факт оберт та оренда за період">
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:assignmentDefinition candidateGroups="finansist" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input target="body" source="={name: string(month) + &#34;.&#34; + string(year) + &#34; — Заповнити таблицю: факт оберт та оренда за період&#34;, description: &#34;&lt;b&gt;Період:&lt;/b&gt; &#34; + string(month) + &#34;.&#34; + string(year) + &#34;&lt;br/&gt;&lt;b&gt;Всього магазинів:&lt;/b&gt; &#34; + string(total_stores), description_format: &#34;html&#34;, _model: &#34;project.project&#34;, _id: project_id, parent_id: odoo_task_id, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;finansist&#34;, x_studio_camunda_task_code: &#34;fill_table&#34;, x_studio_camunda_year: year, x_studio_camunda_month: month}" />
+        </zeebe:ioMapping>
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_LoadSchedule_to_FillTable</bpmn:incoming>
+      <bpmn:incoming>Flow_CreateMain_to_FillTable</bpmn:incoming>
       <bpmn:outgoing>Flow_FillTable_to_FetchRRO</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:serviceTask id="ServiceTask_FetchRRO" name="Витяг ФН ПРРО ФОП з 1С (famo)">
@@ -85,6 +117,15 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:assignmentDefinition candidateGroups="finansist" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input target="body" source="={name: string(month) + &#34;.&#34; + string(year) + &#34; — Внести дані з РРО звітів у таблицю&#34;, description: &#34;&lt;b&gt;Період:&lt;/b&gt; &#34; + string(month) + &#34;.&#34; + string(year) + &#34;&lt;br/&gt;&lt;b&gt;Звітів РРО:&lt;/b&gt; &#34; + string(webchekReportsCount) + &#34;&lt;br/&gt;Переглянь PDF періодичних Z-звітів у вкладці і перепиши цифри у робочу таблицю, потім надішли Юлі на затвердження.&#34;, description_format: &#34;html&#34;, _model: &#34;project.project&#34;, _id: project_id, parent_id: odoo_task_id, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;finansist&#34;, x_studio_camunda_task_code: &#34;fill_rro_in_table&#34;, x_studio_camunda_year: year, x_studio_camunda_month: month, webchekReports: webchekReports}" />
+        </zeebe:ioMapping>
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Webchek_to_Send</bpmn:incoming>
       <bpmn:outgoing>Flow_FillRRO_to_SendYulia</bpmn:outgoing>
@@ -98,6 +139,15 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:assignmentDefinition candidateGroups="yulia" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input target="body" source="={name: string(month) + &#34;.&#34; + string(year) + &#34; — Затвердити таблицю та повернути&#34;, description: &#34;&lt;b&gt;Період:&lt;/b&gt; &#34; + string(month) + &#34;.&#34; + string(year) + &#34;&lt;br/&gt;Перевір таблицю фінансиста. Якщо вніс правки — обери &lt;b&gt;Так&lt;/b&gt;, інакше &lt;b&gt;Ні&lt;/b&gt;. Перехід у Виконано передає yuliaCorrected у Camunda.&#34;, description_format: &#34;html&#34;, _model: &#34;project.project&#34;, _id: project_id, parent_id: odoo_task_id, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;yulia&#34;, x_studio_camunda_task_code: &#34;yulia_approve&#34;, x_studio_camunda_year: year, x_studio_camunda_month: month}" />
+        </zeebe:ioMapping>
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Fork_to_Yulia</bpmn:incoming>
       <bpmn:outgoing>Flow_Yulia_to_NeedCorr</bpmn:outgoing>
@@ -111,6 +161,15 @@
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:assignmentDefinition candidateGroups="finansist" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input target="body" source="={name: string(month) + &#34;.&#34; + string(year) + &#34; — Скоригувати дані в довідках&#34;, description: &#34;&lt;b&gt;ℹ️ Юля внесла правки в таблицю.&lt;/b&gt;&lt;br/&gt;Подивись зміни у Sheet і за потреби перероби довідки у задачі &lt;b&gt;Звіти ТО по магазинах&lt;/b&gt;.&#34;, description_format: &#34;html&#34;, _model: &#34;project.project&#34;, _id: project_id, parent_id: odoo_task_id, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;finansist&#34;, x_studio_camunda_task_code: &#34;correct_refs&#34;, x_studio_camunda_year: year, x_studio_camunda_month: month}" />
+        </zeebe:ioMapping>
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_NeedCorr_Yes</bpmn:incoming>
       <bpmn:outgoing>Flow_CorrectRefs_to_CorrAJoin</bpmn:outgoing>
@@ -120,7 +179,7 @@
       <bpmn:incoming>Flow_NeedCorr_No</bpmn:incoming>
       <bpmn:outgoing>Flow_CorrAJoin_to_ParJoin</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:userTask id="UserTask_PrepareRefs" name="Підготувати довідки">
+    <bpmn:userTask id="UserTask_PrepareRefs" name="Звіти ТО по магазинах">
       <bpmn:documentation>Один task на весь місяць, паралельно з гілкою затвердження Юлі. По кожному з 51 магазину фінансист:
 1) готує довідку (електронна форма → друк → підпис → скан);
 2) надсилає скани довідки орендодавцю на e-mail;
@@ -135,6 +194,15 @@ NB: назва "Підготувати довідки" вужча за реал�
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:assignmentDefinition candidateGroups="finansist" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input target="body" source="={name: string(month) + &#34;.&#34; + string(year) + &#34; — Звіти ТО по магазинах&#34;, description: &#34;&lt;b&gt;Період:&lt;/b&gt; &#34; + string(month) + &#34;.&#34; + string(year) + &#34;&lt;br/&gt;&lt;b&gt;Магазинів:&lt;/b&gt; &#34; + string(total_stores) + &#34;&lt;br/&gt;Готуй довідки, надсилай скани орендодавцям, вноси дані по ТО в 1С. Рядки згруповані за дедлайном.&#34;, description_format: &#34;html&#34;, _model: &#34;project.project&#34;, _id: project_id, parent_id: odoo_task_id, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;finansist&#34;, x_studio_camunda_task_code: &#34;prepare_refs&#34;, x_studio_camunda_year: year, x_studio_camunda_month: month, stores: stores, deadline_groups: deadline_groups}" />
+        </zeebe:ioMapping>
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Fork_to_PrepRefs</bpmn:incoming>
       <bpmn:outgoing>Flow_PrepRefs_to_ParJoin</bpmn:outgoing>
@@ -154,6 +222,15 @@ NB: назва "Підготувати довідки" вужча за реал�
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:assignmentDefinition candidateGroups="finansist" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input target="body" source="={name: string(month) + &#34;.&#34; + string(year) + &#34; — Загрузити довідки на сайт орендодавця&#34;, description: &#34;&lt;b&gt;Період:&lt;/b&gt; &#34; + string(month) + &#34;.&#34; + string(year) + &#34;&lt;br/&gt;Завантаж довідки на сайти орендодавців і познач кожен рядок &lt;b&gt;Загружено&lt;/b&gt;.&#34;, description_format: &#34;html&#34;, _model: &#34;project.project&#34;, _id: project_id, parent_id: odoo_task_id, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;finansist&#34;, x_studio_camunda_task_code: &#34;upload_to_site&#34;, x_studio_camunda_year: year, x_studio_camunda_month: month, upload_site_stores: upload_site_stores}" />
+        </zeebe:ioMapping>
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_SubmitFork_to_Upload</bpmn:incoming>
       <bpmn:outgoing>Flow_Upload_to_SubmitJoin</bpmn:outgoing>
@@ -163,6 +240,15 @@ NB: назва "Підготувати довідки" вужча за реал�
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:assignmentDefinition candidateGroups="finansist" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input target="body" source="={name: string(month) + &#34;.&#34; + string(year) + &#34; — Створити внутрішню доставку на магазин в ТРЦ&#34;, description: &#34;&lt;b&gt;Період:&lt;/b&gt; &#34; + string(month) + &#34;.&#34; + string(year) + &#34;&lt;br/&gt;&lt;b&gt;Коментар:&lt;/b&gt; Документи в адміністрацію&lt;br/&gt;Створи в TPL внутрішню доставку для кожного з 4 магазинів і познач &lt;b&gt;Доставку створено&lt;/b&gt;.&#34;, description_format: &#34;html&#34;, _model: &#34;project.project&#34;, _id: project_id, parent_id: odoo_task_id, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;finansist&#34;, x_studio_camunda_task_code: &#34;create_tpl_delivery&#34;, x_studio_camunda_year: year, x_studio_camunda_month: month, original_stores: original_stores}" />
+        </zeebe:ioMapping>
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_SubmitFork_to_CreateTPL</bpmn:incoming>
       <bpmn:outgoing>Flow_CreateTPL_to_WeekTimer</bpmn:outgoing>
@@ -180,6 +266,15 @@ NB: назва "Підготувати довідки" вужча за реал�
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:assignmentDefinition candidateGroups="finansist" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input target="body" source="={name: string(month) + &#34;.&#34; + string(year) + &#34; — Отримати підтвердження передачі документа&#34;, description: &#34;&lt;b&gt;Період:&lt;/b&gt; &#34; + string(month) + &#34;.&#34; + string(year) + &#34;&lt;br/&gt;Підтверди отримання документів адміністрацією ТРЦ для 4 магазинів. Кожні 3 дні приходитиме нагадування (задача не переривається).&#34;, description_format: &#34;html&#34;, _model: &#34;project.project&#34;, _id: project_id, parent_id: odoo_task_id, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;finansist&#34;, x_studio_camunda_task_code: &#34;receive_confirmation&#34;, x_studio_camunda_year: year, x_studio_camunda_month: month}" />
+        </zeebe:ioMapping>
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_WeekTimer_to_Receive</bpmn:incoming>
       <bpmn:outgoing>Flow_Receive_to_WriteTT</bpmn:outgoing>
@@ -206,6 +301,15 @@ NB: назва "Підготувати довідки" вужча за реал�
       <bpmn:extensionElements>
         <zeebe:userTask />
         <zeebe:assignmentDefinition candidateGroups="finansist" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;POST&#34;" target="method" />
+          <zeebe:input source="=&#34;http://karavaieva.dev-odoo.a.local/web/hook/8531324a-2785-48d1-8f4d-ddd66a267d50&#34;" target="url" />
+          <zeebe:input source="={&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
+          <zeebe:input target="body" source="={name: string(month) + &#34;.&#34; + string(year) + &#34; — Написати працівникам магазинів в ТТ&#34;, description: &#34;&lt;b&gt;Період:&lt;/b&gt; &#34; + string(month) + &#34;.&#34; + string(year) + &#34;&lt;br/&gt;Напиши працівникам торгових точок (4 магазини) про передані документи в адміністрацію.&#34;, description_format: &#34;html&#34;, _model: &#34;project.project&#34;, _id: project_id, parent_id: odoo_task_id, process_instance_key: process_instance_key, x_studio_camunda_role_code: &#34;finansist&#34;, x_studio_camunda_task_code: &#34;write_to_tt&#34;, x_studio_camunda_year: year, x_studio_camunda_month: month}" />
+        </zeebe:ioMapping>
+        <zeebe:taskListeners>
+          <zeebe:taskListener eventType="creating" retries="1" type="http-request-smart" />
+        </zeebe:taskListeners>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Receive_to_WriteTT</bpmn:incoming>
       <bpmn:outgoing>Flow_WriteTT_to_SubmitJoin</bpmn:outgoing>
@@ -219,8 +323,10 @@ NB: назва "Підготувати довідки" вужча за реал�
       <bpmn:incoming>Flow_SubmitJoin_to_End</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_Start_to_FirstWorkday" sourceRef="StartEvent_Start" targetRef="IntermediateCatch_FirstWorkday" />
+    <bpmn:sequenceFlow id="Flow_Manual_to_LoadSchedule" sourceRef="StartEvent_Manual" targetRef="ServiceTask_LoadSchedule" />
     <bpmn:sequenceFlow id="Flow_FirstWorkday_to_LoadSchedule" sourceRef="IntermediateCatch_FirstWorkday" targetRef="ServiceTask_LoadSchedule" />
-    <bpmn:sequenceFlow id="Flow_LoadSchedule_to_FillTable" sourceRef="ServiceTask_LoadSchedule" targetRef="UserTask_FillTable" />
+    <bpmn:sequenceFlow id="Flow_LoadSchedule_to_CreateMain" sourceRef="ServiceTask_LoadSchedule" targetRef="ServiceTask_CreateMainOdooTask" />
+    <bpmn:sequenceFlow id="Flow_CreateMain_to_FillTable" sourceRef="ServiceTask_CreateMainOdooTask" targetRef="UserTask_FillTable" />
     <bpmn:sequenceFlow id="Flow_FillTable_to_FetchRRO" sourceRef="UserTask_FillTable" targetRef="ServiceTask_FetchRRO" />
     <bpmn:sequenceFlow id="Flow_FetchRRO_to_Webchek" sourceRef="ServiceTask_FetchRRO" targetRef="ServiceTask_GenerateWebchekReports" />
     <bpmn:sequenceFlow id="Flow_Webchek_to_Send" sourceRef="ServiceTask_GenerateWebchekReports" targetRef="UserTask_FillRROinTable" />
@@ -271,6 +377,15 @@ NB: назва "Підготувати довідки" вужча за реал�
         <bpmndi:BPMNLabel>
           <dc:Bounds x="160" y="160" width="82" height="40" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Manual_di" bpmnElement="StartEvent_Manual">
+        <dc:Bounds x="102" y="312" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="80" y="352" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_CreateMainOdooTask_di" bpmnElement="ServiceTask_CreateMainOdooTask">
+        <dc:Bounds x="350" y="370" width="180" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ServiceTask_LoadSchedule_di" bpmnElement="ServiceTask_LoadSchedule">
         <dc:Bounds x="250" y="180" width="180" height="80" />
@@ -365,9 +480,21 @@ NB: назва "Підготувати довідки" вужча за реал�
         <di:waypoint x="218" y="220" />
         <di:waypoint x="250" y="220" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_LoadSchedule_to_FillTable_di" bpmnElement="Flow_LoadSchedule_to_FillTable">
-        <di:waypoint x="430" y="220" />
-        <di:waypoint x="520" y="220" />
+      <bpmndi:BPMNEdge id="Flow_Manual_to_LoadSchedule_di" bpmnElement="Flow_Manual_to_LoadSchedule">
+        <di:waypoint x="138" y="330" />
+        <di:waypoint x="200" y="330" />
+        <di:waypoint x="200" y="220" />
+        <di:waypoint x="250" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_LoadSchedule_to_CreateMain_di" bpmnElement="Flow_LoadSchedule_to_CreateMain">
+        <di:waypoint x="340" y="260" />
+        <di:waypoint x="340" y="410" />
+        <di:waypoint x="350" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_CreateMain_to_FillTable_di" bpmnElement="Flow_CreateMain_to_FillTable">
+        <di:waypoint x="530" y="410" />
+        <di:waypoint x="610" y="410" />
+        <di:waypoint x="610" y="260" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_FillTable_to_FetchRRO_di" bpmnElement="Flow_FillTable_to_FetchRRO">
         <di:waypoint x="610" y="260" />
