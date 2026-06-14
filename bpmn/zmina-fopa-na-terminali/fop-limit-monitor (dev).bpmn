@@ -45,7 +45,7 @@
         <zeebe:taskDefinition type="http-request-smart" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="= &#34;POST&#34;" target="method" />
-          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/bb450e05-4673-4cc9-9ba3-8674da99dc61&#34;" target="url" />
+          <zeebe:input source="= &#34;http://karavaieva.dev-odoo.a.local/web/hook/9ad66414-a12f-41ed-82a9-04e10dc143a2&#34;" target="url" />
           <zeebe:input source="= {&#34;Content-Type&#34;:&#34;application/json&#34;}" target="headers" />
           <zeebe:input source="= {action: &#34;fop_limit_report&#34;, report: report_json}" target="body" />
         </zeebe:ioMapping>
@@ -75,7 +75,7 @@
           <zeebe:input source="= fop.trend_ratio" target="trend_ratio" />
           <zeebe:input source="= string(processInstanceKey)" target="process_instance_key" />
           <zeebe:input source="=fop.employee_count" target="employee_count" />
-          <zeebe:input source="= if is defined(fop.company) then fop.company else fop.organization" target="company" />
+          <zeebe:input source="= if fop.company != null then fop.company else fop.organization" target="company" />
           <zeebe:input source="= if is defined(fop.current_terminal_stores) then fop.current_terminal_stores else &#34;&#34;" target="current_terminal_stores" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>

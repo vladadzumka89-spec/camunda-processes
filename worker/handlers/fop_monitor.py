@@ -532,6 +532,7 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
                 "terminal_change": fop_entry["terminal_change"],
                 "terminal_change_percent": fop_entry["terminal_change_percent"],
                 "company": fop_entry.get("company", ""),
+                "organization": fop_entry.get("organization", ""),
                 # Адреси ТРЦ за кодом магазину — BPMN робить lookup за
                 # selected_store, який вибере бухгалтер у першій задачі.
                 "store_addresses": store_addresses,

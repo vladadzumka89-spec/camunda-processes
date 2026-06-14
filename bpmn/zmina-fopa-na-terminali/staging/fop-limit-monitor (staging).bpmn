@@ -75,7 +75,7 @@
           <zeebe:input source="= fop.trend_ratio" target="trend_ratio" />
           <zeebe:input source="= string(processInstanceKey)" target="process_instance_key" />
           <zeebe:input source="=fop.employee_count" target="employee_count" />
-          <zeebe:input source="= if is defined(fop.company) then fop.company else fop.organization" target="company" />
+          <zeebe:input source="= if fop.company != null then fop.company else fop.organization" target="company" />
           <zeebe:input source="= if is defined(fop.current_terminal_stores) then fop.current_terminal_stores else &#34;&#34;" target="current_terminal_stores" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
