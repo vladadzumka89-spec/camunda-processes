@@ -531,6 +531,7 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
                 "trend_ratio": fop_entry["trend_ratio"],
                 "terminal_change": fop_entry["terminal_change"],
                 "terminal_change_percent": fop_entry["terminal_change_percent"],
+                "company": fop_entry.get("company", ""),
                 # Адреси ТРЦ за кодом магазину — BPMN робить lookup за
                 # selected_store, який вибере бухгалтер у першій задачі.
                 "store_addresses": store_addresses,
@@ -776,6 +777,12 @@ def _run_fop_check(days_ahead: int = 18) -> dict:
         else:
             fop_entry["current_terminal_stores"] = ""
             has_actionable = False
+
+    _fop_entry_by_edrpou = {f["fop_edrpou"]: f for f in all_fops_report}
+    for cf in critical_fops:
+        fe = _fop_entry_by_edrpou.get(cf["fop_edrpou"])
+        if fe:
+            cf["current_terminal_stores"] = fe.get("current_terminal_stores", "")
 
         # Історія підключень ФОПа: хронологічно (старі зверху)
         periods = sorted(
